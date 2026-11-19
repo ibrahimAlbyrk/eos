@@ -119,12 +119,20 @@ pub fn read(asked: &Asked<'_>, routines: &[Known]) -> Reading {
     });
     let item_of = |routine: &Known| routine.item_in(&haystack).map(str::to_owned);
 
-    if let Some(forced) = asked.forced {
-        let item = routine.and_then(item_of);
+    let recognising: Vec<&Known> = routines.iter().filter(|routine| routine.item_in(&haystack).is_some()).collect();
+    if let Some(forced) = asked.forced.filter(|forced| *forced != IntentKind::Unsure) {
         let needs_routine = matches!(forced, IntentKind::Run | IntentKind::Change);
-        if !needs_routine || routine.is_some() {
-            return sure(forced, routine, item);
+        // A forced run that names no routine may still hold one routine's
+        // item; past that the rules cannot honour the mode, so they only
+        // offer choices.
+        let routine = routine.or(match recognising.as_slice() {
+            [one] if forced == IntentKind::Run => Some(*one),
+            _ => None,
+        });
+        if needs_routine && routine.is_none() {
+            return unsure(named.iter().chain(&recognising).copied(), &haystack);
         }
+        return sure(forced, routine, routine.and_then(item_of));
     }
     if let Some(routine) = picked {
         let intent = if changes(&lower) { IntentKind::Change } else { IntentKind::Run };
@@ -138,7 +146,6 @@ pub fn read(asked: &Asked<'_>, routines: &[Known]) -> Reading {
             return sure(IntentKind::Run, Some(routine), Some(item));
         }
     }
-    let recognising: Vec<&Known> = routines.iter().filter(|routine| routine.item_in(&haystack).is_some()).collect();
     if let [one] = recognising.as_slice() {
         return sure(IntentKind::Run, Some(*one), item_of(one));
     }

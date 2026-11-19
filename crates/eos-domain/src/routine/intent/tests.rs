@@ -172,6 +172,13 @@ fn a_forced_mode_or_a_picked_routine_decides() {
     assert_eq!(forced(IntentKind::Make, None, "hello"), sure(IntentKind::Make, None));
     assert_eq!(forced(IntentKind::Run, Some("rt-mail"), "#4"), sure(IntentKind::Run, Some("rt-mail")));
     assert_eq!(forced(IntentKind::Change, None, "PR Review tone"), sure(IntentKind::Change, Some("rt-pr")));
+    assert_eq!(forced(IntentKind::Run, None, "#4"), sure(IntentKind::Run, Some("rt-pr")), "the item's routine");
+    for (mode, text) in [(IntentKind::Run, "every morning sum up my day"), (IntentKind::Change, "make it shorter")] {
+        let (intent, certain, _) = forced(mode, None, text);
+        assert_eq!((intent, certain), (IntentKind::Unsure, false), "{mode:?} with no routine: {text}");
+    }
+    let (intent, certain, _) = forced(IntentKind::Unsure, None, "every morning sum up my day");
+    assert_eq!((intent, certain), (IntentKind::Make, true), "a forced unsure forces nothing");
     let picked = |text| {
         let reading = read(&Asked { text, routine_id: Some("rt-pr"), ..Asked::default() }, &routines());
         (reading.intent, reading.item)
