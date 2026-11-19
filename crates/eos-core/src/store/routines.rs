@@ -120,6 +120,8 @@ pub trait RoutineSessionRepo {
     fn find(&self, worker_id: &str) -> Result<Option<StoredRoutineSession>, Error>;
     /// A run's sessions, in the order they were written.
     fn by_run(&self, run_id: &str) -> Result<Vec<StoredRoutineSession>, Error>;
+    /// The sessions of every run that has not ended.
+    fn of_live_runs(&self) -> Result<Vec<StoredRoutineSession>, Error>;
     /// The run the worker works for; `None` for a worker of no run, the
     /// architect's included. Its trust is the version's, or untrusted when
     /// an item of the run is.

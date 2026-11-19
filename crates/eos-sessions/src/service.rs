@@ -11,7 +11,7 @@ use eos_contracts::{
     TurnEventPhase, WorkerEventType, WorkerState, WorkflowRunProgress,
 };
 use eos_core::agent::{
-    AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, CompactionNotice, ModelCatalog,
+    AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, CompactionNotice, LaunchSpec, ModelCatalog,
     PromptAssembler, SessionSink, ToolInputDelta,
 };
 use eos_core::git::WorktreeManager;
@@ -61,6 +61,10 @@ pub trait SessionHooks: Send + Sync + 'static {
     fn folder_exists(&self, _path: &str) -> bool {
         true
     }
+    /// The last word on how a session starts, right before it does, at a
+    /// spawn and at every resume: what a feature keeps of a worker that its
+    /// row does not hold.
+    fn shape_launch(&self, _spec: &mut LaunchSpec) {}
 }
 
 /// The pauses before each new try of a batch of events the database did not take

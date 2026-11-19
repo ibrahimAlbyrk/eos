@@ -10,14 +10,18 @@ mod brief;
 mod cancel;
 mod control;
 mod exec;
+mod grants;
 mod idle;
+mod launch;
 mod ports;
 mod start;
 mod supervisor;
 
 pub(crate) use control::Control;
 pub(crate) use exec::Tools;
+pub(crate) use grants::Grants;
 pub(crate) use idle::{lead_idle_hook, session_exited};
+pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use ports::{Directory, Intake, Lookup};
 
 use std::collections::HashMap;
@@ -25,6 +29,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::ScratchFolders;
+use eos_core::capability::CapabilityReads;
 use eos_core::routine::{RunCreated, RunFolders};
 use eos_core::store::{Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -62,6 +67,10 @@ pub(crate) struct Engine {
     pub(crate) folders: Arc<dyn RunFolders>,
     /// Each working run's latest progress line, never stored or logged.
     pub(crate) progress: Mutex<HashMap<String, String>>,
+    /// How each run session starts, by worker.
+    pub(crate) launches: Mutex<HashMap<String, launch::RunLaunch>>,
+    /// The capabilities there are, for what a run session may call.
+    pub(crate) reads: Arc<dyn CapabilityReads>,
 }
 
 impl Engine {

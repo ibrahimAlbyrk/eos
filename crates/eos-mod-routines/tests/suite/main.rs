@@ -2,6 +2,7 @@
 
 mod bench;
 mod control;
+mod isolation;
 mod ports;
 mod routes;
 mod solo;

@@ -21,8 +21,8 @@ use eos_sessions::{SessionDeps, SessionHooks, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSleeper, FakeWorktrees,
-    ScriptedRuntime, SeqIds, TempStore,
+    FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSleeper,
+    FakeWorktrees, ScriptedRuntime, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -40,6 +40,8 @@ pub(crate) struct Bench {
     pub(crate) sessions: Sessions,
     pub(crate) hooks: Arc<Hooks>,
     pub(crate) recents: Arc<FakeRecents>,
+    pub(crate) reads: Arc<FakeCapabilityReads>,
+    autostart: bool,
 }
 
 /// The app's hooks around sessions, as far as routines hear them: a
@@ -67,6 +69,12 @@ impl SessionHooks for Hooks {
         self.module().is_some_and(|module| module.holds_worker(worker_id))
     }
 
+    fn shape_launch(&self, spec: &mut eos_core::agent::LaunchSpec) {
+        if let Some(module) = self.module() {
+            module.shape_launch(spec);
+        }
+    }
+
     fn idle(&self, worker_id: &str) {
         if let Some(module) = self.module().filter(|_| self.idle.load(Ordering::SeqCst)) {
             let id = worker_id.to_owned();
@@ -77,6 +85,11 @@ impl SessionHooks for Hooks {
 
 impl Bench {
     pub(crate) fn new(autostart: bool) -> Self {
+        Self::with_reads(autostart, FakeCapabilityReads::new())
+    }
+
+    /// With the capabilities `reads` lists.
+    pub(crate) fn with_reads(autostart: bool, reads: FakeCapabilityReads) -> Self {
         let temp = TempStore::new();
         let (clock, sleeper) = (Arc::new(FakeClock::new()), Arc::new(FakeSleeper::default()));
         let (agents, hooks, recents) =
@@ -94,22 +107,30 @@ impl Bench {
             hooks: hooks.clone(),
             sleeper: Arc::new(FakeSleeper::default()),
         });
-        let library = Arc::new(LibraryPromptSource::embedded());
-        let module = Arc::new(RoutinesModule::new(RoutinesParts {
-            store: temp.port(),
-            clock: clock.clone(),
-            sleeper: sleeper.clone(),
-            ids: Arc::new(SeqIds::new()),
-            device: "mac-1".into(),
-            autostart,
-            sessions: sessions.clone(),
-            prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
-            scratch: Arc::new(FakeScratch::default()),
-            folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
-        }));
+        let reads = Arc::new(reads);
+        let module = module(&temp, &clock, &sleeper, &sessions, &reads, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
-        Self { module, runs, temp, clock, sleeper, ids: SeqIds::new(), agents, sessions, hooks, recents }
+        Self {
+            module,
+            runs,
+            temp,
+            clock,
+            sleeper,
+            ids: SeqIds::new(),
+            agents,
+            sessions,
+            hooks,
+            recents,
+            reads,
+            autostart,
+        }
+    }
+
+    /// A second module over the same store, sessions and folders: the app
+    /// as it comes back after a restart.
+    pub(crate) fn another_module(&self) -> Arc<RoutinesModule> {
+        module(&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads, self.autostart)
     }
 
     /// Starts the supervisor.
@@ -208,6 +229,30 @@ impl Bench {
         }
         assert!(done(), "never happened");
     }
+}
+
+fn module(
+    temp: &TempStore,
+    clock: &Arc<FakeClock>,
+    sleeper: &Arc<FakeSleeper>,
+    sessions: &Sessions,
+    reads: &Arc<FakeCapabilityReads>,
+    autostart: bool,
+) -> Arc<RoutinesModule> {
+    let library = Arc::new(LibraryPromptSource::embedded());
+    Arc::new(RoutinesModule::new(RoutinesParts {
+        store: temp.port(),
+        clock: clock.clone(),
+        sleeper: sleeper.clone(),
+        ids: Arc::new(SeqIds::new()),
+        device: "mac-1".into(),
+        autostart,
+        sessions: sessions.clone(),
+        prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
+        scratch: Arc::new(FakeScratch::default()),
+        folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
+        reads: reads.clone(),
+    }))
 }
 
 pub(crate) fn new_run(routine: &str, origin: RunOrigin, item: Option<ItemRef>) -> NewRun {

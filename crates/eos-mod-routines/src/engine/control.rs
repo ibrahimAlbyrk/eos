@@ -191,7 +191,7 @@ impl RoutineControl for Control {
 }
 
 /// A need is kept as it came: a capability's id, or an object with one.
-fn names(need: &Value, capability_id: &str) -> bool {
+pub(crate) fn names(need: &Value, capability_id: &str) -> bool {
     match need {
         Value::String(id) => id == capability_id,
         Value::Object(fields) => fields.get("id").and_then(Value::as_str) == Some(capability_id),
