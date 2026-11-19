@@ -19,8 +19,8 @@ function stubStorage() {
 const draw = () => renderToStaticMarkup(<UiProvider><EosView live={{ workers: [] }} /></UiProvider>);
 
 // A key on a Mac → whether a binding took it.
-function press(code, { ctrl = false } = {}) {
-  const e = { metaKey: true, ctrlKey: ctrl, altKey: false, shiftKey: false, key: "", code, preventDefault: vi.fn() };
+function press(code, { ctrl = false, key = "" } = {}) {
+  const e = { metaKey: true, ctrlKey: ctrl, altKey: false, shiftKey: false, key, code, preventDefault: vi.fn() };
   const binding = bindings.find((b) => b.match(e));
   binding?.run({}, e);
   return Boolean(binding);
@@ -67,5 +67,11 @@ describe("EosView", () => {
     expect(press("BracketRight")).toBe(true);
     expect(eosLocation()).toBe("eos:/memory");
     expect(press("BracketLeft", { ctrl: true })).toBe(false);
+  });
+
+  it("opens a new routine with ⌘N", () => {
+    draw();
+    expect(press("KeyN", { key: "n" })).toBe(true);
+    expect(eosLocation()).toBe("eos:/routines/new");
   });
 });

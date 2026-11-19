@@ -1,0 +1,61 @@
+import { useState } from "react";
+import { PartEditor } from "./slots/editors.jsx";
+
+function Lock() {
+  return (
+    <svg className="eos-bp-lock" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <rect x="3" y="7" width="10" height="7" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </svg>
+  );
+}
+
+// One part of a slot's words. Read-only, a part is plain text and the parts
+// that only add or remove are left out.
+function Part({ part, editable, open, setOpen, apply }) {
+  if (typeof part === "string") return part;
+  if (part.break) return <span className="eos-bp-break" />;
+  if (part.locked) return <span className="eos-bp-locked"><Lock />{part.text}<span className="eos-sr">, locked</span></span>;
+  if (!editable) {
+    if (part.editor === "act" || part.optional) return null;
+    return <span className={part.chip ? "eos-bp-chip" : undefined}>{part.text}{part.sub && <span className="eos-bp-chip__sub">{part.sub}</span>}</span>;
+  }
+  if (part.editor === "act") {
+    return <button type="button" className="eos-bp-act" aria-label={part.label} onClick={() => apply(part.apply())}>{part.text}</button>;
+  }
+  return (
+    <button
+      type="button"
+      className={part.chip ? "eos-bp-chip eos-bp-value" : "eos-bp-value"}
+      aria-haspopup={part.editor === "menu" ? "menu" : "dialog"}
+      aria-expanded={open}
+      onClick={() => setOpen(open ? null : part.key)}
+    >
+      {part.text}{part.sub && <span className="eos-bp-chip__sub">{part.sub}</span>}
+    </button>
+  );
+}
+
+// A row of the blueprint card: the slot's name and its words. With `onApply`
+// each underlined value opens its own small editor, and a value chosen there
+// becomes the slot's new value. `changed` marks a slot that differs from
+// the version it is compared with.
+export function SlotRow({ label, parts, onApply, changed = false }) {
+  const [open, setOpen] = useState(null);
+  const editable = Boolean(onApply);
+  const opened = editable && parts.find((p) => typeof p === "object" && p.key === open);
+  const done = (value) => {
+    setOpen(null);
+    if (value !== undefined) onApply(opened.apply(value));
+  };
+  return (
+    <div className={changed ? "eos-bp-row eos-bp-row--changed" : "eos-bp-row"}>
+      <dt className="eos-bp-row__label">{label}{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
+      <dd className="eos-bp-row__value">
+        {parts.map((p, n) => (
+          <Part key={typeof p === "object" && p.key ? p.key : n} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
+        ))}
+        {opened && <PartEditor part={opened} done={done} />}
+      </dd>
+    </div>
+  );
+}

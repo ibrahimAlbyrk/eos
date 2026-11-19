@@ -1,3 +1,4 @@
+import { NewRoutine } from "./blueprint/NewRoutine.jsx";
 import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosHeader } from "./nav/EosHeader.jsx";
@@ -44,6 +45,7 @@ export function EosMain() {
   // Until Home arrives (P5), Eos's start shows what needs the user.
   if (location?.screen === "home" || location?.screen === "needs") return <NeedsYouList />;
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
+  if (location?.screen === "new-routine") return <NewRoutine />;
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
   if (location?.screen === "run") return <RunView key={location.runId} id={location.runId} />;
   if (location?.screen === "capabilities") return <CapabilitiesScreen />;

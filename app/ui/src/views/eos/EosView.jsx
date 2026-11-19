@@ -1,11 +1,11 @@
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
-import { isMod } from "../../keymap/index.js";
+import { combo, isMod } from "../../keymap/index.js";
 import { EosMain } from "./EosMain.jsx";
 import { EosSidebar } from "./sidebar/EosSidebar.jsx";
-import { goBack, goForward } from "./nav/eosNav.js";
+import { goBack, goForward, openLocation } from "./nav/eosNav.js";
 
-// ⌘[ / ⌘] walk Eos's own history. Matched by the key's place, as ⌘⌃1…9 are,
+// ⌘N opens a new routine. ⌘[ / ⌘] walk Eos's own history. Matched by the key's place, as ⌘⌃1…9 are,
 // so every keyboard layout has them where a US one does.
 const historyKey = (code) => (e) => isMod(e) && e.code === code;
 
@@ -16,5 +16,6 @@ export function EosView({ live }) {
   useGlobalKeymap();
   useKeybinding({ match: historyKey("BracketLeft"), run: (ctx, e) => { e.preventDefault(); goBack(); } }, []);
   useKeybinding({ match: historyKey("BracketRight"), run: (ctx, e) => { e.preventDefault(); goForward(); } }, []);
+  useKeybinding({ match: combo("mod+n"), run: (ctx, e) => { e.preventDefault(); openLocation("eos:/routines/new"); } }, []);
   return <AppLayout gridClass="eos-mode" sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<EosMain />} />;
 }

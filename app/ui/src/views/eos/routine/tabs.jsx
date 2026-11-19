@@ -1,7 +1,7 @@
+import { BlueprintEditor } from "../blueprint/BlueprintEditor.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { RightNow } from "./RightNow.jsx";
 import { RunRow } from "./RoutineRuns.jsx";
-import { slotRows } from "./words.js";
 
 // The tabs this version has; Learned waits for Memory (P4) and shows Overview.
 export const TABS = [
@@ -67,15 +67,7 @@ export function OverviewTab({ detail, now }) {
   );
 }
 
-// The blueprint's slots, read-only.
+// The blueprint editor with its architect (views/eos/blueprint).
 export function BlueprintTab({ detail }) {
-  return (
-    <section className="eos-card" aria-label="Blueprint">
-      <dl className="eos-facts">
-        {slotRows(detail.routine, detail.head?.blueprint).map((s) => (
-          <div key={s.label} className="eos-facts__row"><dt>{s.label}</dt><dd>{s.value}</dd></div>
-        ))}
-      </dl>
-    </section>
-  );
+  return <BlueprintEditor detail={detail} />;
 }

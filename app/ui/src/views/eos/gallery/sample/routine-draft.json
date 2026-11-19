@@ -1,0 +1,35 @@
+{
+  "routine": {
+    "id": "rt-6t1y4u8i2o5p",
+    "slug": "docs-review",
+    "name": "Docs Review",
+    "summary": "Reviews each pull request that changes the docs and drafts a review.",
+    "icon": "eye",
+    "aliases": [
+      "docs"
+    ],
+    "kind": "standing",
+    "state": "draft",
+    "rung": "draft",
+    "takes": {
+      "kind": "github.pull_request",
+      "source": "github.pulls",
+      "label": "pull request",
+      "placeholder": "#470",
+      "empty": "required",
+      "many": true,
+      "itemPatterns": []
+    },
+    "options": [],
+    "runs7d": 0,
+    "activeRuns": 0
+  },
+  "draft": {
+    "purpose": "Review every pull request that touches the docs. Show me first.",
+    "status": "asking",
+    "question": "Should it review **draft** pull requests too?",
+    "draftVersionId": "rv-9w3e7r1t5y2u",
+    "updatedAt": 1763452800000
+  },
+  "runs": []
+}

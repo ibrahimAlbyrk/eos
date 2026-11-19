@@ -1,0 +1,282 @@
+{
+  "rt-6t1y4u8i2o5p": [
+    {
+      "id": "rv-9w3e7r1t5y2u",
+      "number": 1,
+      "status": "draft",
+      "author": "architect",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763452800000,
+      "hash": "sha256:0d1e2f3a",
+      "blueprint": {
+        "format": 1,
+        "name": "Docs Review",
+        "summary": "Reviews each pull request that changes the docs and drafts a review.",
+        "icon": "eye",
+        "aliases": [
+          "docs"
+        ],
+        "kind": "standing",
+        "takes": {
+          "kind": "github.pull_request",
+          "source": "github.pulls",
+          "label": "pull request",
+          "placeholder": "#470",
+          "empty": "required",
+          "many": true
+        },
+        "options": [],
+        "when": {
+          "on": [
+            {
+              "source": "github.pulls",
+              "scope": {
+                "repo": "acme/game"
+              },
+              "events": [
+                "opened",
+                "updated"
+              ]
+            },
+            {
+              "schedule": {
+                "daily": "07:30",
+                "days": "weekdays",
+                "zone": "Europe/Istanbul"
+              }
+            }
+          ],
+          "limits": {
+            "perHour": 30,
+            "queued": 25
+          }
+        },
+        "which": {
+          "rule": {
+            "all": [
+              {
+                "fact": "draft",
+                "is": false
+              },
+              {
+                "fact": "paths",
+                "glob": "docs/**"
+              }
+            ]
+          },
+          "ask": "Does it change what a reader is told?"
+        },
+        "who": {
+          "depth": "team",
+          "agents": [
+            {
+              "key": "lead",
+              "name": "Editor",
+              "lead": true,
+              "brief": "You are the editor.",
+              "model": "sonnet",
+              "effort": "medium",
+              "tools": {
+                "allow": [],
+                "deny": []
+              },
+              "readsOutside": false,
+              "workspace": "read"
+            },
+            {
+              "key": "reader",
+              "name": "Reader",
+              "lead": false,
+              "brief": "Read the pull request.",
+              "model": "haiku",
+              "effort": "low",
+              "tools": {
+                "allow": [],
+                "deny": []
+              },
+              "readsOutside": true,
+              "workspace": "read"
+            }
+          ],
+          "checker": {
+            "model": "sonnet",
+            "effort": "high"
+          }
+        },
+        "how": {
+          "steps": [
+            "Read the changed pages",
+            "Check every link"
+          ],
+          "checks": [
+            {
+              "key": "cites",
+              "text": "Every comment names a line."
+            }
+          ],
+          "format": "review",
+          "checkAgent": true
+        },
+        "makes": {
+          "kind": "github.review",
+          "description": "A pending review with line comments."
+        },
+        "goesTo": [
+          {
+            "id": "pr",
+            "kind": "item_place",
+            "channel": "github",
+            "bound": {
+              "fact": "repo",
+              "in": [
+                "acme/game"
+              ]
+            }
+          }
+        ],
+        "freedom": {
+          "rung": "draft",
+          "grants": []
+        },
+        "limits": {
+          "perRunUsd": 2,
+          "perRunMinutes": 30,
+          "perDayUsd": 5,
+          "parallel": 1
+        },
+        "needs": [
+          "github"
+        ]
+      }
+    }
+  ],
+  "rt-2x8k5n1q6w0r": [
+    {
+      "id": "rv-1a2s3d4f5g6h",
+      "number": 1,
+      "status": "kept",
+      "author": "architect",
+      "note": "Made by talking.",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763280000000,
+      "hash": "sha256:1b2c3d4e",
+      "blueprint": {
+        "format": 1,
+        "name": "Mail Triage",
+        "takes": {
+          "label": "mail"
+        },
+        "when": {
+          "on": [
+            {
+              "source": "mail.inbox",
+              "scope": {
+                "account": "work"
+              },
+              "events": [
+                "received"
+              ]
+            }
+          ]
+        },
+        "who": {
+          "depth": "solo",
+          "agents": [
+            {
+              "key": "sorter",
+              "name": "Sorter"
+            }
+          ]
+        },
+        "how": {
+          "steps": [
+            "Sort the mail"
+          ]
+        },
+        "makes": {
+          "description": "Draft replies"
+        },
+        "goesTo": [
+          {
+            "id": "me",
+            "kind": "me",
+            "channel": "mail"
+          }
+        ],
+        "freedom": {
+          "rung": "ask"
+        }
+      }
+    },
+    {
+      "id": "rv-7j8k9l0z1x2c",
+      "number": 3,
+      "parentId": "rv-3m7p1q5r9s2t",
+      "status": "draft",
+      "author": "architect",
+      "note": "A writer joins the sorter.",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763452800000,
+      "hash": "sha256:5f6a7b8c",
+      "blueprint": {
+        "format": 1,
+        "name": "Mail Triage",
+        "takes": {
+          "label": "mail"
+        },
+        "when": {
+          "on": [
+            {
+              "source": "mail.inbox",
+              "scope": {
+                "account": "work"
+              },
+              "events": [
+                "received"
+              ]
+            }
+          ]
+        },
+        "who": {
+          "depth": "team",
+          "agents": [
+            {
+              "key": "sorter",
+              "name": "Sorter",
+              "lead": true,
+              "model": "haiku"
+            },
+            {
+              "key": "writer",
+              "name": "Writer",
+              "lead": false,
+              "model": "sonnet"
+            }
+          ]
+        },
+        "how": {
+          "steps": [
+            "Sort the mail",
+            "Draft the replies that matter"
+          ]
+        },
+        "makes": {
+          "description": "Draft replies"
+        },
+        "goesTo": [
+          {
+            "id": "me",
+            "kind": "me",
+            "channel": "mail"
+          }
+        ],
+        "freedom": {
+          "rung": "draft"
+        }
+      }
+    }
+  ]
+}
