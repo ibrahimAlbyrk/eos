@@ -30,6 +30,8 @@ pub(crate) struct RunLaunch {
     pub(crate) trust: Trust,
     /// A specialist that reads outside text: its reports are marked as such.
     pub(crate) reads_outside: bool,
+    /// The agent of the routine's Who it is; `None` for the checker.
+    pub(crate) agent_key: Option<String>,
 }
 
 /// An agent's own fence, when it has one.
@@ -91,8 +93,13 @@ pub(crate) async fn rebuild(engine: &Engine) -> Result<(), Error> {
                         run.role == RunRole::Specialist && run.agent_key.as_deref() == Some(agent.key.as_str())
                     });
                     let reads_outside = agent.is_some_and(|agent| agent.reads_outside);
-                    let launch =
-                        RunLaunch { routine_id: run.routine_id, run_id: run.run_id, trust: run.trust, reads_outside };
+                    let launch = RunLaunch {
+                        routine_id: run.routine_id,
+                        run_id: run.run_id,
+                        trust: run.trust,
+                        reads_outside,
+                        agent_key: run.agent_key,
+                    };
                     launches.push((session.worker_id, launch));
                 }
             }

@@ -42,6 +42,9 @@
 //! Needs you composes its own) in the run's own write; Needs you reports
 //! what became of it through [`RunOutcomes`].
 //!
+//! What each of a run's agents is doing goes out on `run:activity`, one
+//! line a second per run at most, to the tabs that show the run.
+//!
 //! The run routes start runs by hand (`POST /api/runs`), estimate them
 //! (`POST /api/runs/estimate`), list and show them (`GET /api/runs`,
 //! `…/:id`, `…/:id/result`, `…/:id/events`), steer them (`…/:id/message`,
@@ -55,7 +58,7 @@ mod routes;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use eos_contracts::{RoutineChange, RunChange, RunsActive};
+use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
@@ -65,7 +68,7 @@ use eos_core::routine::{
 use eos_core::store::{ConfigSource, Store};
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
-use eos_runtime::bus::{Topic, TopicDecl};
+use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
@@ -78,6 +81,8 @@ pub use crate::engine::ShowOnlyGate;
 pub const ROUTINE_CHANGE: Topic<RoutineChange> = Topic::new("routine:change");
 pub const RUN_CHANGE: Topic<RunChange> = Topic::new("run:change");
 pub const RUNS_ACTIVE: Topic<RunsActive> = Topic::new("runs:active");
+pub const RUN_ACTIVITY: Topic<RunActivity> =
+    Topic::scoped("run:activity", ScopeKind::Run, |activity| Some(activity.run_id.as_str()));
 
 /// What the module is built from.
 pub struct RoutinesParts {
@@ -106,6 +111,8 @@ pub struct RoutinesParts {
     pub keys: Arc<dyn ProjectKeys>,
     /// Fetches a pull request's head into that clone, with the user's git.
     pub remotes: Arc<dyn RemoteSync>,
+    /// Where what a run's agents do goes out (`run:activity`).
+    pub bus: Bus,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -144,6 +151,7 @@ impl RoutinesModule {
             config,
             keys,
             remotes,
+            bus,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -169,6 +177,8 @@ impl RoutinesModule {
             keys,
             remotes,
             reports: Mutex::new(HashMap::new()),
+            bus,
+            activity: Mutex::new(HashMap::new()),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -222,7 +232,7 @@ impl Module for RoutinesModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![ROUTINE_CHANGE.decl(), RUN_CHANGE.decl(), RUNS_ACTIVE.decl()]
+        vec![ROUTINE_CHANGE.decl(), RUN_CHANGE.decl(), RUNS_ACTIVE.decl(), RUN_ACTIVITY.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {
@@ -243,6 +253,10 @@ impl Module for RoutinesModule {
 
     fn shape_launch(&self, spec: &mut LaunchSpec) {
         engine::shape_launch(&self.engine, spec);
+    }
+
+    fn on_agent_event(&self, worker_id: &str, event: &eos_contracts::AgentEvent) {
+        engine::agent_event(&self.engine, worker_id, event);
     }
 
     fn shape_report(&self, worker_id: &str, text: &mut String) {

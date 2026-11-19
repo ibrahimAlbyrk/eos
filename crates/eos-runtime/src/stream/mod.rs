@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 
-use crate::bus::{Bus, Event, Filter, Scope, Subscription};
+use crate::bus::{Bus, Event, Filter, Scope, ScopeKind, Subscription};
 use crate::http::{Body, BodyStream};
 use client::{Client, ClientStream};
 use eos_core::Ids;
@@ -262,6 +262,8 @@ impl State {
         }
         match (scope, tab.and_then(|t| self.focus.get(t))) {
             (Some(scope), Some(focus)) => focus.shows(scope),
+            // A run's activity only reaches a tab that shows the run.
+            (Some(scope), None) if scope.kind == ScopeKind::Run => false,
             // An unscoped event, or a tab that declared nothing: everything.
             _ => true,
         }

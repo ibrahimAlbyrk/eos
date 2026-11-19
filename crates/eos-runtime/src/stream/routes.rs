@@ -25,8 +25,11 @@ pub fn routes(hub: StreamHub, live: LiveText) -> Vec<RouteDef> {
             let topics = query.has("topics").then(|| query.list("topics"));
             // ?focus= (even empty) = the tab says what it has on screen;
             // POST /stream/focus keeps it current.
-            let focus =
-                query.has("focus").then(|| StreamFocus { workers: query.list("focus"), ptys: query.list("ptys") });
+            let focus = query.has("focus").then(|| StreamFocus {
+                workers: query.list("focus"),
+                ptys: query.list("ptys"),
+                runs: query.list("runs"),
+            });
             let client_id = query.get("clientId").map(|c| c.into_owned());
             let attached = hub.attach(AttachOptions { since, topics, client_id, focus });
             let body = attached.map_err(|e| ApiError::status_with(503, e.to_string()))?;
@@ -44,7 +47,7 @@ pub fn routes(hub: StreamHub, live: LiveText) -> Vec<RouteDef> {
         async move {
             let body: StreamFocusRequest = req.parse()?;
             let client_id = body.client_id;
-            let focus = StreamFocus { workers: body.workers, ptys: body.ptys };
+            let focus = StreamFocus { workers: body.workers, ptys: body.ptys, runs: body.runs };
             hub.set_focus(&client_id, &focus);
             let live = focus.workers.iter().flat_map(|id| live.blocks_for(id)).collect();
             Ok(Response::json(200, &StreamFocusResponse { live }))

@@ -33,17 +33,19 @@ impl Wants {
 }
 
 /// What a dashboard tab has on screen. Its streams then carry the
-/// high-volume scoped topics only for these workers and terminals.
+/// high-volume scoped topics only for these workers, terminals and runs.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StreamFocus {
     pub workers: Vec<String>,
     pub ptys: Vec<String>,
+    pub runs: Vec<String>,
 }
 
 #[derive(Debug)]
 pub(super) struct Focus {
     workers: HashSet<Box<str>>,
     ptys: HashSet<Box<str>>,
+    runs: HashSet<Box<str>>,
     /// When it was last set: the oldest is forgotten first.
     pub(super) stamp: u64,
 }
@@ -53,6 +55,7 @@ impl Focus {
         Self {
             workers: focus.workers.iter().map(|w| w.as_str().into()).collect(),
             ptys: focus.ptys.iter().map(|p| p.as_str().into()).collect(),
+            runs: focus.runs.iter().map(|r| r.as_str().into()).collect(),
             stamp,
         }
     }
@@ -61,6 +64,7 @@ impl Focus {
         match scope.kind {
             ScopeKind::Worker => self.workers.contains(scope.id.as_ref()),
             ScopeKind::Pty => self.ptys.contains(scope.id.as_ref()),
+            ScopeKind::Run => self.runs.contains(scope.id.as_ref()),
         }
     }
 }

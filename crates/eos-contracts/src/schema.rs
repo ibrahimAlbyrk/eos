@@ -533,6 +533,7 @@ bundle![
     RowsFrame,
     Rule,
     RuleMisses,
+    RunActivity,
     RunAgent,
     RunAgentLookup,
     RunChange,

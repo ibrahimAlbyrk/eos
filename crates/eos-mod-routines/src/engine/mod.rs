@@ -6,6 +6,7 @@
 //! the run's timeline and announces it on `run:change` from the job's
 //! outbox.
 
+mod activity;
 mod brief;
 mod cancel;
 mod check;
@@ -24,6 +25,7 @@ mod supervisor;
 mod team;
 mod workspace;
 
+pub(crate) use activity::seen as agent_event;
 pub(crate) use brief::model_of;
 pub(crate) use check::holds;
 pub(crate) use control::Control;
@@ -50,6 +52,7 @@ use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState};
 use eos_prompts::PromptService;
+use eos_runtime::bus::Bus;
 use eos_sessions::{MessageInput, Sessions};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -99,6 +102,10 @@ pub(crate) struct Engine {
     pub(crate) remotes: Arc<dyn RemoteSync>,
     /// The first line of each specialist's last report, never stored or logged.
     pub(crate) reports: Mutex<HashMap<String, String>>,
+    /// Where `run:activity` goes out.
+    pub(crate) bus: Bus,
+    /// When each run's last activity line went out.
+    pub(crate) activity: Mutex<HashMap<String, i64>>,
 }
 
 impl Engine {
