@@ -74,6 +74,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-mod-remote", Layer::Feature),
     ("eos-mod-routines", Layer::Feature),
     ("eos-mod-settings", Layer::Feature),
+    ("eos-mod-signals", Layer::Feature),
     ("eos-mod-sync", Layer::Feature),
     ("eos-mod-system", Layer::Feature),
     ("eos-mod-templates", Layer::Feature),

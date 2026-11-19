@@ -59,6 +59,7 @@ eos-mod-reactions = { path = "crates/eos-mod-reactions" }
 eos-mod-remote = { path = "crates/eos-mod-remote" }
 eos-mod-routines = { path = "crates/eos-mod-routines" }
 eos-mod-settings = { path = "crates/eos-mod-settings" }
+eos-mod-signals = { path = "crates/eos-mod-signals" }
 eos-mod-sync = { path = "crates/eos-mod-sync" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }

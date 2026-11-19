@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::UiConfigResponseFeatures;
 use eos_core::accounts::Browser;
-use eos_core::os::{HoldReason, LocalTime, ProcessStats, TimeZone, WorkHold};
+use eos_core::os::{HoldReason, LocalTime, ProcessStats, TimeZone, WorkHold, ZoneRules};
 use eos_core::shell::{Location, PositionError, PositionFix};
 use eos_core::{BoxFuture, Clock};
 use eos_platform::{Argv, LocationFailure};
@@ -117,6 +117,24 @@ impl TimeZone for HostTimeZone {
 
     fn offset_minutes_at(&self, epoch_ms: i64) -> i32 {
         eos_platform::local_utc_offset_minutes(epoch_ms).unwrap_or(0)
+    }
+}
+
+/// Every time zone the system knows, from its zone files.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct HostZoneRules;
+
+impl ZoneRules for HostZoneRules {
+    fn offset_minutes_at(&self, zone: &str, epoch_ms: i64) -> Option<i32> {
+        eos_platform::zone_offset_minutes(zone, epoch_ms)
+    }
+
+    fn known(&self, zone: &str) -> bool {
+        eos_platform::zone_known(zone)
+    }
+
+    fn local_name(&self) -> String {
+        HostTimeZone.name()
     }
 }
 

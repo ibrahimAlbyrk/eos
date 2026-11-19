@@ -1402,6 +1402,7 @@ dependencies = [
  "eos-mod-remote",
  "eos-mod-routines",
  "eos-mod-settings",
+ "eos-mod-signals",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -2202,6 +2203,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "eos-mod-signals"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "indexmap",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
