@@ -97,7 +97,7 @@ async fn an_untrusted_runs_lead_works_in_an_empty_folder_with_its_workspace_besi
     let folder = format!("/scratch/{lead}");
     let spec = &bench.agents.started()[0];
     assert_eq!(spec.cwd, work.to_string_lossy());
-    assert_eq!(spec.additional_dirs, [folder.clone()]);
+    assert_eq!(spec.additional_dirs, std::slice::from_ref(&folder));
     assert!(!spec.folder_mcp);
     assert!(work.is_dir() && std::fs::read_dir(&work).expect("a folder").next().is_none(), "made, and empty");
     let brief = spec.prompt.clone().expect("a brief");

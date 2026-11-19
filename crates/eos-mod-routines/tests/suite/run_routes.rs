@@ -247,7 +247,7 @@ async fn a_message_reaches_the_lead_and_reopens_a_check_or_a_held_result_but_not
     bench.temp.exec(&format!("UPDATE runs SET state = 'waiting_for_user', station = 'gate' WHERE id = '{held}'"));
     let (path, body) = tell(&held);
     assert_eq!(routes.post(&path, body).await.0, 200);
-    assert_eq!(bench.gate.withdrawn(), [held.clone()]);
+    assert_eq!(bench.gate.withdrawn(), std::slice::from_ref(&held));
     assert_eq!(bench.state(&held), RunState::Running);
     bench.eventually(|| bench.agents.sent(&held_lead).iter().any(|text| text.contains("Mind the tests."))).await;
 
