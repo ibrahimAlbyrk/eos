@@ -106,27 +106,57 @@ describe("signing in to GitHub", () => {
   });
 
   it("says when Eos has no GitHub client id", async () => {
-    core({ ok: false, status: 409, body: { error: "github needs setup: client_id_missing", code: "client_id_missing" } });
-    await startSignIn("github");
-    expect(current()).toEqual({ id: "github", phase: "client_id_missing" });
-    expect(open).not.toHaveBeenCalled();
-  });
-
-  it("says when Eos has no GitHub client id, answered as the needs_setup reason", async () => {
-    const t = core(ok({ id: "github", state: "needs_setup", stateCode: "client_id_missing" }));
+    // The core's exact answer (eos-mod-capabilities `sign_in.rs`).
+    const t = core({ ok: false, status: 409, body: { error: "GitHub has no client id to sign in with", code: "client_id_missing" } });
     await startSignIn("github");
     expect(current()).toEqual({ id: "github", phase: "client_id_missing" });
     await vi.advanceTimersByTimeAsync(4000);
     expect(t.get).not.toHaveBeenCalled();
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("ends the wait when the core says the sign-in failed, and can start again", async () => {
+    const t = core(ok(CODE), [ok({ state: "pending" }), ok({ state: "failed" })]);
+    await startSignIn("github");
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(current()).toEqual({ id: "github", phase: "failed", userCode: CODE.userCode, verificationUri: CODE.verificationUri, error: "The sign-in did not work." });
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(t.get).toHaveBeenCalledTimes(2);
+
+    core(ok(CODE));
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "code", userCode: CODE.userCode });
+  });
+
+  it("says GitHub gave no code when it did not answer the start, or refused it", async () => {
+    core({ ok: false, status: 502, body: { error: "unreachable: github" } });
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "failed", error: "The sign-in did not work. GitHub did not give Eos a code." });
+  });
+
+  it("says GitHub is limiting requests", async () => {
+    core({ ok: false, status: 429, body: { error: "github is limiting requests" } });
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "failed", error: "GitHub is limiting requests. Try again in a few minutes." });
   });
 
   it("does not wait for a code the core did not give", async () => {
     const t = core(ok({}));
     await startSignIn("github");
-    expect(current()).toMatchObject({ phase: "failed" });
+    expect(current()).toMatchObject({ phase: "failed", error: "Eos could not start the sign-in." });
     await vi.advanceTimersByTimeAsync(4000);
     expect(t.get).not.toHaveBeenCalled();
+  });
+
+  it("says Eos could not start it when the core answered with no reason, and that Eos isn't reachable only when it did not answer", async () => {
+    core({ ok: false, status: 500, body: null });
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "failed", error: "Eos could not start the sign-in." });
+
+    const t = core(null);
+    t.send.mockRejectedValue(new TypeError("Failed to fetch"));
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "failed", error: "Eos isn't reachable." });
   });
 
   it("says when this is a dev run", async () => {

@@ -37,6 +37,7 @@ describe("#eos-gallery", () => {
     expect(rows.map((r) => r.state)).toEqual(["needs_setup", "ready", "needs_sign_in", "degraded", "broken", "disabled"]);
     expect(rows[0]).not.toHaveProperty("actions");
     for (const row of rows) expect((await transport.get(ROUTES.capability(row.id))).body).toMatchObject(row);
+    expect((await transport.get(ROUTES.capabilitySignIn("github"))).body).toEqual({ state: "failed" });
     expect((await transport.send("POST", ROUTES.routines, {})).status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
