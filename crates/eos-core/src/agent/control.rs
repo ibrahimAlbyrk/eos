@@ -141,4 +141,6 @@ pub trait Peers: Send + Sync + 'static {
 /// Whether a worker waits on the user's answer, for the lists that flag it.
 pub trait OpenQuestions: Send + Sync + 'static {
     fn has_open(&self, worker_id: &str) -> bool;
+    /// The worker of each open question, once per question.
+    fn open_askers(&self) -> Vec<String>;
 }

@@ -255,6 +255,12 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         cx.browser.clone(),
         crate::files::module(cx),
         genui,
+        Arc::new(eos_mod_inbox::InboxModule::new(eos_mod_inbox::InboxParts {
+            store: cx.store.clone(),
+            clock: cx.clock.clone(),
+            questions: Arc::new(cx.questions.clone()),
+            memories: profile.memory_reader(),
+        })),
         pages,
         cx.peer.module(),
         profile,

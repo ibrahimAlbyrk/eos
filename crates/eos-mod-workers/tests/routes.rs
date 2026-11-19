@@ -138,6 +138,10 @@ impl eos_core::agent::OpenQuestions for Asking {
     fn has_open(&self, worker_id: &str) -> bool {
         worker_id == self.0
     }
+
+    fn open_askers(&self) -> Vec<String> {
+        vec![self.0.to_owned()]
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

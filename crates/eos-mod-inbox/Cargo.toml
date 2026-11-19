@@ -1,0 +1,25 @@
+[package]
+name = "eos-mod-inbox"
+description = "Needs you: the list of what waits for the user, one item, saving edits of a draft, putting an item aside, discarding it and answering it; run asks and memory suggestions shown among the items."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-inbox.workspace = true
+eos-policy.workspace = true
+eos-runtime.workspace = true
+indexmap.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

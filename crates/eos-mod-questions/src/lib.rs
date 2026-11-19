@@ -258,6 +258,10 @@ impl OpenQuestions for Questions {
     fn has_open(&self, worker_id: &str) -> bool {
         self.pending().has_open(worker_id)
     }
+
+    fn open_askers(&self) -> Vec<String> {
+        self.pending().open_askers()
+    }
 }
 
 #[derive(Deserialize)]

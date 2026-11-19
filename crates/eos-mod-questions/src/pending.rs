@@ -109,6 +109,11 @@ impl Pending {
         self.entries.values().any(|entry| entry.worker_id == worker_id && entry.settled_at.is_none())
     }
 
+    pub(crate) fn open_askers(&self) -> Vec<String> {
+        let open = self.entries.values().filter(|entry| entry.settled_at.is_none());
+        open.map(|entry| entry.worker_id.clone()).collect()
+    }
+
     /// Forgets a removed worker's questions; their askers hear nothing more.
     pub(crate) fn cancel_worker(&mut self, worker_id: &str) {
         self.entries.retain(|_, entry| entry.worker_id != worker_id);
@@ -135,7 +140,9 @@ mod tests {
         // No time limit on an open question.
         assert_eq!(pending.poll("p-1", 10 * 24 * 3_600_000).status, QuestionPollResponseStatus::Pending);
         assert!(pending.has_open("o-1"));
+        assert_eq!(pending.open_askers(), ["o-1"]);
         assert!(pending.settle("o-1", "call-1", Some(answers("yes")), 100));
+        assert!(pending.open_askers().is_empty(), "a settled question no longer waits");
         assert!(!pending.settle("o-1", "call-1", None, 101), "already settled");
         let state = pending.poll("p-1", 102);
         assert_eq!((state.status, state.answers), (QuestionPollResponseStatus::Answered, Some(answers("yes"))));
