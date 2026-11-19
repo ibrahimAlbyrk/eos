@@ -20,6 +20,9 @@ use crate::host::AppSecretStore;
 const ITEM_NOT_FOUND: i32 = -25300;
 /// The Security framework's "cannot decode" (`errSecDecode`): an item that is not UTF-8 text.
 const NOT_TEXT: i32 = -26275;
+/// The Security framework's "write permissions error" (`errSecWrPerm`): an
+/// item that outlived its delete.
+const NOT_DELETED: i32 = -61;
 
 /// Generic-password items in a keychain. The default is the user's own
 /// keychains (the search list to read, the default keychain to write); tests
@@ -77,10 +80,14 @@ impl AppSecretStore for AppKeychain {
     }
 
     fn delete(&self, service: &str, account: &str) -> Result<(), Error> {
-        if let Some((_, item)) = self.find(service, account)? {
-            item.delete();
+        let Some((_, item)) = self.find(service, account)? else { return Ok(()) };
+        // The framework drops the delete's own status, so the item is looked
+        // up again: one still there must not read as forgotten.
+        item.delete();
+        match self.find(service, account)? {
+            Some(_) => Err(Error::Keychain(NOT_DELETED)),
+            None => Ok(()),
         }
-        Ok(())
     }
 
     fn has(&self, service: &str, account: &str) -> Result<bool, Error> {
