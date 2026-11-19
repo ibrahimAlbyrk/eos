@@ -17,7 +17,8 @@
 //! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers, reactions |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions
-//! started meanwhile. A feature that has not been handed over
+//! started meanwhile; so are the capability tools while the Eos preview
+//! (`eos.preview` in `settings.json`) is off. A feature that has not been handed over
 //! ([`Services`]' optional parts) leaves its tools out of every session.
 //! Under tool search (focused sessions) every tool but `present`, `react`
 //! and `no_reply` waits behind the search. No subagent is offered an Eos tool: the permission

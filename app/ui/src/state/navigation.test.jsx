@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./eos/transport.js";
-import { probeEosStatus } from "./eos/eosStatusStore.js";
+import { probeEosStatus, setEosPreview } from "./eos/eosStatusStore.js";
 import { NavigationProvider, initialView, shownView, useNavigation } from "./navigation.jsx";
 
 function stubStorage() {
@@ -12,6 +12,7 @@ function stubStorage() {
 
 async function eosServed(served) {
   setEosTransport(fixtureTransport(served ? { [ROUTES.routines]: [] } : {}));
+  setEosPreview(true);
   await probeEosStatus();
 }
 

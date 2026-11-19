@@ -304,6 +304,18 @@ export const SETTINGS_SECTIONS = [
         ],
       },
       {
+        title: "Eos preview",
+        items: [
+          {
+            key: "eos.preview",
+            label: "Eos preview",
+            description: "Try Eos mode, and let agents use your capabilities (GitHub and more) in Agents chats.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
+        ],
+      },
+      {
         title: "Confirmations",
         items: [
           {

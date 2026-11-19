@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../api/routes.js";
 import { UiProvider } from "../../state/ui.jsx";
 import { fixtureTransport, setEosTransport } from "../../state/eos/transport.js";
-import { probeEosStatus } from "../../state/eos/eosStatusStore.js";
+import { probeEosStatus, setEosPreview } from "../../state/eos/eosStatusStore.js";
 import { eosLocation, openLocation, _resetEosNav } from "./nav/eosNav.js";
 import { EosView } from "./EosView.jsx";
 
@@ -32,6 +32,7 @@ beforeEach(async () => {
   globalThis.localStorage = stubStorage();
   localStorage.setItem("cm:activeView", "eos");
   setEosTransport(fixtureTransport({ [ROUTES.routines]: [] }));
+  setEosPreview(true);
   await probeEosStatus();
 });
 afterEach(() => {
