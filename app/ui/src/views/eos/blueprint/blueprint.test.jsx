@@ -7,7 +7,7 @@ import {
   saveBlueprint, sayToArchitect, startRoutine,
 } from "../../../state/eos/blueprintStore.js";
 import { _resetRoutines, loadRoutine, refreshRoutines } from "../../../state/eos/routinesStore.js";
-import { _resetRuns } from "../../../state/eos/runsStore.js";
+import { _resetRuns, loadRuns } from "../../../state/eos/runsStore.js";
 import { _resetInbox } from "../../../state/eos/inboxStore.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { EosMain } from "../EosMain.jsx";
@@ -120,6 +120,22 @@ describe("a new routine", () => {
 });
 
 describe("a routine being made", () => {
+  it("made by hand, reads its trial cards from its runs and offers to run the trial again", async () => {
+    const { [ROUTES.routineDraft(DOCS)]: _draft, ...withoutDraft } = reads;
+    const trial = {
+      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline: "One review drafted",
+      itemTitle: "Fix the docs links", needsUser: false, costUsd: 0.2, workMs: 60000, createdAt: 1763452800000,
+    };
+    const hand = { ...trial, id: "rn-hand00000001", kind: "standing", origin: "hand", itemTitle: "Not a trial" };
+    const paths = { ...withoutDraft, [`${ROUTES.runs}?routineId=${DOCS}&limit=50`]: { runs: [trial, hand] } };
+    setEosTransport(fixtureTransport(paths));
+    await loadRuns(DOCS);
+    const html = await editor(DOCS, fixtureTransport(paths));
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run the trial again"]);
+    expect(html).toContain('<span class="eos-bp-trial__item">Fix the docs links</span><span class="eos-bp-trial__line">One review drafted</span>');
+    expect(html).not.toContain("Not a trial");
+  });
+
   it("shows the architect asking: the user's words, its question with its choices, and the card to start", async () => {
     const html = await editor(DOCS);
     expect(html).toContain('<div class="eos-bp-bubble">Review every pull request that touches the docs. Show me first.</div>');

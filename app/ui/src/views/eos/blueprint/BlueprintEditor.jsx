@@ -3,6 +3,7 @@ import {
   discardDraft, loadDraft, loadVersion, loadVersions, restoreVersion, runTrial, saveBlueprint, startRoutine, useBlueprints,
 } from "../../../state/eos/blueprintStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
+import { ensureRunsLoaded, useRuns } from "../../../state/eos/runsStore.js";
 import { Loading } from "../capabilities/parts.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { ArchitectChat } from "./ArchitectChat.jsx";
@@ -42,8 +43,15 @@ function Note({ note }) {
   );
 }
 
-function Actions({ id, kind, draft, routine, blueprint }) {
-  const tried = (draft?.trialRuns.length ?? 0) > 0;
+// A draft's trial runs; a routine made by hand has no draft, so its trials
+// are read from its runs.
+function trialRunsOf(draft, page) {
+  if (draft) return draft.trialRuns;
+  return page?.runs?.filter((run) => run.kind === "trial") ?? [];
+}
+
+function Actions({ id, kind, trials, routine, blueprint }) {
+  const tried = trials.length > 0;
   const cost = costLine(routine, blueprint);
   const trial = <button type="button" className="eos-btn" onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
   return (
@@ -92,6 +100,7 @@ export function BlueprintEditor({ detail, versionNumber }) {
   const id = detail.routine.id;
   const { drafts, versions, blueprints, said, notes } = useBlueprints();
   const { list } = useRoutines();
+  const { pages } = useRuns();
   const [comparing, setComparing] = useState(false);
   useEffect(() => {
     void loadDraft(id);
@@ -99,6 +108,8 @@ export function BlueprintEditor({ detail, versionNumber }) {
   }, [id]);
 
   const draft = drafts[id];
+  useEffect(() => { if (draft === null) ensureRunsLoaded(id); }, [id, draft]);
+  const trials = trialRunsOf(draft, pages[id]);
   const rows = versions[id];
   const view = shownVersion(detail, draft, rows, versionNumber);
   const inUseId = detail.routine.state === "draft" ? rows?.at(-1)?.id : detail.head?.id;
@@ -140,11 +151,11 @@ export function BlueprintEditor({ detail, versionNumber }) {
                 setComparing={setComparing}
               />
             )}
-            {!old && !newer && <Actions id={id} kind={view.kind} draft={draft} routine={detail.routine} blueprint={version.blueprint} />}
+            {!old && !newer && <Actions id={id} kind={view.kind} trials={trials} routine={detail.routine} blueprint={version.blueprint} />}
           </BlueprintCard>
         )}
         {old && comparing && version && inUse && <VersionCompare version={version.blueprint} current={inUse.blueprint} routines={list} />}
-        {!old && <TrialCards runs={draft?.trialRuns} now={Date.now()} />}
+        {!old && <TrialCards runs={trials} now={Date.now()} />}
       </div>
     </div>
   );
