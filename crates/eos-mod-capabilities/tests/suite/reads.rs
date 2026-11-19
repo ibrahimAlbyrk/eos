@@ -18,7 +18,7 @@ async fn items_to_pick_and_past_ones_come_from_the_sources_kind() {
     };
     let past = reads.past_items("github.pulls", &filter, 10).await.expect("reads");
     assert_eq!(past.len(), 1);
-    let searched = rig.fake.calls().into_iter().map(|call| call.path).filter(|path| path.starts_with("/search")).last();
+    let searched = rig.fake.calls().into_iter().map(|call| call.path).rfind(|path| path.starts_with("/search"));
     let searched = searched.expect("a search");
     assert!(searched.contains("repo%3Aacme%2Fgame") && searched.contains("networking"), "{searched}");
     assert!(!searched.contains("is%3Aopen"), "done ones too: {searched}");
