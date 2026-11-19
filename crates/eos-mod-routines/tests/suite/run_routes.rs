@@ -28,7 +28,7 @@ impl Routes {
         Self::over(Bench::new(true))
     }
 
-    fn over(bench: Bench) -> Self {
+    pub(crate) fn over(bench: Bench) -> Self {
         let module: Arc<dyn Module> = bench.module.clone();
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");

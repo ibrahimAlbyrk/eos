@@ -20,6 +20,18 @@ pub struct Schema {
     pub untrusted: bool,
 }
 
+impl Schema {
+    /// Whether it or any node inside it marks text from outside.
+    pub fn marks_untrusted(&self) -> bool {
+        self.untrusted
+            || match &self.kind {
+                Kind::Object { properties, .. } => properties.values().any(Schema::marks_untrusted),
+                Kind::Array { items, .. } => items.marks_untrusted(),
+                _ => false,
+            }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Kind {
     Object { properties: IndexMap<String, Schema>, required: Vec<String> },

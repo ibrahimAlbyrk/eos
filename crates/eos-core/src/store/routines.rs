@@ -105,6 +105,8 @@ pub trait RoutineRepo {
     /// When it went to Recently deleted; `None` when it came back.
     fn set_deleted_at(&self, id: &str, deleted_at: Option<i64>, at: i64) -> Result<(), Error>;
     fn set_kind(&self, id: &str, kind: RoutineKind, at: i64) -> Result<(), Error>;
+    /// The name it shows, from the blueprint it runs from.
+    fn set_name(&self, id: &str, name: &str, at: i64) -> Result<(), Error>;
 }
 
 pub trait RoutineVersionRepo {

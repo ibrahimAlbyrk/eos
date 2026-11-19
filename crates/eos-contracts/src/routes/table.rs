@@ -297,14 +297,19 @@ pub const BROWSER_CAPTURE: Route = Route::new("browserCapture", "/browser/tabs/:
 pub const BROWSER_DEVICE: Route = Route::new("browserDevice", "/browser/tabs/:tabId/device", &[Post]);
 pub const BROWSER_ELEMENTS: Route = Route::new("browserElements", "/browser/tabs/:tabId/elements", &[Post]);
 pub const BROWSER_MUTE: Route = Route::new("browserMute", "/browser/tabs/:tabId/mute", &[Post]);
-pub const ROUTINES: Route = Route::new("routines", "/api/routines", &[Get]).added();
+pub const ROUTINES: Route = Route::new("routines", "/api/routines", &[Get, Post]).added();
+pub const ROUTINES_SETTINGS: Route = Route::new("routinesSettings", "/api/routines/settings", &[Get, Put]).added();
 pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get, Delete]).added();
 pub const ROUTINE_STATE: Route = Route::new("routineState", "/api/routines/:id/state", &[Put]).added();
 pub const ROUTINE_UNDELETE: Route = Route::new("routineUndelete", "/api/routines/:id/undelete", &[Post]).added();
 pub const ROUTINE_KEEP: Route = Route::new("routineKeep", "/api/routines/:id/keep", &[Post]).added();
+pub const ROUTINE_COPY: Route = Route::new("routineCopy", "/api/routines/:id/copy", &[Post]).added();
+pub const ROUTINE_BLUEPRINT: Route = Route::new("routineBlueprint", "/api/routines/:id/blueprint", &[Put]).added();
 pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
 pub const ROUTINE_VERSION: Route =
     Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
+pub const ROUTINE_VERSION_RESTORE: Route =
+    Route::new("routineVersionRestore", "/api/routines/:id/versions/:versionId/restore", &[Post]).added();
 pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/routines/:id/candidates", &[Get]).added();
 pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
 pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
@@ -649,6 +654,10 @@ pub const ROUTES: &[Route] = &[
     ROUTINE_STATE,
     ROUTINE_UNDELETE,
     ROUTINE_KEEP,
+    ROUTINE_COPY,
+    ROUTINE_BLUEPRINT,
+    ROUTINE_VERSION_RESTORE,
+    ROUTINES_SETTINGS,
     RUNS,
     RUNS_ESTIMATE,
     RUN,

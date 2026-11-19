@@ -22,7 +22,7 @@ impl Bench {
         let Ok(Readable::Current(typed)) = read(&blueprint) else { panic!("a blueprint of this app") };
         let text = canonical_json(&typed);
         let version = StoredVersion {
-            id: eos_core::Ids::routine_version_id(&self.ids),
+            id: eos_core::Ids::routine_version_id(self.ids.as_ref()),
             routine_id: routine.into(),
             parent_id: None,
             status,

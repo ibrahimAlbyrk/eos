@@ -8,19 +8,23 @@ mod routines;
 mod run_agents;
 mod run_view;
 mod runs;
+mod settings;
 mod writes;
 
 use std::sync::Arc;
 
 use eos_runtime::router::RouteDef;
 
+pub(crate) use estimate::usual;
 pub(crate) use routines::{gone, param, readable, run_summary, showing_version, summary};
+pub(crate) use settings::protected_settings;
 
 use crate::engine::Engine;
 
 pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let mut routes = routines::all(&engine.store, &engine.clock);
     routes.extend(writes::all(engine));
+    routes.extend(settings::all(engine));
     routes.extend(runs::all(engine));
     routes.extend(run_view::all(engine));
     routes.push(estimate::route(engine));

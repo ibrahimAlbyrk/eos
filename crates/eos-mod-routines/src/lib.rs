@@ -62,15 +62,16 @@ use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
+use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{
     RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunStarter,
 };
-use eos_core::store::{ConfigSource, Store};
+use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
-use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::module::{Module, ModuleError, ProtectedSettings};
 use eos_runtime::router::RouteDef;
 use eos_sessions::Sessions;
 use tokio::sync::Notify;
@@ -113,6 +114,12 @@ pub struct RoutinesParts {
     pub remotes: Arc<dyn RemoteSync>,
     /// Where what a run's agents do goes out (`run:activity`).
     pub bus: Bus,
+    /// The time zones the system knows, for a blueprint's schedules.
+    pub zones: Arc<dyn ZoneRules>,
+    /// The user's clock, for the local day spend is booked on.
+    pub zone: Arc<dyn TimeZone>,
+    /// `settings.json`, which holds the budgets for all routines.
+    pub settings: Arc<dyn UserSettingsStore>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -152,6 +159,9 @@ impl RoutinesModule {
             keys,
             remotes,
             bus,
+            zones,
+            zone,
+            settings,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -180,6 +190,9 @@ impl RoutinesModule {
             bus,
             activity: Mutex::new(HashMap::new()),
             ended: Mutex::new(None),
+            zones,
+            zone,
+            settings,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -238,6 +251,10 @@ impl Module for RoutinesModule {
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.engine)
+    }
+
+    fn protected_settings(&self) -> Option<ProtectedSettings> {
+        Some(routes::protected_settings())
     }
 
     fn idle_hooks(&self) -> Vec<IdleHook> {

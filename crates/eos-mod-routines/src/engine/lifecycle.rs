@@ -18,12 +18,12 @@ use crate::routes::{gone, summary};
 /// Why a routine paused by hand is paused.
 const BY_USER: &str = "user";
 
-fn live(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error> {
+pub(crate) fn live(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error> {
     let routine = tx.routines().find(routine_id)?.filter(|routine| routine.state != RoutineState::Deleted);
     routine.ok_or_else(|| Error::not_found("routine", routine_id))
 }
 
-fn row(tx: &dyn Tx, routine_id: &str, now: i64) -> Result<Option<RoutineSummary>, Error> {
+pub(crate) fn row(tx: &dyn Tx, routine_id: &str, now: i64) -> Result<Option<RoutineSummary>, Error> {
     let routine = tx.routines().find(routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))?;
     summary(tx, &routine, now)
 }
