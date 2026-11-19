@@ -79,21 +79,26 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass
     let mut next_due: Option<i64> = None;
     let mut left = Vec::new();
     for run in tx.runs().queued()? {
+        let user = by_the_user(&run.origin);
+        if !routines.contains_key(&run.routine_id) {
+            routines.insert(run.routine_id.clone(), allowed(tx, &run.routine_id)?);
+        }
+        let Some(routine) = routines.get(&run.routine_id) else { continue };
+        // 01 §4.4: a run whose routine was switched off before it started never starts.
+        if never_starts(routine.state, user) {
+            skip(tx, out, &run, now)?;
+            continue;
+        }
         if total >= GLOBAL_SLOTS {
-            break;
+            continue;
         }
         if let Some(at) = run.not_before.filter(|at| *at > now) {
             next_due = Some(next_due.map_or(at, |due| due.min(at)));
             continue;
         }
-        let user = by_the_user(&run.origin);
         if !autostart && !user {
             continue;
         }
-        if !routines.contains_key(&run.routine_id) {
-            routines.insert(run.routine_id.clone(), allowed(tx, &run.routine_id)?);
-        }
-        let Some(routine) = routines.get(&run.routine_id) else { continue };
         if routine.state != RoutineState::Active && !user {
             continue;
         }
@@ -108,6 +113,41 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass
         }
     }
     Ok(Pass { next_due, left })
+}
+
+/// Archived and deleted routines start nothing; a paused one only what the
+/// user starts (01 §4.8).
+fn never_starts(state: RoutineState, user: bool) -> bool {
+    match state {
+        RoutineState::Archived | RoutineState::Deleted => true,
+        RoutineState::Paused => !user,
+        _ => false,
+    }
+}
+
+fn skip(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, now: i64) -> Result<(), Error> {
+    let skipped = RunMove { state: RunState::Skipped, station: None, reason: Some(Reason::User), at: now };
+    move_run(tx, out, run, skipped)?;
+    tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a run was skipped: its routine is off");
+    Ok(())
+}
+
+/// Skips the queued runs of a routine that was just switched off, in the
+/// job that switched it: those the user started stay while it is only
+/// paused.
+pub(crate) fn skip_queued_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    routine_id: &str,
+    state: RoutineState,
+    now: i64,
+) -> Result<(), Error> {
+    for run in tx.runs().queued()?.iter().filter(|run| run.routine_id == routine_id) {
+        if never_starts(state, by_the_user(&run.origin)) {
+            skip(tx, out, run, now)?;
+        }
+    }
+    Ok(())
 }
 
 fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {

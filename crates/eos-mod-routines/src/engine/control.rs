@@ -56,6 +56,7 @@ fn pause_in(tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str, now: 
         return Ok(());
     }
     tx.routines().set_state(routine_id, RoutineState::Paused, Some(reason), now)?;
+    super::supervisor::skip_queued_in(tx, out, routine_id, RoutineState::Paused, now)?;
     tracing::info!(routine_id, reason, "a routine was paused");
     announce(tx, out, routine_id, RoutineChangeReason::State, now)
 }

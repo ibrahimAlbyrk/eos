@@ -179,6 +179,7 @@ impl RoutinesModule {
             reports: Mutex::new(HashMap::new()),
             bus,
             activity: Mutex::new(HashMap::new()),
+            ended: Mutex::new(None),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -267,6 +268,8 @@ impl Module for RoutinesModule {
         Box::pin(async move {
             // Before any session of a run is resumed.
             engine::rebuild_launches(&self.engine).await?;
+            engine::end_sessions_of_ended_runs(&self.engine);
+            engine::recover(&self.engine).await?;
             engine::start_supervisor(&self.engine);
             Ok(())
         })

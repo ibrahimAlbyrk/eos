@@ -18,6 +18,7 @@ mod idle;
 mod launch;
 mod outcomes;
 mod ports;
+mod recover;
 mod spawn;
 mod start;
 mod steer;
@@ -36,6 +37,7 @@ pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
+pub(crate) use recover::recover;
 pub(crate) use steer::{message, pause, resume};
 pub(crate) use team::shape_report;
 
@@ -52,7 +54,7 @@ use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState};
 use eos_prompts::PromptService;
-use eos_runtime::bus::Bus;
+use eos_runtime::bus::{Bus, Subscription};
 use eos_sessions::{MessageInput, Sessions};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
@@ -106,6 +108,8 @@ pub(crate) struct Engine {
     pub(crate) bus: Bus,
     /// When each run's last activity line went out.
     pub(crate) activity: Mutex<HashMap<String, i64>>,
+    /// Ends a run's sessions once the run has ended.
+    pub(crate) ended: Mutex<Option<Subscription>>,
 }
 
 impl Engine {
@@ -287,9 +291,26 @@ pub(crate) fn start_supervisor(engine: &Arc<Engine>) {
     supervisor::spawn(engine);
 }
 
+/// From now on, a run that ends (done, failed, cancelled, skipped) has its
+/// sessions interrupted and suspended, after the write that ended it.
+pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
+    let weak = Arc::downgrade(engine);
+    let subscription = engine.bus.on(RUN_CHANGE.name(), move |event| {
+        let Some(engine) = weak.upgrade() else { return };
+        let Ok(change) = event.payload_as::<RunChange>() else { return };
+        if !matches!(change.state.as_str(), "done" | "failed" | "cancelled" | "skipped") {
+            return;
+        }
+        let Some(tasks) = engine.tasks.clone() else { return };
+        tasks.spawn(async move { steer::quiet(&engine, &change.run_id).await });
+    });
+    *Engine::locked(&engine.ended) = Some(subscription);
+}
+
 /// Ends the supervisor and waits until it let go of the engine, so the store
 /// is free once the app shuts down.
 pub(crate) async fn stop_supervisor(engine: &Engine) {
+    drop(Engine::locked(&engine.ended).take());
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {
         task.abort();

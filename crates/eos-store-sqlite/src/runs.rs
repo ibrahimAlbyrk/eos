@@ -244,6 +244,22 @@ impl RunRepo for SqliteTx<'_> {
         )
     }
 
+    fn at_work(&self) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!("SELECT {RUN_COLUMNS} FROM runs WHERE state IN ('running','checking') ORDER BY created_at, rowid"),
+            [],
+            run,
+        )
+    }
+
+    fn set_resumed(&self, id: &str, resumed: i64) -> Result<(), Error> {
+        self.exec("UPDATE runs SET resumed = ?1 WHERE id = ?2", params![resumed, id]).map(drop)
+    }
+
+    fn set_spent(&self, id: &str, cost_usd: f64, work_ms: i64) -> Result<(), Error> {
+        self.exec("UPDATE runs SET cost_usd = ?1, work_ms = ?2 WHERE id = ?3", params![cost_usd, work_ms, id]).map(drop)
+    }
+
     fn working(&self) -> Result<Vec<(String, i64)>, Error> {
         self.rows(
             "SELECT routine_id, COUNT(*) FROM runs WHERE state IN ('running','checking','delivering') \
