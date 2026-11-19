@@ -70,8 +70,10 @@ function Crowded({ routineId, text }) {
 // The user's words are plain text; the input talks to the architect, or for
 // a new routine, makes one from what the user wants. `draft` is the
 // routine's DraftView, null when it has none; `routineId` is NEW for a new
-// routine.
-export function ArchitectChat({ routineId, draft, said = [], note }) {
+// routine. `making`: the routine is still a draft, which has no head a
+// change could start from, so without a draft of its architect's there is
+// no one to talk to.
+export function ArchitectChat({ routineId, draft, said = [], note, making = false }) {
   const [text, setText] = useState("");
   const isNew = routineId === NEW;
   const send = async (e) => {
@@ -94,17 +96,21 @@ export function ArchitectChat({ routineId, draft, said = [], note }) {
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
       {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} />}
       <span className="eos-bp-chat__fill" />
-      <form className="eos-bp-say" onSubmit={send}>
-        <input
-          type="text"
-          className="eos-bp-input"
-          aria-label={isNew ? "Describe what Eos should take care of" : "Change the blueprint by describing it"}
-          placeholder={isNew ? "Describe what Eos should take care of" : "Change anything by saying it"}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" className="eos-btn eos-btn--primary">Send</button>
-      </form>
+      {making && draft === null ? (
+        <p className="eos-note">This routine was made by hand. Change it on the card; once it runs, say what to change here.</p>
+      ) : (
+        <form className="eos-bp-say" onSubmit={send}>
+          <input
+            type="text"
+            className="eos-bp-input"
+            aria-label={isNew ? "Describe what Eos should take care of" : "Change the blueprint by describing it"}
+            placeholder={isNew ? "Describe what Eos should take care of" : "Change anything by saying it"}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button type="submit" className="eos-btn eos-btn--primary">Send</button>
+        </form>
+      )}
     </section>
   );
 }

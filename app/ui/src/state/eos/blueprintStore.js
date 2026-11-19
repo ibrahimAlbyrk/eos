@@ -8,7 +8,7 @@ import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
 import { notify } from "../../lib/notify.js";
 import { putBounded, without } from "./bounded.js";
-import { loadRoutine, putRoutineRow } from "./routinesStore.js";
+import { loadRoutine, putRoutineRow, routineRow } from "./routinesStore.js";
 import { isDevRunRefusal, transport } from "./transport.js";
 
 const BLUEPRINTS_KEPT = 40;
@@ -150,13 +150,16 @@ export async function makeRoutine(sentence) {
 }
 
 // The routine's draft has an architect to talk to: messages go to it; else
-// the words ask for a change, which brings one.
-const talking = (draft) => Boolean(draft) && draft.status !== "abandoned";
+// the words ask for a change, which brings one from the head. A routine
+// still being made has no head to change from (the core refuses), so its
+// words go to its draft's architect even after the user left the draft,
+// which brings that architect back.
+const talking = (id, draft) => Boolean(draft) && (draft.status !== "abandoned" || routineRow(id)?.state === "draft");
 
 // The user's words, or a choice answering the architect's question.
 export async function sayToArchitect(id, said) {
   const words = said.text ?? said.choice;
-  const path = talking(state.drafts[id]) ? ROUTES.routineDraftMessage(id) : ROUTES.routineChange(id);
+  const path = talking(id, state.drafts[id]) ? ROUTES.routineDraftMessage(id) : ROUTES.routineChange(id);
   const body = path === ROUTES.routineChange(id) ? { text: words } : said;
   remember(id, words);
   const r = await write("POST", path, body, [409]);

@@ -171,6 +171,22 @@ describe("a routine being made", () => {
     await sayToArchitect(PR, { text: "Only review the docs" });
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineChange(PR), { text: "Only review the docs" });
   });
+
+  it("talks to the architect of a routine still being made after its draft was left, never asking for a change", async () => {
+    const left = { ...drafts[DOCS], status: "abandoned", question: undefined, choices: [] };
+    const t = recording(async () => ({ ok: true, status: 200, body: { ...left, status: "working" } }), { ...reads, [ROUTES.routineDraft(DOCS)]: left });
+    await editor(DOCS, t);
+    await sayToArchitect(DOCS, { text: "Start again, drafts too" });
+    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineDraftMessage(DOCS), { text: "Start again, drafts too" });
+  });
+
+  it("offers no talk for a routine made by hand that has not run, which has no architect", async () => {
+    const withoutDraft = { ...reads };
+    delete withoutDraft[ROUTES.routineDraft(DOCS)];
+    const html = await editor(DOCS, fixtureTransport(withoutDraft));
+    expect(html).toContain("This routine was made by hand.");
+    expect(html).not.toContain('placeholder="Change anything by saying it"');
+  });
 });
 
 describe("live", () => {
