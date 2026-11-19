@@ -2,13 +2,15 @@
 
 use std::sync::Arc;
 
-use eos_capabilities::CapabilityService;
+use eos_capabilities::{CapabilityPorts, CapabilityService};
 use eos_contracts::{ItemRef, Part, ResultDoc};
+use eos_core::capability::AllInstalled;
 use eos_github::{GitHub, Parts};
-use eos_testkit::{FakeCapabilitySecrets, FakeGitHub, FakeSleeper, GITHUB_TOKEN};
+use eos_testkit::{
+    FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, FakeTrash, GITHUB_TOKEN, SeqIds,
+    TempStore,
+};
 use serde_json::{Map, json};
-
-use crate::rig::{Rig, Setup, rig};
 
 pub(crate) const REPO: &str = "acme/game";
 pub(crate) const HEAD: &str = "6dcb09b5b57875f334f61aebed695e2e4193db5e";
@@ -16,13 +18,15 @@ pub(crate) const HEAD: &str = "6dcb09b5b57875f334f61aebed695e2e4193db5e";
 pub(crate) const PATCH: &str = "@@ -27,6 +27,6 @@ fn main()\n a\n b\n c\n-old\n+new\n d\n e";
 
 pub(crate) struct GitHubRig {
-    pub(crate) rig: Rig,
+    /// Kept for the store's folder, which goes with it.
+    _temp: TempStore,
+    pub(crate) service: Arc<CapabilityService>,
     pub(crate) fake: Arc<FakeGitHub>,
 }
 
 impl GitHubRig {
     pub(crate) fn service(&self) -> &Arc<CapabilityService> {
-        &self.rig.service
+        &self.service
     }
 }
 
@@ -30,16 +34,28 @@ impl GitHubRig {
 pub(crate) async fn github() -> GitHubRig {
     let fake = Arc::new(FakeGitHub::new());
     fake.add_pull(REPO, 7, "alice", HEAD, 1_763_400_000_000, &[("src/main.rs", PATCH)]);
-    let secrets = FakeCapabilitySecrets::new().with("github", "token", GITHUB_TOKEN);
+    let clock = Arc::new(FakeClock::at(1_763_460_000_000));
     let builtin = Arc::new(GitHub::new(Parts {
         transport: fake.clone(),
         secrets: Arc::new(FakeCapabilitySecrets::new()),
-        clock: Arc::new(eos_testkit::FakeClock::at(1_763_460_000_000)),
+        clock: clock.clone(),
         sleeper: Arc::new(FakeSleeper::default()),
         client_id: "Iv1.fake".into(),
     }));
-    let rig = rig(Setup { builtins: vec![builtin], secrets, ..Setup::default() }).await;
-    GitHubRig { rig, fake }
+    let temp = TempStore::new();
+    let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
+    let ports = CapabilityPorts {
+        store: temp.port(),
+        files: Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash)),
+        secrets: Arc::new(FakeCapabilitySecrets::new().with("github", "token", GITHUB_TOKEN)),
+        grants: Arc::new(AllInstalled),
+        runner: None,
+        clock,
+        ids: Arc::new(SeqIds::new()),
+    };
+    let service = Arc::new(CapabilityService::new(ports, vec![builtin]));
+    service.start().await.expect("starts");
+    GitHubRig { _temp: temp, service, fake }
 }
 
 /// Pull request `number` of [`REPO`] as a run takes it, at `sha`.
