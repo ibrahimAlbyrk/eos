@@ -271,6 +271,7 @@ fn module(
         folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
         reads: reads.clone(),
         gate: gate.clone(),
+        config: Arc::new(FakeConfig::new(json!({"prices": {"sonnet": {"in": 3, "out": 15, "cacheRead": 0.3}}}))),
     }))
 }
 

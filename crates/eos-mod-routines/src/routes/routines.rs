@@ -1,4 +1,4 @@
-//! The read routes, each one snapshot of the store turned into wire rows.
+//! The routine reads, each one snapshot of the store turned into wire rows.
 
 use std::sync::Arc;
 
@@ -82,7 +82,7 @@ pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>) -> Vec<RouteDe
     ]
 }
 
-fn param(req: &Request, name: &str) -> String {
+pub(crate) fn param(req: &Request, name: &str) -> String {
     req.param(name).unwrap_or_default().to_owned()
 }
 
@@ -206,7 +206,7 @@ fn draft(draft: StoredDraft) -> RoutineDraft {
     }
 }
 
-fn run_summary(run: &StoredRun) -> RunSummary {
+pub(crate) fn run_summary(run: &StoredRun) -> RunSummary {
     let input: Option<RunInput> = serde_json::from_str(&run.input).ok();
     let item = input.and_then(|input| input.item.or_else(|| input.items.and_then(|items| items.into_iter().next())));
     RunSummary {

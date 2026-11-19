@@ -307,6 +307,21 @@ export const ROUTES = {
   routine: (id) => `/api/routines/${id}`,
   routineVersions: (id) => `/api/routines/${id}/versions`,
   routineVersion: (id, versionId) => `/api/routines/${id}/versions/${versionId}`,
+  // Runs (eos-contracts `routine/runs.rs`): what a routine may run on; start,
+  // estimate and list runs; one run, its result and timeline; telling its
+  // team something, stopping, pausing and resuming it; and the run a worker
+  // works for.
+  routineCandidates: (id) => `/api/routines/${id}/candidates`,
+  runs: "/api/runs",
+  runsEstimate: "/api/runs/estimate",
+  run: (id) => `/api/runs/${id}`,
+  runResult: (id) => `/api/runs/${id}/result`,
+  runEvents: (id) => `/api/runs/${id}/events`,
+  runMessage: (id) => `/api/runs/${id}/message`,
+  runStop: (id) => `/api/runs/${id}/stop`,
+  runPause: (id) => `/api/runs/${id}/pause`,
+  runResume: (id) => `/api/runs/${id}/resume`,
+  runAgent: (workerId) => `/api/run-agents/${workerId}`,
   // Signals (eos-contracts `signals.rs`): what starts one routine's runs, the
   // signal list, the counts, replay, the two previews and the setting; then
   // which computer holds each routine, and moving one to this computer.

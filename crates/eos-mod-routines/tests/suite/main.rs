@@ -7,6 +7,7 @@ mod gate;
 mod isolation;
 mod ports;
 mod routes;
+mod run_routes;
 mod solo;
 mod start;
 mod supervisor;

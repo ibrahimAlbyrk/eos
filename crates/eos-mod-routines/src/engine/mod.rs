@@ -19,8 +19,10 @@ mod outcomes;
 mod ports;
 mod spawn;
 mod start;
+mod steer;
 mod supervisor;
 
+pub(crate) use brief::model_of;
 pub(crate) use check::holds;
 pub(crate) use control::Control;
 pub(crate) use exec::Tools;
@@ -30,6 +32,7 @@ pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
+pub(crate) use steer::{message, pause, resume};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -38,7 +41,7 @@ use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::ScratchFolders;
 use eos_core::capability::CapabilityReads;
 use eos_core::routine::{RunCreated, RunFolders, RunGate};
-use eos_core::store::{Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
+use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState};
@@ -82,6 +85,8 @@ pub(crate) struct Engine {
     pub(crate) held: Mutex<HashSet<String>>,
     /// Where a checked result goes.
     pub(crate) gate: Arc<dyn RunGate>,
+    /// Model prices, for the estimate.
+    pub(crate) config: Arc<dyn ConfigSource>,
     /// The runtime the module was built in, for what follows a commit.
     pub(crate) tasks: Option<tokio::runtime::Handle>,
 }

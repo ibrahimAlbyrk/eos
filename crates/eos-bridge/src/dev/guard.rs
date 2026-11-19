@@ -129,6 +129,12 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("DELETE", "/api/capabilities/{id}/sign-in"),
     // Needs you: an answer lets a run start, a routine resume or a change be kept.
     ("POST", "/api/inbox/{id}/answer"),
+    // Runs: a start, a message to a run's team and a resume set agents working; the items a
+    // routine may run on are read from the user's accounts.
+    ("POST", "/api/runs"),
+    ("GET", "/api/routines/{id}/candidates"),
+    ("POST", "/api/runs/{id}/message"),
+    ("POST", "/api/runs/{id}/resume"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
@@ -320,6 +326,16 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/routines/{id}"),
     ("GET", "/api/routines/{id}/versions"),
     ("GET", "/api/routines/{id}/versions/{versionId}"),
+    // Runs: the estimate, the list, one run, its result and timeline, and a worker's run are
+    // read from the data copy; stopping and pausing a run only stop its agents.
+    ("POST", "/api/runs/estimate"),
+    ("GET", "/api/runs"),
+    ("GET", "/api/runs/{id}"),
+    ("GET", "/api/runs/{id}/result"),
+    ("GET", "/api/runs/{id}/events"),
+    ("POST", "/api/runs/{id}/stop"),
+    ("POST", "/api/runs/{id}/pause"),
+    ("GET", "/api/run-agents/{workerId}"),
     // Capabilities: switching one on and off, its settings, going back to a kept version and
     // removing one (to the trash) change only the data folder.
     ("POST", "/api/capabilities/{id}/enable"),
