@@ -3,6 +3,8 @@
 //! booked on, and what counts as working time. The caps are arguments: the
 //! blueprint and the settings hold them.
 
+use serde_json::{Value, json};
+
 use super::numbers::median;
 use super::run::RunState;
 use crate::time::civil_from_days;
@@ -36,6 +38,36 @@ pub fn budget(used: f64, cap: f64) -> Budget {
 /// `at_least_usd`.
 pub fn per_run_usd(estimate_usd: f64, times: f64, at_least_usd: f64) -> f64 {
     (estimate_usd * times).max(at_least_usd)
+}
+
+/// What a routine made without them may spend a day and a run may work,
+/// and how many of its runs go at once (D6).
+pub const PER_DAY_USD: f64 = 5.0;
+pub const PER_RUN_MINUTES: i64 = 30;
+pub const PARALLEL: i64 = 1;
+/// A new blueprint's run may cost this many times its estimate, and at
+/// least this much.
+pub const RUN_ESTIMATE_TIMES: f64 = 3.0;
+pub const RUN_AT_LEAST_USD: f64 = 1.0;
+
+/// Fills in the limits a received blueprint leaves out. True when it left
+/// out `perRunUsd`: that one is [`RUN_AT_LEAST_USD`] until its estimate
+/// sets it ([`per_run_usd`]).
+pub fn fill_defaults(blueprint: &mut Value) -> bool {
+    let Some(fields) = blueprint.as_object_mut() else { return false };
+    let limits = fields.entry("limits").or_insert_with(|| json!({}));
+    let Some(limits) = limits.as_object_mut() else { return false };
+    let missing_cap = !limits.contains_key("perRunUsd");
+    let defaults = [
+        ("perRunUsd", json!(RUN_AT_LEAST_USD)),
+        ("perRunMinutes", json!(PER_RUN_MINUTES)),
+        ("perDayUsd", json!(PER_DAY_USD)),
+        ("parallel", json!(PARALLEL)),
+    ];
+    for (key, value) in defaults {
+        limits.entry(key).or_insert(value);
+    }
+    missing_cap
 }
 
 /// Failed runs in a row at which a routine pauses (`failures`).
@@ -106,6 +138,17 @@ mod tests {
         assert!((per_run_usd(0.8, 3.0, 1.0) - 2.4).abs() < 1e-9);
         assert_eq!(per_run_usd(0.2, 3.0, 1.0), 1.0);
         assert_eq!(per_run_usd(0.0, 3.0, 1.0), 1.0);
+    }
+
+    #[test]
+    fn a_blueprint_without_limits_gets_the_defaults_and_keeps_its_own() {
+        let mut none = json!({"format": 1});
+        assert!(fill_defaults(&mut none));
+        assert_eq!(none["limits"], json!({"perRunUsd": 1.0, "perRunMinutes": 30, "perDayUsd": 5.0, "parallel": 1}));
+        let mut some = json!({"limits": {"perRunUsd": 2, "parallel": 3}});
+        assert!(!fill_defaults(&mut some));
+        assert_eq!(some["limits"], json!({"perRunUsd": 2, "parallel": 3, "perRunMinutes": 30, "perDayUsd": 5.0}));
+        assert!(!fill_defaults(&mut json!("not a blueprint")));
     }
 
     #[test]

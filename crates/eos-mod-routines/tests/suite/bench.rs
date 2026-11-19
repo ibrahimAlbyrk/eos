@@ -26,7 +26,7 @@ use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
     FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeRunGate, FakeScratch,
-    FakeSleeper, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore,
+    FakeSettings, FakeSleeper, FakeTimeZone, FakeWorktrees, FakeZoneRules, ScriptedRuntime, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -38,7 +38,8 @@ pub(crate) struct Bench {
     pub(crate) temp: TempStore,
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) sleeper: Arc<FakeSleeper>,
-    pub(crate) ids: SeqIds,
+    /// Shared with the module, so the rows a test writes and the module's never share an id.
+    pub(crate) ids: Arc<SeqIds>,
     /// The agents the runs start.
     pub(crate) agents: ScriptedRuntime,
     pub(crate) sessions: Sessions,
@@ -56,6 +57,8 @@ pub(crate) struct Bench {
     pub(crate) worktrees: Arc<FakeWorktrees>,
     /// Where the module publishes what is not written (activity lines).
     pub(crate) bus: Bus,
+    /// `settings.json`.
+    pub(crate) settings: Arc<FakeSettings>,
 }
 
 /// The user's clones, by the key of their remote.
@@ -171,7 +174,9 @@ impl Bench {
         });
         let reads = Arc::new(reads);
         let keys = Arc::new(FakeKeys::default());
-        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, &keys, &bus, autostart);
+        let (settings, ids) = (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()));
+        let parts = Shared { gate: &gate_port, keys: &keys, bus: &bus, settings: &settings, ids: &ids };
+        let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
         Self {
@@ -180,7 +185,7 @@ impl Bench {
             temp,
             clock,
             sleeper,
-            ids: SeqIds::new(),
+            ids,
             agents,
             sessions,
             hooks,
@@ -192,6 +197,7 @@ impl Bench {
             keys,
             worktrees,
             bus,
+            settings,
         }
     }
 
@@ -200,7 +206,14 @@ impl Bench {
     pub(crate) fn another_module(&self) -> Arc<RoutinesModule> {
         let (temp, clock, sleeper, sessions, reads) =
             (&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads);
-        module(temp, clock, sleeper, sessions, reads, &self.gate_port, &self.keys, &self.bus, self.autostart)
+        let parts = Shared {
+            gate: &self.gate_port,
+            keys: &self.keys,
+            bus: &self.bus,
+            settings: &self.settings,
+            ids: &self.ids,
+        };
+        module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
 
     /// Starts the supervisor.
@@ -301,19 +314,26 @@ impl Bench {
     }
 }
 
+/// More of the bench's parts the module is built from.
+struct Shared<'a> {
+    gate: &'a Arc<dyn RunGate>,
+    keys: &'a Arc<FakeKeys>,
+    bus: &'a Bus,
+    settings: &'a Arc<FakeSettings>,
+    ids: &'a Arc<SeqIds>,
+}
+
 // The bench's parts, each shared with the module a restart builds again.
-#[allow(clippy::too_many_arguments)]
 fn module(
     temp: &TempStore,
     clock: &Arc<FakeClock>,
     sleeper: &Arc<FakeSleeper>,
     sessions: &Sessions,
     reads: &Arc<FakeCapabilityReads>,
-    gate: &Arc<dyn RunGate>,
-    keys: &Arc<FakeKeys>,
-    bus: &Bus,
+    shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
+    let Shared { gate, keys, bus, settings, ids } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -323,7 +343,7 @@ fn module(
         store: temp.port(),
         clock: clock.clone(),
         sleeper: sleeper.clone(),
-        ids: Arc::new(SeqIds::new()),
+        ids: ids.clone(),
         device: "mac-1".into(),
         autostart,
         sessions: sessions.clone(),
@@ -336,6 +356,9 @@ fn module(
         keys: keys.clone(),
         remotes: Arc::new(git),
         bus: bus.clone(),
+        zones: Arc::new(FakeZoneRules::new().fixed("Europe/Istanbul", 180)),
+        zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
+        settings: settings.clone(),
     }))
 }
 

@@ -186,6 +186,14 @@ impl RoutineRepo for SqliteTx<'_> {
         .map(drop)
     }
 
+    fn set_name(&self, id: &str, name: &str, at: i64) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routines SET name = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",
+            params![name, at, id],
+        )
+        .map(drop)
+    }
+
     fn set_kind(&self, id: &str, kind: RoutineKind, at: i64) -> Result<(), Error> {
         self.exec(
             "UPDATE routines SET kind = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",

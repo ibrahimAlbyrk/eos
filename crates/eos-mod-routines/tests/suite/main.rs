@@ -2,6 +2,7 @@
 
 mod activity;
 mod bench;
+mod blueprint;
 mod check;
 mod control;
 mod gate;

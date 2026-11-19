@@ -25,6 +25,7 @@ mod start;
 mod steer;
 mod supervisor;
 mod team;
+mod versions;
 mod workspace;
 
 pub(crate) use activity::seen as agent_event;
@@ -42,6 +43,7 @@ pub(crate) use ports::{Directory, Intake, Lookup};
 pub(crate) use recover::recover;
 pub(crate) use steer::{message, pause, resume};
 pub(crate) use team::shape_report;
+pub(crate) use versions::{Edit, Saved, copy, create, restore, save};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -50,8 +52,9 @@ use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::ScratchFolders;
 use eos_core::capability::CapabilityReads;
 use eos_core::git::{ProjectKeys, RemoteSync};
+use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RunCreated, RunFolders, RunGate};
-use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
+use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState};
@@ -112,6 +115,12 @@ pub(crate) struct Engine {
     pub(crate) activity: Mutex<HashMap<String, i64>>,
     /// Ends a run's sessions once the run has ended.
     pub(crate) ended: Mutex<Option<Subscription>>,
+    /// The time zones the system knows, for a blueprint's schedules.
+    pub(crate) zones: Arc<dyn ZoneRules>,
+    /// The user's clock, for the day spend is booked on.
+    pub(crate) zone: Arc<dyn TimeZone>,
+    /// `settings.json`, where the budgets for all routines are.
+    pub(crate) settings: Arc<dyn UserSettingsStore>,
 }
 
 impl Engine {

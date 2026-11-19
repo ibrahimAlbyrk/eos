@@ -330,6 +330,14 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("DELETE", "/api/routines/{id}"),
     ("POST", "/api/routines/{id}/undelete"),
     ("POST", "/api/routines/{id}/keep"),
+    // Making a routine by hand, keeping, restoring and copying a version only write the data
+    // copy; nothing runs until it is started.
+    ("POST", "/api/routines"),
+    ("PUT", "/api/routines/{id}/blueprint"),
+    ("POST", "/api/routines/{id}/versions/{versionId}/restore"),
+    ("POST", "/api/routines/{id}/copy"),
+    ("GET", "/api/routines/settings"),
+    ("PUT", "/api/routines/settings"),
     // Runs: the estimate, the list, one run, its result and timeline, and a worker's run are
     // read from the data copy; stopping and pausing a run only stop its agents.
     ("POST", "/api/runs/estimate"),

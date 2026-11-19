@@ -307,6 +307,13 @@ export const ROUTES = {
   routine: (id) => `/api/routines/${id}`,
   routineVersions: (id) => `/api/routines/${id}/versions`,
   routineVersion: (id, versionId) => `/api/routines/${id}/versions/${versionId}`,
+  // Writing a routine's blueprint: make one by hand, keep a new version from
+  // the head, bring an old version back, start another like it; the budgets
+  // for all routines.
+  routineBlueprint: (id) => `/api/routines/${id}/blueprint`,
+  routineVersionRestore: (id, versionId) => `/api/routines/${id}/versions/${versionId}/restore`,
+  routineCopy: (id) => `/api/routines/${id}/copy`,
+  routinesSettings: "/api/routines/settings",
   // A routine's life by hand: its state, Recently deleted and back, a one-off kept.
   routineState: (id) => `/api/routines/${id}/state`,
   routineUndelete: (id) => `/api/routines/${id}/undelete`,
