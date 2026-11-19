@@ -55,6 +55,7 @@ impl Harness {
         let scope = match topic {
             "agent:delta" | "genui:delta" | "workflow:progress" => payload["workerId"].as_str().map(Scope::worker),
             "pty:data" => payload["sessionId"].as_str().map(Scope::pty),
+            "run:activity" => payload["runId"].as_str().map(Scope::run),
             _ => None,
         };
         self.bus.publish_raw(topic, scope, Bytes::from(payload.to_string()));
@@ -101,7 +102,9 @@ impl Reader {
         self.changes()
             .iter()
             .map(|d| {
-                let about = d["payload"]["workerId"].as_str().or(d["payload"]["sessionId"].as_str()).unwrap_or("");
+                let payload = &d["payload"];
+                let about = ["workerId", "sessionId", "runId"].iter().find_map(|key| payload[key].as_str());
+                let about = about.unwrap_or("");
                 format!("{}:{about}", d["reason"].as_str().unwrap_or(""))
             })
             .collect()
@@ -268,6 +271,7 @@ fn tab(workers: &[&str], ptys: &[&str]) -> AttachOptions {
         focus: Some(StreamFocus {
             workers: workers.iter().map(|s| s.to_string()).collect(),
             ptys: ptys.iter().map(|s| s.to_string()).collect(),
+            runs: vec!["r1".into()],
         }),
         ..AttachOptions::default()
     }
@@ -303,7 +307,7 @@ async fn set_focus_applies_from_the_next_event_and_the_replay_follows_the_focus_
     let mut r = h.attach(tab(&[], &[]));
     let since = h.hub.current_id();
     h.broadcast("agent:delta", json!({ "workerId": "w1" })).await;
-    h.hub.set_focus("tab", &StreamFocus { workers: vec!["w1".into()], ptys: vec![] });
+    h.hub.set_focus("tab", &StreamFocus { workers: vec!["w1".into()], ..StreamFocus::default() });
     h.broadcast("agent:delta", json!({ "workerId": "w1" })).await;
     r.drain().await;
     assert_eq!(r.changes().len(), 1);
@@ -542,4 +546,18 @@ async fn refuses_one_stream_too_many() {
     assert_eq!(res.status, 503);
     drop(a);
     assert!(h.hub.attach(AttachOptions::default()).is_ok(), "a closed stream frees its place");
+}
+
+#[tokio::test]
+async fn a_runs_activity_reaches_only_a_tab_that_shows_the_run() {
+    let h = harness(quiet());
+    let mut focused = h.attach(tab(&[], &[]));
+    let mut unfocused = h.attach(AttachOptions::default());
+    h.broadcast("run:activity", json!({ "runId": "r1" })).await;
+    h.broadcast("run:activity", json!({ "runId": "r2" })).await;
+    h.broadcast("worker:change", json!({ "workerId": "w2" })).await;
+    focused.drain().await;
+    unfocused.drain().await;
+    assert_eq!(focused.reasons(), ["run:activity:r1", "worker:change:w2"]);
+    assert_eq!(unfocused.reasons(), ["worker:change:w2"], "a tab that names no run gets no activity line");
 }

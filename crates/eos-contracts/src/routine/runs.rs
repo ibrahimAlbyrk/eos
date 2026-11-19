@@ -75,6 +75,22 @@ pub struct RunChange {
 
 impl Validate for RunChange {}
 
+/// `run:activity`: what one of a run's agents is doing now, in one line.
+/// Sent only to a tab that shows the run; never stored.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunActivity {
+    pub run_id: String,
+    pub worker_id: String,
+    /// The agent of the routine's Who; `None` for the checker.
+    pub agent_key: Option<String>,
+    pub line: String,
+    /// Epoch ms.
+    pub at: i64,
+}
+
+impl Validate for RunActivity {}
+
 /// `runs:active`: how many runs work, and how many wait on the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

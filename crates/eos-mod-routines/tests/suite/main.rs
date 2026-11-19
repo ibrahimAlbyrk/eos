@@ -1,5 +1,6 @@
 //! `eos-mod-routines` over the real store.
 
+mod activity;
 mod bench;
 mod check;
 mod control;

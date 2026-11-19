@@ -17,8 +17,10 @@ use eos_domain::run_scope::Trust;
 use eos_mod_routines::{RoutinesModule, RoutinesParts, ShowOnlyGate};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
+use eos_runtime::bus::{Bus, BusOptions};
 use eos_runtime::idle::IdleHooks;
 use eos_runtime::module::Module;
+use eos_runtime::ordered::Ordered;
 use eos_sessions::{SessionDeps, SessionHooks, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
@@ -52,6 +54,8 @@ pub(crate) struct Bench {
     pub(crate) keys: Arc<FakeKeys>,
     /// The worktrees the sessions made.
     pub(crate) worktrees: Arc<FakeWorktrees>,
+    /// Where the module publishes what is not written (activity lines).
+    pub(crate) bus: Bus,
 }
 
 /// The user's clones, by the key of their remote.
@@ -109,6 +113,12 @@ impl SessionHooks for Hooks {
         }
     }
 
+    fn agent_event(&self, worker_id: &str, event: &eos_contracts::AgentEvent) {
+        if let Some(module) = self.module() {
+            module.on_agent_event(worker_id, event);
+        }
+    }
+
     fn shape_report(&self, worker_id: &str, text: &mut String) {
         if let Some(module) = self.module() {
             module.shape_report(worker_id, text);
@@ -160,7 +170,8 @@ impl Bench {
         });
         let reads = Arc::new(reads);
         let keys = Arc::new(FakeKeys::default());
-        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, &keys, autostart);
+        let bus = Bus::new(Ordered::new(), clock.clone(), BusOptions { delta_window: None });
+        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, &keys, &bus, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
         Self {
@@ -180,6 +191,7 @@ impl Bench {
             autostart,
             keys,
             worktrees,
+            bus,
         }
     }
 
@@ -188,7 +200,7 @@ impl Bench {
     pub(crate) fn another_module(&self) -> Arc<RoutinesModule> {
         let (temp, clock, sleeper, sessions, reads) =
             (&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads);
-        module(temp, clock, sleeper, sessions, reads, &self.gate_port, &self.keys, self.autostart)
+        module(temp, clock, sleeper, sessions, reads, &self.gate_port, &self.keys, &self.bus, self.autostart)
     }
 
     /// Starts the supervisor.
@@ -299,6 +311,7 @@ fn module(
     reads: &Arc<FakeCapabilityReads>,
     gate: &Arc<dyn RunGate>,
     keys: &Arc<FakeKeys>,
+    bus: &Bus,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
@@ -322,6 +335,7 @@ fn module(
         config: Arc::new(FakeConfig::new(json!({"prices": {"sonnet": {"in": 3, "out": 15, "cacheRead": 0.3}}}))),
         keys: keys.clone(),
         remotes: Arc::new(git),
+        bus: bus.clone(),
     }))
 }
 

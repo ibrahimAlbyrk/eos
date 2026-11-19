@@ -95,6 +95,7 @@ async fn spawn(
         run_id: session.run_id.clone(),
         trust: session.trust,
         reads_outside: session.reads_outside,
+        agent_key: session.agent_key.clone(),
     };
     Engine::locked(&engine.launches).insert(worker_id.to_owned(), launch);
     let (cwd, worktree_from, branch, start_point) = match &session.place {

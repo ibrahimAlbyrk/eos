@@ -73,6 +73,9 @@ pub enum ScopeKind {
     Worker,
     /// The payload's `sessionId` (`pty:data`).
     Pty,
+    /// The payload's `runId` (`run:activity`). Only a tab that names the
+    /// run gets these.
+    Run,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +91,10 @@ impl Scope {
 
     pub fn pty(id: impl Into<Arc<str>>) -> Self {
         Self { kind: ScopeKind::Pty, id: id.into() }
+    }
+
+    pub fn run(id: impl Into<Arc<str>>) -> Self {
+        Self { kind: ScopeKind::Run, id: id.into() }
     }
 }
 

@@ -384,6 +384,13 @@ reason = "OpenCode Go is a provider this app adds after the ones the daemon ship
 scenario = "*-routine-sessions"
 reason = "A routine's sessions are left out of GET /workers, GET /workers/archived and the dashboard's and phone's row patches (their changes become remove patches); GET /workers/{id} still serves them. Shapes, fields and statuses are unchanged: only which rows exist. The 0.1.x app had no routines."
 
+# A tab says which routine runs it shows (`runs` in POST /stream/focus, `?runs=` on
+# GET /stream). No recording sends one, so this names the scenario a recording would carry.
+
+[[known]]
+scenario = "*-stream-runs"
+reason = "A tab may name the runs it shows (body field `runs`, query `?runs=`, at most 64): it then gets `run:activity` for them, and a tab that names none gets no `run:activity`. Older dashboards send neither and get every other topic as before. The 0.1.x app had no routines."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

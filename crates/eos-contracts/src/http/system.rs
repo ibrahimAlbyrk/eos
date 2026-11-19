@@ -77,6 +77,9 @@ pub struct StreamFocusRequest {
     pub client_id: String,
     pub workers: Vec<String>,
     pub ptys: Vec<String>,
+    /// The runs whose activity lines the tab shows; older dashboards send none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<String>,
 }
 
 impl Validate for StreamFocusRequest {
@@ -87,6 +90,7 @@ impl Validate for StreamFocusRequest {
         });
         cx.at("workers", |cx| cx.arr_max(self.workers.len(), 64));
         cx.at("ptys", |cx| cx.arr_max(self.ptys.len(), 64));
+        cx.at("runs", |cx| cx.arr_max(self.runs.len(), 64));
     }
 }
 

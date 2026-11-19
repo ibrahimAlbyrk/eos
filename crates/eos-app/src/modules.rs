@@ -200,6 +200,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         config: cx.config.clone(),
         keys: cx.project_keys.clone(),
         remotes: cx.repos.git.clone(),
+        bus: cx.bus.clone(),
     }));
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);
