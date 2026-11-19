@@ -3,11 +3,14 @@
 //! sure, by a small model asked once. At most [`MODEL_READS_A_DAY`] model
 //! reads a local day on this computer; past them, and when the model fails
 //! or is slow, the rules answer. Each model read is booked as `intent`
-//! spend. The text is never logged.
+//! spend. The text is never logged. Which routines take a thing the user
+//! dropped is read by the same rules.
 
 use std::time::Duration;
 
-use eos_contracts::{IntentAnswer, IntentChoice, IntentKind, IntentRequest, ItemRef, RoutineState};
+use eos_contracts::{
+    IntentAnswer, IntentAttachment, IntentChoice, IntentKind, IntentRequest, ItemRef, MatchItemAnswer, RoutineState,
+};
 use eos_core::Error;
 use eos_core::agent::{OneShotError, OneShotRequest};
 use eos_core::capability::ItemRecogniser;
@@ -136,6 +139,19 @@ fn rules_reading(asked: &IntentRequest, listed: &[Listed]) -> Reading {
 pub(crate) async fn by_rules(engine: &Engine, asked: &IntentRequest) -> Result<IntentAnswer, Error> {
     let listed = listed(engine).await?;
     Ok(answer(rules_reading(asked, &listed), &listed, "rules", asked.seq))
+}
+
+/// `POST /api/routines/match-item`: a run of each routine that takes the
+/// thing (its kind is the routine's, or the routine recognises its value),
+/// then doing it once.
+pub(crate) async fn match_item(engine: &Engine, item: &IntentAttachment) -> Result<MatchItemAnswer, Error> {
+    let listed = listed(engine).await?;
+    let takers =
+        listed.iter().filter(|routine| routine.takes_kind == item.kind || routine.known.item_in(&item.value).is_some());
+    let mut choices: Vec<IntentChoice> =
+        takers.map(|routine| intent::choice(IntentKind::Run, Some(&routine.known), Some(&item.value))).collect();
+    choices.push(intent::choice(IntentKind::Once, None, None));
+    Ok(MatchItemAnswer { choices })
 }
 
 /// `POST /api/routines/intent/model`: the small model's reading; the rules'

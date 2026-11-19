@@ -42,7 +42,7 @@ pub(crate) fn refusal(error: Error) -> ApiError {
 }
 
 pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
-    let mut routes = routines::all(&engine.store, &engine.clock);
+    let mut routes = routines::all(&engine.store, &engine.clock, &engine.reads);
     routes.extend(writes::all(engine));
     routes.extend(architect::all(engine));
     routes.extend(intent::all(engine));

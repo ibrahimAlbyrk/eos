@@ -3,21 +3,31 @@
 use std::sync::Arc;
 
 use eos_contracts::{
-    BLUEPRINT_FORMAT, Blueprint, Num, RoutineDetail, RoutineDraft, RoutineOption, RoutineState, RoutineSummary,
-    RoutineTakes, RoutineVersion, RoutineVersionRow, RunInput, RunSummary, Rung, Takes, TakesEmpty,
+    BLUEPRINT_FORMAT, Blueprint, Num, ResultMode, RoutineDetail, RoutineDraft, RoutineOption, RoutineState,
+    RoutineSummary, RoutineTakes, RoutineVersion, RoutineVersionRow, RunInput, RunSummary, Rung, Takes, TakesEmpty,
+    UsualCost, When,
 };
+use eos_core::capability::CapabilityReads;
 use eos_core::store::{Store, StoredDraft, StoredRoutine, StoredRun, StoredVersion, Tx};
 use eos_core::{Clock, Error};
 use eos_domain::routine::blueprint::{self, Readable};
+use eos_domain::routine::numbers::Basis;
+use eos_domain::signals::when::describe;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
 use serde_json::Value;
 
+use super::usual;
+use crate::intent::item_patterns;
+
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// How long a deleted routine stays in Recently deleted.
 const DELETED_KEPT_MS: i64 = 30 * DAY_MS;
+
+/// How many of a routine's latest runs its usual cost is read from.
+const USUAL_RUNS_READ: i64 = 200;
 
 /// The runs a routine's page lists.
 const RECENT_RUNS: i64 = 20;
@@ -25,12 +35,19 @@ const RECENT_RUNS: i64 = 20;
 /// The origin of the routines a feature owns, which the user never lists.
 pub(crate) const BUILTIN: &str = "builtin";
 
-pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>) -> Vec<RouteDef> {
-    let (list_store, list_clock) = (store.clone(), clock.clone());
+pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>, reads: &Arc<dyn CapabilityReads>) -> Vec<RouteDef> {
+    let (list_store, list_clock, list_reads) = (store.clone(), clock.clone(), reads.clone());
     let list = RouteDef::get("/api/routines", move |_req: Request| {
-        let (store, now) = (list_store.clone(), list_clock.now_ms());
+        let (store, now, reads) = (list_store.clone(), list_clock.now_ms(), list_reads.clone());
         async move {
-            let rows = store.read(move |tx| rows(tx, now)).await?;
+            let recognisers = reads.recognisers().await.unwrap_or_else(|error| {
+                tracing::warn!(%error, "the item recognisers could not be read");
+                Vec::new()
+            });
+            let mut rows = store.read(move |tx| rows(tx, now)).await?;
+            for row in &mut rows {
+                row.takes.item_patterns = item_patterns(&recognisers, &row.takes.takes.kind);
+            }
             Ok(Response::json(200, &rows))
         }
     });
@@ -177,7 +194,15 @@ pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<
     let Some(shown) = showing_version(tx, &routine.id)? else {
         return Ok(None);
     };
-    let blueprint = match readable(&shown)? {
+    let typed = readable(&shown)?;
+    let (trigger_line, usual) = match &typed {
+        Some(blueprint) => (Some(describe(&blueprint.when)), usual_cost(tx, &routine.id, blueprint)?),
+        None => {
+            let when = serde_json::from_value::<When>(stored_json(&shown)?["when"].clone()).ok();
+            (when.as_ref().map(describe), None)
+        }
+    };
+    let blueprint = match typed {
         Some(blueprint) => Shown::of(blueprint),
         None => Shown::newer(&stored_json(&shown)?),
     };
@@ -194,15 +219,32 @@ pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<
         state: routine.state,
         paused_reason: routine.paused_reason.clone(),
         rung: blueprint.rung,
-        trigger_line: None,
+        trigger_line,
         takes: RoutineTakes { takes: blueprint.takes, item_patterns: Vec::new() },
         options: blueprint.options.into_iter().filter(|option| option.inline).collect(),
-        usual: None,
+        usual,
         runs7d: counts.since,
         active_runs: counts.live,
         last_run,
         stats: None,
     }))
+}
+
+/// What a run with the default options usually costs and takes, from the
+/// routine's own finished runs; none while it has too few.
+fn usual_cost(tx: &dyn Tx, routine_id: &str, blueprint: &Blueprint) -> Result<Option<UsualCost>, Error> {
+    let runs = tx.runs().by_routine(routine_id, USUAL_RUNS_READ)?;
+    let input = RunInput {
+        item: None,
+        items: None,
+        trigger: None,
+        options: Default::default(),
+        note: None,
+        result: ResultMode::Usual,
+        at: None,
+    };
+    let found = usual(blueprint, &runs, &input, |_| None);
+    Ok((found.basis == Basis::History).then(|| UsualCost { usd: Num(found.usd), ms: found.ms }))
 }
 
 /// The version a routine shows and runs from: its head, or while it is
