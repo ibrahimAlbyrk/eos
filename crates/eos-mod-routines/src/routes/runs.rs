@@ -83,6 +83,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
                     409,
                     &json!({"error": format!("a routine that is {} does not take this run", word(state))}),
                 )),
+                Err(StartError::DayCap) => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
                 Err(StartError::UnknownRoutine(id)) => Err(Error::not_found("routine", id).into()),
                 Err(StartError::Invalid(text)) => Err(ApiError::Validation(format!("invalid request: {text}"))),
                 Err(StartError::Store(error)) => Err(error.into()),

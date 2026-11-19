@@ -358,6 +358,7 @@ impl App {
         })?;
         let accounts_dir = paths.join("accounts");
         let stores = Arc::new(Stores::new(secrets.clone(), Endpoints::default()));
+        let usage_cache = reach.usage_cache(Arc::new(FileUsageSnapshots::new(paths.join("usage-cache.json"))));
         let accounts = Accounts::new(eos_accounts::Deps {
             clock: clock.clone(),
             ids: ids.clone(),
@@ -371,7 +372,7 @@ impl App {
             browser: shell.as_ref().map_or_else(|| Arc::new(SystemBrowser) as Arc<dyn Browser>, |s| s.opener.clone()),
             probe: reach.token_probe(Arc::new(ClaudeTokenProbe::default())),
             usage_api: Arc::new(ClaudeUsageApi::new(clock.clone())),
-            usage_cache: reach.usage_cache(Arc::new(FileUsageSnapshots::new(paths.join("usage-cache.json")))),
+            usage_cache: usage_cache.clone(),
             local_time: Arc::new(HostLocalTime),
             sleeper: sleeper.clone(),
             sessions: Arc::new(NoLiveSessions),
@@ -585,6 +586,7 @@ impl App {
             raw_routes: Default::default(),
             pdfjs_root,
             settings: settings.clone(),
+            usage_cache,
             media,
             location,
             policy,

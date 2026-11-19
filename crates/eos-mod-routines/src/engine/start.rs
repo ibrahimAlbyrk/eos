@@ -15,6 +15,7 @@ use eos_domain::routine::item;
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
+use super::supervisor::by_the_user;
 use super::{Engine, Queued, queue_run};
 use crate::routes::{readable, showing_version};
 
@@ -40,7 +41,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
     // The request id is looked up and remembered on the writer thread, one
     // job after another, so a retry sent while the first request is still
     // being written answers its runs instead of queueing them again.
-    let job = engine.clone();
+    let (job, day) = (engine.clone(), super::budget::day(engine));
     let written = engine
         .store
         .write(move |tx, out| {
@@ -48,7 +49,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
             if let Some(runs) = request.and_then(|id| remembered(&job, id, now)) {
                 return Ok(Ok((runs, true)));
             }
-            match queue(tx, out, &new, now, job.ids.as_ref(), &job.device) {
+            match queue(tx, out, &new, now, &day, job.ids.as_ref(), &job.device) {
                 Ok(made) => {
                     if let Some(id) = request {
                         Engine::locked(&job.requests).insert(id.to_owned(), (now, made.clone()));
@@ -93,6 +94,7 @@ fn queue(
     out: &mut Outbox,
     new: &NewRun,
     now: i64,
+    day: &super::budget::Day,
     ids: &dyn eos_core::Ids,
     device: &str,
 ) -> Result<Vec<RunCreated>, StartError> {
@@ -100,6 +102,10 @@ fn queue(
         tx.routines().find(&new.routine_id)?.ok_or_else(|| StartError::UnknownRoutine(new.routine_id.clone()))?;
     if !takes_origin(routine.state, &new.origin) {
         return Err(StartError::RoutineState(routine.state));
+    }
+    // The user's own start asks to raise today's cap rather than wait for tomorrow.
+    if by_the_user(new.origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
+        return Err(StartError::DayCap);
     }
     let version = showing_version(tx, &routine.id)?;
     let blueprint = match &version {

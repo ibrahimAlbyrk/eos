@@ -8,6 +8,7 @@
 
 mod activity;
 mod brief;
+mod budget;
 mod cancel;
 mod check;
 mod control;
@@ -30,6 +31,7 @@ mod workspace;
 
 pub(crate) use activity::seen as agent_event;
 pub(crate) use brief::model_of;
+pub(crate) use budget::watch_usage;
 pub(crate) use check::holds;
 pub(crate) use control::Control;
 pub(crate) use exec::Tools;
@@ -53,7 +55,7 @@ use eos_core::agent::ScratchFolders;
 use eos_core::capability::CapabilityReads;
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{TimeZone, ZoneRules};
-use eos_core::routine::{RunCreated, RunFolders, RunGate};
+use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
@@ -121,6 +123,12 @@ pub(crate) struct Engine {
     pub(crate) zone: Arc<dyn TimeZone>,
     /// `settings.json`, where the budgets for all routines are.
     pub(crate) settings: Arc<dyn UserSettingsStore>,
+    /// Whether the plan has room for runs from triggers.
+    pub(crate) headroom: Arc<dyn PlanHeadroom>,
+    /// What each working run was told of its budget.
+    pub(crate) meters: Mutex<HashMap<String, budget::Meter>>,
+    /// Books what routine sessions spend.
+    pub(crate) usage: Mutex<Option<Subscription>>,
 }
 
 impl Engine {
@@ -143,6 +151,7 @@ pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: R
     }
     let before = tx.runs().active()?;
     let event = tx.runs().move_to(&run.id, &change)?;
+    budget::recount_in(tx, &run.id)?;
     announce(out, &run.id, &run.routine_id, &change);
     let after = tx.runs().active()?;
     if after != before {
@@ -322,6 +331,7 @@ pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
 /// is free once the app shuts down.
 pub(crate) async fn stop_supervisor(engine: &Engine) {
     drop(Engine::locked(&engine.ended).take());
+    drop(Engine::locked(&engine.usage).take());
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {
         task.abort();

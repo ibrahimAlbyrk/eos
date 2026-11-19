@@ -59,6 +59,24 @@ pub(crate) struct Bench {
     pub(crate) bus: Bus,
     /// `settings.json`.
     pub(crate) settings: Arc<FakeSettings>,
+    /// Whether the plan is near its five-hour limit.
+    pub(crate) plan: Arc<FakePlan>,
+}
+
+/// A plan whose five-hour window a test fills.
+#[derive(Default)]
+pub(crate) struct FakePlan(AtomicBool);
+
+impl FakePlan {
+    pub(crate) fn set_busy(&self, busy: bool) {
+        self.0.store(busy, Ordering::SeqCst);
+    }
+}
+
+impl eos_core::routine::PlanHeadroom for FakePlan {
+    fn busy(&self, _percent: i64) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
 }
 
 /// The user's clones, by the key of their remote.
@@ -174,8 +192,9 @@ impl Bench {
         });
         let reads = Arc::new(reads);
         let keys = Arc::new(FakeKeys::default());
-        let (settings, ids) = (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()));
-        let parts = Shared { gate: &gate_port, keys: &keys, bus: &bus, settings: &settings, ids: &ids };
+        let (settings, ids, plan) =
+            (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
+        let parts = Shared { gate: &gate_port, keys: &keys, bus: &bus, settings: &settings, ids: &ids, plan: &plan };
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
@@ -198,6 +217,7 @@ impl Bench {
             worktrees,
             bus,
             settings,
+            plan,
         }
     }
 
@@ -212,6 +232,7 @@ impl Bench {
             bus: &self.bus,
             settings: &self.settings,
             ids: &self.ids,
+            plan: &self.plan,
         };
         module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
@@ -321,6 +342,7 @@ struct Shared<'a> {
     bus: &'a Bus,
     settings: &'a Arc<FakeSettings>,
     ids: &'a Arc<SeqIds>,
+    plan: &'a Arc<FakePlan>,
 }
 
 // The bench's parts, each shared with the module a restart builds again.
@@ -333,7 +355,7 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared { gate, keys, bus, settings, ids } = shared;
+    let Shared { gate, keys, bus, settings, ids, plan } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -359,6 +381,7 @@ fn module(
         zones: Arc::new(FakeZoneRules::new().fixed("Europe/Istanbul", 180)),
         zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
         settings: settings.clone(),
+        headroom: plan.clone(),
     }))
 }
 

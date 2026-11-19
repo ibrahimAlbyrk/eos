@@ -19,6 +19,7 @@ mod callers;
 mod capabilities;
 mod display;
 mod files;
+mod headroom;
 mod host;
 mod machines;
 mod maintenance;

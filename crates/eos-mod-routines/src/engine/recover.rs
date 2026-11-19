@@ -12,11 +12,11 @@
 use std::sync::Arc;
 
 use eos_core::Error;
-use eos_core::store::{RUN_STATE_EVENT, RunMove, StoredRun, Tx};
+use eos_core::store::{RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
 
-use super::{Engine, brief, check, fail, move_run, note};
+use super::{Engine, brief, budget, check, fail, move_run, note};
 
 /// A queued run more than this late is skipped.
 const TOO_LATE_MS: i64 = 24 * 60 * 60 * 1000;
@@ -74,12 +74,8 @@ fn recount_and_pick(tx: &dyn Tx, out: &mut eos_core::store::Outbox, now: i64) ->
     let mut picks = Vec::new();
     for run in tx.runs().at_work()? {
         let sessions = tx.routine_sessions().by_run(&run.id)?;
-        let mut cost = 0.0;
-        for session in &sessions {
-            cost += tx.workers().find(&session.worker_id)?.map_or(0.0, |worker| worker.usage.cost_usd);
-        }
+        budget::recount_in(tx, &run.id)?;
         let events = tx.runs().events(&run.id)?;
-        tx.runs().set_spent(&run.id, cost, work_ms(&events))?;
         let stopped = events.last().map_or(run.updated_at, |event| event.at);
         tx.runs().append_event(&run.id, now, INTERRUPTED, Some(&json!({"at": stopped}).to_string()))?;
         let pick = match run.state {
@@ -99,24 +95,4 @@ fn recount_and_pick(tx: &dyn Tx, out: &mut eos_core::store::Outbox, now: i64) ->
         picks.push((run, pick));
     }
     Ok(picks)
-}
-
-/// The time the run spent running or checking, from its timeline: each
-/// such stretch up to the next move. The stretch Eos stopped in counts up
-/// to its last event.
-fn work_ms(events: &[eos_core::store::StoredRunEvent]) -> i64 {
-    let mut total = 0;
-    let mut since: Option<i64> = None;
-    for event in events {
-        if let Some(start) = since {
-            total += event.at - start;
-            since = Some(event.at);
-        }
-        if event.kind == RUN_STATE_EVENT {
-            let state = event.data.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok());
-            let state = state.as_ref().and_then(|data| data["state"].as_str().map(str::to_owned));
-            since = matches!(state.as_deref(), Some("running" | "checking")).then_some(event.at);
-        }
-    }
-    total
 }
