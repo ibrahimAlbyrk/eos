@@ -140,6 +140,15 @@ export async function copyRoutine(id) {
   return row.id;
 }
 
+// GET candidates: what the run form offers to run on, newest first; empty
+// when the core gives none (a dev run refuses them).
+export async function loadCandidates(id, q = "") {
+  const query = new URLSearchParams({ limit: "20" });
+  if (q.trim()) query.set("q", q.trim());
+  const r = await transport.get(`${ROUTES.routineCandidates(id)}?${query}`).catch(() => null);
+  return r?.ok && Array.isArray(r.body?.items) ? r.body.items : [];
+}
+
 export function resyncRoutines() {
   if (started) void refreshRoutines();
   for (const id of Object.keys(state.details)) void loadRoutine(id);

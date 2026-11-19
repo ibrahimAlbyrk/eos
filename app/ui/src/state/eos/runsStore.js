@@ -139,6 +139,26 @@ export function messageRun(id, text) {
   return runWrite(ROUTES.runMessage(id), { text });
 }
 
+// POST /api/runs from the run form; it waits for the core's answer. →
+// { runs } when it started, { repeat: existingRunId } when the routine
+// handled the same item lately, { dayCap: true } when routines spent today's
+// budget, { devRun: true }, { offline: true }, or { error } in words.
+export async function startRun(body) {
+  const r = await transport.send("POST", ROUTES.runs, body).catch(() => null);
+  if (r?.ok && Array.isArray(r.body?.runs)) return { runs: r.body.runs };
+  if (r === null) return { offline: true };
+  if (r.status === 409 && typeof r.body?.existingRunId === "string") return { repeat: r.body.existingRunId };
+  if (r.status === 409 && r.body?.code === "day_cap") return { dayCap: true };
+  if (isDevRunRefusal(r)) return { devRun: true };
+  return { error: r.body?.error ?? "Eos could not start the run." };
+}
+
+// POST /api/runs/estimate → { usd, ms, basis, n }, or null.
+export async function estimateRun(body) {
+  const r = await transport.send("POST", ROUTES.runsEstimate, body).catch(() => null);
+  return r?.ok && typeof r.body?.ms === "number" ? r.body : null;
+}
+
 // SSE runs:active { count, needsUser }.
 export function applyRunsActive(payload) {
   if (typeof payload?.count !== "number") return;
