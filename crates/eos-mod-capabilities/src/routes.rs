@@ -79,7 +79,7 @@ async fn detail(service: &CapabilityService, store: &Arc<dyn Store>, id: &str) -
             Ok((users(tx)?, versions, tx.capability_calls().recent(&owned, RECENT_CALLS)?))
         })
         .await?;
-    versions.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    versions.sort_by_key(|version| std::cmp::Reverse(version.created_at));
     let mut secrets = Vec::new();
     for secret in &manifest.secrets {
         let set = service.secret_set(id, &secret.name).await?;
