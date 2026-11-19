@@ -1,13 +1,14 @@
-// routinesStore — the user's routines (the sidebar, eos:/routines) and the
-// detail of each one opened. The list loads once after the first paint; a
-// routine:change carries the routine's row and is applied as it comes, so a
-// change never reads the list again.
+// routinesStore — the user's routines (the sidebar, eos:/routines), the
+// detail of each one opened, and the writes the routine page makes. The list
+// loads once after the first paint; a routine:change carries the routine's
+// row and is applied as it comes, so a change never reads the list again.
 
 import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
 import { afterFirstPaint } from "../../lib/firstPaint.js";
+import { notify } from "../../lib/notify.js";
 import { putBounded, without } from "./bounded.js";
-import { transport } from "./transport.js";
+import { isDevRunRefusal, transport } from "./transport.js";
 
 const DETAILS_KEPT = 30;
 
@@ -82,11 +83,56 @@ export function applyRoutineChange(payload) {
   }
   const row = payload.row;
   if (row?.id !== id) return;
-  const detail = state.details[id];
+  putRow(row);
+}
+
+// The row in the list and in its detail.
+function putRow(row) {
+  const detail = state.details[row.id];
   set({
     list: withRow(state.list, row),
-    details: detail ? { ...state.details, [id]: { ...detail, routine: row } } : state.details,
+    details: detail ? { ...state.details, [row.id]: { ...detail, routine: row } } : state.details,
   });
+}
+
+// A write the routine page makes: its answer when the core took it. A dev
+// run's refusal is said on the screen (the transport notes it); any other
+// failure is a toast.
+async function routineWrite(method, path, body) {
+  const r = await transport.send(method, path, body).catch(() => null);
+  if (r?.ok) return r;
+  if (!isDevRunRefusal(r)) notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Routine" });
+  return null;
+}
+
+const rowOf = (id) => state.details[id]?.routine ?? state.list?.find((r) => r.id === id);
+
+// PUT state: active, paused or archived; the core answers the row. Pausing
+// shows at once and goes back when the core refuses it (08 §4.2); the other
+// states wait for the answer.
+export async function setRoutineState(id, next) {
+  const before = rowOf(id);
+  if (next === "paused" && before) putRow({ ...before, state: "paused", pausedReason: "user" });
+  const r = await routineWrite("PUT", ROUTES.routineState(id), { state: next });
+  if (r?.body?.id === id) putRow(r.body);
+  else if (!r && next === "paused" && before) putRow(before);
+  return Boolean(r);
+}
+
+// To Recently deleted; true when the core took it.
+export async function deleteRoutine(id) {
+  const r = await routineWrite("DELETE", ROUTES.routine(id));
+  if (r) dropRoutine(id);
+  return Boolean(r);
+}
+
+// "Start another like this": a draft copy (01 §6). Answers the copy's row,
+// as the other routine writes do; the copy's id, or null.
+export async function copyRoutine(id) {
+  const r = await routineWrite("POST", ROUTES.routineCopy(id));
+  if (typeof r?.body?.id !== "string") return null;
+  putRow(r.body);
+  return r.body.id;
 }
 
 export function resyncRoutines() {
