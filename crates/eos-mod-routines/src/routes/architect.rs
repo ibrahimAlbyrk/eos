@@ -26,7 +26,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = making.clone();
         async move {
             let body: ArchitectRequest = req.parse()?;
-            let saved = architect::make(&engine, &body.sentence, &body.attachments).await?;
+            let saved = architect::make(&engine, &body.sentence, &body.attachments).await.map_err(refusal)?;
             Ok(Response::json(201, &saved))
         }
     });
@@ -72,7 +72,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         async move {
             let body: DraftMessage = req.parse()?;
             let text = body.text.or(body.choice).unwrap_or_default();
-            Ok(Response::json(200, &architect::message(&engine, &param(&req, "id"), &text).await?))
+            Ok(Response::json(200, &architect::message(&engine, &param(&req, "id"), &text).await.map_err(refusal)?))
         }
     });
     let trying = engine.clone();

@@ -12,7 +12,7 @@ use eos_core::store::{StoredDraft, Tx};
 use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
-use super::{say, suspend};
+use super::{NO_ARCHITECT, say, suspend};
 use crate::engine::{Engine, NEWER_FORMAT, announce_routine, blocks, check_in, live, row};
 use crate::routes::{readable, run_summary};
 
@@ -122,7 +122,7 @@ pub(crate) async fn message(engine: &Engine, routine_id: &str, text: &str) -> Re
         draft.status = DraftStatus::Working;
     })
     .await?;
-    let architect = architect.ok_or_else(|| Error::Conflict("the draft has no architect".into()))?;
+    let architect = architect.ok_or_else(|| Error::Conflict(NO_ARCHITECT.into()))?;
     say(engine, &architect, text).await?;
     view(engine, routine_id).await
 }
