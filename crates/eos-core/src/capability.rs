@@ -11,6 +11,7 @@ use zeroize::Zeroizing;
 use crate::{BoxFuture, Error};
 
 mod call;
+mod confine;
 mod registry;
 mod sign_in;
 
@@ -18,6 +19,7 @@ pub use call::{
     ActionCall, ActionCaller, ActionDescription, ActionError, ActionResult, CapabilityCalls, CapabilityDescription,
     FailureKind,
 };
+pub use confine::{ConfineError, ConfineGuard, ConfineReport, ConfineSpec, Confined, Confinement, Violation};
 pub use registry::{
     ActionContext, ActionRunner, AllInstalled, BuiltinCapability, Capability, CapabilityGrants, CapabilityRegistry,
     Grant, GrantedAction, INSTALLED_MAX, Package,

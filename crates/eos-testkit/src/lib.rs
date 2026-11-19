@@ -48,7 +48,8 @@
 //! The capability ports: [`FakeCapabilitySecrets`] keeps secrets in memory; [`FakeCapabilityFiles`]
 //! copies packages into a folder without hashing them; [`FakeBuiltin`] is a scripted built-in,
 //! [`FakeActionRunner`] a scripted runner of packages, [`FakeCapabilityRegistry`] the registry as
-//! the test sets it.
+//! the test sets it, [`FakeConfinement`] confinement that records its specs and reports scripted
+//! violations.
 //!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
@@ -63,6 +64,7 @@ mod browser;
 mod capabilities;
 mod capability_files;
 mod clock;
+mod confinement;
 mod db;
 mod delivery;
 mod fakes;
@@ -103,6 +105,7 @@ pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use capabilities::{BuiltinCall, FakeActionRunner, FakeBuiltin, FakeCapabilityRegistry, RunnerCall};
 pub use capability_files::FakeCapabilityFiles;
 pub use clock::FakeClock;
+pub use confinement::FakeConfinement;
 pub use db::{Announced, TempStore};
 pub use delivery::FakeChannels;
 pub use fakes::{
