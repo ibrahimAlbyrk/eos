@@ -112,6 +112,23 @@ describe("signing in to GitHub", () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it("says when Eos has no GitHub client id, answered as the needs_setup reason", async () => {
+    const t = core(ok({ id: "github", state: "needs_setup", stateCode: "client_id_missing" }));
+    await startSignIn("github");
+    expect(current()).toEqual({ id: "github", phase: "client_id_missing" });
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(t.get).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("does not wait for a code the core did not give", async () => {
+    const t = core(ok({}));
+    await startSignIn("github");
+    expect(current()).toMatchObject({ phase: "failed" });
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(t.get).not.toHaveBeenCalled();
+  });
+
   it("says when this is a dev run", async () => {
     core({ ok: false, status: 403, body: { error: "refused in a dev run: this request can reach another computer" } });
     await startSignIn("github");
