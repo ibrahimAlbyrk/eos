@@ -25,7 +25,7 @@ fn confirmed_by_user(version: &StoredVersion) -> bool {
         && matches!(version.author, VersionAuthor::User | VersionAuthor::Architect | VersionAuthor::Restore)
 }
 
-fn confirmed_in(tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, Error> {
+pub(crate) fn confirmed_in(tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, Error> {
     for version in tx.routine_versions().list(routine_id)?.iter().rev().filter(|v| confirmed_by_user(v)) {
         if let Some(blueprint) = readable(version)? {
             return Ok(Confirmed { freedom: blueprint.freedom, goes_to: blueprint.goes_to });

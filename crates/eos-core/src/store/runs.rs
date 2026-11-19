@@ -125,6 +125,8 @@ pub trait RunRepo {
     fn bind_version(&self, id: &str, version_id: &str) -> Result<(), Error>;
     /// The worker that leads it.
     fn set_lead(&self, id: &str, worker_id: &str) -> Result<(), Error>;
+    /// The check round it is in, from 1.
+    fn set_attempt(&self, id: &str, attempt: i64) -> Result<(), Error>;
     /// The line the user reads first: its result's, or why it failed.
     fn set_headline(&self, id: &str, headline: &str) -> Result<(), Error>;
     /// Every queued run, the one to start first first: by priority, then
@@ -150,4 +152,6 @@ pub trait RunResultRepo {
     fn insert(&self, result: &StoredRunResult) -> Result<(), Error>;
     /// A run's results, first round first.
     fn by_run(&self, run_id: &str) -> Result<Vec<StoredRunResult>, Error>;
+    /// The check's verdict on one round's result, as JSON.
+    fn set_verdict(&self, run_id: &str, attempt: i64, verdict: &str) -> Result<(), Error>;
 }

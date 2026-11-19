@@ -84,6 +84,9 @@ pub struct Tools {
     /// A routine run's lead: its run tools, `ask_user`, the date, memory
     /// search and the capability tools; none of a chat's.
     pub(crate) run_lead: Vec<Spec>,
+    /// A routine run's checker: its verdict, the date, memory search and the
+    /// capability tools.
+    pub(crate) run_checker: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
     /// only when its description changed. A name is one tool whichever list
@@ -155,15 +158,24 @@ impl Tools {
         focused.extend(visual());
         focused.extend(reactions());
 
+        // What every run session has besides its own tools.
+        let run_shared = || {
+            let mut list = vec![time::spec(&s.clock, &s.zone)];
+            list.extend(
+                memory::specs(&s.memory_search, &s.memory_suggestions)
+                    .into_iter()
+                    .filter(|t| t.name == "search_memory"),
+            );
+            if let Some(calls) = &s.capabilities {
+                list.extend(capabilities::specs(calls));
+            }
+            list
+        };
         let mut run_lead = s.routines.as_ref().map(routines::lead_specs).unwrap_or_default();
         run_lead.push(user::ask_user(&s.questions));
-        run_lead.push(time::spec(&s.clock, &s.zone));
-        run_lead.extend(
-            memory::specs(&s.memory_search, &s.memory_suggestions).into_iter().filter(|t| t.name == "search_memory"),
-        );
-        if let Some(calls) = &s.capabilities {
-            run_lead.extend(capabilities::specs(calls));
-        }
+        run_lead.extend(run_shared());
+        let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();
+        run_checker.extend(run_shared());
 
         Self {
             prompts: s.prompts,
@@ -174,6 +186,7 @@ impl Tools {
             peer,
             focused,
             run_lead,
+            run_checker,
             handed: Mutex::default(),
         }
     }
@@ -190,8 +203,12 @@ impl Tools {
             return self.orchestrator.iter().filter(on).collect();
         }
         // A run's sessions are keyed on their reserved definition, never on the role alone.
-        if spec.worker_definition.as_deref().is_some_and(|name| routines::LEAD_DEFINITIONS.contains(&name)) {
-            return self.run_lead.iter().filter(on).collect();
+        match spec.worker_definition.as_deref() {
+            Some(name) if routines::LEAD_DEFINITIONS.contains(&name) => {
+                return self.run_lead.iter().filter(on).collect();
+            }
+            Some(routines::CHECKER_DEFINITION) => return self.run_checker.iter().filter(on).collect(),
+            _ => {}
         }
         let mut list: Vec<&Spec> = self.worker.iter().collect();
         if spec.collaborate {
