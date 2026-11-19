@@ -12,14 +12,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use eos_app::{App, Options};
+use eos_app::{App, CapabilityOptions, Options};
 use eos_core::net::relay::Relay;
 use eos_domain::sync::{SyncIdentity, format_sync_key};
 use eos_relay::{RelayClient, RelayOptions};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_testkit::relay::FakeRelay;
-use eos_testkit::{FakeClock, NoKeychain, SeqIds, TempHome};
+use eos_testkit::{FakeClock, FakeGitHub, NoKeychain, SeqIds, TempHome};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
@@ -266,6 +266,26 @@ async fn usage_and_artifacts_say_that_this_run_reads_no_account() {
     let (_, catalog) = call(&away, Method::Post, "/api/artifacts/refresh", None).await;
     assert_eq!(catalog["accounts"][0]["error"], why, "{catalog}");
     away.shutdown(Duration::from_secs(5)).await;
+}
+
+/// The Keychain items are the user's, shared by every run on this computer: a
+/// run that turns the network on for its local fakes still keeps no
+/// capability secret unless the host hands it the app's own items.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_on_the_network_without_the_host_s_keychain_keeps_no_capability_secret() {
+    let home = TempHome::new();
+    let options = options(&home, true);
+    assert!(options.keychain.is_none(), "only the host hands in the Keychain");
+    let github = Arc::new(FakeGitHub::new());
+    let capabilities = CapabilityOptions { github: Some(github.clone()), ..CapabilityOptions::default() };
+    let app = App::build(Options { capabilities, ..options }).expect("builds");
+    app.start().await.expect("starts");
+
+    let (status, detail) = call(&app, Method::Get, "/api/capabilities/github", None).await;
+    assert_eq!(status, 200, "{detail}");
+    assert_eq!(detail["secrets"][0]["set"], json!(false), "{detail}");
+    assert!(github.calls().is_empty(), "nothing asked GitHub");
+    app.shutdown(Duration::from_secs(5)).await;
 }
 
 /// The TypeScript app reads the same file: going back to it, the usage it
