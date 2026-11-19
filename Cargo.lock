@@ -2182,6 +2182,9 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-git",
+ "eos-kit-proc",
+ "eos-platform",
  "eos-prompts",
  "eos-runtime",
  "eos-sessions",
@@ -2190,6 +2193,7 @@ dependencies = [
  "eos-workers",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
 ]

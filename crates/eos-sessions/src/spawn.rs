@@ -36,6 +36,8 @@ pub struct SpawnRequest {
     /// Work in a fresh worktree of this repository instead of `cwd`.
     pub worktree_from: Option<String>,
     pub branch: Option<String>,
+    /// The commit the new worktree forks from; HEAD when `None`.
+    pub start_point: Option<String>,
     pub name: Option<String>,
     pub name_source: Option<NameSource>,
     pub parent_id: Option<String>,
@@ -271,6 +273,7 @@ impl Sessions {
                 worktree_dir: None,
                 carry_uncommitted: request.carry_uncommitted,
                 hydrate_env: request.hydrate_env,
+                start_point: request.start_point.clone(),
             };
             match deps.worktrees.create(&create).await {
                 WorktreeCreated::Created { worktree_dir: dir, fork_base_sha } => {

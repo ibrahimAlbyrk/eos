@@ -21,6 +21,8 @@ mod spawn;
 mod start;
 mod steer;
 mod supervisor;
+mod team;
+mod workspace;
 
 pub(crate) use brief::model_of;
 pub(crate) use check::holds;
@@ -33,6 +35,7 @@ pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
 pub(crate) use steer::{message, pause, resume};
+pub(crate) use team::shape_report;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -40,6 +43,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::ScratchFolders;
 use eos_core::capability::CapabilityReads;
+use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::routine::{RunCreated, RunFolders, RunGate};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -89,6 +93,12 @@ pub(crate) struct Engine {
     pub(crate) config: Arc<dyn ConfigSource>,
     /// The runtime the module was built in, for what follows a commit.
     pub(crate) tasks: Option<tokio::runtime::Handle>,
+    /// Where the user's clone of a repository is.
+    pub(crate) keys: Arc<dyn ProjectKeys>,
+    /// Fetches a pull request's head into that clone.
+    pub(crate) remotes: Arc<dyn RemoteSync>,
+    /// The first line of each specialist's last report, never stored or logged.
+    pub(crate) reports: Mutex<HashMap<String, String>>,
 }
 
 impl Engine {

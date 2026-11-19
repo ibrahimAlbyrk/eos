@@ -11,3 +11,4 @@ mod run_routes;
 mod solo;
 mod start;
 mod supervisor;
+mod team;

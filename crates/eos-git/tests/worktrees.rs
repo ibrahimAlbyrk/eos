@@ -33,6 +33,7 @@ fn create(repo: &Dir, branch: &str) -> WorktreeCreate {
         worktree_dir: None,
         carry_uncommitted: false,
         hydrate_env: false,
+        start_point: None,
     }
 }
 
@@ -180,4 +181,25 @@ async fn a_folder_without_git_is_walked_skipping_hidden_and_ignored_names() {
     plain.write("a/b/c/d/e/six.ts", "");
     // A folder's entries in name order, a subfolder's files where the subfolder sorts.
     assert_eq!(*git.list(&plain.path).await, ["a/b/c/d/five.ts", "sub/deep.ts", "top.ts"]);
+}
+
+#[tokio::test]
+async fn a_pull_requests_head_is_fetched_from_its_remote_and_a_worktree_made_at_it() {
+    use eos_core::git::RemoteSync;
+    let (repo, wm) = (repo(), adapter());
+    let remote = init_repo("eos-wm-remote-");
+    git_ok(&remote.path, &["init", "-q", "--bare", "pulls.git"]);
+    let bare = remote.join("pulls.git");
+    let work = init_repo("eos-wm-pr-");
+    commit_file(&work.path, "change.txt", "the pull request\n", "pr");
+    let sha = head(&work.path);
+    git_ok(&work.path, &["push", "-q", bare.to_str().expect("utf-8"), "HEAD:refs/pull/7/head"]);
+    let url = bare.to_string_lossy().into_owned();
+
+    assert!(wm.fetch_ref(&repo.path, &url, "pull/7/head").await.ok);
+    let input = WorktreeCreate { start_point: Some(sha.clone()), ..create(&repo, "eos/run/rn-1/editor") };
+    let (dir, base) = created(wm.create(&input).await);
+    assert_eq!(base, Some(sha));
+    assert_eq!(fs::read_to_string(dir.join("change.txt")).expect("the pull request's file"), "the pull request\n");
+    assert!(!wm.fetch_ref(&repo.path, &url, "pull/8/head").await.ok, "a ref that is not there fails");
 }

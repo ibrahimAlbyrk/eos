@@ -453,6 +453,12 @@ impl SessionHooks for AppHooks {
         }
     }
 
+    fn shape_report(&self, worker_id: &str, text: &mut String) {
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.shape_report(worker_id, text);
+        }
+    }
+
     fn idle(&self, worker_id: &str) {
         // The hooks read the database before they decide, so they run in a
         // task of their own; the worker's state is what tells them it moved on.

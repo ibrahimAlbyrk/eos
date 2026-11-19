@@ -45,6 +45,10 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "submit_result",
     "report_failure",
     "submit_verdict",
+    "start_specialist",
+    "message_specialist",
+    "stop_specialist",
+    "list_specialists",
 ];
 
 /// Calls one action of a capability. Not a control tool: the permission gate

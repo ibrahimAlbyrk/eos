@@ -1681,6 +1681,95 @@
    "alwaysLoad": true,
    "searchHint": null,
    "plugin": null
+  },
+  {
+   "name": "start_specialist",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The specialist's key, as your brief lists it."
+     },
+     "task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "What the specialist should do now."
+     }
+    },
+    "required": [
+     "agent",
+     "task"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "message_specialist",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The specialist's key, as your brief lists it."
+     },
+     "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "What you need from it now."
+     }
+    },
+    "required": [
+     "agent",
+     "text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "stop_specialist",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The specialist's key, as your brief lists it."
+     }
+    },
+    "required": [
+     "agent"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_specialists",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
   }
  ],
  "sets": [
@@ -2629,6 +2718,22 @@
     "report_progress",
     "submit_result",
     "report_failure",
+    "ask_user",
+    "current_datetime",
+    "search_memory"
+   ]
+  },
+  {
+   "kind": "run-team-lead",
+   "pluginsOff": [],
+   "names": [
+    "report_progress",
+    "submit_result",
+    "report_failure",
+    "start_specialist",
+    "message_specialist",
+    "stop_specialist",
+    "list_specialists",
     "ask_user",
     "current_datetime",
     "search_memory"

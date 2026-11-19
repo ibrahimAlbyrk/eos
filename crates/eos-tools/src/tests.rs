@@ -93,6 +93,48 @@ impl RoutineTools for RunCalls {
     ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
         self.record(worker_id, format!("verdict {worker_id} {} {:?}", verdict.pass, verdict.must_fix))
     }
+
+    fn start_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        task: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("start {worker_id} {agent} {task}"))
+    }
+
+    fn message_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        text: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("message {worker_id} {agent} {text}"))
+    }
+
+    fn stop_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("stop {worker_id} {agent}"))
+    }
+
+    fn list_specialists<'a>(
+        &'a self,
+        worker_id: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<Vec<eos_core::routine::Specialist>, eos_core::Error>> {
+        let listed = self.record(worker_id, format!("list {worker_id}"));
+        Box::pin(async move {
+            listed.await?;
+            Ok(vec![eos_core::routine::Specialist {
+                agent: "tester".into(),
+                name: "Tester".into(),
+                state: "working",
+                last_report: None,
+            }])
+        })
+    }
 }
 
 pub(crate) fn bench(features: Arc<FakeFeatures>) -> Bench {
@@ -178,6 +220,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "focused" => session(SessionFactsRole::Focused, false),
         "focused-peer" => session(SessionFactsRole::Focused, true),
         "run-lead" => run_session("eos-run-solo"),
+        "run-team-lead" => run_session("eos-run-lead"),
         "run-checker" => run_session("eos-run-checker"),
         other => panic!("unknown session kind {other}"),
     }
@@ -207,7 +250,7 @@ impl Bench {
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
         let has = |kind: &str| self.tools.for_session(&session_of(kind)).iter().any(|t| t.definition().name == bare);
-        let kinds = ["orchestrator", "focused-peer", "run-lead"];
+        let kinds = ["orchestrator", "focused-peer", "run-team-lead"];
         let kind = kinds.into_iter().find(|kind| has(kind)).unwrap_or("run-checker");
         self.tool(kind, bare)
     }
@@ -273,7 +316,7 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
     bench.preview(true);
-    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-lead", "run-checker"]
+    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-team-lead", "run-checker"]
         .iter()
         .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
         .map(|tool| tool.definition().name.clone())
@@ -312,14 +355,24 @@ fn the_capability_tools_are_handed_out_only_while_the_eos_preview_is_on() {
 fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
     let bench = bench(FakeFeatures::new([]));
     let lead = ["report_progress", "submit_result", "report_failure", "ask_user", "current_datetime", "search_memory"];
-    for definition in ["eos-run-solo", "eos-run-lead", "eos-run-script"] {
+    let team = ["start_specialist", "message_specialist", "stop_specialist", "list_specialists"];
+    let team_lead: Vec<&str> = lead[..3].iter().chain(&team).chain(&lead[3..]).copied().collect();
+    for (definition, expected) in
+        [("eos-run-solo", lead.to_vec()), ("eos-run-lead", team_lead), ("eos-run-script", lead.to_vec())]
+    {
         let names = |spec: &LaunchSpec| -> Vec<String> {
             bench.tools.for_session(spec).iter().map(|tool| tool.definition().name.clone()).collect()
         };
-        assert_eq!(names(&run_session(definition)), lead, "{definition}");
+        assert_eq!(names(&run_session(definition)), expected, "{definition}");
         let as_worker = LaunchSpec { worker_definition: Some(definition.into()), ..session_of("peer") };
-        assert_eq!(names(&as_worker), lead, "{definition}: the definition decides, not the role");
+        assert_eq!(names(&as_worker), expected, "{definition}: the definition decides, not the role");
     }
+    // A specialist is a worker of its own definition and keeps the worker list.
+    let specialist = LaunchSpec { worker_definition: Some("eos-run-specialist".into()), ..session_of("worker") };
+    assert_eq!(
+        bench.tools.for_session(&specialist).iter().map(|t| t.definition().name.clone()).collect::<Vec<_>>(),
+        bench.names("worker")
+    );
     bench.preview(true);
     let with_preview = bench.names("run-lead");
     assert_eq!(with_preview[6..], ["list_capabilities", "call_capability"]);
@@ -367,6 +420,33 @@ async fn the_run_tools_hand_the_call_to_the_routines_feature() {
     assert_eq!(
         (refused.text.as_str(), refused.is_error),
         (r#"daemon 409: {"error":"this session works for no run"}"#, true)
+    );
+}
+
+#[tokio::test]
+async fn a_team_leads_tools_hand_the_call_to_the_routines_feature() {
+    let bench = bench(FakeFeatures::new([]));
+    let tool = |name: &str| bench.tool("run-team-lead", name);
+    let started =
+        call(&tool("start_specialist"), "w-lead", serde_json::json!({"agent": "tester", "task": "Run it."})).await;
+    assert_eq!(
+        (started.text.as_str(), started.is_error),
+        ("tester started. Its report comes to you as a message.", false)
+    );
+    let sent =
+        call(&tool("message_specialist"), "w-lead", serde_json::json!({"agent": "tester", "text": "More."})).await;
+    assert_eq!(sent.text, "Sent to tester.");
+    let stopped = call(&tool("stop_specialist"), "w-lead", serde_json::json!({"agent": "tester"})).await;
+    assert_eq!(stopped.text, "tester stopped.");
+    let listed = call(&tool("list_specialists"), "w-lead", serde_json::json!({})).await;
+    let rows: serde_json::Value = serde_json::from_str(&listed.text).expect("json");
+    assert_eq!(
+        rows,
+        serde_json::json!([{"agent": "tester", "name": "Tester", "state": "working", "lastReport": null}])
+    );
+    assert_eq!(
+        *bench.runs.0.lock().expect("calls"),
+        ["start w-lead tester Run it.", "message w-lead tester More.", "stop w-lead tester", "list w-lead"]
     );
 }
 

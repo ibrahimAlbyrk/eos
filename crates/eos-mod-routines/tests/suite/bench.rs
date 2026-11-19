@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use eos_contracts::{ItemRef, ResultMode, RoutineKind, RoutineState, RunInput, VersionAuthor, VersionStatus};
 use eos_core::Ids;
+use eos_core::git::ProjectKeys;
 use eos_core::routine::RunGate;
 use eos_core::routine::{NewRun, RunCreated, RunOrigin, RunStarter, StartError};
 use eos_core::store::{StoredRoutine, StoredRun, StoredVersion};
@@ -47,6 +48,34 @@ pub(crate) struct Bench {
     pub(crate) gate: Arc<FakeRunGate>,
     gate_port: Arc<dyn RunGate>,
     autostart: bool,
+    /// The user's clones, by project key.
+    pub(crate) keys: Arc<FakeKeys>,
+    /// The worktrees the sessions made.
+    pub(crate) worktrees: Arc<FakeWorktrees>,
+}
+
+/// The user's clones, by the key of their remote.
+#[derive(Default)]
+pub(crate) struct FakeKeys(std::sync::Mutex<std::collections::HashMap<String, String>>);
+
+impl FakeKeys {
+    pub(crate) fn clone_at(&self, key: &str, path: &str) {
+        self.0.lock().expect("keys").insert(key.into(), path.into());
+    }
+}
+
+impl ProjectKeys for FakeKeys {
+    fn to_key<'a>(&'a self, path: &'a str) -> eos_core::BoxFuture<'a, String> {
+        Box::pin(std::future::ready(format!("path:{path}")))
+    }
+
+    fn to_path<'a>(&'a self, _key: &'a str, hint: &'a str) -> eos_core::BoxFuture<'a, String> {
+        Box::pin(std::future::ready(hint.to_owned()))
+    }
+
+    fn find_path<'a>(&'a self, key: &'a str) -> eos_core::BoxFuture<'a, Option<String>> {
+        Box::pin(std::future::ready(self.0.lock().expect("keys").get(key).cloned()))
+    }
 }
 
 /// The app's hooks around sessions, as far as routines hear them: a
@@ -80,6 +109,12 @@ impl SessionHooks for Hooks {
         }
     }
 
+    fn shape_report(&self, worker_id: &str, text: &mut String) {
+        if let Some(module) = self.module() {
+            module.shape_report(worker_id, text);
+        }
+    }
+
     fn idle(&self, worker_id: &str) {
         if let Some(module) = self.module().filter(|_| self.idle.load(Ordering::SeqCst)) {
             let id = worker_id.to_owned();
@@ -106,6 +141,7 @@ impl Bench {
 
     fn with(autostart: bool, reads: FakeCapabilityReads, gate: Arc<FakeRunGate>, gate_port: Arc<dyn RunGate>) -> Self {
         let temp = TempStore::new();
+        let worktrees = Arc::new(FakeWorktrees::default());
         let (clock, sleeper) = (Arc::new(FakeClock::new()), Arc::new(FakeSleeper::default()));
         let (agents, hooks, recents) =
             (ScriptedRuntime::new(), Arc::new(Hooks::default()), Arc::new(FakeRecents::default()));
@@ -117,13 +153,14 @@ impl Bench {
             config: Arc::new(FakeConfig::default()),
             models: Arc::new(FakeModelCatalog::default()),
             prompts: Arc::new(FakePrompts::default()),
-            worktrees: Arc::new(FakeWorktrees::default()),
+            worktrees: worktrees.clone(),
             recents: recents.clone(),
             hooks: hooks.clone(),
             sleeper: Arc::new(FakeSleeper::default()),
         });
         let reads = Arc::new(reads);
-        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, autostart);
+        let keys = Arc::new(FakeKeys::default());
+        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, &keys, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
         Self {
@@ -141,13 +178,17 @@ impl Bench {
             gate,
             gate_port,
             autostart,
+            keys,
+            worktrees,
         }
     }
 
     /// A second module over the same store, sessions and folders: the app
     /// as it comes back after a restart.
     pub(crate) fn another_module(&self) -> Arc<RoutinesModule> {
-        module(&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads, &self.gate_port, self.autostart)
+        let (temp, clock, sleeper, sessions, reads) =
+            (&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads);
+        module(temp, clock, sleeper, sessions, reads, &self.gate_port, &self.keys, self.autostart)
     }
 
     /// Starts the supervisor.
@@ -248,6 +289,8 @@ impl Bench {
     }
 }
 
+// The bench's parts, each shared with the module a restart builds again.
+#[allow(clippy::too_many_arguments)]
 fn module(
     temp: &TempStore,
     clock: &Arc<FakeClock>,
@@ -255,8 +298,13 @@ fn module(
     sessions: &Sessions,
     reads: &Arc<FakeCapabilityReads>,
     gate: &Arc<dyn RunGate>,
+    keys: &Arc<FakeKeys>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
+    let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+        eos_platform::kill_process_tree(pid).is_ok()
+    });
+    let git = eos_git::Git::new(eos_kit_proc::Runner::new(trees), clock.clone());
     let library = Arc::new(LibraryPromptSource::embedded());
     Arc::new(RoutinesModule::new(RoutinesParts {
         store: temp.port(),
@@ -272,6 +320,8 @@ fn module(
         reads: reads.clone(),
         gate: gate.clone(),
         config: Arc::new(FakeConfig::new(json!({"prices": {"sonnet": {"in": 3, "out": 15, "cacheRead": 0.3}}}))),
+        keys: keys.clone(),
+        remotes: Arc::new(git),
     }))
 }
 

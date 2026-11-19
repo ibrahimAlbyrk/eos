@@ -84,6 +84,8 @@ pub struct Tools {
     /// A routine run's lead: its run tools, `ask_user`, the date, memory
     /// search and the capability tools; none of a chat's.
     pub(crate) run_lead: Vec<Spec>,
+    /// A team's lead: a lead's tools and those of its team.
+    pub(crate) run_team_lead: Vec<Spec>,
     /// A routine run's checker: its verdict, the date, memory search and the
     /// capability tools.
     pub(crate) run_checker: Vec<Spec>,
@@ -171,9 +173,14 @@ impl Tools {
             }
             list
         };
-        let mut run_lead = s.routines.as_ref().map(routines::lead_specs).unwrap_or_default();
-        run_lead.push(user::ask_user(&s.questions));
-        run_lead.extend(run_shared());
+        let lead = || s.routines.as_ref().map(routines::lead_specs).unwrap_or_default();
+        let mut run_lead = lead();
+        let mut run_team_lead = lead();
+        run_team_lead.extend(s.routines.as_ref().map(routines::team_specs).unwrap_or_default());
+        for list in [&mut run_lead, &mut run_team_lead] {
+            list.push(user::ask_user(&s.questions));
+            list.extend(run_shared());
+        }
         let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();
         run_checker.extend(run_shared());
 
@@ -186,6 +193,7 @@ impl Tools {
             peer,
             focused,
             run_lead,
+            run_team_lead,
             run_checker,
             handed: Mutex::default(),
         }
@@ -204,6 +212,7 @@ impl Tools {
         }
         // A run's sessions are keyed on their reserved definition, never on the role alone.
         match spec.worker_definition.as_deref() {
+            Some(routines::TEAM_LEAD_DEFINITION) => return self.run_team_lead.iter().filter(on).collect(),
             Some(name) if routines::LEAD_DEFINITIONS.contains(&name) => {
                 return self.run_lead.iter().filter(on).collect();
             }

@@ -13,6 +13,8 @@ pub struct WorktreeCreate {
     pub worktree_dir: Option<PathBuf>,
     /// Fork from a snapshot of the uncommitted work instead of HEAD.
     pub carry_uncommitted: bool,
+    /// Fork from this commit instead of HEAD (a pull request's head).
+    pub start_point: Option<String>,
     /// Also bring the source's `.env*` files (dependencies always come).
     pub hydrate_env: bool,
 }

@@ -186,6 +186,10 @@ pub trait Module: Send + Sync + 'static {
     /// every resume (its folders, its MCP servers). Must not block.
     fn shape_launch(&self, _spec: &mut LaunchSpec) {}
 
+    /// The last word on the text of a worker's report before its parent
+    /// reads it (outside text marked as data). Must not block.
+    fn shape_report(&self, _worker_id: &str, _text: &mut String) {}
+
     /// The app is built (routes registered): start timers and watchers.
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         done(Ok(()))
@@ -394,6 +398,13 @@ impl Modules {
     pub fn shape_launch(&self, spec: &mut LaunchSpec) {
         for module in self.running() {
             Self::guarded(module.as_ref(), "shape_launch", || module.shape_launch(spec));
+        }
+    }
+
+    /// Lets every module shape a worker's report, in composition order.
+    pub fn shape_report(&self, worker_id: &str, text: &mut String) {
+        for module in self.running() {
+            Self::guarded(module.as_ref(), "shape_report", || module.shape_report(worker_id, text));
         }
     }
 
