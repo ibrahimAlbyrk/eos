@@ -74,7 +74,7 @@ export function NeedsItemScreen({ id }) {
       e.preventDefault();
       void doing(primary);
     },
-  }, [detail, values, offline]);
+  }, [detail, values, offline, neighbours, at]);
 
   const title = detail?.item.title ?? "Item";
   const { Body } = cardOf(detail?.item.kind);
