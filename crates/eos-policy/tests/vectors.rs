@@ -106,6 +106,7 @@ fn every_decision_equals_typescripts() {
             scope: corpus.scopes[s].as_ref(),
             plans_dir: switch.plans_dir.as_deref(),
             writes_outside: false,
+            capability_class: None,
         };
         let ours = serde_json::to_value(evaluate(&policies[p], &call)).expect("a decision");
         if ours != expected[d] {
@@ -185,6 +186,8 @@ fn category_name(category: ToolCategory) -> &'static str {
         ToolCategory::Network => "network",
         ToolCategory::Artifact => "artifact",
         ToolCategory::Other => "other",
+        // The TypeScript app had no capabilities; classify_tool never returns it.
+        ToolCategory::Capability(_) => "capability",
     }
 }
 

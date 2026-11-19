@@ -42,6 +42,10 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "no_reply",
 ];
 
+/// Calls one action of a capability. Not a control tool: the permission gate
+/// decides each call by the class of the action it calls.
+pub const CALL_CAPABILITY_TOOL: &str = "call_capability";
+
 pub fn is_eos_control_tool(tool_name: &str) -> bool {
     is_browser_tool(tool_name) || EOS_CONTROL_TOOLS.contains(&tool_name)
 }

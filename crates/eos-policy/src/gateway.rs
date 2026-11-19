@@ -6,14 +6,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
 use eos_contracts::stream::topics;
-use eos_contracts::tool_scope::is_view_tool;
+use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, is_view_tool};
 use eos_contracts::{
-    AllowVariant, Decision, DenyVariant, ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType,
+    ActionClass, AllowVariant, Decision, DenyVariant, ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType,
 };
+use eos_core::capability::CapabilityRegistry;
 use eos_core::policy::{DecisionCounter, DecisionCounts, PolicyDecider, PolicyFile, ToolCall};
 use eos_core::store::{NewPending, Store};
 use eos_core::{BoxFuture, Clock, Error, Ids};
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
 use crate::ask::approval_notification;
@@ -94,6 +95,8 @@ pub struct PolicyGateway {
     file: Arc<dyn PolicyFile>,
     default_ttl_ms: i64,
     plans_dir: Option<String>,
+    /// Where `call_capability` finds the class of the action it calls.
+    capabilities: Option<Arc<dyn CapabilityRegistry>>,
     policy: RwLock<Arc<Policy>>,
     waiters: Waiters,
     /// One writer of the user's policy file at a time.
@@ -120,12 +123,38 @@ impl PolicyGateway {
             file: options.file,
             default_ttl_ms: options.default_ttl_ms,
             plans_dir: options.plans_dir,
+            capabilities: None,
             policy: RwLock::new(Arc::new(policy)),
             waiters: Waiters::default(),
             saving: Mutex::new(()),
             allowed: AtomicU64::new(0),
             denied: AtomicU64::new(0),
             asked: AtomicU64::new(0),
+        }
+    }
+
+    /// Decides `call_capability` by the class `registry` gives the action it
+    /// calls. Without one, every such call is refused as a call of no action.
+    pub fn with_capabilities(mut self, registry: Arc<dyn CapabilityRegistry>) -> Self {
+        self.capabilities = Some(registry);
+        self
+    }
+
+    /// The class of the action a `call_capability` call names; `None` for
+    /// any other tool, and for an action there is not.
+    async fn capability_class(&self, call: &ToolCall) -> Option<ActionClass> {
+        if call.tool_name != CALL_CAPABILITY_TOOL {
+            return None;
+        }
+        let registry = self.capabilities.as_ref()?;
+        let named = |key: &str| call.input.get(key).and_then(Value::as_str).unwrap_or_default();
+        let (capability, action) = (named("capability"), named("action"));
+        match registry.class_of(capability, action).await {
+            Ok(class) => class,
+            Err(e) => {
+                tracing::warn!(capability, action, error = %e, "the capability registry could not be read");
+                None
+            }
         }
     }
 
@@ -149,6 +178,7 @@ impl PolicyGateway {
         let policy = self.policy();
         let worker_id = call.worker_id.clone();
         let permissions = self.store.read(move |tx| worker_permissions(tx.workers(), &worker_id)).await?;
+        let capability_class = self.capability_class(&call).await;
         let decision = evaluate(
             &policy,
             &Call {
@@ -161,6 +191,7 @@ impl PolicyGateway {
                 scope: permissions.scope.as_ref(),
                 plans_dir: self.plans_dir.as_deref(),
                 writes_outside: call.writes_outside,
+                capability_class,
             },
         );
         let now = self.clock.now_ms();

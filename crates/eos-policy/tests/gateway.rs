@@ -6,9 +6,11 @@ use std::time::Duration;
 
 use eos_contracts::{ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType};
 use eos_core::Error;
+use eos_core::capability::ActionError;
 use eos_core::policy::{AgentMode, DecisionCounter, DecisionCounts, PolicyDecider, SubagentModes, ToolCall};
+use eos_domain::capability::health::Health;
 use eos_policy::{Answer, GatewayOptions, PolicyGateway};
-use eos_testkit::{FakeClock, FakePolicyFile, SeqIds, TempStore};
+use eos_testkit::{FakeCapabilityRegistry, FakeClock, FakePolicyFile, SeqIds, TempStore};
 use serde_json::{Value, json};
 
 struct Fixture {
@@ -355,4 +357,69 @@ async fn a_subagent_runs_in_its_declared_mode_within_the_workers() {
     // Under full access a chain may run in full access.
     let full = f.gateway.decide(sub("Bash", wide)).await.expect("decides");
     assert_eq!(behavior(&full), "allow");
+}
+
+const GITHUB: &str = r#"
+id = "github"
+name = "GitHub"
+version = "1"
+summary = "Pull requests and reviews on GitHub."
+form = "builtin"
+works = "any_mac"
+
+[[actions]]
+name = "get_pull_request"
+summary = "Read a pull request."
+class = "read"
+
+[[actions]]
+name = "post_review"
+summary = "Post a review."
+class = "speak"
+recipient = "input:/pull"
+input = { type = "object", properties = { pull = { type = "string" } } }
+"#;
+
+/// The class comes from the registry at the time of the call: a read passes
+/// in full access, a review waits for the user, an action there is not is
+/// refused in the tool's words.
+#[tokio::test(flavor = "multi_thread")]
+async fn call_capability_is_decided_by_the_class_the_registry_gives() {
+    let f = fixture("bypassPermissions", json!({"default": "allow", "rules": []}));
+    let registry = FakeCapabilityRegistry::new().with(GITHUB, Health::ready());
+    let gateway = Arc::new(
+        PolicyGateway::new(GatewayOptions {
+            store: f.temp.port(),
+            clock: f.clock.clone(),
+            ids: Arc::new(SeqIds::new()),
+            file: f.file.clone(),
+            default_ttl_ms: 0,
+            plans_dir: None,
+        })
+        .with_capabilities(Arc::new(registry)),
+    );
+    let capability = |action: &str| {
+        call("call_capability", json!({"capability": "github", "action": action, "input": {"number": 1}}))
+    };
+    let read = gateway.decide(capability("get_pull_request")).await.expect("decides");
+    assert_eq!(behavior(&read), "allow");
+    let missing = gateway.decide(capability("merge")).await.expect("decides");
+    assert_eq!(behavior(&missing), "deny");
+    assert_eq!(message(&missing), ActionError::NotFound.to_string());
+
+    let asking = gateway.clone();
+    let review = tokio::spawn(async move { asking.decide(capability("post_review")).await });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !f.temp.announced.topics().contains(&"pending:created") {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the review is asked about");
+    gateway.worker_gone("w1").await.expect("released");
+    assert_eq!(behavior(&review.await.expect("joins").expect("decides")), "deny");
+
+    // Without a registry nothing is there to call.
+    let unknown = f.gateway.decide(capability("get_pull_request")).await.expect("decides");
+    assert_eq!(behavior(&unknown), "deny");
 }

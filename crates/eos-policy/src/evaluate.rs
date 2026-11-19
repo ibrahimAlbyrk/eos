@@ -3,7 +3,7 @@
 //! The rungs, first to answer wins:
 //! 1. a built-in with no surface in Eos (`AskUserQuestion`, `Workflow`) is
 //!    denied, unless the session is a focused one;
-//! 2. a subagent may not call Eos's control tools;
+//! 2. a subagent may not call Eos's control tools, nor `call_capability`;
 //! 3. the worker definition's tool scope may deny (deny list, allow list,
 //!    `editRegex` on file edits) and never allows — Eos's control tools are
 //!    outside it, except the browser verbs;
@@ -12,7 +12,8 @@
 //! 5. a `policy.yaml` rule that matches the call decides;
 //! 6. the call's mode (the worker's, or a subagent's narrower one) allows by
 //!    kind of tool (a file edit that writes outside the working directories
-//!    is a kind of its own);
+//!    is a kind of its own; a capability action goes by its class, and one
+//!    that speaks for the user or cannot be taken back asks in every mode);
 //! 7. the policy's default.
 //!
 //! Rungs 1–4 sit above the user's rules so neither a broad allow nor full
@@ -20,9 +21,11 @@
 //! leave to the user is denied instead.
 
 use eos_contracts::tool_scope::{
-    blocked_builtin_tool_message, is_artifact_tool, is_blocked_builtin_tool, is_browser_tool, is_eos_control_tool,
+    CALL_CAPABILITY_TOOL, blocked_builtin_tool_message, is_artifact_tool, is_blocked_builtin_tool, is_browser_tool,
+    is_eos_control_tool,
 };
-use eos_contracts::{AllowVariant, Decision, DenyVariant, ToolScope, UnknownRecord};
+use eos_contracts::{ActionClass, AllowVariant, Decision, DenyVariant, ToolScope, UnknownRecord};
+use eos_core::capability::ActionError;
 use eos_core::policy::AgentMode;
 use serde_json::Value;
 
@@ -51,6 +54,9 @@ pub struct Call<'a> {
     pub plans_dir: Option<&'a str>,
     /// The call writes outside the agent's working directories.
     pub writes_outside: bool,
+    /// For `call_capability`: the class of the action it calls; `None` when
+    /// there is no such action.
+    pub capability_class: Option<ActionClass>,
 }
 
 fn deny(message: String) -> Decision {
@@ -86,7 +92,7 @@ pub fn evaluate(policy: &Policy, call: &Call<'_>) -> Decision {
     if !call.full_surface && is_blocked_builtin_tool(tool) {
         return deny(blocked_builtin_tool_message(tool));
     }
-    if call.agent_id.is_some_and(|id| !id.is_empty()) && is_eos_control_tool(tool) {
+    if call.agent_id.is_some_and(|id| !id.is_empty()) && (is_eos_control_tool(tool) || tool == CALL_CAPABILITY_TOOL) {
         return deny(format!(
             "{tool} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them."
         ));
@@ -125,12 +131,19 @@ fn decide(policy: &Policy, call: &Call<'_>) -> Decision {
     }
     let category = match classify_tool(tool, Some(call.input), call.plans_dir) {
         ToolCategory::FileEdit if call.writes_outside => ToolCategory::FileEditOutside,
+        _ if tool == CALL_CAPABILITY_TOOL => match call.capability_class {
+            Some(class) => ToolCategory::Capability(class),
+            // Nothing to call: the tool would answer the same.
+            None => return deny(ActionError::NotFound.to_string()),
+        },
         category => category,
     };
     match mode_verdict(call.mode, category) {
         Verdict::Allow => Decision::Allow(AllowVariant { updated_input: Some(call.input.clone()), message: None }),
         // No rule matches: the default decides.
         Verdict::Ask => default_decision(policy, call.input),
+        // The policy's default is no rule: the user answers.
+        Verdict::Confirm => Decision::Ask,
     }
 }
 
@@ -194,6 +207,7 @@ mod walked_once {
                             scope: None,
                             plans_dir: None,
                             writes_outside,
+                            capability_class: None,
                         };
                         let twice = if policy.has_rule_for(tool, input) {
                             evaluate_policy(&policy, tool, input)
@@ -207,6 +221,7 @@ mod walked_once {
                                     Decision::Allow(AllowVariant { updated_input: Some(input.clone()), message: None })
                                 }
                                 Verdict::Ask => evaluate_policy(&policy, tool, input),
+                                Verdict::Confirm => Decision::Ask,
                             }
                         };
                         assert_eq!(decide(&policy, &call), twice, "{tool} {input:?} {mode:?} {default:?}");
@@ -248,6 +263,7 @@ mod tests {
             scope: None,
             plans_dir: Some("/home/u/.claude/plans"),
             writes_outside,
+            capability_class: None,
         };
         match evaluate(policy, &call) {
             Decision::Allow(_) => "allow",
@@ -300,6 +316,7 @@ mod tests {
             scope: None,
             plans_dir: Some("/home/u/.claude/plans"),
             writes_outside: false,
+            capability_class: None,
         };
         match evaluate(policy, &call) {
             Decision::Allow(_) => "allow",
@@ -329,6 +346,122 @@ mod tests {
         assert_eq!(subagent(&asks, AgentMode::DontAsk, false, "WebFetch"), "deny");
         assert_eq!(subagent(&asks, AgentMode::DontAsk, false, "Bash"), "allow", "a pre-approved tool runs");
         assert_eq!(subagent(&asks, AgentMode::DontAsk, true, "Read"), "allow");
+    }
+
+    fn capability_call(
+        policy: &Policy,
+        mode: AgentMode,
+        agent_id: Option<&str>,
+        class: Option<ActionClass>,
+    ) -> &'static str {
+        let input: UnknownRecord =
+            serde_json::from_value(json!({"capability": "github", "action": "post_review", "input": {}}))
+                .expect("an object");
+        let call = Call {
+            tool_name: CALL_CAPABILITY_TOOL,
+            input: &input,
+            agent_id,
+            full_surface: false,
+            mode,
+            looks_only: false,
+            scope: None,
+            plans_dir: None,
+            writes_outside: false,
+            capability_class: class,
+        };
+        match evaluate(policy, &call) {
+            Decision::Allow(_) => "allow",
+            Decision::Deny(_) => "deny",
+            Decision::Ask => "ask",
+        }
+    }
+
+    /// The bundled policy's shape: everything allowed by default, rules for
+    /// Claude's own tools, none naming `call_capability`.
+    fn bundled() -> Policy {
+        policy(json!({"default": "allow", "ttlMs": 30000, "rules": [
+            {"tool": "Bash", "command": "^\\s*rm\\s+-[rRf]+\\s+/(\\s|$)", "action": "deny", "reason": "rm -rf / blocked"},
+            {"tool": "Bash", "action": "allow"},
+            {"tool": "Read", "action": "allow"},
+            {"tool": "Write", "action": "allow"},
+            {"tool": "Edit", "action": "allow"},
+        ]}))
+    }
+
+    #[test]
+    fn a_capability_action_goes_by_its_class_in_each_mode() {
+        use ActionClass::{Irreversible, Read, Speak, TellUser, WriteLocal};
+        let asks = policy(json!({"default": "ask", "rules": []}));
+        let cases = [
+            (AgentMode::FullAccess, ["allow", "allow", "allow", "ask", "ask"]),
+            (AgentMode::AcceptEdits, ["allow", "allow", "ask", "ask", "ask"]),
+        ];
+        for (mode, expected) in cases {
+            for (class, want) in [Read, WriteLocal, TellUser, Speak, Irreversible].into_iter().zip(expected) {
+                assert_eq!(capability_call(&asks, mode, None, Some(class)), want, "{class:?} in {mode:?}");
+            }
+        }
+        // The default stands in only for what the mode leaves to it.
+        let allows = policy(json!({"default": "allow", "rules": []}));
+        assert_eq!(capability_call(&allows, AgentMode::AcceptEdits, None, Some(TellUser)), "allow");
+        let denies = policy(json!({"default": "deny", "rules": []}));
+        assert_eq!(capability_call(&denies, AgentMode::AcceptEdits, None, Some(TellUser)), "deny");
+        assert_eq!(capability_call(&denies, AgentMode::AcceptEdits, None, Some(Speak)), "ask");
+    }
+
+    #[test]
+    fn a_subagent_never_calls_a_capability() {
+        let allows = policy(json!({"default": "allow", "rules": [{"tool": "call_capability", "action": "allow"}]}));
+        for mode in
+            [AgentMode::Plan, AgentMode::DontAsk, AgentMode::Default, AgentMode::AcceptEdits, AgentMode::FullAccess]
+        {
+            for class in [ActionClass::Read, ActionClass::Irreversible] {
+                assert_eq!(capability_call(&allows, mode, Some("a1"), Some(class)), "deny", "{class:?} in {mode:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_rule_on_call_capability_decides_before_the_class() {
+        let allow = policy(json!({"default": "ask", "rules": [{"tool": "call_capability", "action": "allow"}]}));
+        let deny = policy(
+            json!({"default": "allow", "rules": [{"tool": "call_capability", "action": "deny", "reason": "no"}]}),
+        );
+        for mode in [AgentMode::AcceptEdits, AgentMode::FullAccess] {
+            for class in [ActionClass::Speak, ActionClass::Irreversible] {
+                assert_eq!(capability_call(&allow, mode, None, Some(class)), "allow", "{class:?} in {mode:?}");
+            }
+            assert_eq!(capability_call(&deny, mode, None, Some(ActionClass::Read)), "deny");
+        }
+    }
+
+    #[test]
+    fn the_bundled_policy_still_asks_before_speaking_or_what_cannot_be_undone() {
+        let bundled = bundled();
+        for mode in [AgentMode::AcceptEdits, AgentMode::FullAccess] {
+            assert_eq!(capability_call(&bundled, mode, None, Some(ActionClass::Speak)), "ask", "{mode:?}");
+            assert_eq!(capability_call(&bundled, mode, None, Some(ActionClass::Irreversible)), "ask", "{mode:?}");
+            assert_eq!(capability_call(&bundled, mode, None, Some(ActionClass::TellUser)), "allow", "{mode:?}");
+        }
+    }
+
+    #[test]
+    fn a_call_of_no_such_action_is_refused_in_the_tools_words() {
+        let allows = policy(json!({"default": "allow", "rules": []}));
+        let input: UnknownRecord = serde_json::from_value(json!({"capability": "nope"})).expect("an object");
+        let call = Call {
+            tool_name: CALL_CAPABILITY_TOOL,
+            input: &input,
+            agent_id: None,
+            full_surface: false,
+            mode: AgentMode::FullAccess,
+            looks_only: false,
+            scope: None,
+            plans_dir: None,
+            writes_outside: false,
+            capability_class: None,
+        };
+        assert_eq!(evaluate(&allows, &call), deny(ActionError::NotFound.to_string()));
     }
 
     #[test]

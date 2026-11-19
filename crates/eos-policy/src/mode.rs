@@ -5,7 +5,7 @@ use eos_contracts::builtin_tools::{
     FILE_EDIT_BUILTIN_TOOLS, NETWORK_BUILTIN_TOOLS, READ_BUILTIN_TOOLS, SHELL_BUILTIN_TOOLS,
 };
 use eos_contracts::tool_scope::{is_artifact_tool, is_browser_tool, is_eos_control_tool};
-use eos_contracts::{PermissionMode, UnknownRecord};
+use eos_contracts::{ActionClass, PermissionMode, UnknownRecord};
 use eos_core::Error;
 use eos_core::policy::AgentMode;
 use eos_core::store::WorkerRepo;
@@ -34,14 +34,19 @@ pub enum ToolCategory {
     Network,
     /// A claude.ai Artifact tool.
     Artifact,
+    /// `call_capability`, by the class of the action it calls: the gateway
+    /// reads it from the capability registry, `classify_tool` never returns it.
+    Capability(ActionClass),
     Other,
 }
 
-/// What a mode says about a kind of tool. `Ask` leaves it to the policy's default.
+/// What a mode says about a kind of tool. `Ask` leaves it to the policy's
+/// default; `Confirm` asks the user whatever the default says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     Allow,
     Ask,
+    Confirm,
 }
 
 /// Browser verbs that only read. Any other verb drives the page, so a verb
@@ -136,8 +141,21 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
 /// `bypassPermissions` ("Full access") lets everything through. The modes
 /// only a subagent runs in (plan, dontAsk, default) also leave file edits to
 /// the policy; what plan and dontAsk deny besides is [`crate::evaluate`]'s.
+///
+/// A capability action goes by its class: a read as reads, a local write as
+/// file edits, telling the user as any other tool. Speaking for the user and
+/// what cannot be taken back are confirmed by the user in every mode, full
+/// access included: only a `policy.yaml` rule passes them.
 pub fn mode_verdict(mode: AgentMode, category: ToolCategory) -> Verdict {
-    use ToolCategory::{Artifact, BrowserRead, Eos, FileEdit, Mcp, PlanFile, Read};
+    use ToolCategory::{Artifact, BrowserRead, Capability, Eos, FileEdit, Mcp, Other, PlanFile, Read};
+    if let Capability(class) = category {
+        return match class {
+            ActionClass::Read => mode_verdict(mode, Read),
+            ActionClass::WriteLocal => mode_verdict(mode, FileEdit),
+            ActionClass::TellUser => mode_verdict(mode, Other),
+            ActionClass::Speak | ActionClass::Irreversible => Verdict::Confirm,
+        };
+    }
     match mode {
         AgentMode::FullAccess => Verdict::Allow,
         AgentMode::AcceptEdits => match category {
@@ -270,6 +288,25 @@ mod tests {
             }
             for category in [FileEdit, FileEditOutside, Shell, Network, BrowserWrite, Other] {
                 assert_eq!(mode_verdict(mode, category), Verdict::Ask);
+            }
+        }
+    }
+
+    #[test]
+    fn a_capability_action_goes_by_its_class_in_each_mode() {
+        use ActionClass::{Irreversible, Read, Speak, TellUser, WriteLocal};
+        use AgentMode::{AcceptEdits, Default, DontAsk, FullAccess, Plan};
+        use Verdict::{Allow, Ask, Confirm};
+        let cases = [
+            (FullAccess, [Allow, Allow, Allow, Confirm, Confirm]),
+            (AcceptEdits, [Allow, Allow, Ask, Confirm, Confirm]),
+            (Default, [Allow, Ask, Ask, Confirm, Confirm]),
+            (DontAsk, [Allow, Ask, Ask, Confirm, Confirm]),
+            (Plan, [Allow, Ask, Ask, Confirm, Confirm]),
+        ];
+        for (mode, verdicts) in cases {
+            for (class, verdict) in [Read, WriteLocal, TellUser, Speak, Irreversible].into_iter().zip(verdicts) {
+                assert_eq!(mode_verdict(mode, ToolCategory::Capability(class)), verdict, "{class:?} in {mode:?}");
             }
         }
     }
