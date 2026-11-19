@@ -7,7 +7,7 @@ import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { AgentsWaitingLine } from "./AgentsWaitingLine.jsx";
-import { plainKey } from "./keys.js";
+import { onControl, plainKey } from "./keys.js";
 import { GROUPS, groupOf, isShownOnly, primaryAction } from "./words.js";
 
 export const itemLocation = (id) => `eos:/needs/${encodeURIComponent(id)}`;
@@ -87,7 +87,7 @@ export function NeedsYouList() {
   useKeybinding({ match: plainKey("j"), run: (ctx, e) => { e.preventDefault(); move(1); } }, [ids, at]);
   useKeybinding({ match: plainKey("k"), run: (ctx, e) => { e.preventDefault(); move(-1); } }, [ids, at]);
   useKeybinding({
-    match: plainKey("enter"),
+    match: (e) => plainKey("enter")(e) && !onControl(e),
     run: (ctx, e) => {
       if (!items[at]) return;
       e.preventDefault();

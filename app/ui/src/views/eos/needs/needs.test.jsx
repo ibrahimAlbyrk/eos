@@ -128,6 +128,9 @@ describe("the Needs-you list", () => {
     expect(press("j", { target: { tagName: "TEXTAREA" } })).toBe(false);
     expect(press("j", { metaKey: true })).toBe(false);
 
+    expect(press("Enter", { target: { tagName: "BUTTON" } })).toBe(false);
+    expect(press("Enter", { target: { tagName: "A" } })).toBe(false);
+    expect(eosLocation()).toBe("eos:/needs");
     press("Enter");
     expect(eosLocation()).toBe("eos:/needs/perm%3Apa-7f3k1m9q");
   });
