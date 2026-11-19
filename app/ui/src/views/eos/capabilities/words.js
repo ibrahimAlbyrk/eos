@@ -21,6 +21,7 @@ const CODES = {
   rate_limited: "The service is limiting how often Eos may ask.",
   health_failed: "Its last checks failed.",
   output_schema: "Its answers no longer have the shape it promised.",
+  source_gone: "What a routine reads through it is gone, such as a deleted repository.",
 };
 
 export const stateWord = (row) => STATES[row.state]?.word ?? row.state;
@@ -52,6 +53,9 @@ export const CLASSES = {
 };
 
 export const VERSION_STATUSES = { proposed: "Proposed", installed: "Kept", retired: "Retired", rejected: "Turned down" };
+
+// Why a call failed, by the failure kind the core names.
+export const FAILURES = { gone: "What it names is not there any more." };
 
 export const OUTCOMES = { ok: "Worked", error: "Failed", denied: "Not allowed", timeout: "Took too long", busy: "Busy" };
 
