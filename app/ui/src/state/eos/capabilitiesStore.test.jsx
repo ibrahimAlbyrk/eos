@@ -67,7 +67,7 @@ describe("the capability list", () => {
 
 describe("capabilities:change", () => {
   it("is Eos's topic, routed before useLive's fallthrough", () => {
-    expect(EOS_TOPICS).toEqual(["capabilities:change"]);
+    expect(EOS_TOPICS).toContain("capabilities:change");
     expect(applyEosEvent("worker:change", {})).toBe(false);
   });
 

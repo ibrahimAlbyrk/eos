@@ -1,0 +1,82 @@
+{
+  "routine": {
+    "id": "rt-4k2n8q1x7m3p",
+    "slug": "pr-review",
+    "name": "PR Review",
+    "summary": "Reviews each new pull request and drafts a review for you to send.",
+    "icon": "eye",
+    "aliases": [
+      "review"
+    ],
+    "kind": "standing",
+    "state": "active",
+    "rung": "draft",
+    "takes": {
+      "kind": "github.pull_request",
+      "label": "pull request",
+      "placeholder": "#470",
+      "empty": "latest",
+      "many": true,
+      "itemPatterns": []
+    },
+    "options": [
+      {
+        "key": "depth",
+        "label": "Depth",
+        "type": "choice",
+        "values": [
+          "quick",
+          "deep"
+        ],
+        "default": "quick",
+        "inline": true
+      }
+    ],
+    "runs7d": 2,
+    "activeRuns": 0,
+    "lastRun": {
+      "id": "rn-9c1v5b0z2w8e",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "done",
+      "itemTitle": "Fix the login",
+      "needsUser": false,
+      "costUsd": 0.42,
+      "workMs": 184000,
+      "createdAt": 1763452800000,
+      "startedAt": 1763452802000,
+      "endedAt": 1763452986000
+    },
+    "triggerLine": "When a pull request opens in acme/game"
+  },
+  "head": {
+    "id": "rv-8d2f6h0j4k1l",
+    "number": 1,
+    "status": "kept",
+    "author": "architect",
+    "format": 1,
+    "runnable": true,
+    "createdAt": 1763366400000,
+    "hash": "sha256:5be1c0de",
+    "blueprint": {
+      "format": 1
+    }
+  },
+  "runs": [
+    {
+      "id": "rn-9c1v5b0z2w8e",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "done",
+      "itemTitle": "Fix the login",
+      "needsUser": false,
+      "costUsd": 0.42,
+      "workMs": 184000,
+      "createdAt": 1763452800000,
+      "startedAt": 1763452802000,
+      "endedAt": 1763452986000
+    }
+  ]
+}
