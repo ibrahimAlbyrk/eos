@@ -1905,6 +1905,7 @@ dependencies = [
  "bytes",
  "eos-accounts",
  "eos-auth",
+ "eos-capabilities",
  "eos-config",
  "eos-contracts",
  "eos-core",
@@ -2018,6 +2019,19 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-capabilities"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "zeroize",
 ]
 
 [[package]]

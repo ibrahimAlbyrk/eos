@@ -1360,6 +1360,7 @@ dependencies = [
  "bytes",
  "eos-accounts",
  "eos-auth",
+ "eos-capabilities",
  "eos-config",
  "eos-contracts",
  "eos-core",
@@ -2606,6 +2607,7 @@ dependencies = [
 name = "eos-tools"
 version = "0.0.1"
 dependencies = [
+ "eos-capabilities",
  "eos-contracts",
  "eos-core",
  "eos-domain",

@@ -8,6 +8,7 @@ use eos_core::agent::{
     AgentReactions, HostTool, LaunchSpec, ModelCatalog, Peers, ToolSets, UserNotifier, UserQuestions, WorkerControl,
 };
 use eos_core::browser::BrowserTools;
+use eos_core::capability::CapabilityCalls;
 use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
@@ -22,7 +23,7 @@ use eos_workers::WorkerDefinitions;
 use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
-use crate::{browser, control, memory, pages, peers, plugins, reactions, time, transfer, user, visual};
+use crate::{browser, capabilities, control, memory, pages, peers, plugins, reactions, time, transfer, user, visual};
 
 /// What the tools call. The optional parts belong to features that may not
 /// be in the app yet: without one, its tools are in no session.
@@ -47,6 +48,8 @@ pub struct Services {
     pub peers: Option<Arc<dyn Peers>>,
     pub transfers: Option<Arc<dyn AgentTransfers>>,
     pub reactions: Option<Arc<dyn AgentReactions>>,
+    /// What Eos can reach for the user: GitHub, Mail, the packages installed.
+    pub capabilities: Option<Arc<dyn CapabilityCalls>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -97,6 +100,9 @@ impl Tools {
             list.extend(memory::specs(&s.memory_search, &s.memory_suggestions));
             if let Some(browser) = &s.browser {
                 list.extend(browser::specs(browser));
+            }
+            if let Some(calls) = &s.capabilities {
+                list.extend(capabilities::specs(calls));
             }
             list
         };
