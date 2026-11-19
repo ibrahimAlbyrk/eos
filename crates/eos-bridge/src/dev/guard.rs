@@ -342,6 +342,7 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // read from the data copy; stopping and pausing a run only stop its agents.
     ("POST", "/api/runs/estimate"),
     ("GET", "/api/runs"),
+    ("GET", "/api/runs/active"),
     ("GET", "/api/runs/{id}"),
     ("GET", "/api/runs/{id}/result"),
     ("GET", "/api/runs/{id}/events"),

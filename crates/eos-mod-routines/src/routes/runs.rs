@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{RunMessageRequest, RunPage, StartRunRequest, StartRunResponse, StartedRun};
+use eos_contracts::{RunMessageRequest, RunPage, RunsActive, StartRunRequest, StartRunResponse, StartedRun};
 use eos_core::Error;
 use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError};
 use eos_domain::routine::run::{Reason, RunState};
@@ -120,6 +120,16 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         }
     });
 
+    let store = engine.store.clone();
+    // What `runs:active` says, for a screen that opens before its next event.
+    let active = RouteDef::get("/api/runs/active", move |_req: Request| {
+        let store = store.clone();
+        async move {
+            let (count, needs_user) = store.read(|tx| tx.runs().active()).await?;
+            Ok(Response::json(200, &RunsActive { count, needs_user }))
+        }
+    });
+
     let steering = engine.clone();
     let message = RouteDef::post("/api/runs/{id}/message", move |req: Request| {
         let engine = steering.clone();
@@ -157,6 +167,8 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     vec![
         start.access(user(Tier::High)),
         page.access(user(Tier::Read)),
+        // Two counts and no text of the user's.
+        active.access(Access::open().phone(Tier::Read)),
         message.access(user(Tier::High)),
         stop.access(user(Tier::Low)),
         pause.access(user(Tier::Low)),

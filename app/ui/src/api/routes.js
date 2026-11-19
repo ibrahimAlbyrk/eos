@@ -325,6 +325,8 @@ export const ROUTES = {
   routineCandidates: (id) => `/api/routines/${id}/candidates`,
   runs: "/api/runs",
   runsEstimate: "/api/runs/estimate",
+  // What runs:active carries, before its first event.
+  runsActive: "/api/runs/active",
   run: (id) => `/api/runs/${id}`,
   runResult: (id) => `/api/runs/${id}/result`,
   runEvents: (id) => `/api/runs/${id}/events`,
