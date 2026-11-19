@@ -17,11 +17,11 @@ const DETAILS_KEPT = 20;
 // details: runId → RunDetail, the 20 opened last. failed: runId → "gone" or
 // "error". results: runId → RunResultBody, for the runs whose details are
 // kept. stopping: runId → true while its stop waits for the core's answer.
-// active: { count, needsUser } from runs:active, null until one came: the
-// core has no read of the count yet, so it stays null until the first event.
-// Once it has one, its answer (the same RunsActive) goes to applyRunsActive.
+// active: { count, needsUser } from runs:active or its read, null until one
+// came.
 const EMPTY = { pages: {}, details: {}, failed: {}, results: {}, stopping: {}, active: null };
 let state = EMPTY;
+let activeStarted = false;
 const subs = new Set();
 
 function set(patch) {
@@ -145,11 +145,25 @@ export function applyRunsActive(payload) {
   set({ active: { count: payload.count, needsUser: payload.needsUser ?? 0 } });
 }
 
+// The count before its first event: read once after the first paint.
+export async function loadRunsActive() {
+  const r = await transport.get(ROUTES.runsActive).catch(() => null);
+  if (r?.ok) applyRunsActive(r.body);
+}
+
+export function ensureRunsActiveLoaded() {
+  if (activeStarted) return;
+  activeStarted = true;
+  void afterFirstPaint(loadRunsActive);
+}
+
 export function resyncRuns() {
+  if (activeStarted) void loadRunsActive();
   for (const routineId of Object.keys(state.pages)) void loadRuns(routineId);
   for (const id of Object.keys(state.details)) void loadRun(id);
 }
 
 export function _resetRuns() {
   state = EMPTY;
+  activeStarted = false;
 }

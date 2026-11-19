@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./transport.js";
 import {
-  _resetRuns, applyRunChange, applyRunsActive, ensureRunsLoaded, loadMoreRuns, loadRun, loadRuns, resyncRuns, useRuns,
+  _resetRuns, applyRunChange, applyRunsActive, ensureRunsActiveLoaded, ensureRunsLoaded, loadMoreRuns, loadRun, loadRuns, resyncRuns, useRuns,
 } from "./runsStore.js";
 import page from "../../views/eos/gallery/sample/runs-page.json";
 import runDetail from "../../views/eos/gallery/sample/run-detail.json";
@@ -126,6 +126,19 @@ describe("runs:active", () => {
     expect(current().active).toEqual({ count: 2, needsUser: 1 });
     applyRunsActive({});
     expect(current().active).toEqual({ count: 2, needsUser: 1 });
+  });
+
+  it("reads the count once at start and again on resync", async () => {
+    const t = recording({ [ROUTES.runsActive]: { count: 3, needsUser: 2 } });
+    setEosTransport(t);
+    resyncRuns();
+    expect(t.get).not.toHaveBeenCalled();
+    ensureRunsActiveLoaded();
+    ensureRunsActiveLoaded();
+    await vi.waitFor(() => expect(current().active).toEqual({ count: 3, needsUser: 2 }));
+    expect(t.get.mock.calls).toEqual([[ROUTES.runsActive]]);
+    resyncRuns();
+    expect(t.get.mock.calls).toEqual([[ROUTES.runsActive], [ROUTES.runsActive]]);
   });
 });
 
