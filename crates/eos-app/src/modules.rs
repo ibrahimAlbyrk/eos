@@ -185,6 +185,11 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         place_search: cx.media.places.clone(),
         location: cx.location.clone(),
     }));
+    let gate = Arc::new(eos_inbox::gate::Gate::new(
+        cx.capabilities.channels(),
+        Arc::new(crate::host::HostTimeZone),
+        cx.clock.clone(),
+    ));
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -197,8 +202,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         scratch: cx.scratch.clone(),
         folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
         reads: cx.capabilities.clone(),
-        // Results are only shown until Needs you composes its gate.
-        gate: Arc::new(eos_mod_routines::ShowOnlyGate),
+        gate: gate.clone(),
         config: cx.config.clone(),
         keys: cx.project_keys.clone(),
         remotes: cx.repos.git.clone(),
@@ -210,6 +214,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         one_shot: cx.one_shot.clone(),
     }));
     cx.grants.attach(&routines.grants());
+    gate.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines)?;
     cx.tools.attach(&tools);

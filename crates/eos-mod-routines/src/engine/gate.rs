@@ -1,11 +1,10 @@
 //! The gate a checked result passes (01 §4.9, 03 §4.8), called inside the
 //! run's own write job so the decision, the run's state and its event
-//! commit together. Until Needs you composes its own gate, every result is
-//! only shown ([`ShowOnlyGate`]).
+//! commit together.
 
-use eos_core::routine::{GateDecision, GateInput, GateMode, RunGate};
+use eos_core::Error;
+use eos_core::routine::{GateDecision, GateInput, GateMode};
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
-use eos_core::{Error, Ids};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
@@ -14,20 +13,6 @@ use super::check::{NOTHING, result_doc};
 use super::control::confirmed_in;
 use super::{Engine, move_run};
 use crate::routes::readable;
-
-/// Shows every result and sends none: the run ends `done/shown`.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ShowOnlyGate;
-
-impl RunGate for ShowOnlyGate {
-    fn apply_in(&self, _: &dyn Tx, _: &mut Outbox, _: i64, _: &dyn Ids, _: &GateInput) -> Result<GateDecision, Error> {
-        Ok(GateDecision::Shown)
-    }
-
-    fn withdraw_in(&self, _: &dyn Tx, _: &mut Outbox, _: &str) -> Result<(), Error> {
-        Ok(())
-    }
-}
 
 /// Hands the passed result of `run` to the gate and moves the run by its
 /// decision. A result with nothing to send skips the gate (01 G20).
