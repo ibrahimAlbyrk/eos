@@ -93,3 +93,19 @@ async fn a_run_stops_in_any_state_but_delivering_and_an_ended_one_never_moves() 
     assert!(matches!(bench.runs.stop(&ended, Reason::User).await, Err(eos_core::Error::Conflict(_))));
     assert_eq!(bench.runs.stop("rn-none", Reason::User).await, Err(eos_core::Error::not_found("run", "rn-none")));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_whose_version_cannot_be_read_fails_its_run_and_holds_up_no_other() {
+    let bench = Bench::new(true);
+    let broken = bench.routine(RoutineState::Active, blueprint(1));
+    let fine = bench.routine(RoutineState::Active, blueprint(1));
+    let lost = bench.hand(&broken, Some(pull_request(1))).await;
+    bench.clock.advance(1);
+    let kept = bench.hand(&fine, Some(pull_request(2))).await;
+    bench.temp.exec(&format!("UPDATE routine_versions SET blueprint = '{{' WHERE routine_id = '{broken}'"));
+
+    bench.supervise().await;
+    bench.eventually(|| bench.state(&kept) == RunState::Running).await;
+    let run = bench.run(&lost);
+    assert_eq!((run.state, run.reason), (RunState::Failed, Some(Reason::Invalid)));
+}
