@@ -7,13 +7,15 @@ import { holdEosNavInMemory } from "../nav/eosNav.js";
 import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
 import routinesOne from "./sample/routines-one.json";
 import capabilities from "./sample/capabilities.json";
+import signInFailed from "./sample/sign-in-failed.json";
 
 // What the gallery's reads answer, by the path each store asks. The
-// capabilities hold one of each state.
+// capabilities hold one of each state; GitHub's sign-in is one that did not work.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routinesOne,
   [ROUTES.capabilities]: capabilities.map(rowOf),
   ...Object.fromEntries(capabilities.map((detail) => [ROUTES.capability(detail.id), detail])),
+  [ROUTES.capabilitySignIn("github")]: signInFailed,
 };
 
 // Eos's columns in the app's grid. The chrome around them (the mode switcher,

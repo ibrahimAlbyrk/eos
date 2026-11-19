@@ -4,15 +4,18 @@
 // The user code lives here and on the sheet only.
 //
 // attempt: null, or { id, phase, userCode?, verificationUri?, accountLabel?, error? }
-// with phase starting → code → pending → ready | expired | denied, or cancelled,
-// client_id_missing, dev_run, failed.
+// with phase starting → code → pending → ready | expired | denied | failed, or
+// cancelled, client_id_missing, dev_run. A failed attempt carries the line the
+// sheet shows as `error`.
 
 import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
 import { isDevRunRefusal, transport } from "./transport.js";
 
 const POLL_MS = 2000;
-const ENDS = { signed_in: "ready", expired: "expired", denied: "denied" };
+const ENDS = { signed_in: "ready", expired: "expired", denied: "denied", failed: "failed" };
+// The core ends an attempt as failed when GitHub did not answer in time, or refused.
+const DID_NOT_WORK = "The sign-in did not work.";
 const ACTIVE = new Set(["starting", "code", "pending"]);
 
 let attempt = null;
@@ -58,6 +61,7 @@ async function poll(n) {
   // The core forgot the attempt (a restart); anything else not ok passes.
   if (r?.status === 404) return set({ ...attempt, phase: "failed", error: "The sign-in was interrupted. Try again." });
   const end = ENDS[r?.body?.state];
+  if (r?.ok && end === "failed") return set({ ...attempt, phase: "failed", error: DID_NOT_WORK });
   if (r?.ok && end) return set({ ...attempt, phase: end, accountLabel: r.body.accountLabel });
   if (r?.ok && r.body?.state === "pending" && attempt.phase !== "pending") set({ ...attempt, phase: "pending" });
   follow(n);
@@ -69,21 +73,27 @@ export async function startSignIn(id) {
   set({ id, phase: "starting" });
   const r = await transport.send("POST", ROUTES.capabilitySignIn(id)).catch(() => null);
   if (n !== seq) return;
-  // With no client id the core answers the needs_setup reason instead of a
-  // code, as an error's code or as the capability's stateCode.
-  const reason = r?.body?.code ?? r?.body?.stateCode;
   if (r?.ok && typeof r.body?.userCode === "string") {
     const { userCode, verificationUri } = r.body;
     set({ id, phase: "code", userCode, verificationUri });
     openSignInPage();
     follow(n);
-  } else if (reason === "client_id_missing") {
+  } else if (r?.status === 409 && r.body?.code === "client_id_missing") {
     set({ id, phase: "client_id_missing" });
   } else if (isDevRunRefusal(r)) {
     set({ id, phase: "dev_run" });
   } else {
-    set({ id, phase: "failed", error: r?.body?.error ?? "Eos isn't reachable." });
+    set({ id, phase: "failed", error: startFailure(r) });
   }
+}
+
+// Why a start gave no code. The core's own words for 502 and 429 name only the
+// capability's id, so those two are said here.
+function startFailure(r) {
+  if (!r) return "Eos isn't reachable.";
+  if (r.status === 502) return `${DID_NOT_WORK} GitHub did not give Eos a code.`;
+  if (r.status === 429) return "GitHub is limiting requests. Try again in a few minutes.";
+  return r.body?.error ?? "Eos could not start the sign-in.";
 }
 
 // Tells the core to stop waiting for the code.

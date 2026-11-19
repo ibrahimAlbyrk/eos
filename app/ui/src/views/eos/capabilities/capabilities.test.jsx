@@ -8,6 +8,7 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { SignInSheet } from "./SignInSheet.jsx";
 import samples from "../gallery/sample/capabilities.json";
+import signInFailed from "../gallery/sample/sign-in-failed.json";
 
 const DEV_RUN_TEXT = "This is a dev run: nothing starts or leaves the Mac.";
 const byId = Object.fromEntries(samples.map((d) => [d.id, d]));
@@ -218,7 +219,7 @@ describe("the sign-in sheet", () => {
   });
 
   it("says what is missing when Eos has no GitHub client id", async () => {
-    const html = await sheetAfter({ ok: false, status: 409, body: { error: "github needs setup", code: "client_id_missing" } });
+    const html = await sheetAfter({ ok: false, status: 409, body: { error: "GitHub has no client id to sign in with", code: "client_id_missing" } });
     expect(html).toContain("Eos has no GitHub client id, so it cannot start a sign-in.");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Close</button>');
     expect(html).not.toContain("Try again");
@@ -229,9 +230,29 @@ describe("the sign-in sheet", () => {
     expect(html).toContain(`<p class="eos-note" role="status">${DEV_RUN_TEXT}</p>`);
   });
 
-  it("shows any other failure's reason with Try again", async () => {
-    const html = await sheetAfter({ ok: false, status: 502, body: { error: "GitHub did not answer" } });
-    expect(html).toContain("GitHub did not answer");
+  it("stops waiting when the sign-in did not work, and offers to try again", async () => {
+    const html = await sheetAfter({ ok: true, status: 200, body: CODE }, [{ ok: true, status: 200, body: { state: "pending" } }, { ok: true, status: 200, body: signInFailed }], 4000);
+    expect(html).toContain('<p class="eos-note" role="status">The sign-in did not work.</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Try again</button>');
+    expect(html).not.toContain("Waiting for GitHub…");
+    expect(html).not.toContain("WDJB-MJHT");
+  });
+
+  it("says the sign-in did not work when GitHub gave no code", async () => {
+    const html = await sheetAfter({ ok: false, status: 502, body: { error: "unreachable: github" } });
+    expect(html).toContain("The sign-in did not work. GitHub did not give Eos a code.");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Try again</button>');
+  });
+
+  it("shows any other failure's reason with Try again", async () => {
+    const html = await sheetAfter({ ok: false, status: 404, body: { error: "capability sign-in not found: linear" } });
+    expect(html).toContain("capability sign-in not found: linear");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Try again</button>');
+  });
+
+  it("says Eos could not start it when the core answered without a reason", async () => {
+    const html = await sheetAfter({ ok: false, status: 500, body: null });
+    expect(html).toContain('<p class="eos-note" role="status">Eos could not start the sign-in.</p>');
+    expect(html).not.toContain("Eos isn&#x27;t reachable.");
   });
 });
