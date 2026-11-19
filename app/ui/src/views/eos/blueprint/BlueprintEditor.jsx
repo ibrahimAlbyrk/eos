@@ -122,7 +122,7 @@ export function BlueprintEditor({ detail, versionNumber }) {
 
   return (
     <div className="eos-bp">
-      <ArchitectChat routineId={id} draft={draft} said={said[id]} note={notes[id]} />
+      <ArchitectChat routineId={id} draft={draft} said={said[id]} note={notes[id]} making={detail.routine.state === "draft"} />
       <div className="eos-bp__side">
         <Note note={notes[id]} />
         {newer && <p className="eos-note">A newer version of Eos made this blueprint. It can be read here, not changed or run.</p>}

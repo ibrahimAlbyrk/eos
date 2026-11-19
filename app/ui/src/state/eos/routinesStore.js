@@ -108,6 +108,9 @@ async function routineWrite(method, path, body) {
 
 const rowOf = (id) => state.details[id]?.routine ?? state.list?.find((r) => r.id === id);
 
+// The routine's row as the store holds it, or undefined.
+export const routineRow = (id) => rowOf(id);
+
 // PUT state: active, paused or archived; the core answers the row. Pausing
 // shows at once and goes back when the core refuses it (08 §4.2); the other
 // states wait for the answer.
