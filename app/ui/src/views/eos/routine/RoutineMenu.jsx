@@ -1,21 +1,17 @@
 import { useState } from "react";
-import { ROUTES } from "../../../api/routes.js";
 import { copyRoutine, deleteRoutine, setRoutineState } from "../../../state/eos/routinesStore.js";
 import { openLocation } from "../nav/eosNav.js";
 
 // The "⋯" menu's actions for a routine: Start another like this (a draft
-// copy, once the core serves copies), Archive, Delete to trash.
+// copy), Archive, Delete to trash.
 export function menuActions(routine) {
-  const actions = [];
-  if (ROUTES.routineCopy) {
-    actions.push({
-      label: "Start another like this",
-      run: async () => {
-        const id = await copyRoutine(routine.id);
-        if (id) openLocation(`eos:/routines/${encodeURIComponent(id)}?tab=blueprint`);
-      },
-    });
-  }
+  const actions = [{
+    label: "Start another like this",
+    run: async () => {
+      const id = await copyRoutine(routine.id);
+      if (id) openLocation(`eos:/routines/${encodeURIComponent(id)}?tab=blueprint`);
+    },
+  }];
   if (routine.state !== "archived") actions.push({ label: "Archive", run: () => setRoutineState(routine.id, "archived") });
   actions.push({
     label: "Delete to trash",
