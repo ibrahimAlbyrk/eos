@@ -144,7 +144,7 @@ pub(crate) async fn abandon(engine: &Engine, routine_id: &str) -> Result<DraftVi
 
 /// What a start comes to.
 pub(crate) enum Started {
-    Kept(Option<RoutineSummary>),
+    Kept(Box<Option<RoutineSummary>>),
     /// The draft does not meet its rules; nothing was written.
     Refused(Vec<BlueprintIssue>),
     /// No trial of the draft went well, and the user did not choose to
@@ -220,7 +220,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
             }
             tracing::info!(routine_id = %id, version_id = %version_id, without_trial, "a routine was started");
             announce_routine(tx, out, &id, RoutineChangeReason::Version, now)?;
-            Ok((Started::Kept(row(tx, &id, now)?), architect))
+            Ok((Started::Kept(Box::new(row(tx, &id, now)?)), architect))
         })
         .await?;
     let (started, architect) = started;
