@@ -6,6 +6,7 @@
 //! they take in. The When, Which, Freedom and Goes-to slots are the shapes of
 //! `signals` and `freedom`.
 
+mod architect;
 mod input;
 mod rows;
 mod runs;
@@ -16,6 +17,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+pub use architect::*;
 pub use input::*;
 pub use rows::*;
 pub use runs::*;

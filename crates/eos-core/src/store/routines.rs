@@ -98,6 +98,8 @@ pub trait RoutineRepo {
     fn list(&self) -> Result<Vec<StoredRoutine>, Error>;
     fn insert_draft(&self, draft: &StoredDraft) -> Result<(), Error>;
     fn draft(&self, routine_id: &str) -> Result<Option<StoredDraft>, Error>;
+    /// Writes every column of the routine's draft row but its creation.
+    fn update_draft(&self, draft: &StoredDraft) -> Result<(), Error>;
     /// Writes the state and why it is paused (none unless paused).
     fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error>;
     /// Makes `version_id` the version the routine runs from.
@@ -115,6 +117,9 @@ pub trait RoutineVersionRepo {
     /// here, counted from 1.
     fn list(&self, routine_id: &str) -> Result<Vec<StoredVersion>, Error>;
     fn find(&self, routine_id: &str, id: &str) -> Result<Option<StoredVersion>, Error>;
+    /// A draft the user started from: kept, and whether without a trial.
+    /// The one change a version row takes.
+    fn keep(&self, routine_id: &str, id: &str, no_trial: bool) -> Result<(), Error>;
     /// The version the routine runs from.
     fn head(&self, routine_id: &str) -> Result<Option<StoredVersion>, Error>;
 }

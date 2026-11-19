@@ -2,11 +2,13 @@
 //! user's own first, then by age, while the global slots and the routine's
 //! `limits.parallel` allow. Each pass is one write job, so what it counts
 //! and what it starts cannot drift apart. Leaving the queue binds the
-//! version the run runs from (01 G5) and moves it to `running` at the brief;
+//! version the run runs from (01 G5), unless its start bound one (a trial
+//! runs the draft it was started for), and moves it to `running` at the brief;
 //! the brief station then starts its lead, one run after the other, before
 //! the next pass. A run from a trigger is skipped while its routine's or
 //! everything's day budget is spent, and waits while the plan has no
-//! headroom; each turn of the loop also holds working runs to their time.
+//! headroom; each turn of the loop also holds working runs to their time
+//! and suspends the architects that went idle.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,6 +57,7 @@ async fn supervise(engine: Arc<Engine>) {
             }
         };
         let wait = if budget::tick(&engine).await { wait.min(WORKING_WAIT_MS) } else { wait };
+        crate::architect::sweep(&engine).await;
         tokio::select! {
             () = engine.sleeper.sleep(wait) => {}
             () = engine.wake.notified() => {}
@@ -129,7 +132,8 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, day: &budget::Day, 
         }
         *working += 1;
         total += 1;
-        if leave_queue(tx, out, &run, routine.version_id.as_deref(), now)? {
+        let version_id = run.version_id.as_deref().or(routine.version_id.as_deref());
+        if leave_queue(tx, out, &run, version_id, now)? {
             left.push(run.id);
         }
     }
@@ -206,7 +210,7 @@ fn leave_queue(
     version_id: Option<&str>,
     now: i64,
 ) -> Result<bool, Error> {
-    if let Some(version_id) = version_id {
+    if let Some(version_id) = version_id.filter(|id| run.version_id.as_deref() != Some(*id)) {
         tx.runs().bind_version(&run.id, version_id)?;
     }
     let brief = RunMove { state: RunState::Running, station: Some(Station::Brief), reason: None, at: now };

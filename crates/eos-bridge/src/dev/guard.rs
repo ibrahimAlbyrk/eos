@@ -135,6 +135,13 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/routines/{id}/candidates"),
     ("POST", "/api/runs/{id}/message"),
     ("POST", "/api/runs/{id}/resume"),
+    // The architect: making, changing, a message to it and a routine's start set agents
+    // working, and a trial starts runs.
+    ("POST", "/api/routines/architect"),
+    ("POST", "/api/routines/{id}/start"),
+    ("POST", "/api/routines/{id}/change"),
+    ("POST", "/api/routines/{id}/draft/message"),
+    ("POST", "/api/routines/{id}/trial"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
@@ -338,6 +345,9 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/routines/{id}/copy"),
     ("GET", "/api/routines/settings"),
     ("PUT", "/api/routines/settings"),
+    // A routine's draft is read from the data copy; leaving it only suspends its architect.
+    ("GET", "/api/routines/{id}/draft"),
+    ("DELETE", "/api/routines/{id}/draft"),
     // Runs: the estimate, the list, one run, its result and timeline, and a worker's run are
     // read from the data copy; stopping and pausing a run only stop its agents.
     ("POST", "/api/runs/estimate"),

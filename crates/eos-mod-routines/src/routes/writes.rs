@@ -12,7 +12,7 @@ use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
 
-use super::param;
+use super::{param, refusal};
 use crate::engine::{self, Edit, Engine, Saved};
 
 fn answer(saved: Saved, created: bool) -> Response {
@@ -44,14 +44,15 @@ fn blueprint_routes(engine: &Arc<Engine>) -> Vec<RouteDef> {
                 note: body.note,
                 author: VersionAuthor::User,
             };
-            Ok(answer(engine::save(&engine, &param(&req, "id"), edit).await?, false))
+            Ok(answer(engine::save(&engine, &param(&req, "id"), edit).await.map_err(refusal)?, false))
         }
     });
     let restoring = engine.clone();
     let restore = RouteDef::post("/api/routines/{id}/versions/{versionId}/restore", move |req: Request| {
         let engine = restoring.clone();
         async move {
-            let saved = engine::restore(&engine, &param(&req, "id"), &param(&req, "versionId")).await?;
+            let saved =
+                engine::restore(&engine, &param(&req, "id"), &param(&req, "versionId")).await.map_err(refusal)?;
             Ok(answer(saved, false))
         }
     });
@@ -86,7 +87,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let keeping = engine.clone();
     let keep = RouteDef::post("/api/routines/{id}/keep", move |req: Request| {
         let engine = keeping.clone();
-        async move { Ok(Response::json(200, &engine::keep(&engine, &param(&req, "id")).await?)) }
+        async move { Ok(Response::json(200, &engine::keep(&engine, &param(&req, "id")).await.map_err(refusal)?)) }
     });
     let mut routes = blueprint_routes(engine);
     routes.extend([

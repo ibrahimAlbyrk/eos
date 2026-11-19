@@ -17,6 +17,7 @@
 //! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers, reactions |
 //! | a routine run's lead (`eos-run-solo`, `eos-run-lead`, `eos-run-script`) | its run tools, `ask_user`, date, memory search, capabilities |
 //! | a routine run's checker (`eos-run-checker`) | `submit_verdict`, date, memory search, capabilities |
+//! | a routine's architect (`eos-architect`) | its routine tools, `list_capabilities` |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions
 //! started meanwhile; so are the capability tools while the Eos preview
@@ -26,6 +27,7 @@
 //! and `no_reply` waits behind the search. No subagent is offered an Eos tool: the permission
 //! gate refuses each such call anyway.
 
+mod architect;
 mod browser;
 mod capabilities;
 mod control;

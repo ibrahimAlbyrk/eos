@@ -107,12 +107,16 @@ fn queue(
     if by_the_user(new.origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
         return Err(StartError::DayCap);
     }
-    let version = showing_version(tx, &routine.id)?;
-    let blueprint = match &version {
-        Some(version) => readable(version)?,
-        None => None,
+    let version = match &new.version {
+        Some(id) => Some(
+            tx.routine_versions()
+                .find(&routine.id, id)?
+                .ok_or_else(|| StartError::Invalid("version: not a version of the routine".into()))?,
+        ),
+        None => showing_version(tx, &routine.id)?,
     };
-    let blueprint = blueprint.ok_or_else(|| StartError::Invalid("routine: has no blueprint this app runs".into()))?;
+    let version = version.ok_or_else(|| StartError::Invalid("routine: has no blueprint this app runs".into()))?;
+    let blueprint = readable(&version)?.ok_or(StartError::NewerFormat)?;
     check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin)?;
     let inputs = inputs(new, &blueprint)?;
     let keys: Vec<Option<String>> = inputs.iter().map(|input| input.item.as_ref().and_then(item::key)).collect();
@@ -124,7 +128,9 @@ fn queue(
         }
     }
     let kind = if new.origin == RunOrigin::Trial { "trial" } else { kind_word(routine.kind) };
-    let version_id = version.map(|version| version.id).unwrap_or_default();
+    let version_id = version.id;
+    // Only a start for one version binds it now; the others run the head as it is when they leave the queue.
+    let bound = new.version.as_ref().map(|_| version_id.clone());
     let mut made = Vec::with_capacity(inputs.len());
     for (input, item_key) in inputs.into_iter().zip(keys) {
         let id = ids.run_id();
@@ -134,6 +140,7 @@ fn queue(
             Queued {
                 id: id.clone(),
                 routine_id: &routine.id,
+                version_id: bound.clone(),
                 kind,
                 origin: new.origin.word(),
                 origin_ref: new.origin.reference().map(str::to_owned),
@@ -229,7 +236,9 @@ fn inputs(new: &NewRun, blueprint: &Blueprint) -> Result<Vec<RunInput>, StartErr
         new.items.iter().map(|item: &ItemRef| RunInput { item: Some(item.clone()), ..new.input.clone() }).collect()
     };
     let without_item = |input: &RunInput| input.item.is_none() && input.items.as_ref().is_none_or(Vec::is_empty);
-    if blueprint.takes.empty == TakesEmpty::Required && inputs.iter().any(without_item) {
+    // A trial with no past item is a dry run (G7).
+    let dry_run = new.origin == RunOrigin::Trial;
+    if blueprint.takes.empty == TakesEmpty::Required && !dry_run && inputs.iter().any(without_item) {
         return Err(StartError::Invalid("item: Required".into()));
     }
     Ok(inputs)

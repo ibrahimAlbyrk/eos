@@ -33,19 +33,23 @@ pub(crate) use activity::seen as agent_event;
 pub(crate) use brief::model_of;
 pub(crate) use budget::watch_usage;
 pub(crate) use check::holds;
-pub(crate) use control::Control;
+pub(crate) use control::{Control, announce as announce_routine, confirmed_in};
 pub(crate) use exec::Tools;
 pub use gate::ShowOnlyGate;
 pub(crate) use grants::Grants;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
-pub(crate) use lifecycle::{delete, keep, set_state, undelete};
+pub(crate) use lifecycle::{delete, keep, live, row, set_state, undelete};
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
 pub(crate) use recover::recover;
+pub(crate) use start::start as start_runs;
 pub(crate) use steer::{message, pause, resume};
 pub(crate) use team::shape_report;
-pub(crate) use versions::{Edit, Saved, copy, create, restore, save};
+pub(crate) use versions::{
+    Edit, NEWER_FORMAT, NewVersion, Prepared, Saved, blocks, check_in, copy, create, free_slug, insert_version,
+    prepare, restore, save,
+};
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -129,6 +133,8 @@ pub(crate) struct Engine {
     pub(crate) meters: Mutex<HashMap<String, budget::Meter>>,
     /// Books what routine sessions spend.
     pub(crate) usage: Mutex<Option<Subscription>>,
+    /// The live architects, with when each was last active.
+    pub(crate) architects: Mutex<HashMap<String, i64>>,
 }
 
 impl Engine {
@@ -223,6 +229,8 @@ pub(crate) fn item_text(item: &eos_contracts::ItemRef) -> String {
 pub(crate) struct Queued<'a> {
     pub(crate) id: String,
     pub(crate) routine_id: &'a str,
+    /// The version it runs, when bound before it leaves the queue.
+    pub(crate) version_id: Option<String>,
     pub(crate) kind: &'a str,
     pub(crate) origin: &'a str,
     pub(crate) origin_ref: Option<String>,
@@ -240,7 +248,7 @@ pub(crate) fn queue_run(tx: &dyn Tx, out: &mut Outbox, run: Queued<'_>) -> Resul
     let row = StoredRun {
         id: run.id.clone(),
         routine_id: run.routine_id.to_owned(),
-        version_id: None,
+        version_id: run.version_id,
         kind: run.kind.to_owned(),
         origin: run.origin.to_owned(),
         origin_ref: run.origin_ref,

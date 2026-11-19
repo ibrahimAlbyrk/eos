@@ -1,6 +1,7 @@
 //! `eos-mod-routines` over the real store.
 
 mod activity;
+mod architect;
 mod bench;
 mod blueprint;
 mod budget;

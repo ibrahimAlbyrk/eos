@@ -87,7 +87,7 @@ fn merge(listed: Vec<CapabilityItem>, recent: Vec<(i64, ItemRef)>, q: Option<&st
 }
 
 /// A capability's item as a run takes it: from outside.
-fn item_ref(item: CapabilityItem) -> ItemRef {
+pub(crate) fn item_ref(item: CapabilityItem) -> ItemRef {
     ItemRef {
         kind: item.kind,
         key: Some(item.key),

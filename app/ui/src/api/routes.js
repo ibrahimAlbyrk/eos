@@ -318,6 +318,15 @@ export const ROUTES = {
   routineState: (id) => `/api/routines/${id}/state`,
   routineUndelete: (id) => `/api/routines/${id}/undelete`,
   routineKeep: (id) => `/api/routines/${id}/keep`,
+  // Making and changing a routine by talking to its architect: make one from a
+  // sentence, start its draft, ask for a change, the draft and a message to
+  // its architect, and a trial on real past items.
+  routinesArchitect: "/api/routines/architect",
+  routineStart: (id) => `/api/routines/${id}/start`,
+  routineChange: (id) => `/api/routines/${id}/change`,
+  routineDraft: (id) => `/api/routines/${id}/draft`,
+  routineDraftMessage: (id) => `/api/routines/${id}/draft/message`,
+  routineTrial: (id) => `/api/routines/${id}/trial`,
   // Runs (eos-contracts `routine/runs.rs`): what a routine may run on; start,
   // estimate and list runs; one run, its result and timeline; telling its
   // team something, stopping, pausing and resuming it; and the run a worker

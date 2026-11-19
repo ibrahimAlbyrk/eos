@@ -27,6 +27,10 @@ use super::control::announce;
 use super::lifecycle::{live, row};
 use crate::routes::{gone, readable, showing_version};
 
+/// What a write refused for a routine whose version was made by a newer
+/// Eos says; its routes answer it as `newer_format` (G36).
+pub(crate) const NEWER_FORMAT: &str = "the routine was made by a newer Eos";
+
 /// What a write that makes a version comes to.
 pub(crate) enum Saved {
     Done(Box<RoutineSaved>),
@@ -35,9 +39,9 @@ pub(crate) enum Saved {
 }
 
 /// A received blueprint ready for its rules.
-struct Prepared {
-    blueprint: Blueprint,
-    trust: Trust,
+pub(crate) struct Prepared {
+    pub(crate) blueprint: Blueprint,
+    pub(crate) trust: Trust,
 }
 
 fn issue(path: &[&str], message: &str) -> BlueprintIssue {
@@ -47,7 +51,7 @@ fn issue(path: &[&str], message: &str) -> BlueprintIssue {
 
 /// Reads `value`, with its missing limits filled; a new blueprint's run cap
 /// is three times its estimate, at least a dollar.
-async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<Prepared, Vec<BlueprintIssue>>, Error> {
+pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<Prepared, Vec<BlueprintIssue>>, Error> {
     let estimate_cap = fill_defaults(&mut value);
     let mut blueprint = match blueprint::read(&value) {
         Ok(Readable::Current(blueprint)) => *blueprint,
@@ -90,7 +94,7 @@ async fn outside(engine: &Engine) -> Result<HashSet<String>, Error> {
 
 /// The rules over `blueprint` as routine `routine_id`'s: errors block,
 /// warnings are kept beside the version.
-fn check_in(
+pub(crate) fn check_in(
     tx: &dyn Tx,
     routine_id: &str,
     blueprint: &Blueprint,
@@ -124,24 +128,24 @@ fn check_in(
     Ok(issues.collect())
 }
 
-fn blocks(issues: &[BlueprintIssue]) -> bool {
+pub(crate) fn blocks(issues: &[BlueprintIssue]) -> bool {
     issues.iter().any(|issue| issue.severity == IssueSeverity::Error)
 }
 
 /// A version row of `blueprint`.
-struct NewVersion<'a> {
-    id: &'a str,
-    routine_id: &'a str,
-    parent_id: Option<String>,
-    status: VersionStatus,
-    author: VersionAuthor,
-    note: Option<String>,
-    prepared: &'a Prepared,
-    device: &'a str,
-    now: i64,
+pub(crate) struct NewVersion<'a> {
+    pub(crate) id: &'a str,
+    pub(crate) routine_id: &'a str,
+    pub(crate) parent_id: Option<String>,
+    pub(crate) status: VersionStatus,
+    pub(crate) author: VersionAuthor,
+    pub(crate) note: Option<String>,
+    pub(crate) prepared: &'a Prepared,
+    pub(crate) device: &'a str,
+    pub(crate) now: i64,
 }
 
-fn insert_version(tx: &dyn Tx, version: NewVersion<'_>) -> Result<(), Error> {
+pub(crate) fn insert_version(tx: &dyn Tx, version: NewVersion<'_>) -> Result<(), Error> {
     let text = canonical_json(&version.prepared.blueprint);
     tx.routine_versions().insert(&StoredVersion {
         id: version.id.to_owned(),
@@ -161,7 +165,7 @@ fn insert_version(tx: &dyn Tx, version: NewVersion<'_>) -> Result<(), Error> {
 }
 
 /// A slug from `name` that no routine that can still come back holds.
-fn free_slug(tx: &dyn Tx, name: &str, now: i64) -> Result<String, Error> {
+pub(crate) fn free_slug(tx: &dyn Tx, name: &str, now: i64) -> Result<String, Error> {
     let held: HashSet<String> =
         tx.routines().list()?.into_iter().filter(|routine| !gone(routine, now)).map(|routine| routine.slug).collect();
     Ok(slug::unique(&slug::of_name(name), |slug| held.contains(slug)))
@@ -253,7 +257,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
                 return Err(Error::Conflict("the routine changed since this edit began".into()));
             }
             if readable(&shown)?.is_none() {
-                return Err(Error::Conflict("the routine was made by a newer Eos".into()));
+                return Err(Error::Conflict(NEWER_FORMAT.into()));
             }
             let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref())?;
             if blocks(&issues) {
