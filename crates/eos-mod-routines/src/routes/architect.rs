@@ -36,7 +36,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         async move {
             let body: StartRoutineRequest = req.parse()?;
             match architect::start(&engine, &param(&req, "id"), body.without_trial).await.map_err(refusal)? {
-                Started::Kept(row) => Ok(Response::json(200, &row)),
+                Started::Kept(row) => Ok(Response::json(200, &*row)),
                 Started::NeedsTrial => {
                     Err(ApiError::coded(409, "try the routine first, or start it without a trial", "trial_needed"))
                 }
