@@ -77,7 +77,8 @@ fn schedule() -> Value {
 async fn each_route_needs_the_user_and_the_phone_its_tier() {
     let rig = Rig::new(active(), true).await;
     let which = json!({ "which": { "rule": { "fact": "draft", "is": false } }, "limit": 10 });
-    let routes: [(Method, &str, Option<Value>, Option<Tier>); 5] = [
+    let routes: [(Method, &str, Option<Value>, Option<Tier>); 6] = [
+        (Method::Get, "/api/signals/routines", None, Some(Tier::Read)),
         (Method::Get, "/api/signals/routines/rt-a", None, Some(Tier::Read)),
         (Method::Get, "/api/signals", None, Some(Tier::Read)),
         (Method::Post, "/api/signals/replay", Some(json!({ "routineId": "rt-a", "signalIds": [] })), Some(Tier::High)),
@@ -198,4 +199,37 @@ async fn the_previews_give_next_times_and_what_the_rules_take() {
     let (_, tried) = rig.ask(Method::Post, "/api/signals/which/preview", Some(which)).await;
     assert_eq!((tried["matched"].clone(), tried["wouldAsk"].clone()), (json!([2]), json!(1)));
     assert_eq!(rig.bench.decided("run"), 1, "a preview starts nothing");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn every_routine_says_when_it_runs_next_and_whether_its_sources_work() {
+    let mut routines = active();
+    routines[0].when = serde_json::from_value(json!({
+        "on": [
+            { "schedule": { "daily": "09:00", "days": "all", "zone": "UTC" } },
+            { "schedule": schedule() },
+            { "source": "github.pulls", "scope": { "repo": "acme/game" }, "events": ["opened"] },
+        ],
+    }))
+    .expect("a When");
+    routines.push(routine("rt-b", RoutineState::Active, &["opened"], None));
+    let mut by_hand = routine("rt-c", RoutineState::Active, &[], None);
+    by_hand.when = serde_json::from_value(json!({ "on": [] })).expect("a When");
+    routines.push(by_hand);
+    let rig = Rig::new(routines, true).await;
+
+    let (status, rows) = rig.ask(Method::Get, "/api/signals/routines", None).await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        rows,
+        json!([
+            { "routineId": "rt-a", "nextAt": 5 * 3_600_000, "holder": "dev-1", "sourcesOk": true },
+            { "routineId": "rt-b", "holder": "dev-1", "sourcesOk": true },
+            { "routineId": "rt-c", "holder": "dev-1", "sourcesOk": true },
+        ]),
+        "the soonest of its schedules"
+    );
+    rig.bench.temp.exec("UPDATE signal_sources SET state = 'needs-attention'");
+    let (_, rows) = rig.ask(Method::Get, "/api/signals/routines", None).await;
+    assert_eq!((rows[0]["sourcesOk"].clone(), rows[2]["sourcesOk"].clone()), (json!(false), json!(true)));
 }

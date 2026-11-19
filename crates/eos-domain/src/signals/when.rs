@@ -1,11 +1,15 @@
-//! The When slot's rules: what a valid one holds, and the chains its `after`
-//! triggers make between routines.
+//! The When slot's rules: what a valid one holds, the chains its `after`
+//! triggers make between routines, and the slot in plain English.
 
 use std::collections::{HashMap, HashSet};
 
 use eos_contracts::{Issues, Trigger, When};
 
 use super::schedule;
+
+mod describe;
+
+pub use describe::describe;
 
 /// Checks a When slot: each trigger, the limits and the batch. `known` says
 /// whether this computer knows a zone's name.

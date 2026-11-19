@@ -1,11 +1,13 @@
 //! `GET /api/signals/routines/:routineId`: who acts on a routine's
 //! triggers, each schedule with its next time, each source's state, the
-//! open batch, and the signals counted today and over seven days.
+//! open batch, and the signals counted today and over seven days; and
+//! `GET /api/signals/routines`: when every routine runs next, in one read.
 
 use std::sync::Arc;
 
 use eos_contracts::{
-    OpenBatch, RoutineHolder, RoutineTriggerStatus, Schedule, ScheduleStatus, SignalCounts, SourceStatus, Trigger,
+    OpenBatch, RoutineHolder, RoutineNext, RoutineTriggerStatus, Schedule, ScheduleStatus, SignalCounts, SourceStatus,
+    Trigger,
 };
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::signals::{Holder, Runner};
@@ -86,6 +88,59 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
                 })
                 .await?;
             Ok(Response::json(200, &status))
+        }
+    })
+    .access(Access::ui_token().phone_user(Tier::Read))
+}
+
+/// `GET /api/signals/routines`: each routine's next slot, who holds it and
+/// whether every source it reads is `active`.
+pub(super) fn every(routes: &Arc<Routes>) -> RouteDef {
+    let routes = routes.clone();
+    RouteDef::get("/api/signals/routines", move |_req: Request| {
+        let routes = routes.clone();
+        async move {
+            let routines = routes.directory.triggers().await?;
+            let now = routes.clock.now_ms();
+            let holders: Vec<Option<String>> = routines
+                .iter()
+                .map(|routine| holder(routes.runner.as_ref(), &routine.id).map(|holder| holder.device_id))
+                .collect();
+            let zones = routes.zones.clone();
+            let rows = routes
+                .store
+                .read(move |tx| {
+                    let mut rows = Vec::with_capacity(routines.len());
+                    for (routine, holder) in routines.iter().zip(holders) {
+                        let stored = tx.signal_schedules().of_routine(&routine.id)?;
+                        let mut next = None::<i64>;
+                        let mut sources_ok = true;
+                        for (slot, trigger) in routine.when.on.iter().enumerate() {
+                            match trigger {
+                                Trigger::Schedule { schedule, .. } => {
+                                    let row = stored.iter().find(|row| row.slot == slot as i64);
+                                    let at = row
+                                        .and_then(|row| row.next_at)
+                                        .or_else(|| next_at(zones.as_ref(), schedule, now));
+                                    next = match (next, at) {
+                                        (Some(a), Some(b)) => Some(a.min(b)),
+                                        (a, b) => a.or(b),
+                                    };
+                                }
+                                Trigger::Source { source, scope, .. } => {
+                                    let (_, scope_hash) = capability_scope(source, scope);
+                                    let row = tx.signal_sources().by_scope(&scope_hash)?;
+                                    sources_ok &= row.is_none_or(|row| row.state == "active");
+                                }
+                                _ => {}
+                            }
+                        }
+                        rows.push(RoutineNext { routine_id: routine.id.clone(), next_at: next, holder, sources_ok });
+                    }
+                    Ok(rows)
+                })
+                .await?;
+            Ok(Response::json(200, &rows))
         }
     })
     .access(Access::ui_token().phone_user(Tier::Read))

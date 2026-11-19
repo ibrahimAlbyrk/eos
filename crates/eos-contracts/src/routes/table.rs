@@ -329,6 +329,7 @@ pub const RUN_STOP: Route = Route::new("runStop", "/api/runs/:id/stop", &[Post])
 pub const RUN_PAUSE: Route = Route::new("runPause", "/api/runs/:id/pause", &[Post]).added();
 pub const RUN_RESUME: Route = Route::new("runResume", "/api/runs/:id/resume", &[Post]).added();
 pub const RUN_AGENT: Route = Route::new("runAgent", "/api/run-agents/:workerId", &[Get]).added();
+pub const SIGNALS_ROUTINES: Route = Route::new("signalsRoutines", "/api/signals/routines", &[Get]).added();
 pub const SIGNALS_ROUTINE: Route = Route::new("signalsRoutine", "/api/signals/routines/:routineId", &[Get]).added();
 pub const SIGNALS: Route = Route::new("signals", "/api/signals", &[Get]).added();
 pub const SIGNALS_SUMMARY: Route = Route::new("signalsSummary", "/api/signals/summary", &[Get]).added();
@@ -683,6 +684,7 @@ pub const ROUTES: &[Route] = &[
     RUN_PAUSE,
     RUN_RESUME,
     RUN_AGENT,
+    SIGNALS_ROUTINES,
     SIGNALS_ROUTINE,
     SIGNALS,
     SIGNALS_SUMMARY,
