@@ -2,7 +2,8 @@
 //! from the Forge or from elsewhere passes before it runs: its names, the
 //! hosts it reaches, its schemas, that every secret it asks for is handed to
 //! its code, that every channel, source and check names an action of a
-//! fitting class, and the limits.
+//! fitting class, and the limits. A manifest of Eos's own code passes the
+//! same check with what only Eos may do.
 
 use eos_contracts::{ActionClass, Issue, Issues};
 
@@ -25,14 +26,28 @@ pub const INPUT_SCHEMA_MAX_BYTES: usize = 16 * 1024;
 /// The longest a call may run.
 pub const TIMEOUT_MAX_S: u32 = 300;
 
-/// Every finding, in the order of the manifest's fields; none for a manifest
-/// that passes.
+/// Every finding for a package's manifest, in the order of its fields; none
+/// for a manifest that passes. A package is never `builtin`: what it says of
+/// itself does not make it Eos's own code.
 pub fn check(manifest: &Manifest) -> Vec<Issue> {
+    findings(manifest, false)
+}
+
+/// [`check`] for the manifest a `BuiltinCapability` returns: it may take a
+/// reserved id, and its code reads its secrets by name.
+pub fn check_builtin(manifest: &Manifest) -> Vec<Issue> {
+    findings(manifest, true)
+}
+
+fn findings(manifest: &Manifest, builtin: bool) -> Vec<Issue> {
     let mut cx = Issues::default();
-    cx.at("id", |cx| id(manifest, cx));
+    cx.at("id", |cx| id(manifest, builtin, cx));
     cx.at("name", |cx| cx.str_min(manifest.name.trim(), 1));
     cx.at("version", |cx| cx.str_min(manifest.version.trim(), 1));
     cx.at("summary", |cx| cx.str_min(manifest.summary.trim(), 1));
+    if manifest.form == Form::Builtin && !builtin {
+        cx.push_at("form", "Only Eos's own capabilities are builtin");
+    }
     cx.at("reach", |cx| cx.at("hosts", |cx| hosts(&manifest.reach.hosts, cx)));
     if let Some(health) = &manifest.health {
         cx.at("health", |cx| names_action(manifest, &health.action, "action", &[ActionClass::Read], cx));
@@ -48,7 +63,7 @@ pub fn check(manifest: &Manifest) -> Vec<Issue> {
             cx.idx(i, |cx| names_action(manifest, &channel.action, "action", &fitting, cx));
         }
     });
-    cx.at("secrets", |cx| secrets(manifest, cx));
+    cx.at("secrets", |cx| secrets(manifest, builtin, cx));
     cx.at("sources", |cx| {
         for (i, source) in manifest.sources.iter().enumerate() {
             cx.idx(i, |cx| names_action(manifest, &source.action, "action", &[ActionClass::Read], cx));
@@ -62,10 +77,10 @@ pub fn check(manifest: &Manifest) -> Vec<Issue> {
     cx.into_vec()
 }
 
-fn id(manifest: &Manifest, cx: &mut Issues) {
+fn id(manifest: &Manifest, builtin: bool, cx: &mut Issues) {
     if js_re!(r"^[a-z][a-z0-9-]{1,31}$").find(&manifest.id).is_none() {
         cx.push("An id is 2 to 32 lowercase letters, digits and hyphens, starting with a letter");
-    } else if manifest.form != Form::Builtin && RESERVED_IDS.contains(&manifest.id.as_str()) {
+    } else if !builtin && RESERVED_IDS.contains(&manifest.id.as_str()) {
         cx.push(format!("{} is reserved", manifest.id));
     }
 }
@@ -114,7 +129,7 @@ fn actions(manifest: &Manifest, cx: &mut Issues) {
 /// A secret is handed to the capability's code: through its environment
 /// variable, or as the remote server's token. Built-in code reads its
 /// secrets by name.
-fn secrets(manifest: &Manifest, cx: &mut Issues) {
+fn secrets(manifest: &Manifest, builtin: bool, cx: &mut Issues) {
     if manifest.secrets.len() > SECRETS_MAX {
         cx.push(format!("At most {SECRETS_MAX} secrets"));
     }
@@ -125,7 +140,7 @@ fn secrets(manifest: &Manifest, cx: &mut Issues) {
     for (i, secret) in manifest.secrets.iter().enumerate() {
         cx.idx(i, |cx| {
             let used = secret.env.is_some() || header_secret == Some(secret.name.as_str());
-            if manifest.form != Form::Builtin && !used {
+            if !builtin && !used {
                 cx.push(format!(
                     "{} is never handed to the code: give it an env, or name it as the server's header_secret",
                     secret.name
