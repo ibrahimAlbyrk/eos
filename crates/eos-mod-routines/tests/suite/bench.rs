@@ -388,6 +388,7 @@ fn module(
 pub(crate) fn new_run(routine: &str, origin: RunOrigin, item: Option<ItemRef>) -> NewRun {
     NewRun {
         routine_id: routine.into(),
+        version: None,
         input: RunInput {
             item,
             items: None,

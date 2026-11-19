@@ -176,6 +176,47 @@ fn a_routine_its_versions_draft_sessions_and_spend_read_back_as_written() {
 }
 
 #[test]
+fn a_draft_row_is_rewritten_and_a_draft_version_kept_with_its_trial_choice() {
+    let temp = TempStore::new();
+    let mut draft_version = version("rv-1", "rt-1", 20);
+    draft_version.status = VersionStatus::Draft;
+    let draft = StoredDraft {
+        routine_id: "rt-1".into(),
+        purpose: "make".into(),
+        architect_id: Some("w-arch".into()),
+        base_version_id: None,
+        draft_version_id: Some("rv-1".into()),
+        question: None,
+        status: DraftStatus::Working,
+        created_at: 40,
+        updated_at: 40,
+    };
+    let changed = StoredDraft {
+        question: Some("Which repository?".into()),
+        status: DraftStatus::Asking,
+        updated_at: 45,
+        created_at: 99,
+        ..draft.clone()
+    };
+    let (row, kept) = {
+        let (draft, changed) = (draft.clone(), changed.clone());
+        temp.store
+            .write_blocking(move |tx, _| {
+                tx.routines().insert(&routine("rt-1", "pr-review", RoutineState::Draft))?;
+                tx.routine_versions().insert(&draft_version)?;
+                tx.routines().insert_draft(&draft)?;
+                tx.routines().update_draft(&changed)?;
+                tx.routine_versions().keep("rt-1", "rv-1", true)?;
+                Ok((tx.routines().draft("rt-1")?, tx.routine_versions().find("rt-1", "rv-1")?))
+            })
+            .expect("writes")
+    };
+    assert_eq!(row, Some(StoredDraft { created_at: 40, ..changed }), "its creation stays");
+    let kept = kept.expect("the version");
+    assert_eq!((kept.status, kept.no_trial), (VersionStatus::Kept, true));
+}
+
+#[test]
 fn runs_and_their_results_read_back_newest_first_with_their_counts() {
     let temp = TempStore::new();
     let mut done = run("rn-1", "rt-1", "hand", None, 100);

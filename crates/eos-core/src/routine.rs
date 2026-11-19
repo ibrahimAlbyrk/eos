@@ -5,7 +5,8 @@
 use std::path::PathBuf;
 
 use eos_contracts::{
-    CheckVerdict, Freedom, ItemRef, Recipient, ResultDoc, RoutineKind, RoutineState, RunInput, Rung, When, Which,
+    BlueprintIssue, CheckVerdict, Freedom, ItemRef, Recipient, ResultDoc, RoutineKind, RoutineState, RunInput, Rung,
+    When, Which,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
@@ -56,6 +57,9 @@ impl RunOrigin {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewRun {
     pub routine_id: String,
+    /// The version to run: a trial runs the draft it was started for. `None`
+    /// runs the version the routine runs from when the run leaves the queue.
+    pub version: Option<String>,
     pub input: RunInput,
     /// Several items, one run each; empty for one run of `input`.
     pub items: Vec<ItemRef>,
@@ -86,6 +90,8 @@ pub enum StartError {
     },
     /// 409: the routine's state does not take this start.
     RoutineState(RoutineState),
+    /// 409: the version it would run was made by a newer Eos.
+    NewerFormat,
     /// 400; the text names the field.
     Invalid(String),
     /// 409: everything routines may spend today is spent; the user may
@@ -301,6 +307,42 @@ pub trait RoutineTools: Send + Sync {
     fn stop_specialist<'a>(&'a self, worker_id: &'a str, agent: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The specialists of a team lead's routine and where each stands.
     fn list_specialists<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<Specialist>, Error>>;
+}
+
+/// What `propose_blueprint` came to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Proposal {
+    /// Written as the routine's new draft version, with the warnings it was
+    /// kept with.
+    Drafted { version_id: String, warnings: Vec<BlueprintIssue> },
+    /// The blueprint did not meet its rules; nothing was written.
+    Refused(Vec<BlueprintIssue>),
+}
+
+/// What the tools of a routine's architect do. Each call names the worker
+/// that made it; a worker that is no routine's architect is refused.
+pub trait ArchitectTools: Send + Sync {
+    /// The routine as it stands, its head and draft blueprints and its last
+    /// trial runs, as JSON for the model.
+    fn get_routine<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<serde_json::Value, Error>>;
+    /// Writes `blueprint` as the routine's new draft version.
+    fn propose_blueprint<'a>(
+        &'a self,
+        worker_id: &'a str,
+        blueprint: serde_json::Value,
+        note: Option<String>,
+    ) -> BoxFuture<'a, Result<Proposal, Error>>;
+    /// Puts one question with its choices on the draft for the user.
+    fn ask_choice<'a>(
+        &'a self,
+        worker_id: &'a str,
+        question: &'a str,
+        choices: &'a [String],
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// Real items the draft would have taken, newest first.
+    fn find_past_items<'a>(&'a self, worker_id: &'a str, limit: usize) -> BoxFuture<'a, Result<Vec<ItemRef>, Error>>;
+    /// Starts the draft's trial; the ids of its runs.
+    fn start_trial<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>>;
 }
 
 /// A specialist of a run's team, as its lead sees it.

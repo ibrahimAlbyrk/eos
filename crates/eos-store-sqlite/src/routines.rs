@@ -162,6 +162,24 @@ impl RoutineRepo for SqliteTx<'_> {
         self.row(&format!("SELECT {DRAFT_COLUMNS} FROM routine_drafts WHERE routine_id = ?1"), [routine_id], draft)
     }
 
+    fn update_draft(&self, draft: &StoredDraft) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routine_drafts SET purpose = ?1, architect_id = ?2, base_version_id = ?3, draft_version_id = ?4, \
+             question = ?5, status = ?6, updated_at = ?7 WHERE routine_id = ?8",
+            params![
+                draft.purpose,
+                draft.architect_id,
+                draft.base_version_id,
+                draft.draft_version_id,
+                draft.question,
+                word(&draft.status)?,
+                draft.updated_at,
+                draft.routine_id,
+            ],
+        )
+        .map(drop)
+    }
+
     fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error> {
         self.exec(
             "UPDATE routines SET state = ?1, paused_reason = ?2, updated_at = ?3, changed_at = ?3 WHERE id = ?4",
@@ -235,6 +253,14 @@ impl RoutineVersionRepo for SqliteTx<'_> {
             [routine_id],
             version,
         )
+    }
+
+    fn keep(&self, routine_id: &str, id: &str, no_trial: bool) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routine_versions SET status = ?1, no_trial = ?2 WHERE routine_id = ?3 AND id = ?4",
+            params![word(&eos_contracts::VersionStatus::Kept)?, no_trial, routine_id, id],
+        )
+        .map(drop)
     }
 
     fn find(&self, routine_id: &str, id: &str) -> Result<Option<StoredVersion>, Error> {

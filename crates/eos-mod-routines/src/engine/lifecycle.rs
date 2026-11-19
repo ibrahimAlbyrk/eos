@@ -129,8 +129,10 @@ pub(crate) async fn keep(engine: &Arc<Engine>, routine_id: &str) -> Result<Optio
         if routine.kind != RoutineKind::Once {
             return Err(Error::Conflict("only a one-off routine is kept".into()));
         }
-        if routine.head_version_id.is_none() {
-            return Err(Error::Conflict("the one-off has no version to keep".into()));
+        let head = tx.routine_versions().head(id)?;
+        let head = head.ok_or_else(|| Error::Conflict("the one-off has no version to keep".into()))?;
+        if crate::routes::readable(&head)?.is_none() {
+            return Err(Error::Conflict(super::versions::NEWER_FORMAT.into()));
         }
         tx.routines().set_kind(id, RoutineKind::Standing, now)?;
         tx.routines().set_state(id, RoutineState::Active, None, now)?;

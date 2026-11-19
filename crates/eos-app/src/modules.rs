@@ -211,7 +211,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
-        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, routines.tools())?;
+        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, routines.tools(), routines.architect())?;
     cx.tools.attach(&tools);
     let workers = Arc::new(
         eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())

@@ -49,6 +49,11 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "message_specialist",
     "stop_specialist",
     "list_specialists",
+    "get_routine",
+    "propose_blueprint",
+    "ask_choice",
+    "find_past_items",
+    "start_trial",
 ];
 
 /// Calls one action of a capability. Not a control tool: the permission gate

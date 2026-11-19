@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use eos_contracts::{
-    BLUEPRINT_FORMAT, Blueprint, Num, RoutineDetail, RoutineDraft, RoutineState, RoutineSummary, RoutineTakes,
-    RoutineVersion, RoutineVersionRow, RunInput, RunSummary,
+    BLUEPRINT_FORMAT, Blueprint, Num, RoutineDetail, RoutineDraft, RoutineOption, RoutineState, RoutineSummary,
+    RoutineTakes, RoutineVersion, RoutineVersionRow, RunInput, RunSummary, Rung, Takes, TakesEmpty,
 };
 use eos_core::store::{Store, StoredDraft, StoredRoutine, StoredRun, StoredVersion, Tx};
 use eos_core::{Clock, Error};
@@ -23,7 +23,7 @@ const DELETED_KEPT_MS: i64 = 30 * DAY_MS;
 const RECENT_RUNS: i64 = 20;
 
 /// The origin of the routines a feature owns, which the user never lists.
-const BUILTIN: &str = "builtin";
+pub(crate) const BUILTIN: &str = "builtin";
 
 pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>) -> Vec<RouteDef> {
     let (list_store, list_clock) = (store.clone(), clock.clone());
@@ -122,13 +122,64 @@ fn routine_detail(tx: &dyn Tx, id: &str, now: i64) -> Result<RoutineDetail, Erro
     })
 }
 
+/// What a row shows of a blueprint.
+struct Shown {
+    summary: String,
+    icon: String,
+    aliases: Vec<String>,
+    rung: Rung,
+    takes: Takes,
+    options: Vec<RoutineOption>,
+}
+
+impl Shown {
+    fn of(blueprint: Blueprint) -> Self {
+        Self {
+            summary: blueprint.summary,
+            icon: blueprint.icon,
+            aliases: blueprint.aliases,
+            rung: blueprint.freedom.rung,
+            takes: blueprint.takes,
+            options: blueprint.options,
+        }
+    }
+
+    /// A newer format's slots as far as this app reads them (G36): it is
+    /// listed and read, never run here.
+    fn newer(value: &Value) -> Self {
+        fn slot<T: serde::de::DeserializeOwned>(value: &Value) -> Option<T> {
+            serde_json::from_value(value.clone()).ok()
+        }
+        let text = |key: &str| value[key].as_str().unwrap_or_default().to_owned();
+        let takes = slot(&value["takes"]).unwrap_or_else(|| Takes {
+            kind: String::new(),
+            source: None,
+            label: String::new(),
+            placeholder: String::new(),
+            empty: TakesEmpty::None,
+            many: false,
+            extra: serde_json::Map::new(),
+        });
+        Self {
+            summary: text("summary"),
+            icon: text("icon"),
+            aliases: slot(&value["aliases"]).unwrap_or_default(),
+            rung: slot(&value["freedom"]["rung"]).unwrap_or(Rung::Draft),
+            takes,
+            options: slot(&value["options"]).unwrap_or_default(),
+        }
+    }
+}
+
 /// The routine's row, from the blueprint it shows: its head, or while it is
-/// being made, its newest version. None when it has no blueprint this app
-/// can read.
+/// being made, its newest version. None when it has no version.
 pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<RoutineSummary>, Error> {
-    let shown = showing_version(tx, &routine.id)?;
-    let Some(blueprint) = shown.map(|version| readable(&version)).transpose()?.flatten() else {
+    let Some(shown) = showing_version(tx, &routine.id)? else {
         return Ok(None);
+    };
+    let blueprint = match readable(&shown)? {
+        Some(blueprint) => Shown::of(blueprint),
+        None => Shown::newer(&stored_json(&shown)?),
     };
     let counts = tx.runs().counts(&routine.id, now - 7 * DAY_MS)?;
     let last_run = tx.runs().by_routine(&routine.id, 1)?.first().map(run_summary);
@@ -142,7 +193,7 @@ pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<
         kind: routine.kind,
         state: routine.state,
         paused_reason: routine.paused_reason.clone(),
-        rung: blueprint.freedom.rung,
+        rung: blueprint.rung,
         trigger_line: None,
         takes: RoutineTakes { takes: blueprint.takes, item_patterns: Vec::new() },
         options: blueprint.options.into_iter().filter(|option| option.inline).collect(),
@@ -199,7 +250,7 @@ fn draft(draft: StoredDraft) -> RoutineDraft {
     RoutineDraft {
         purpose: draft.purpose,
         status: draft.status,
-        question: draft.question,
+        question: draft.question.as_deref().map(|stored| crate::architect::question_of(stored).0),
         base_version_id: draft.base_version_id,
         draft_version_id: draft.draft_version_id,
         updated_at: draft.updated_at,

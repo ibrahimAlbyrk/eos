@@ -137,6 +137,60 @@ impl RoutineTools for RunCalls {
     }
 }
 
+impl eos_core::routine::ArchitectTools for RunCalls {
+    fn get_routine<'a>(&'a self, worker_id: &'a str) -> eos_core::BoxFuture<'a, Result<Value, eos_core::Error>> {
+        let read = self.record(worker_id, format!("get {worker_id}"));
+        Box::pin(async move { read.await.map(|()| serde_json::json!({"name": "PR Review"})) })
+    }
+
+    fn propose_blueprint<'a>(
+        &'a self,
+        worker_id: &'a str,
+        blueprint: Value,
+        note: Option<String>,
+    ) -> eos_core::BoxFuture<'a, Result<eos_core::routine::Proposal, eos_core::Error>> {
+        use eos_contracts::{BlueprintIssue, IssueSeverity};
+        let issue =
+            |path: &str, severity| BlueprintIssue { path: vec![path.into()], message: "Required".into(), severity };
+        let answer = if blueprint["name"].is_string() {
+            eos_core::routine::Proposal::Drafted {
+                version_id: "rv-2".into(),
+                warnings: vec![issue("summary", IssueSeverity::Warning)],
+            }
+        } else {
+            eos_core::routine::Proposal::Refused(vec![
+                issue("name", IssueSeverity::Error),
+                issue("summary", IssueSeverity::Warning),
+            ])
+        };
+        let written = self.record(worker_id, format!("propose {worker_id} {blueprint} {note:?}"));
+        Box::pin(async move { written.await.map(|()| answer) })
+    }
+
+    fn ask_choice<'a>(
+        &'a self,
+        worker_id: &'a str,
+        question: &'a str,
+        choices: &'a [String],
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("ask {worker_id} {question} {choices:?}"))
+    }
+
+    fn find_past_items<'a>(
+        &'a self,
+        worker_id: &'a str,
+        limit: usize,
+    ) -> eos_core::BoxFuture<'a, Result<Vec<eos_contracts::ItemRef>, eos_core::Error>> {
+        let read = self.record(worker_id, format!("past {worker_id} {limit}"));
+        Box::pin(async move { read.await.map(|()| Vec::new()) })
+    }
+
+    fn start_trial<'a>(&'a self, worker_id: &'a str) -> eos_core::BoxFuture<'a, Result<Vec<String>, eos_core::Error>> {
+        let started = self.record(worker_id, format!("trial {worker_id}"));
+        Box::pin(async move { started.await.map(|()| vec!["rn-1".to_owned(), "rn-2".to_owned()]) })
+    }
+}
+
 pub(crate) fn bench(features: Arc<FakeFeatures>) -> Bench {
     bench_over(features, TempStore::new())
 }
@@ -198,6 +252,7 @@ pub(crate) fn bench_with(
         capabilities: Some(capabilities.clone()),
         settings: settings.clone(),
         routines: Some(Arc::new(runs.clone())),
+        architect: Some(Arc::new(runs.clone())),
     });
     Bench { tools, runs, features, clock, store, capabilities, runner, settings }
 }
@@ -206,8 +261,8 @@ fn session(role: SessionFactsRole, collaborate: bool) -> LaunchSpec {
     LaunchSpec { role, collaborate, ..LaunchSpec::new("w-self0001", "/repo/app", "sonnet") }
 }
 
-/// A routine run's session, which starts focused as its reserved definition.
-fn run_session(definition: &str) -> LaunchSpec {
+/// A routine's session, which starts focused as its reserved definition.
+pub(crate) fn run_session(definition: &str) -> LaunchSpec {
     LaunchSpec { worker_definition: Some(definition.into()), ..session(SessionFactsRole::Focused, false) }
 }
 
@@ -222,6 +277,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "run-lead" => run_session("eos-run-solo"),
         "run-team-lead" => run_session("eos-run-lead"),
         "run-checker" => run_session("eos-run-checker"),
+        "architect" => run_session("eos-architect"),
         other => panic!("unknown session kind {other}"),
     }
 }
@@ -250,7 +306,7 @@ impl Bench {
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
         let has = |kind: &str| self.tools.for_session(&session_of(kind)).iter().any(|t| t.definition().name == bare);
-        let kinds = ["orchestrator", "focused-peer", "run-team-lead"];
+        let kinds = ["orchestrator", "focused-peer", "run-team-lead", "architect"];
         let kind = kinds.into_iter().find(|kind| has(kind)).unwrap_or("run-checker");
         self.tool(kind, bare)
     }
@@ -316,7 +372,7 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
     bench.preview(true);
-    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-team-lead", "run-checker"]
+    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect"]
         .iter()
         .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
         .map(|tool| tool.definition().name.clone())
@@ -495,6 +551,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         capabilities: None,
         settings: Arc::new(FakeSettings::default()),
         routines: None,
+        architect: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()

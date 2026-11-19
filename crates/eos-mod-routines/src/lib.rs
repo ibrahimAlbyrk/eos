@@ -52,8 +52,10 @@
 //! (`GET /api/routines/:id/candidates`) and name the run a worker works for
 //! (`GET /api/run-agents/:workerId`).
 
+mod architect;
 mod engine;
 mod routes;
+mod trial;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -64,8 +66,8 @@ use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{
-    PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup,
-    RunOutcomes, RunStarter,
+    ArchitectTools, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake,
+    RunLookup, RunOutcomes, RunStarter,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
@@ -200,6 +202,7 @@ impl RoutinesModule {
             headroom,
             meters: Mutex::new(HashMap::new()),
             usage: Mutex::new(None),
+            architects: Mutex::new(HashMap::new()),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -239,6 +242,11 @@ impl RoutinesModule {
     /// What Needs you reports of a result after the gate.
     pub fn outcomes(&self) -> Arc<dyn RunOutcomes> {
         Arc::new(engine::Outcomes(self.engine.clone()))
+    }
+
+    /// What the tools of a routine's architect do.
+    pub fn architect(&self) -> Arc<dyn ArchitectTools> {
+        Arc::new(architect::Architect(self.engine.clone()))
     }
 
     /// What the tools of a run's sessions do.
@@ -282,6 +290,7 @@ impl Module for RoutinesModule {
 
     fn on_agent_event(&self, worker_id: &str, event: &eos_contracts::AgentEvent) {
         engine::agent_event(&self.engine, worker_id, event);
+        architect::touch(&self.engine, worker_id);
     }
 
     fn shape_report(&self, worker_id: &str, text: &mut String) {

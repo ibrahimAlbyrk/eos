@@ -13,7 +13,7 @@ use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use serde_json::json;
 
-use super::{param, run_summary};
+use super::{newer_format, param, run_summary};
 use crate::engine::{self, Engine};
 
 /// The largest start body: up to twenty items of 64 KiB text each.
@@ -56,6 +56,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
             };
             let new = NewRun {
                 routine_id: asked.routine_id,
+                version: None,
                 input: asked.input,
                 items: asked.items.unwrap_or_default(),
                 origin,
@@ -75,18 +76,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
                         .collect();
                     Ok(Response::json(201, &StartRunResponse { runs }))
                 }
-                Err(StartError::SameItem { existing_run_id }) => Ok(Response::json(
-                    409,
-                    &json!({"error": "the routine handled this item lately", "existingRunId": existing_run_id}),
-                )),
-                Err(StartError::RoutineState(state)) => Ok(Response::json(
-                    409,
-                    &json!({"error": format!("a routine that is {} does not take this run", word(state))}),
-                )),
-                Err(StartError::DayCap) => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
-                Err(StartError::UnknownRoutine(id)) => Err(Error::not_found("routine", id).into()),
-                Err(StartError::Invalid(text)) => Err(ApiError::Validation(format!("invalid request: {text}"))),
-                Err(StartError::Store(error)) => Err(error.into()),
+                Err(refused) => start_refused(refused),
             }
         }
     })
@@ -175,6 +165,25 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         pause.access(user(Tier::Low)),
         resume.access(Access::ui_token()),
     ]
+}
+
+/// A refused start as its route answers it.
+pub(crate) fn start_refused(refused: StartError) -> Result<Response, ApiError> {
+    match refused {
+        StartError::SameItem { existing_run_id } => Ok(Response::json(
+            409,
+            &json!({"error": "the routine handled this item lately", "existingRunId": existing_run_id}),
+        )),
+        StartError::RoutineState(state) => Ok(Response::json(
+            409,
+            &json!({"error": format!("a routine that is {} does not take this run", word(state))}),
+        )),
+        StartError::NewerFormat => Err(newer_format()),
+        StartError::DayCap => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
+        StartError::UnknownRoutine(id) => Err(Error::not_found("routine", id).into()),
+        StartError::Invalid(text) => Err(ApiError::Validation(format!("invalid request: {text}"))),
+        StartError::Store(error) => Err(error.into()),
+    }
 }
 
 fn word(state: eos_contracts::RoutineState) -> String {

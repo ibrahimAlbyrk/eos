@@ -45,6 +45,7 @@ impl RunIntake for Intake {
             tx,
             out,
             Queued {
+                version_id: None,
                 id: run_id.clone(),
                 routine_id: &routine.id,
                 kind: kind_word(routine.kind),

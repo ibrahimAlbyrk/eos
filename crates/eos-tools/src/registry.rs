@@ -13,7 +13,7 @@ use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
-use eos_core::routine::RoutineTools;
+use eos_core::routine::{ArchitectTools, RoutineTools};
 use eos_core::store::{Store, UserSettingsStore};
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
@@ -25,7 +25,8 @@ use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
 use crate::{
-    browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, time, transfer, user, visual,
+    architect, browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, time, transfer,
+    user, visual,
 };
 
 /// What the tools call. The optional parts belong to features that may not
@@ -57,6 +58,8 @@ pub struct Services {
     pub settings: Arc<dyn UserSettingsStore>,
     /// Routines: the tools of a run's sessions.
     pub routines: Option<Arc<dyn RoutineTools>>,
+    /// Routines: the tools of a routine's architect.
+    pub architect: Option<Arc<dyn ArchitectTools>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -89,6 +92,8 @@ pub struct Tools {
     /// A routine run's checker: its verdict, the date, memory search and the
     /// capability tools.
     pub(crate) run_checker: Vec<Spec>,
+    /// A routine's architect: its own tools and `list_capabilities`.
+    pub(crate) architect: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
     /// only when its description changed. A name is one tool whichever list
@@ -184,6 +189,11 @@ impl Tools {
         let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();
         run_checker.extend(run_shared());
 
+        let mut architect = s.architect.as_ref().map(architect::specs).unwrap_or_default();
+        if let Some(calls) = &s.capabilities {
+            architect.extend(capabilities::specs(calls).into_iter().filter(|t| t.name == "list_capabilities"));
+        }
+
         Self {
             prompts: s.prompts,
             plugins: s.plugins,
@@ -195,6 +205,7 @@ impl Tools {
             run_lead,
             run_team_lead,
             run_checker,
+            architect,
             handed: Mutex::default(),
         }
     }
@@ -217,6 +228,7 @@ impl Tools {
                 return self.run_lead.iter().filter(on).collect();
             }
             Some(routines::CHECKER_DEFINITION) => return self.run_checker.iter().filter(on).collect(),
+            Some(architect::ARCHITECT_DEFINITION) => return self.architect.iter().filter(on).collect(),
             _ => {}
         }
         let mut list: Vec<&Spec> = self.worker.iter().collect();

@@ -310,6 +310,13 @@ pub const ROUTINE_VERSION: Route =
     Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
 pub const ROUTINE_VERSION_RESTORE: Route =
     Route::new("routineVersionRestore", "/api/routines/:id/versions/:versionId/restore", &[Post]).added();
+pub const ROUTINES_ARCHITECT: Route = Route::new("routinesArchitect", "/api/routines/architect", &[Post]).added();
+pub const ROUTINE_START: Route = Route::new("routineStart", "/api/routines/:id/start", &[Post]).added();
+pub const ROUTINE_CHANGE: Route = Route::new("routineChange", "/api/routines/:id/change", &[Post]).added();
+pub const ROUTINE_DRAFT: Route = Route::new("routineDraft", "/api/routines/:id/draft", &[Get, Delete]).added();
+pub const ROUTINE_DRAFT_MESSAGE: Route =
+    Route::new("routineDraftMessage", "/api/routines/:id/draft/message", &[Post]).added();
+pub const ROUTINE_TRIAL: Route = Route::new("routineTrial", "/api/routines/:id/trial", &[Post]).added();
 pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/routines/:id/candidates", &[Get]).added();
 pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
 pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
@@ -659,6 +666,12 @@ pub const ROUTES: &[Route] = &[
     ROUTINE_BLUEPRINT,
     ROUTINE_VERSION_RESTORE,
     ROUTINES_SETTINGS,
+    ROUTINES_ARCHITECT,
+    ROUTINE_START,
+    ROUTINE_CHANGE,
+    ROUTINE_DRAFT,
+    ROUTINE_DRAFT_MESSAGE,
+    ROUTINE_TRIAL,
     RUNS,
     RUNS_ESTIMATE,
     RUNS_ACTIVE,

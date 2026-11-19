@@ -71,7 +71,7 @@ impl Routes {
         self.call(Method::Put, Caller::DASHBOARD, &format!("/api/routines/{routine}/blueprint"), Some(body)).await
     }
 
-    fn versions(&self, routine: &str) -> Vec<StoredVersion> {
+    pub(crate) fn versions(&self, routine: &str) -> Vec<StoredVersion> {
         let id = routine.to_owned();
         self.bench.temp.store.read_blocking(move |tx| tx.routine_versions().list(&id)).expect("reads")
     }
