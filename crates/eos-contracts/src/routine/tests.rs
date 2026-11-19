@@ -158,3 +158,49 @@ fn rows_write_as_the_dashboard_reads_them() {
         json!({"sentUnedited7d": 0.9, "runs7d": 4, "cost7d": 1.25, "setupUsd": 0.4})
     );
 }
+
+#[test]
+fn a_start_and_the_run_topics_read_and_write_back() {
+    let body = json!({"routineId": "rt-1", "input": {"result": "usual", "options": {}},
+                      "items": [{"kind": "github.pull_request", "key": "github:pr:acme/game#1", "untrusted": true}],
+                      "door": "home", "confirmRepeat": true, "clientRequestId": "c-1"});
+    let request: StartRunRequest = crate::parse(&body).unwrap();
+    assert_eq!(serde_json::to_value(&request).unwrap(), body);
+    let bare: StartRunRequest =
+        crate::parse(&json!({"routineId": "rt-1", "input": {"result": "ask"}, "door": "phone"})).unwrap();
+    assert_eq!((bare.items, bare.again_of, bare.confirm_repeat), (None, None, None));
+    assert!(crate::parse::<StartRunRequest>(&json!({"routineId": "rt-1", "input": {"result": "ask"}})).is_err());
+
+    let response =
+        StartRunResponse { runs: vec![StartedRun { id: "rn-1".into(), state: "queued".into(), not_before: Some(5) }] };
+    let written = json!({"runs": [{"id": "rn-1", "state": "queued", "notBefore": 5}]});
+    assert_eq!(serde_json::to_value(&response).unwrap(), written);
+    assert_eq!(crate::read::<StartRunResponse>(&written).unwrap(), response);
+
+    let change = RunChange {
+        run_id: "rn-1".into(),
+        routine_id: "rt-1".into(),
+        state: "queued".into(),
+        station: None,
+        reason: None,
+        needs_user: None,
+    };
+    let written = json!({"runId": "rn-1", "routineId": "rt-1", "state": "queued", "station": null});
+    assert_eq!(serde_json::to_value(&change).unwrap(), written);
+    assert_eq!(crate::read::<RunChange>(&written).unwrap(), change);
+    let failed = RunChange {
+        state: "failed".into(),
+        station: Some("check".into()),
+        reason: Some("check_failed".into()),
+        needs_user: Some(false),
+        ..change
+    };
+    assert_eq!(
+        serde_json::to_string(&failed).unwrap(),
+        r#"{"runId":"rn-1","routineId":"rt-1","state":"failed","station":"check","reason":"check_failed","needsUser":false}"#
+    );
+
+    let active = RunsActive { count: 2, needs_user: 1 };
+    assert_eq!(serde_json::to_value(active).unwrap(), json!({"count": 2, "needsUser": 1}));
+    assert_eq!(crate::read::<RunsActive>(&json!({"count": 2, "needsUser": 1})).unwrap(), active);
+}

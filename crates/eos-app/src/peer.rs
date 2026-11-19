@@ -87,6 +87,11 @@ impl Peer {
         self.peering.clone()
     }
 
+    /// This computer's id on the user's other computers.
+    pub(crate) fn device_id(&self) -> String {
+        self.peering.fingerprint().to_owned()
+    }
+
     pub(crate) fn lifecycle(&self) -> Arc<dyn PeerLifecycle> {
         self.peering.clone()
     }

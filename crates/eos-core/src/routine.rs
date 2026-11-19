@@ -1,13 +1,108 @@
-//! What routines offer the other areas: which run a worker belongs to, and
-//! control over a routine's Freedom and state for the areas that hold or
-//! pause it.
+//! What routines offer the other areas: starting and stopping runs, which
+//! run a worker belongs to, and control over a routine's Freedom and state
+//! for the areas that hold or pause it.
 
 use std::path::PathBuf;
 
-use eos_contracts::{Freedom, Recipient, Rung};
+use eos_contracts::{Freedom, ItemRef, Recipient, RoutineState, RunInput, Rung};
+use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::run_scope::{RunRole, Trust};
 
 use crate::{BoxFuture, Error};
+
+/// Who asked for a run. Each origin is checked in one place, the start.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunOrigin {
+    /// The user, through a door of Eos.
+    Hand,
+    /// The user, doing an earlier run again.
+    Again { run_id: String },
+    /// A trial of a routine being made.
+    Trial,
+    /// An agent in a chat; only when the routine lets agents start it.
+    Agent { worker_id: String },
+    /// Another routine's run; only when this routine's When names it.
+    Routine { run_id: String },
+}
+
+impl RunOrigin {
+    /// The word `runs.origin` stores.
+    pub fn word(&self) -> &'static str {
+        match self {
+            RunOrigin::Hand => "hand",
+            RunOrigin::Again { .. } => "again",
+            RunOrigin::Trial => "trial",
+            RunOrigin::Agent { .. } => "agent",
+            RunOrigin::Routine { .. } => "routine",
+        }
+    }
+
+    /// What `runs.origin_ref` names: the earlier run, the worker, the run
+    /// upstream.
+    pub fn reference(&self) -> Option<&str> {
+        match self {
+            RunOrigin::Hand | RunOrigin::Trial => None,
+            RunOrigin::Again { run_id } | RunOrigin::Routine { run_id } => Some(run_id),
+            RunOrigin::Agent { worker_id } => Some(worker_id),
+        }
+    }
+}
+
+/// One start: one run, or one run per item of `items`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewRun {
+    pub routine_id: String,
+    pub input: RunInput,
+    /// Several items, one run each; empty for one run of `input`.
+    pub items: Vec<ItemRef>,
+    pub origin: RunOrigin,
+    /// Where the user started it.
+    pub door: Option<String>,
+    /// Start although the routine handled the same item lately.
+    pub confirm_repeat: bool,
+    /// The same id again, within ten minutes, answers the same runs.
+    pub client_request_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunCreated {
+    pub id: String,
+    pub state: RunState,
+    pub not_before: Option<i64>,
+}
+
+/// Why a start was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartError {
+    /// 404.
+    UnknownRoutine(String),
+    /// 409: the routine handled the item within a day, or handles it now.
+    SameItem {
+        existing_run_id: String,
+    },
+    /// 409: the routine's state does not take this start.
+    RoutineState(RoutineState),
+    /// 400; the text names the field.
+    Invalid(String),
+    Store(Error),
+}
+
+impl From<Error> for StartError {
+    fn from(error: Error) -> Self {
+        StartError::Store(error)
+    }
+}
+
+/// Starts and stops runs: every door, the tools and the gateways start
+/// through it.
+pub trait RunStarter: Send + Sync {
+    /// Checks the start and queues its runs in one write; the supervisor
+    /// starts them when it may.
+    fn start(&self, run: NewRun) -> BoxFuture<'_, Result<Vec<RunCreated>, StartError>>;
+    /// Cancels a run that has not ended. A run that is delivering cannot be
+    /// stopped (409).
+    fn stop<'a>(&'a self, run_id: &'a str, why: Reason) -> BoxFuture<'a, Result<(), Error>>;
+}
 
 /// The run a worker works for, and its place in it.
 #[derive(Debug, Clone, PartialEq, Eq)]

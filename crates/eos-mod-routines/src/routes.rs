@@ -125,11 +125,8 @@ fn routine_detail(tx: &dyn Tx, id: &str, now: i64) -> Result<RoutineDetail, Erro
 /// The routine's row, from the blueprint it shows: its head, or while it is
 /// being made, its newest version. None when it has no blueprint this app
 /// can read.
-fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<RoutineSummary>, Error> {
-    let shown = match tx.routine_versions().head(&routine.id)? {
-        Some(head) => Some(head),
-        None => tx.routine_versions().list(&routine.id)?.pop(),
-    };
+pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<RoutineSummary>, Error> {
+    let shown = showing_version(tx, &routine.id)?;
     let Some(blueprint) = shown.map(|version| readable(&version)).transpose()?.flatten() else {
         return Ok(None);
     };
@@ -157,12 +154,21 @@ fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<Rout
     }))
 }
 
+/// The version a routine shows and runs from: its head, or while it is
+/// being made, its newest version.
+pub(crate) fn showing_version(tx: &dyn Tx, routine_id: &str) -> Result<Option<StoredVersion>, Error> {
+    match tx.routine_versions().head(routine_id)? {
+        Some(head) => Ok(Some(head)),
+        None => Ok(tx.routine_versions().list(routine_id)?.pop()),
+    }
+}
+
 fn stored_json(version: &StoredVersion) -> Result<Value, Error> {
     serde_json::from_str(&version.blueprint).map_err(|_| Error::storage(format!("version {} is not JSON", version.id)))
 }
 
 /// The version's blueprint as this app runs it; None for a newer format.
-fn readable(version: &StoredVersion) -> Result<Option<Blueprint>, Error> {
+pub(crate) fn readable(version: &StoredVersion) -> Result<Option<Blueprint>, Error> {
     let read = blueprint::read(&stored_json(version)?);
     match read.map_err(|_| Error::storage(format!("version {} is no blueprint", version.id)))? {
         Readable::Current(blueprint) => Ok(Some(*blueprint)),

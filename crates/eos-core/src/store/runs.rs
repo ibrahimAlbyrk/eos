@@ -92,6 +92,15 @@ pub struct StoredRunResult {
     pub created_at: i64,
 }
 
+/// A run's move to another state, as the engine writes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunMove {
+    pub state: RunState,
+    pub station: Option<Station>,
+    pub reason: Option<Reason>,
+    pub at: i64,
+}
+
 pub trait RunRepo {
     fn insert(&self, run: &StoredRun) -> Result<(), Error>;
     fn find(&self, id: &str) -> Result<Option<StoredRun>, Error>;
@@ -105,6 +114,21 @@ pub trait RunRepo {
     fn append_event(&self, run_id: &str, at: i64, kind: &str, data: Option<&str>) -> Result<(), Error>;
     /// A run's timeline, oldest first.
     fn events(&self, run_id: &str) -> Result<Vec<StoredRunEvent>, Error>;
+    /// Moves the run and adds the move to its timeline as a
+    /// [`RUN_STATE_EVENT`] (`{state, station?, reason?}`). Its first move to
+    /// `running` stamps `started_at`, a move to an end `ended_at`. Answers
+    /// the event's id; whether the move is allowed is the caller's question
+    /// (`RunState::can_become`).
+    fn move_to(&self, id: &str, change: &RunMove) -> Result<i64, Error>;
+    /// The version the run runs from, bound when it leaves the queue.
+    fn bind_version(&self, id: &str, version_id: &str) -> Result<(), Error>;
+    /// Every queued run, the one to start first first: by priority, then
+    /// age.
+    fn queued(&self) -> Result<Vec<StoredRun>, Error>;
+    /// Runs whose agents work (running, checking, delivering), by routine.
+    fn working(&self) -> Result<Vec<(String, i64)>, Error>;
+    /// A routine's runs of one item, newest first.
+    fn by_item(&self, routine_id: &str, item_key: &str) -> Result<Vec<StoredRun>, Error>;
 }
 
 pub trait RunResultRepo {

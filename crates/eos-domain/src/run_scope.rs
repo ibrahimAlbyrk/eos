@@ -35,6 +35,21 @@ pub enum RunRole {
     ForgeReviewer,
 }
 
+impl RunRole {
+    /// The role a `routine_sessions` row stores; `None` for any other word,
+    /// the architect's included (it is no run session).
+    pub fn of_routine_session(word: &str) -> Option<RunRole> {
+        match word {
+            "solo" => Some(RunRole::Solo),
+            "lead" => Some(RunRole::Lead),
+            "script" => Some(RunRole::Script),
+            "specialist" => Some(RunRole::Specialist),
+            "checker" => Some(RunRole::Checker),
+            _ => None,
+        }
+    }
+}
+
 /// Whether a run reads outside text: a pull request, a mail, a web page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Trust {

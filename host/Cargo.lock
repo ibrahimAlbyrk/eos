@@ -2601,6 +2601,8 @@ dependencies = [
  "eos-domain",
  "eos-runtime",
  "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

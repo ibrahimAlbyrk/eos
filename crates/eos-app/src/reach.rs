@@ -16,6 +16,7 @@
 //! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
 //! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
 //! | GitHub, for its capability's calls, checks and sign-in | every request is refused unsent, as when GitHub does not answer |
+//! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -95,6 +96,13 @@ impl Reach {
     /// How the GitHub capability reaches GitHub.
     pub(crate) fn github(self, transport: Arc<dyn Transport>) -> Arc<dyn Transport> {
         if self.network { transport } else { Arc::new(NoGitHub) }
+    }
+
+    /// Whether routine runs the user did not start leave the queue by
+    /// themselves. Off the network only the user's own starts run, which the
+    /// dev guard lets through or refuses.
+    pub(crate) fn autostart(self) -> bool {
+        self.network
     }
 
     /// How an older install's setup token is checked: it is sent to Claude.
