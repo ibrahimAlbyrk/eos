@@ -1,0 +1,101 @@
+/* eos-needs.css — Needs you: the list (eos:/needs) and one item
+   (eos:/needs/<id>) with its card, its result and its aside. Built from
+   eos.css's parts; text is never dimmer than --fg-dim2 (eos.css's contrast
+   note holds here too). */
+
+/* ── The list ─────────────────────────────────────────────────────────────── */
+.eos-needs { gap: 20px; }
+.eos-needs-agents { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-empty { display: flex; flex-direction: column; gap: 6px; }
+.eos-needs-last { margin: 0; font-size: var(--text-sm); color: var(--fg-dim2); }
+.eos-needs-group { display: flex; flex-direction: column; gap: 10px; }
+.eos-needs-rows { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-needs-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.eos-needs-row + .eos-needs-row { border-top: 1px solid var(--line); }
+.eos-needs-row.on { box-shadow: inset 2px 0 0 var(--accent); padding-left: 10px; }
+.eos-needs-glyph {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--chip);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--fg-mid);
+}
+.eos-needs-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-needs-row__routine { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-needs-row__title { flex: none; max-width: 50%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-base); color: var(--fg-strong); }
+.eos-needs-row__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-row__time { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* ── One item ─────────────────────────────────────────────────────────────── */
+.eos-needs-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
+.eos-needs-pager { display: flex; align-items: center; gap: 12px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-closed { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }
+.eos-needs-item__columns { display: flex; align-items: flex-start; gap: 24px; }
+.eos-needs-item__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.eos-needs-item__actions { padding-top: 4px; }
+.eos-needs-key { color: inherit; opacity: 0.7; }
+.eos-needs-card { display: flex; flex-direction: column; gap: 8px; }
+.eos-needs-card__lead { margin: 0; font-size: var(--text-base); color: var(--fg); }
+.eos-needs-card__class { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-card__target { white-space: pre-wrap; overflow-wrap: anywhere; }
+.eos-needs-questions { gap: 18px; }
+.eos-needs-question { display: flex; flex-direction: column; gap: 8px; }
+.eos-needs-question__text { font-size: var(--text-base); color: var(--fg); }
+.eos-needs-question__answer {
+  width: 100%;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.eos-chip[aria-pressed="true"] { background: var(--chip); color: var(--fg-strong); }
+
+/* The result a draft holds. */
+.eos-result { display: flex; flex-direction: column; gap: 12px; font-size: var(--text-base); color: var(--fg); }
+.eos-result__event { margin: 0; font-weight: 500; color: var(--fg-strong); }
+.eos-result__text > :first-child { margin-top: 0; }
+.eos-result__text > :last-child { margin-bottom: 0; }
+.eos-result__comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.eos-result__comment { padding: 12px 14px; border-radius: 12px; background: var(--raised); }
+.eos-result__place { display: block; margin-bottom: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-result__to { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-result__fixed { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-result__subject { margin: 0; font-weight: 500; color: var(--fg-strong); }
+.eos-result__para { margin: 0; white-space: pre-wrap; }
+
+/* The aside: the run's checks and team. */
+.eos-needs-aside { flex: 0 0 260px; display: flex; flex-direction: column; gap: 20px; }
+.eos-needs-aside__part { display: flex; flex-direction: column; gap: 8px; }
+.eos-needs-aside__lead { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-checks, .eos-needs-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--fg); }
+.eos-needs-checks li { display: flex; align-items: baseline; gap: 8px; }
+.eos-needs-checks__note { color: var(--fg-dim); }
+.eos-needs-team li { display: flex; justify-content: space-between; gap: 8px; }
+.eos-needs-team__side { font-size: var(--text-xs); color: var(--fg-dim2); }
+
+@media (max-width: 960px) {
+  .eos-needs-item__columns { flex-direction: column; }
+  .eos-needs-aside { flex-basis: auto; width: 100%; }
+}

@@ -1,0 +1,296 @@
+[
+  {
+    "item": {
+      "id": "ib-8m2n6b0v4c1x",
+      "kind": "draft",
+      "state": "open",
+      "attention": "digest",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Review of #470 Fix the login",
+      "summary": "Two findings, one of them blocking.",
+      "rev": 2,
+      "createdAt": 1763452990000,
+      "updatedAt": 1763452990000
+    },
+    "payload": {
+      "doc": {
+        "kind": "github.review",
+        "channel": "github",
+        "action": "post_review",
+        "parts": [
+          {
+            "key": "event",
+            "role": "event",
+            "text": "REQUEST_CHANGES"
+          },
+          {
+            "key": "summary",
+            "role": "summary",
+            "text": "The login fix works, but **one change blocks**: the token is logged."
+          },
+          {
+            "key": "c:1",
+            "role": "comment",
+            "text": "This logs the session token. Drop the `debug!` line.",
+            "meta": {
+              "path": "src/auth/login.rs",
+              "line": 42,
+              "side": "RIGHT"
+            }
+          },
+          {
+            "key": "c:2",
+            "role": "comment",
+            "text": "Nit: `retries` reads better as a constant.",
+            "meta": {
+              "path": "src/auth/login.rs",
+              "line": 88,
+              "side": "RIGHT"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "item": {
+      "id": "ib-6t1y5u9i3o7p",
+      "kind": "draft",
+      "state": "open",
+      "attention": "digest",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "runId": "rn-5f2a8c1d9e3b",
+      "title": "Reply to Dana about the invoice",
+      "summary": "A short reply that says it is paid.",
+      "rev": 1,
+      "createdAt": 1763452000000,
+      "updatedAt": 1763452000000
+    },
+    "payload": {
+      "doc": {
+        "kind": "mail",
+        "channel": "mail",
+        "action": "send_mail",
+        "parts": [
+          {
+            "key": "subject",
+            "role": "subject",
+            "text": "Re: The invoice for October"
+          },
+          {
+            "key": "p:1",
+            "role": "paragraph",
+            "text": "Hi Dana,"
+          },
+          {
+            "key": "p:2",
+            "role": "paragraph",
+            "text": "Thanks, the invoice is paid. The receipt is attached."
+          },
+          {
+            "key": "to:r-1",
+            "role": "recipient",
+            "text": "dana@example.com"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "item": {
+      "id": "ib-2a5s9d3f7g1h",
+      "kind": "draft",
+      "state": "open",
+      "attention": "digest",
+      "routineId": "rt-9q4w2e7r1t5y",
+      "title": "Build Watch: main is green",
+      "summary": "Main is green again.",
+      "rev": 1,
+      "createdAt": 1763451000000,
+      "updatedAt": 1763451000000
+    },
+    "payload": {
+      "doc": {
+        "kind": "text",
+        "channel": "push",
+        "action": "notify",
+        "parts": [
+          {
+            "key": "body",
+            "role": "body",
+            "text": "Main is green again after **#471**."
+          }
+        ]
+      }
+    }
+  },
+  {
+    "item": {
+      "id": "ib-3k9d2f7h1j5l",
+      "kind": "question",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Which branch should the review compare against?",
+      "summary": "The pull request targets release/2.4, not main.",
+      "rev": 1,
+      "createdAt": 1763453100000,
+      "updatedAt": 1763453100000
+    },
+    "payload": {
+      "questions": [
+        {
+          "question": "Which branch should the review compare against?",
+          "header": "Branch",
+          "options": [
+            {
+              "label": "release/2.4"
+            },
+            {
+              "label": "main"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "item": {
+      "id": "perm:pa-7f3k1m9q",
+      "kind": "permission",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Allow Bash?",
+      "summary": "git push origin review/470",
+      "rev": 1,
+      "createdAt": 1763453400000,
+      "updatedAt": 1763453400000
+    },
+    "payload": {
+      "pendingId": "pa-7f3k1m9q",
+      "workerId": "w-3c7e1a9b5d2f",
+      "toolName": "Bash",
+      "input": {
+        "command": "git push origin review/470"
+      },
+      "offers": [
+        "allow_once",
+        "deny"
+      ],
+      "routes": [
+        "POST /pending/pa-7f3k1m9q/decision"
+      ]
+    }
+  },
+  {
+    "item": {
+      "id": "ib-5q1w9e3r7t2y",
+      "kind": "routine_alert",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "title": "Mail Triage is paused",
+      "summary": "Paused after three failed runs in a row.",
+      "rev": 1,
+      "createdAt": 1763449300000,
+      "updatedAt": 1763449300000
+    },
+    "payload": {
+      "reason": "failures"
+    }
+  },
+  {
+    "item": {
+      "id": "ib-0z4x8c2v6b9n",
+      "kind": "notice",
+      "state": "later",
+      "attention": "digest",
+      "routineId": "rt-7b3m1c9d0e4f",
+      "title": "A run started late",
+      "summary": "Morning Paper ran 40 minutes late: the Mac was asleep.",
+      "rev": 1,
+      "laterUntil": 1763470800000,
+      "createdAt": 1763438400000,
+      "updatedAt": 1763438400000
+    },
+    "payload": {
+      "actionLabel": "Keep the Mac awake for schedules"
+    }
+  },
+  {
+    "item": {
+      "id": "ib-9c3v7b1n5m2k",
+      "kind": "confirm_change",
+      "state": "open",
+      "attention": "silent",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "title": "Confirm where PR Review sends",
+      "summary": "Post reviews to acme/game as you, instead of showing them only here.",
+      "rev": 1,
+      "createdAt": 1763440500000,
+      "updatedAt": 1763440500000
+    },
+    "payload": {}
+  },
+  {
+    "item": {
+      "id": "ib-4e8r2t6y0u3i",
+      "kind": "run_start",
+      "state": "open",
+      "attention": "digest",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-7h2j6k0l4z8x",
+      "title": "Run PR Review on #472?",
+      "summary": "Add a settings screen · opened by sam",
+      "rev": 1,
+      "createdAt": 1763441000000,
+      "updatedAt": 1763441000000
+    },
+    "payload": {}
+  },
+  {
+    "item": {
+      "id": "sugg:um-2p6o0i4u8y",
+      "kind": "about_you",
+      "state": "open",
+      "attention": "silent",
+      "title": "You prefer short reviews with the blocking findings first.",
+      "summary": "",
+      "rev": 1,
+      "createdAt": 1763440000000,
+      "updatedAt": 1763440000000
+    },
+    "payload": {
+      "memory": {
+        "id": "um-2p6o0i4u8y",
+        "text": "You prefer short reviews with the blocking findings first."
+      },
+      "routes": [
+        "POST /api/user-memories/um-2p6o0i4u8y/approve",
+        "POST /api/user-memories/um-2p6o0i4u8y/dismiss"
+      ]
+    }
+  },
+  {
+    "item": {
+      "id": "ib-1q5w9e3r7t0y",
+      "kind": "delivery_problem",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-3x7c1v5b9n2m",
+      "title": "The review of #468 did not go out",
+      "summary": "GitHub says the pull request is not there any more.",
+      "rev": 1,
+      "createdAt": 1763442000000,
+      "updatedAt": 1763442000000
+    },
+    "payload": {
+      "errorKind": "gone"
+    }
+  }
+]
