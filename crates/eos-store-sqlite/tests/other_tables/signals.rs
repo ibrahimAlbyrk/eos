@@ -3,9 +3,10 @@
 //! by hand, and sources and runners read back as written.
 
 use eos_core::store::{
-    ManualSignal, NewSignal, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule,
+    ManualSignal, NewSignal, SignalTally, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule,
     StoredSignalSource,
 };
+use eos_domain::routine::run::RunState;
 use eos_domain::signals::decision::Decision;
 use eos_testkit::TempStore;
 
@@ -105,6 +106,54 @@ fn a_signal_has_one_decision_for_each_routine() {
     insert(decided(2, "rt-2", Decision::HeldDev)).expect("the next signal's");
     let routes = temp.store.read_blocking(|tx| tx.signal_routes().by_signal(1)).expect("reads");
     assert_eq!(routes, [run, unmatched], "by routine");
+}
+
+#[test]
+fn signals_page_newest_first_by_routine_and_decision_and_tally_by_run_state() {
+    let temp = TempStore::new();
+    temp.exec(
+        "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, created_at, updated_at) \
+         VALUES ('rn-1', 'rt-1', 'standing', 'trigger', '{}', 'done', 2, 'mac-1', 1, 1)",
+    );
+    temp.store
+        .write_blocking(|tx, _| {
+            for n in 0..4 {
+                tx.signals().ingest(&seen("src-a", &format!("k{n}"), 20 + n))?;
+            }
+            let routes = tx.signal_routes();
+            let mut run = decided(1, "rt-1", Decision::Run);
+            run.run_id = Some("rn-1".into());
+            routes.insert(&run)?;
+            routes.insert(&decided(2, "rt-1", Decision::OverLimit))?;
+            routes.insert(&decided(3, "rt-1", Decision::OverLimit))?;
+            routes.insert(&decided(3, "rt-2", Decision::Unmatched))?;
+            // A replay decides the second again.
+            let mut again = decided(2, "rt-1", Decision::Run);
+            again.run_id = Some("rn-2".into());
+            again.decided_at = 200;
+            routes.put(&again)
+        })
+        .expect("writes");
+    let page = |routine: Option<&'static str>, decision: Option<Decision>, before: Option<i64>, limit: i64| {
+        let found = temp.store.read_blocking(move |tx| tx.signals().page(routine, decision, before, limit));
+        found.expect("reads").into_iter().map(|signal| signal.id).collect::<Vec<_>>()
+    };
+    assert_eq!(page(None, None, None, 10), [4, 3, 2, 1], "newest first");
+    assert_eq!(page(None, None, Some(3), 1), [2], "older than before, up to the limit");
+    assert_eq!(page(Some("rt-1"), None, None, 10), [3, 2, 1], "routed to the routine");
+    assert_eq!(page(Some("rt-1"), Some(Decision::OverLimit), None, 10), [3]);
+    assert_eq!(page(None, Some(Decision::Unmatched), None, 10), [3], "decided so for any routine");
+    let tally = temp.store.read_blocking(|tx| tx.signal_routes().tally("rt-1", 100)).expect("reads");
+    let tally: Vec<SignalTally> = tally;
+    assert_eq!(
+        tally,
+        [
+            SignalTally { decision: Decision::OverLimit, run_state: None, signals: 1 },
+            SignalTally { decision: Decision::Run, run_state: None, signals: 1 },
+            SignalTally { decision: Decision::Run, run_state: Some(RunState::Done), signals: 1 },
+        ]
+    );
+    assert_eq!(temp.store.read_blocking(|tx| tx.signal_routes().tally("rt-1", 150)).expect("reads").len(), 1);
 }
 
 #[test]

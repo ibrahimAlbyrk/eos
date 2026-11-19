@@ -15,12 +15,17 @@
 //! `held-dev`. The router starts once the app is ready, routing what a
 //! crash left undecided, and wakes on each ingest.
 //!
+//! The routes (`routes`) show what starts each routine's runs, list the
+//! signals, replay some through the run intake and preview a schedule or a
+//! Which.
+//!
 //! Changes are announced on `signals:change`. Keys, subjects, scopes and
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
 
 mod batch;
 mod limits;
 mod router;
+mod routes;
 mod runner;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,6 +39,7 @@ use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
@@ -145,6 +151,19 @@ impl Module for SignalsModule {
 
     fn topics(&self) -> Vec<TopicDecl> {
         vec![SIGNALS_CHANGE.decl()]
+    }
+
+    fn routes(&self) -> Vec<RouteDef> {
+        let parts = &self.parts;
+        routes::all(routes::Routes {
+            store: parts.store.clone(),
+            clock: parts.clock.clone(),
+            zones: parts.zones.clone(),
+            zone: parts.zone.clone(),
+            runner: parts.runner.clone(),
+            intake: parts.intake.clone(),
+            directory: parts.directory.clone(),
+        })
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {

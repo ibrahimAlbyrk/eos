@@ -91,8 +91,8 @@ pub use runs::{
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use signals::{
     BatchedSignal, MANUAL_SCOPE_HASH, ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule,
-    StoredSignalSource,
+    SignalScheduleRepo, SignalSourceRepo, SignalTally, StoredSignal, StoredSignalRoute, StoredSignalRunner,
+    StoredSignalSchedule, StoredSignalSource,
 };
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
