@@ -49,3 +49,23 @@ async fn a_first_page_is_the_baseline_then_a_304_then_the_changes() {
     assert_eq!(closed["items"].as_array().map(Vec::len), Some(1));
     assert_eq!(closed["items"][0]["event"], "closed");
 }
+
+#[tokio::test]
+async fn a_change_in_the_same_second_as_the_last_poll_is_not_lost_nor_told_twice() {
+    let rig = rig();
+    let first = rig.call("poll_pull_requests", json!({ "repo": REPO })).await.expect("polls");
+    let cursor = first["cursor"].clone();
+    assert_eq!((cursor["since"].clone(), cursor["atSince"].clone()), (json!(1_763_400_000_000_i64), json!([7])));
+
+    // GitHub's times are whole seconds: #9 lands in the second the last page ended on.
+    rig.fake.add_pull(REPO, 9, "bob", HEAD, 1_763_400_000_000, &[("src/net.rs", PATCH)]);
+    let next = rig.call("poll_pull_requests", json!({ "repo": REPO, "cursor": cursor })).await.expect("polls");
+    let events: Vec<(Value, Value)> =
+        next["items"].as_array().expect("items").iter().map(|i| (i["key"].clone(), i["event"].clone())).collect();
+    assert_eq!(events, [(json!("github:pr:acme/game#9"), json!("opened"))], "#7 was told before");
+    assert_eq!(next["cursor"]["atSince"], json!([7, 9]));
+
+    rig.fake.update_pull(REPO, 7, 1_763_400_000_000, json!({ "title": "Same second again" }));
+    let again = rig.call("poll_pull_requests", json!({ "repo": REPO, "cursor": next["cursor"] })).await.expect("polls");
+    assert_eq!(again["items"], json!([]), "both were told at that second");
+}
