@@ -7,14 +7,21 @@ import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
 import { afterFirstPaint } from "../../lib/firstPaint.js";
 import { without } from "./bounded.js";
-import { transport } from "./transport.js";
+import { notify } from "../../lib/notify.js";
+import { isDevRunRefusal, transport } from "./transport.js";
 
 const WAITING = new Set(["open", "later"]);
 const ATTENTION_ORDER = { interrupt: 0, digest: 1, silent: 2 };
 
 // list: null until loaded, then { items, counts, agentsWaiting, nextCursor }
 // (InboxList). details: id → InboxItemDetail. failed: id → "gone" or "error".
-const EMPTY = { list: null, listFailed: false, details: {}, failed: {} };
+// refused: id → { answeredBy?, state? }, an answer another device gave first.
+// devRun: an answer was refused because this is a dev run. lastAnswered:
+// the item answered last, null when none, undefined until asked. offline:
+// the core gave no answer at all to the last request (G35).
+const EMPTY = {
+  list: null, listFailed: false, details: {}, failed: {}, refused: {}, devRun: false, lastAnswered: undefined, offline: false,
+};
 let state = EMPTY;
 let started = false;
 const asked = new Map(); // id → the number of its latest detail request
@@ -76,8 +83,16 @@ function withItem(list, id, row, open) {
   return { ...list, items: shown, counts: { ...counts, open: open ?? counts.open } };
 }
 
+// What the core answering at all or not says about the connection.
+function heard(r) {
+  if (state.offline !== (r === null)) set({ offline: r === null });
+  return r;
+}
+
+const read = (path) => transport.get(path).catch(() => null).then(heard);
+
 export async function refreshInbox() {
-  const r = await transport.get(ROUTES.inbox).catch(() => null);
+  const r = await read(ROUTES.inbox);
   if (r?.ok && Array.isArray(r.body?.items)) set({ list: r.body, listFailed: false });
   else if (state.list === null) set({ listFailed: true });
 }
@@ -88,12 +103,19 @@ export function ensureInboxLoaded() {
   void afterFirstPaint(refreshInbox);
 }
 
+// The item answered last, for the line an empty Needs you shows; read once.
+export async function loadLastAnswered() {
+  if (state.lastAnswered !== undefined) return;
+  const r = await transport.get(`${ROUTES.inbox}?state=answered`).catch(() => null);
+  set({ lastAnswered: r?.ok ? (r.body?.items?.[0] ?? null) : null });
+}
+
 // Reads one item; its row in the list follows. Only the latest request for an
 // id lands, so answers that cross on the way cannot go back in time.
 export async function loadInboxItem(id, { keep = true, open } = {}) {
   const n = (asked.get(id) ?? 0) + 1;
   asked.set(id, n);
-  const r = await transport.get(ROUTES.inboxItem(id)).catch(() => null);
+  const r = await read(ROUTES.inboxItem(id));
   if (asked.get(id) !== n) return;
   if (r?.ok && r.body?.item?.id === id) {
     set({
@@ -121,6 +143,75 @@ export function applyInboxChange(payload) {
   }
   if (state.list) set({ list: withItem(state.list, id, null, payload.open) });
   if (held) void loadInboxItem(id);
+}
+
+// An item answered here through a route of its own (a run's permission ask, a
+// suggestion about the user), which sends no inbox:change: it leaves the list.
+function dropShown(id) {
+  const shown = state.list?.items.find((i) => i.id === id);
+  set({
+    details: without(state.details, id),
+    list: state.list && withItem(state.list, id, null, state.list.counts.open - (shown?.state === "open" ? 1 : 0)),
+  });
+}
+
+// One answer → true once the core took it. No answer at all shows as
+// Reconnecting on the screen. A 409 says another device answered
+// first (the item is read again to show who) or that the item changed since it
+// was read (it is read again); a dev run's refusal is said on the screen; any
+// other failure is a toast.
+async function answerWith(id, method, path, body) {
+  const r = heard(await transport.send(method, path, body).catch(() => null));
+  if (r?.ok) return true;
+  if (r === null) return false;
+  if (r?.status === 409) {
+    if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
+    void loadInboxItem(id);
+  } else if (isDevRunRefusal(r)) {
+    set({ devRun: true });
+  } else {
+    notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
+  }
+  return false;
+}
+
+const revOf = (id) => state.details[id]?.item.rev ?? state.list?.items.find((i) => i.id === id)?.rev;
+
+// POST /api/inbox/{id}/answer with the item's rev; `answer` is tagged by kind.
+export function answerInboxItem(id, answer) {
+  return answerWith(id, "POST", ROUTES.inboxAnswer(id), { rev: revOf(id), answer });
+}
+
+// Sends a draft as it is.
+export function sendInboxDraft(id) {
+  return answerWith(id, "POST", ROUTES.inboxSend(id), { rev: revOf(id) });
+}
+
+export function discardInboxItem(id) {
+  return answerWith(id, "POST", ROUTES.inboxDiscard(id), { rev: revOf(id) });
+}
+
+// Puts an item aside at once; the list is read again when the core refuses.
+export async function laterInboxItem(id) {
+  const item = state.list?.items.find((i) => i.id === id);
+  if (item?.state === "open") set({ list: withItem(state.list, id, { ...item, state: "later" }, state.list.counts.open - 1) });
+  if (!(await answerWith(id, "POST", ROUTES.inboxLater(id), {}))) void refreshInbox();
+}
+
+// A run's permission ask, answered through the recorded decision route:
+// Allow once or Deny, never "always" (it would widen every chat's policy).
+export async function decideRunAsk(id, pendingId, allow) {
+  const body = allow ? { decision: "allow" } : { decision: "deny", reason: "denied in Needs you" };
+  const ok = await answerWith(id, "POST", ROUTES.pendingDecision(pendingId), body);
+  if (ok) dropShown(id);
+  return ok;
+}
+
+// A suggestion about the user, kept or dismissed through its recorded routes.
+export async function decideSuggestion(id, memoryId, keep) {
+  const ok = await answerWith(id, "POST", keep ? ROUTES.userMemoryApprove(memoryId) : ROUTES.userMemoryDismiss(memoryId), {});
+  if (ok) dropShown(id);
+  return ok;
 }
 
 export function resyncInbox() {

@@ -1,6 +1,8 @@
 import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosHeader } from "./nav/EosHeader.jsx";
+import { NeedsItemScreen } from "./needs/NeedsItemScreen.jsx";
+import { NeedsYouList } from "./needs/NeedsYouList.jsx";
 import { parseLocation, useEosLocation } from "./nav/eosNav.js";
 
 const SECTION_TITLES = {
@@ -37,6 +39,8 @@ function PlaceholderScreen({ location }) {
 // as the app does.
 export function EosMain() {
   const location = parseLocation(useEosLocation());
+  if (location?.screen === "needs") return <NeedsYouList />;
+  if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
   if (location?.screen === "capabilities") return <CapabilitiesScreen />;
   if (location?.screen === "capability") return <CapabilityScreen key={location.capabilityId} id={location.capabilityId} />;
   return <PlaceholderScreen location={location} />;

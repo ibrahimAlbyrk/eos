@@ -43,3 +43,9 @@ export function useNavigation() {
   if (!c) throw new Error("useNavigation outside NavigationProvider");
   return c;
 }
+
+// The navigation where there may be none: Eos's screens draw in the sample
+// gallery too, which has no provider.
+export function useNavigationIfAny() {
+  return useContext(NavigationContext);
+}

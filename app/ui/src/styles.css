@@ -39,6 +39,7 @@
 @import "./styles/artifacts.css";
 @import "./styles/plugins.css";
 @import "./styles/eos.css";
+@import "./styles/eos-needs.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }
