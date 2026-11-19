@@ -1,7 +1,9 @@
 //! How a run's sessions start (01 G15, G46; D51): in `AcceptEdits`, fenced
 //! by 03's run scope, without the folder's MCP servers, and, for a run that
 //! reads outside text, in an empty folder Eos owns with the workspace as a
-//! further root, so nothing of a checkout's project configuration loads.
+//! further root, so nothing of a checkout's project configuration loads. Each
+//! start gets a new such folder: what an agent left in the folder of an
+//! earlier start would load as instructions at a resume.
 //! What a worker's row does not hold is kept here by worker and handed to
 //! every start of its session, a resume after a restart included.
 

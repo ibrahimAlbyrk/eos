@@ -197,13 +197,34 @@ async fn file_tools_write_the_working_folder_and_checkout_but_not_the_runs_files
     assert_eq!(std::fs::read_to_string(run.checkout.join("edited.txt")).expect("written"), "x");
 }
 
-/// What a run's agent leaves in its working folder is that folder's project
-/// configuration the next time a session starts there (a resume).
+/// Every start of a run session gets a fresh working folder (`work/<n>/`):
+/// what an agent left in the folder of an earlier start never loads, and the
+/// resumed session still has its conversation.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn instructions_left_in_the_working_folder_load_at_the_next_start() {
-    let run = Run::new(|_, _| vec![Reply::text("done")]).await;
-    std::fs::write(run.run.join("work/CLAUDE.md"), "MARK-LEFT-BEHIND").expect("left");
-    run.start("w-run").await;
+async fn instructions_left_in_an_earlier_working_folder_do_not_load_at_the_next_start() {
+    let run = Run::new(|_, _| vec![Reply::text("the codename is BLUEFIN"), Reply::text("as I said")]).await;
+    let start = |n: u32, prompt: &str, resume: Option<&str>| {
+        let folder = run.run.join(format!("work/{n}"));
+        std::fs::create_dir_all(&folder).expect("a working folder");
+        LaunchSpec {
+            role: SessionFactsRole::Focused,
+            additional_dirs: vec![run.checkout.to_string_lossy().into_owned()],
+            folder_mcp: false,
+            prompt: Some(prompt.into()),
+            resume: resume.map(str::to_owned),
+            ..LaunchSpec::new("w-run", folder.to_string_lossy(), "mock-model")
+        }
+    };
+    let session = run.engine.start(start(1, "pick a codename", None), run.bench.sink.clone()).await.expect("starts");
+    run.bench.after_turns("w-run", 1).await;
+    session.stop().await;
+    std::fs::write(run.run.join("work/1/CLAUDE.md"), "MARK-LEFT-BEHIND").expect("left");
 
-    assert!(run.requests().contains("MARK-LEFT-BEHIND"));
+    run.engine.start(start(2, "which one?", Some("w-run")), run.bench.sink.clone()).await.expect("resumes");
+    run.bench.after_turns("w-run", 2).await;
+
+    let sent = run.requests();
+    assert!(!sent.contains("MARK-LEFT-BEHIND"), "what the first start left does not load");
+    let second = run.bench.request_text(1);
+    assert!(second.contains("BLUEFIN") && second.contains("which one?"), "the conversation goes on: {second}");
 }

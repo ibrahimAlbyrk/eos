@@ -291,11 +291,13 @@ pub struct KeptFile {
 }
 
 /// A run's folders under Eos's data folder, `routines/<routine>/runs/<run>/`:
-/// `work/`, the empty folder an untrusted run's sessions work in, and
+/// `work/<n>/`, the empty folders an untrusted run's sessions work in, and
 /// `files/`, the copies of what its result carries. No agent's file tool
 /// writes either's parent entry.
 pub trait RunFolders: Send + Sync {
-    /// `work/`, made when it is missing; its absolute path.
+    /// A new empty `work/<n>/` for one start of a session, `n` one past the
+    /// highest there: nothing an earlier start left loads as instructions.
+    /// Its absolute path.
     fn work_dir(&self, routine_id: &str, run_id: &str) -> Result<PathBuf, Error>;
     /// Copies each file into `files/` (never a link, never a folder, at most
     /// [`RUN_FILE_MAX_BYTES`] each); a name already taken gets a number.
