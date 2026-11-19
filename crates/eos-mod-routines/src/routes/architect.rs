@@ -12,7 +12,7 @@ use eos_contracts::{
     ArchitectRequest, BlueprintRefused, ChangeRequest, DraftMessage, StartRoutineRequest, StartRunResponse, StartedRun,
 };
 use eos_runtime::access::Access;
-use eos_runtime::http::{Request, Response};
+use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 
 use super::{param, refusal, start_refused};
@@ -37,6 +37,9 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
             let body: StartRoutineRequest = req.parse()?;
             match architect::start(&engine, &param(&req, "id"), body.without_trial).await.map_err(refusal)? {
                 Started::Kept(row) => Ok(Response::json(200, &row)),
+                Started::NeedsTrial => {
+                    Err(ApiError::coded(409, "try the routine first, or start it without a trial", "trial_needed"))
+                }
                 Started::Refused(issues) => Ok(Response::json(
                     400,
                     &BlueprintRefused { error: "the blueprint does not meet its rules".into(), issues },

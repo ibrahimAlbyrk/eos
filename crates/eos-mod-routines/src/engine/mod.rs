@@ -320,7 +320,8 @@ pub(crate) fn start_supervisor(engine: &Arc<Engine>) {
 }
 
 /// From now on, a run that ends (done, failed, cancelled, skipped) has its
-/// sessions interrupted and suspended, after the write that ended it.
+/// sessions interrupted and suspended, after the write that ended it, and a
+/// trial run tells the routine's architect how it went.
 pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
     let weak = Arc::downgrade(engine);
     let subscription = engine.bus.on(RUN_CHANGE.name(), move |event| {
@@ -330,7 +331,10 @@ pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
             return;
         }
         let Some(tasks) = engine.tasks.clone() else { return };
-        tasks.spawn(async move { steer::quiet(&engine, &change.run_id).await });
+        tasks.spawn(async move {
+            steer::quiet(&engine, &change.run_id).await;
+            crate::architect::trial_ended(&engine, &change.run_id).await;
+        });
     });
     *Engine::locked(&engine.ended) = Some(subscription);
 }

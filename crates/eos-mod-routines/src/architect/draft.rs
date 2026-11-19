@@ -9,6 +9,7 @@ use eos_contracts::{
 };
 use eos_core::Error;
 use eos_core::store::{StoredDraft, Tx};
+use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
 use super::{say, suspend};
@@ -146,6 +147,17 @@ pub(crate) enum Started {
     Kept(Option<RoutineSummary>),
     /// The draft does not meet its rules; nothing was written.
     Refused(Vec<BlueprintIssue>),
+    /// No trial of the draft went well, and the user did not choose to
+    /// start without one (G45).
+    NeedsTrial,
+}
+
+/// Whether a trial run of `version_id` ended done.
+fn tried(tx: &dyn Tx, routine_id: &str, version_id: &str) -> Result<bool, Error> {
+    let runs = tx.runs().by_routine(routine_id, RECENT_RUNS)?;
+    Ok(runs
+        .iter()
+        .any(|run| run.kind == "trial" && run.version_id.as_deref() == Some(version_id) && run.state == RunState::Done))
 }
 
 /// The version a start keeps: the architect's draft, or for a routine made
@@ -181,6 +193,9 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
             let issues = check_in(tx, &id, &blueprint, zones.as_ref())?;
             if blocks(&issues) {
                 return Ok((Started::Refused(issues), None));
+            }
+            if !without_trial && !tried(tx, &id, &version_id)? {
+                return Ok((Started::NeedsTrial, None));
             }
             tx.routine_versions().keep(&id, &version_id, without_trial)?;
             tx.routines().set_head(&id, &version_id, now)?;
