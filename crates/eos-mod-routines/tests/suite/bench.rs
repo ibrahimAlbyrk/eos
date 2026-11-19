@@ -150,7 +150,8 @@ impl Bench {
     }
 
     fn with(autostart: bool, reads: FakeCapabilityReads, gate: Arc<FakeRunGate>, gate_port: Arc<dyn RunGate>) -> Self {
-        let temp = TempStore::new();
+        let bus = Bus::new(Ordered::new(), Arc::new(FakeClock::new()), BusOptions { delta_window: None });
+        let temp = TempStore::on_bus(&bus);
         let worktrees = Arc::new(FakeWorktrees::default());
         let (clock, sleeper) = (Arc::new(FakeClock::new()), Arc::new(FakeSleeper::default()));
         let (agents, hooks, recents) =
@@ -170,7 +171,6 @@ impl Bench {
         });
         let reads = Arc::new(reads);
         let keys = Arc::new(FakeKeys::default());
-        let bus = Bus::new(Ordered::new(), clock.clone(), BusOptions { delta_window: None });
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, &keys, &bus, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();

@@ -76,6 +76,12 @@ impl TempStore {
         Self { store, announced, home }
     }
 
+    /// An empty store whose writes' announcements are also published on
+    /// `bus`, as in the app.
+    pub fn on_bus(bus: &Bus) -> Self {
+        Self::open(TempHome::new(), Some(bus.clone()))
+    }
+
     /// [`seeded`](Self::seeded), with every write's announcements also
     /// published on `bus`, as in the app: for a test that reads events off
     /// the bus or a stream.

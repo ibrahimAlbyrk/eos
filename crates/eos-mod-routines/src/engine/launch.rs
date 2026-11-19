@@ -13,6 +13,7 @@ use eos_contracts::tool_scope::CALL_CAPABILITY_TOOL;
 use eos_contracts::{RoutineAgent, ToolScope};
 use eos_core::Error;
 use eos_core::agent::LaunchSpec;
+use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::{RunRole, Trust, scope_for};
 use eos_workers::resolve::{is_restrictive, tool_scope};
 
@@ -78,9 +79,17 @@ fn work_path(launch: &RunLaunch) -> PathBuf {
     PathBuf::from("routines").join(&launch.routine_id).join("runs").join(&launch.run_id).join("work")
 }
 
-/// The run sessions of every run that has not ended, read again after a
-/// restart.
+/// The run sessions of every run that has not ended, and the leads held
+/// while their result is checked, read again after a restart.
 pub(crate) async fn rebuild(engine: &Engine) -> Result<(), Error> {
+    let held: Vec<String> = engine
+        .store
+        .read(|tx| {
+            let checking = tx.runs().at_work()?.into_iter().filter(|run| run.state == RunState::Checking);
+            Ok(checking.filter_map(|run| run.lead_id).collect())
+        })
+        .await?;
+    Engine::locked(&engine.held).extend(held);
     let launches = engine
         .store
         .read(|tx| {
