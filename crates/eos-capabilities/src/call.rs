@@ -215,14 +215,13 @@ impl CapabilityService {
             duration_ms = row.duration_ms,
             "capability call"
         );
-        self.early.after(&capability.id, event.as_ref());
-        let (id, event) = (capability.id.clone(), event.clone());
+        let (id, kept) = (capability.id.clone(), event.clone());
         let written = self
             .ports
             .store
             .write(move |tx, outbox| {
                 tx.capability_calls().insert(&row)?;
-                if let Some(event) = event {
+                if let Some(event) = kept {
                     apply(tx, outbox, &id, event, now)?;
                 }
                 Ok(())
@@ -231,5 +230,7 @@ impl CapabilityService {
         if let Err(e) = written {
             tracing::warn!(capability = %capability.id, error = %e, "a capability call was not recorded");
         }
+        // After the write: a check that ran before it would be overwritten by the failure it checks.
+        self.early.after(&capability.id, event.as_ref());
     }
 }
