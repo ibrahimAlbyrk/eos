@@ -36,22 +36,44 @@ pub(crate) fn priority(origin: &RunOrigin) -> i64 {
 
 pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCreated>, StartError> {
     let now = engine.clock.now_ms();
-    if let Some(runs) = new.client_request_id.as_deref().and_then(|id| remembered(engine, id, now)) {
-        return Ok(runs);
-    }
-    let (ids, device) = (engine.ids.clone(), engine.device.clone());
     let request = new.client_request_id.clone();
-    let made = engine
+    // The request id is looked up and remembered on the writer thread, one
+    // job after another, so a retry sent while the first request is still
+    // being written answers its runs instead of queueing them again.
+    let job = engine.clone();
+    let written = engine
         .store
-        .write(move |tx, out| match queue(tx, out, &new, now, ids.as_ref(), &device) {
-            // A store error may come after some runs were written: the job
-            // must fail, so none of them is kept or announced.
-            Err(StartError::Store(error)) => Err(error),
-            refused_or_made => Ok(refused_or_made),
+        .write(move |tx, out| {
+            let request = new.client_request_id.as_deref();
+            if let Some(runs) = request.and_then(|id| remembered(&job, id, now)) {
+                return Ok(Ok((runs, true)));
+            }
+            match queue(tx, out, &new, now, job.ids.as_ref(), &job.device) {
+                Ok(made) => {
+                    if let Some(id) = request {
+                        Engine::locked(&job.requests).insert(id.to_owned(), (now, made.clone()));
+                    }
+                    Ok(Ok((made, false)))
+                }
+                // A store error may come after some runs were written: the job
+                // must fail, so none of them is kept or announced.
+                Err(StartError::Store(error)) => Err(error),
+                Err(refused) => Ok(Err(refused)),
+            }
         })
-        .await??;
-    if let Some(id) = request {
-        Engine::locked(&engine.requests).insert(id, (now, made.clone()));
+        .await;
+    let (made, again) = match written {
+        Ok(answer) => answer?,
+        Err(error) => {
+            // The runs it remembered were never kept.
+            if let Some(id) = request {
+                Engine::locked(&engine.requests).remove(&id);
+            }
+            return Err(error.into());
+        }
+    };
+    if again {
+        return Ok(made);
     }
     tracing::info!(runs = made.len(), "runs queued");
     engine.wake.notify_one();

@@ -186,3 +186,18 @@ async fn a_store_error_part_way_keeps_and_announces_none_of_the_starts_runs() {
     assert!(written.is_empty(), "the first run was undone with the second");
     assert!(bench.changes().is_empty(), "nothing was announced");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_retry_sent_while_the_first_request_is_written_answers_the_same_runs() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
+    let request = || NewRun {
+        client_request_id: Some("c-1".into()),
+        ..new_run(&routine, RunOrigin::Hand, Some(pull_request(3)))
+    };
+    let (first, retry) = tokio::join!(bench.start(request()), bench.start(request()));
+    let first = first.expect("starts");
+    assert_eq!(retry, Ok(first), "the retry answers the first request's runs");
+    let queued = bench.temp.store.read_blocking(|tx| tx.runs().queued()).expect("reads");
+    assert_eq!(queued.len(), 1);
+}
