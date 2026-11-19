@@ -81,6 +81,7 @@ fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunR
         Err(Error::NotFound { .. }) => (None, Vec::new()),
         Err(error) => return Err(error),
     };
+    let trial = run.kind == "trial";
     let result_mode = match (run.kind.as_str(), input.result) {
         ("trial", _) => GateMode::Trial,
         (_, eos_contracts::ResultMode::ShowOnly) => GateMode::ShowOnly,
@@ -94,7 +95,8 @@ fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunR
         origin: run.origin.clone(),
         result_mode,
         doc: result_doc(result),
-        targets: blueprint.goes_to,
+        // A trial sends nothing anywhere (03 G21).
+        targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
         subject_key: run.item_key.clone(),
         trust: eos_domain::routine::trust::of_run(Some(version.trust), &input),

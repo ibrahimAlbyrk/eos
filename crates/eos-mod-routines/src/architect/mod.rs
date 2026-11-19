@@ -21,10 +21,12 @@ mod draft;
 mod make;
 mod propose;
 mod tools;
+mod trial_end;
 
 pub(crate) use draft::{Started, abandon, message, question_of, start, view};
 pub(crate) use make::{change, make};
 pub(crate) use tools::Architect;
+pub(crate) use trial_end::trial_ended;
 
 use eos_contracts::FOCUSED_ROLE;
 use eos_contracts::NameSource;
