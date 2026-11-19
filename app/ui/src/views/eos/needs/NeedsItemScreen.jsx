@@ -9,6 +9,8 @@ import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { actionsOf, cardOf } from "./cards/index.js";
+import { followReplacement } from "./cards/DraftCard.jsx";
+import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
@@ -31,7 +33,7 @@ function Closed({ detail, refused }) {
     <p className="eos-needs-closed" role="status">
       {line}
       {detail.replacedBy && (
-        <> <button type="button" className="eos-link" onClick={() => openLocation(itemLocation(detail.replacedBy))}>Open the newer draft</button></>
+        <> <button type="button" className="eos-link" onClick={() => followReplacement(detail)}>Open the newer draft</button></>
       )}
     </p>
   );
@@ -57,12 +59,21 @@ export function NeedsItemScreen({ id }) {
     if (to) openLocation(itemLocation(to.id));
   };
   const open = Boolean(detail) && WAITING.has(detail.item.state) && !refused[id];
-  const actions = open ? actionsOf(detail) : [];
+  const actions = open ? actionsOf(detail, values) : [];
+  const setValue = (key, value) => setValues((v) => ({ ...v, [key]: value }));
   const doing = async (action) => {
-    if (await action.run(detail, values)) openLocation(after(order, at));
+    if (await action.run(detail, values, setValue)) openLocation(after(order, at));
   };
+  // A send refused because a newer draft took this one's place opens it.
+  const replacedBy = refused[id]?.state === "replaced" ? detail?.replacedBy : undefined;
+  useEffect(() => { if (replacedBy) followReplacement(detail); }, [replacedBy]); // eslint-disable-line react-hooks/exhaustive-deps
   const blocked = (action) => (action.write && offline) || (action.ready && !action.ready(detail, values));
   const primary = actions.find((a) => a.primary);
+  const discarding = async () => {
+    const done = await discardInboxItem(id);
+    if (done) dropEdit(id);
+    return done;
+  };
 
   const neighbours = order.map((i) => i.id).join(" ");
   useKeybinding({ match: plainKey("j"), run: (ctx, e) => { e.preventDefault(); page(1); } }, [neighbours, at]);
@@ -99,7 +110,7 @@ export function NeedsItemScreen({ id }) {
           <div className="eos-needs-item__columns">
             <div className="eos-needs-item__main">
               {!open && <Closed detail={detail} refused={refused[id]} />}
-              <Body detail={detail} values={values} setValue={(key, value) => setValues((v) => ({ ...v, [key]: value }))} />
+              <Body detail={detail} values={values} setValue={setValue} />
               {open && (
                 <div className="eos-actions eos-needs-item__actions">
                   {actions.map((a) => (
@@ -118,7 +129,7 @@ export function NeedsItemScreen({ id }) {
                     <button type="button" className="eos-btn" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
                   )}
                   {stored && (
-                    <button type="button" className="eos-btn" disabled={offline} onClick={() => void doing({ run: () => discardInboxItem(id) })}>Discard</button>
+                    <button type="button" className="eos-btn" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
                   )}
                 </div>
               )}

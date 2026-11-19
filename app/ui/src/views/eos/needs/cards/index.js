@@ -5,7 +5,9 @@
 
 import { answerInboxItem, decideRunAsk, decideSuggestion, sendInboxDraft } from "../../../../state/eos/inboxStore.js";
 import { openLocation } from "../../nav/eosNav.js";
-import { ResultView } from "../results/ResultView.jsx";
+import { dropEdit } from "../editDrafts.js";
+import { docChanged, sendLabel } from "../editors/editDoc.js";
+import { currentEdit, DraftCard, originalDoc } from "./DraftCard.jsx";
 import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
 import { AboutYouCard, PlainCard } from "./PlainCard.jsx";
@@ -29,8 +31,29 @@ const openRoutine = {
 
 const KINDS = {
   draft: {
-    Body: ResultView,
-    actions: [{ label: "Send", primary: true, write: true, run: (detail) => sendInboxDraft(detail.item.id) }],
+    Body: DraftCard,
+    actions: [
+      {
+        label: "Send",
+        primary: true,
+        write: true,
+        labelOf: (detail, values) => sendLabel(originalDoc(detail), currentEdit(detail, values)),
+        run: async (detail, values) => {
+          const edit = currentEdit(detail, values);
+          const sent = await sendInboxDraft(detail.item.id, docChanged(edit, originalDoc(detail)) ? edit : undefined);
+          if (sent) dropEdit(detail.item.id);
+          return sent;
+        },
+      },
+      {
+        label: "Edit",
+        when: (detail, values) => Boolean(originalDoc(detail)) && !currentEdit(detail, values),
+        run: (detail, values, setValue) => {
+          setValue("edit", originalDoc(detail));
+          return false;
+        },
+      },
+    ],
   },
   question: {
     Body: QuestionCard,
@@ -85,9 +108,9 @@ export function cardOf(kind) {
   return KINDS[kind] ?? PLAIN;
 }
 
-// The actions the item offers, each with its label.
-export function actionsOf(detail) {
+// The actions the item offers with what is on screen, each with its label.
+export function actionsOf(detail, values = {}) {
   return cardOf(detail.item.kind).actions
-    .filter((a) => !a.when || a.when(detail))
-    .map((a) => ({ ...a, label: a.labelOf ? a.labelOf(detail) : a.label }));
+    .filter((a) => !a.when || a.when(detail, values))
+    .map((a) => ({ ...a, label: a.labelOf ? a.labelOf(detail, values) : a.label }));
 }

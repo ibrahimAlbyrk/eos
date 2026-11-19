@@ -65,3 +65,39 @@
 .eos-runform__repeat { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--fg); }
 .eos-runform__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .eos-runform__estimate { flex: 1 1 200px; color: var(--fg-dim); }
+
+/* ── The draft editors ────────────────────────────────────────────────────── */
+.eos-draft { display: flex; flex-direction: column; gap: 18px; }
+.eos-edit { display: flex; flex-direction: column; gap: 16px; }
+.eos-edit__field { display: flex; flex-direction: column; gap: 6px; }
+.eos-edit__head { display: flex; align-items: center; gap: 8px; }
+.eos-edit__label { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-edit__revert {
+  margin-left: auto;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+.eos-edit__line,
+.eos-edit__text {
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.eos-edit__text { resize: vertical; line-height: 1.5; }
+.eos-edit__code { font-family: var(--font-mono); font-size: 12px; }
+.eos-edit__findings { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.eos-edit__finding { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--panel); }
+.eos-edit__finding--out .eos-result__place { text-decoration: line-through; }
+.eos-edit__include { display: inline-flex; align-items: center; gap: 8px; }
+.eos-draft--beside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.eos-draft__carried { display: flex; flex-direction: column; gap: 8px; padding-left: 18px; border-left: 1px solid var(--line); }
