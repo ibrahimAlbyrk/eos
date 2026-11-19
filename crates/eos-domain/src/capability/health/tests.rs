@@ -39,6 +39,7 @@ fn each_cause_of_g10_puts_a_working_capability_where_g10_says() {
     let setup = StateCode::SecretMissing("api_key".into());
     let cases = [
         (Event::Passed, at(Ready, None, 0)),
+        (Event::Worked, at(Ready, None, 0)),
         (Event::RateLimited, at(Degraded, Some(StateCode::RateLimited), 0)),
         (Event::CallFailed, at(Degraded, None, 0)),
         (Event::CheckFailed, at(Degraded, Some(StateCode::HealthFailed), 1)),
@@ -68,6 +69,22 @@ fn three_failed_checks_or_broken_outputs_in_a_row_break_it_and_a_pass_resets_the
     assert_eq!(outputs.after(Event::BadOutput), at(HealthState::Broken, Some(StateCode::OutputSchema), 3));
     let limited = Health::ready().after(Event::RateLimited).after(Event::BadOutput);
     assert_eq!(limited, at(HealthState::Degraded, Some(StateCode::RateLimited), 1));
+}
+
+#[test]
+fn a_passed_check_keeps_the_count_of_broken_outputs_and_only_an_output_that_fits_resets_it() {
+    let once = Health::ready().after(Event::BadOutput).after(Event::Passed);
+    let twice = once.after(Event::BadOutput).after(Event::Passed);
+    assert_eq!(twice, at(HealthState::Ready, None, 2), "the early checks after each one passed");
+    assert_eq!(twice.after(Event::BadOutput), at(HealthState::Broken, Some(StateCode::OutputSchema), 3));
+
+    let fitted = twice.after(Event::Worked);
+    assert_eq!(fitted, Health::ready(), "an output that fits starts the count again");
+    let again = fitted.after(Event::BadOutput).after(Event::Passed).after(Event::BadOutput).after(Event::Passed);
+    assert_eq!(again, at(HealthState::Ready, None, 2));
+
+    let checks = Health::ready().after(Event::CheckFailed).after(Event::BadOutput);
+    assert_eq!(checks.after(Event::Passed), Health::ready(), "a pass still clears what checks count");
 }
 
 #[test]
