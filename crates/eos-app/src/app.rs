@@ -14,6 +14,7 @@ use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
 use eos_core::accounts::{Browser, PlanAccess, SessionAccountSwitch, SessionCredentials};
 use eos_core::browser::{BrowserTools, ElementPicker};
+use eos_core::capability::CapabilitySecrets;
 use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
@@ -128,6 +129,11 @@ pub struct Options {
     /// How the phone link reaches its relay ([`crate::relay`] in the real
     /// app), used only when the run [`reaches_network`](Self::reaches_network).
     pub relay: Option<Arc<dyn Relay>>,
+    /// Where capability secrets are kept ([`crate::keychain`] in the real
+    /// app), used only when the run [`reaches_network`](Self::reaches_network).
+    /// Without it no capability secret is kept: the Keychain items are the
+    /// user's, shared by every run on this computer.
+    pub keychain: Option<Arc<dyn CapabilitySecrets>>,
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
@@ -185,6 +191,7 @@ impl Options {
             reaches_network: false,
             dashboard: None,
             relay: None,
+            keychain: None,
             keep_awake: None,
             extra_modules: Vec::new(),
             capabilities: CapabilityOptions::default(),
@@ -274,6 +281,7 @@ impl App {
             reaches_network,
             dashboard,
             relay,
+            keychain,
             keep_awake,
             extra_modules,
             capabilities: capability_options,
@@ -370,6 +378,7 @@ impl App {
             ids: ids.clone(),
             sleeper: sleeper.clone(),
             github_client_id: current.github.client_id.clone(),
+            keychain,
             options: capability_options,
         })?;
         let policy = Arc::new(

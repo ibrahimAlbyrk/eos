@@ -3,7 +3,6 @@
 
 use std::sync::Arc;
 
-use eos_auth::AppKeychainSecrets;
 use eos_capabilities::{CapabilityPorts, CapabilityService};
 use eos_core::capability::{AllInstalled, BuiltinCapability, CapabilitySecrets};
 use eos_core::store::Store;
@@ -19,7 +18,8 @@ use crate::reach::Reach;
 #[derive(Clone, Default)]
 pub struct CapabilityOptions {
     /// Where capability secrets are kept: a test's own store. `None`: the
-    /// app's own Keychain items, and none off the network.
+    /// host's [`Options::keychain`](crate::Options::keychain), and none off
+    /// the network.
     pub secrets: Option<Arc<dyn CapabilitySecrets>>,
     /// Built-ins beside Eos's own.
     pub builtins: Vec<Arc<dyn BuiltinCapability>>,
@@ -44,6 +44,8 @@ pub(crate) struct Parts<'a> {
     pub(crate) sleeper: Arc<dyn Sleeper>,
     /// `github.clientId`, read at start.
     pub(crate) github_client_id: String,
+    /// The app's own Keychain items, as the host hands them in.
+    pub(crate) keychain: Option<Arc<dyn CapabilitySecrets>>,
     pub(crate) options: CapabilityOptions,
 }
 
@@ -52,10 +54,9 @@ pub(crate) struct Parts<'a> {
 /// every chat, and the GitHub built-in (which reaches GitHub only on the
 /// network). No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
-    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, options } = parts;
+    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, options } = parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir()));
-    let secrets: Arc<dyn CapabilitySecrets> =
-        options.secrets.unwrap_or_else(|| reach.capabilities(Arc::new(AppKeychainSecrets::host())));
+    let secrets: Arc<dyn CapabilitySecrets> = options.secrets.unwrap_or_else(|| reach.capabilities(keychain));
     let transport: Arc<dyn Transport> = match options.github {
         Some(transport) => transport,
         None => reach.github(Arc::new(HttpTransport::new()?)),

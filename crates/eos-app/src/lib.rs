@@ -47,6 +47,13 @@ pub fn relay() -> std::sync::Arc<dyn eos_core::net::relay::Relay> {
     std::sync::Arc::new(eos_relay::RelayClient::new(std::sync::Arc::new(eos_core::SystemClock)))
 }
 
+/// Where the installed app keeps capability secrets: its own Keychain items.
+/// Hand it to [`Options::keychain`]; an app built without it, or one that
+/// does not [reach the network](Options::reaches_network), keeps none.
+pub fn keychain() -> std::sync::Arc<dyn eos_core::capability::CapabilitySecrets> {
+    std::sync::Arc::new(eos_auth::AppKeychainSecrets::host())
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The data folder cannot be used (created, read, written).

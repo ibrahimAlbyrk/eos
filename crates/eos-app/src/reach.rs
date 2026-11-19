@@ -93,9 +93,14 @@ impl Reach {
     }
 
     /// Where capability secrets are kept: the Keychain items every run on
-    /// this computer shares, so another run gets a store of its own, empty.
-    pub(crate) fn capabilities(self, secrets: Arc<dyn CapabilitySecrets>) -> Arc<dyn CapabilitySecrets> {
-        if self.network { secrets } else { Arc::new(NoSecrets) }
+    /// this computer shares, which only the host hands in, so a run without
+    /// them (a test that reaches local fakes) or off the network gets a store
+    /// of its own, empty.
+    pub(crate) fn capabilities(self, keychain: Option<Arc<dyn CapabilitySecrets>>) -> Arc<dyn CapabilitySecrets> {
+        match keychain.filter(|_| self.network) {
+            Some(keychain) => keychain,
+            None => Arc::new(NoSecrets),
+        }
     }
 
     /// How the GitHub capability reaches GitHub.
@@ -302,15 +307,23 @@ mod tests {
     #[tokio::test]
     async fn off_the_network_the_capability_secret_store_is_empty() {
         let keychain = Arc::new(FakeCapabilitySecrets::new().with("github", "token", "gho_planted_secret_1"));
-        let off = Reach::new(false).capabilities(keychain.clone());
+        let off = Reach::new(false).capabilities(Some(keychain.clone()));
         assert_eq!(off.read("github", "token").await.expect("read"), None);
         assert!(!off.has("github", "token").await.expect("asked"));
         let refused = off.write("github", "token", "gho_other".to_owned().into()).await;
         assert_eq!(refused.map_err(|e| e.to_string()), Err(SECRETS_OFF.to_owned()), "and says why");
         off.delete("github", "token").await.expect("nothing to delete");
         assert!(keychain.has("github", "token").await.expect("asked"), "the real store is left alone");
-        let on = Reach::new(true).capabilities(keychain);
+        let on = Reach::new(true).capabilities(Some(keychain));
         assert!(on.read("github", "token").await.expect("read").is_some());
+    }
+
+    #[tokio::test]
+    async fn on_the_network_without_the_host_s_keychain_the_capability_secret_store_is_empty() {
+        let store = Reach::new(true).capabilities(None);
+        assert!(!store.has("github", "token").await.expect("asked"));
+        let refused = store.write("github", "token", "gho_other".to_owned().into()).await;
+        assert_eq!(refused.map_err(|e| e.to_string()), Err(SECRETS_OFF.to_owned()));
     }
 
     #[tokio::test]
