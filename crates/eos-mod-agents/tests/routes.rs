@@ -571,6 +571,36 @@ async fn the_watches_follow_moves_between_states_not_every_change() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_routine_runs_lead_ends_its_turn_without_a_banner() {
+    let bench = Bench::new(TempStore::seeded("/"));
+    bench.temp.exec(
+        "INSERT INTO routine_sessions (worker_id, routine_id, run_id, role, created_at) \
+         VALUES ('w-CHAT', 'rt-1', 'rn-1', 'solo', 1)",
+    );
+    bench.runtime.lifecycle.start().await.expect("starts");
+    bench.agents.script(Turn::reply("All done here."));
+    assert_eq!(bench.post("/workers/w-CHAT/message", json!({"text": "finish it"})).await.0, 200);
+    bench.agents.settled().await;
+    let before = bench.temp.announced.list().len();
+    bench.runtime.kernel.bus.publish_raw(
+        "worker:change",
+        None,
+        json!({"workerId": "w-CHAT", "from": "WORKING", "state": "IDLE"}).to_string().into(),
+    );
+    // The same turn end watches the folder; once it does, a banner would have fired too.
+    let watches_chat = || bench.watcher.watched().iter().any(|dir| dir.ends_with("alpha"));
+    eventually(watches_chat).await;
+    bench.runtime.kernel.bus.flush().await;
+    for _ in 0..20 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    let all = bench.temp.announced.list();
+    assert!(watches_chat());
+    assert!(!all[before..].iter().any(|(topic, _)| *topic == "notification:fire"), "{:?}", &all[before..]);
+}
+
+#[tokio::test(start_paused = true)]
 async fn what_happens_around_agents_without_anybody_asking() {
     use std::time::Duration;
 

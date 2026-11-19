@@ -84,12 +84,16 @@ fn schema_of<T: JsonSchema>() -> Value {
     schema
 }
 
-/// The top-level chats, each with its newest row.
+/// The top-level chats, each with its newest row. A routine's sessions are
+/// Eos's work, not the user's chats: Dreaming never reads them.
 async fn sessions(store: &dyn Store) -> Result<Vec<DreamSession>, Error> {
     store
         .read(|tx| {
             let mut sessions = Vec::new();
             for worker in tx.workers().list_all()?.into_iter().filter(|w| w.parent_id.is_none()) {
+                if tx.workers().in_routine(&worker.id)? {
+                    continue;
+                }
                 let newest = EventQuery {
                     worker_id: worker.id.clone(),
                     since: 0,

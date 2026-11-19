@@ -16,6 +16,11 @@ use crate::tx::{SqliteTx, failed};
 /// The session a resume continues is the Claude Code one the TypeScript app
 /// resumes the chat by (`workers.session_id`, never written here), else this
 /// app's own (`engine_sessions`): a chat begun here has only that one.
+/// The ids of every routine session: the workers in `routine_sessions` and,
+/// down the parent links, every worker they started.
+const IN_ROUTINE: &str = "WITH RECURSIVE tree(id) AS (SELECT worker_id FROM routine_sessions \
+    UNION SELECT workers.id FROM workers JOIN tree ON workers.parent_id = tree.id) SELECT id FROM tree";
+
 const COLUMNS: &str = "id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, \
     ended_at, exit_code, parent_id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_create, \
     tokens_cache_create_1h, cost_usd, last_context_tokens, tasks, is_orchestrator, tool_calls, permission_mode, \
@@ -170,6 +175,25 @@ impl WorkerRepo for SqliteTx<'_> {
 
     fn list_archived(&self) -> Result<Vec<Worker>, Error> {
         self.workers_where("WHERE archived_at IS NOT NULL ORDER BY started_at DESC", [])
+    }
+
+    fn list_listed(&self) -> Result<Vec<Worker>, Error> {
+        self.workers_where(
+            &format!("WHERE archived_at IS NULL AND id NOT IN ({IN_ROUTINE}) ORDER BY started_at DESC"),
+            [],
+        )
+    }
+
+    fn list_archived_listed(&self) -> Result<Vec<Worker>, Error> {
+        self.workers_where(
+            &format!("WHERE archived_at IS NOT NULL AND id NOT IN ({IN_ROUTINE}) ORDER BY started_at DESC"),
+            [],
+        )
+    }
+
+    fn in_routine(&self, id: &str) -> Result<bool, Error> {
+        let sql = format!("SELECT 1 WHERE ?1 IN ({IN_ROUTINE})");
+        Ok(self.row(&sql, [id], |_| Ok(()))?.is_some())
     }
 
     fn find_children_ids(&self, parent_id: &str) -> Result<Vec<String>, Error> {

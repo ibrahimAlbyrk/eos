@@ -366,6 +366,14 @@ step = "notify-invalid"
 at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
+# A routine's sessions (workers in routine_sessions, and every worker they start) are not
+# the user's chats. No recording holds one, so this names the scenario a recording of them
+# would carry.
+
+[[known]]
+scenario = "*-routine-sessions"
+reason = "A routine's sessions are left out of GET /workers, GET /workers/archived and the dashboard's and phone's row patches (their changes become remove patches); GET /workers/{id} still serves them. Shapes, fields and statuses are unchanged: only which rows exist. The 0.1.x app had no routines."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

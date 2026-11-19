@@ -326,6 +326,19 @@ async fn a_stated_rule_goes_recall_match_consolidate_critic_and_is_filed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_routine_runs_session_is_never_read() {
+    let bench = Bench::new(Setup::default()).await;
+    bench.temp.exec(
+        "INSERT INTO routine_sessions (worker_id, routine_id, run_id, role, created_at) \
+         VALUES ('w-CHAT', 'rt-1', 'rn-1', 'solo', 1)",
+    );
+    bench.call(Method::Post, Caller::DASHBOARD, "/api/dreams", None).await;
+    assert_eq!(bench.ended().await["status"], "skipped");
+    assert_eq!(bench.model.asked().len(), 0, "the run's own words never reach the model");
+    assert_eq!(bench.watermark(), 0, "the session is not read");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_inferred_wish_waits_in_the_ledger_and_a_refuted_or_badly_written_proposal_is_not_filed() {
     // No marker: nothing the user stated as a rule, seen once.
     let bench = Bench::new(Setup::default()).await;

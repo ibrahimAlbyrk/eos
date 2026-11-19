@@ -63,6 +63,13 @@ pub trait WorkerRepo {
     fn list_active(&self) -> Result<Vec<Worker>, Error>;
     /// Archived, newest first.
     fn list_archived(&self) -> Result<Vec<Worker>, Error>;
+    /// [`list_active`](WorkerRepo::list_active) less every routine session: the rows Agents lists.
+    fn list_listed(&self) -> Result<Vec<Worker>, Error>;
+    /// [`list_archived`](WorkerRepo::list_archived) less every routine session.
+    fn list_archived_listed(&self) -> Result<Vec<Worker>, Error>;
+    /// Whether Eos started the worker for a routine: its id, or one of its
+    /// parents', is in `routine_sessions`.
+    fn in_routine(&self, id: &str) -> Result<bool, Error>;
     fn find_children_ids(&self, parent_id: &str) -> Result<Vec<String>, Error>;
     /// `(state, rows)` for every state that has rows.
     fn count_by_state(&self) -> Result<Vec<(String, i64)>, Error>;
