@@ -207,6 +207,10 @@ impl RunRepo for SqliteTx<'_> {
         self.exec("UPDATE runs SET lead_id = ?1 WHERE id = ?2", params![worker_id, id]).map(drop)
     }
 
+    fn set_outcome(&self, id: &str, outcome: Outcome) -> Result<(), Error> {
+        self.exec("UPDATE runs SET outcome = ?1 WHERE id = ?2", params![outcome.as_str(), id]).map(drop)
+    }
+
     fn set_attempt(&self, id: &str, attempt: i64) -> Result<(), Error> {
         self.exec("UPDATE runs SET attempt = ?1 WHERE id = ?2", params![attempt, id]).map(drop)
     }

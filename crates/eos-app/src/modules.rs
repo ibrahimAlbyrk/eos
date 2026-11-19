@@ -195,6 +195,8 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         scratch: cx.scratch.clone(),
         folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
         reads: cx.capabilities.clone(),
+        // Results are only shown until Needs you composes its gate.
+        gate: Arc::new(eos_mod_routines::ShowOnlyGate),
     }));
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);

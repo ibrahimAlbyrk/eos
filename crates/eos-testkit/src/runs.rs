@@ -1,11 +1,11 @@
 //! The run ports other areas call, answered from what the test sets: starts,
-//! admissions and the routines' triggers.
+//! admissions and the routines' triggers; and the gate routines call.
 
 use std::sync::{Mutex, MutexGuard};
 
 use eos_core::routine::{
-    Admission, AdmitOutcome, AdmitRefusal, FinishedRun, NewRun, RoutineDirectory, RoutineLoad, RoutineTriggers,
-    RunCreated, RunIntake, RunStarter, StartError,
+    Admission, AdmitOutcome, AdmitRefusal, FinishedRun, GateDecision, GateInput, NewRun, RoutineDirectory, RoutineLoad,
+    RoutineTriggers, RunCreated, RunGate, RunIntake, RunStarter, StartError,
 };
 use eos_core::store::{Outbox, Tx};
 use eos_core::{BoxFuture, Error};
@@ -162,5 +162,64 @@ impl FakeRoutineDirectory {
 impl RoutineDirectory for FakeRoutineDirectory {
     fn triggers(&self) -> BoxFuture<'_, Result<Vec<RoutineTriggers>, Error>> {
         Box::pin(std::future::ready(Ok(locked(&self.triggers).clone())))
+    }
+}
+
+/// The gate as the test scripts it: each result takes the next decision
+/// set, else is shown. Records what it was given, the runs withdrawn and how
+/// many deliveries it handed out.
+#[derive(Debug, Default)]
+pub struct FakeRunGate {
+    decisions: Mutex<std::collections::VecDeque<GateDecision>>,
+    inputs: Mutex<Vec<GateInput>>,
+    withdrawn: Mutex<Vec<String>>,
+    deliveries: Mutex<usize>,
+}
+
+impl FakeRunGate {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The next result gets `decision`.
+    pub fn decide(&self, decision: GateDecision) {
+        locked(&self.decisions).push_back(decision);
+    }
+
+    /// What each call was given, in order.
+    pub fn inputs(&self) -> Vec<GateInput> {
+        locked(&self.inputs).clone()
+    }
+
+    pub fn withdrawn(&self) -> Vec<String> {
+        locked(&self.withdrawn).clone()
+    }
+
+    /// The deliveries its decisions made.
+    pub fn deliveries(&self) -> usize {
+        *locked(&self.deliveries)
+    }
+}
+
+impl RunGate for FakeRunGate {
+    fn apply_in(
+        &self,
+        _tx: &dyn Tx,
+        _out: &mut Outbox,
+        _now: i64,
+        _ids: &dyn eos_core::Ids,
+        input: &GateInput,
+    ) -> Result<GateDecision, Error> {
+        locked(&self.inputs).push(input.clone());
+        let decision = locked(&self.decisions).pop_front().unwrap_or(GateDecision::Shown);
+        if let GateDecision::Delivering { delivery_ids } = &decision {
+            *locked(&self.deliveries) += delivery_ids.len();
+        }
+        Ok(decision)
+    }
+
+    fn withdraw_in(&self, _tx: &dyn Tx, _out: &mut Outbox, run_id: &str) -> Result<(), Error> {
+        locked(&self.withdrawn).push(run_id.to_owned());
+        Ok(())
     }
 }
