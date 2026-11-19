@@ -139,3 +139,23 @@ async fn start_without_a_trial_is_the_users_choice_and_recorded() {
     let kept = routes.versions(&routine).into_iter().find(|version| version.id == drafted).expect("kept");
     assert!(kept.no_trial);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trial_of_a_change_runs_the_proposed_draft_not_the_head() {
+    let routes = Routes::new();
+    let bench = &routes.bench;
+    let (routine, architect) = routes.made("Review my pull requests").await;
+    let head = routes.propose(&architect, blueprint(1)).await;
+    routes.post(&format!("/api/routines/{routine}/start"), json!({"withoutTrial": true})).await;
+    assert_eq!(routes.routine_head(&routine).as_deref(), Some(head.as_str()));
+    routes.post(&format!("/api/routines/{routine}/change"), json!({"text": "Two at once."})).await;
+    let proposed = routes.propose(&architect, blueprint(2)).await;
+
+    let (status, started) = routes.post(&format!("/api/routines/{routine}/trial"), json!({})).await;
+    assert_eq!(status, 201, "{started}");
+    let run = started["runs"][0]["id"].as_str().expect("a run").to_owned();
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station.is_some()).await;
+    assert_eq!(bench.run(&run).version_id.as_deref(), Some(proposed.as_str()), "the draft, after leaving the queue");
+    assert_eq!(routes.routine_head(&routine).as_deref(), Some(head.as_str()), "the head stays");
+}
