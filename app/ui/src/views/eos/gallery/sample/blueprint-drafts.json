@@ -1,0 +1,75 @@
+{
+  "rt-6t1y4u8i2o5p": {
+    "purpose": "Review every pull request that touches the docs. Show me first.",
+    "status": "asking",
+    "question": "Should it review **draft** pull requests too?",
+    "choices": [
+      "Only when ready",
+      "Drafts too"
+    ],
+    "draftVersionId": "rv-9w3e7r1t5y2u",
+    "trialRuns": [],
+    "changed": [
+      "name",
+      "summary",
+      "icon",
+      "aliases",
+      "kind",
+      "takes",
+      "options",
+      "when",
+      "which",
+      "who",
+      "how",
+      "makes",
+      "goesTo",
+      "freedom",
+      "limits",
+      "needs"
+    ],
+    "updatedAt": 1763452800000
+  },
+  "rt-2x8k5n1q6w0r": {
+    "purpose": "Let a second agent write the replies.",
+    "status": "ready",
+    "choices": [],
+    "baseVersionId": "rv-3m7p1q5r9s2t",
+    "draftVersionId": "rv-7j8k9l0z1x2c",
+    "trialRuns": [
+      {
+        "id": "rn-3q5w7e9r1t3y",
+        "routineId": "rt-2x8k5n1q6w0r",
+        "kind": "trial",
+        "origin": "trial",
+        "state": "done",
+        "headline": "Two replies drafted",
+        "itemTitle": "Invoice from Acme",
+        "needsUser": false,
+        "costUsd": 0.05,
+        "workMs": 42000,
+        "createdAt": 1763449200000,
+        "startedAt": 1763449201000,
+        "endedAt": 1763449243000
+      },
+      {
+        "id": "rn-4a6s8d0f2g4h",
+        "routineId": "rt-2x8k5n1q6w0r",
+        "kind": "trial",
+        "origin": "trial",
+        "state": "done",
+        "headline": "Nothing needed a reply",
+        "itemTitle": "Team lunch",
+        "needsUser": false,
+        "costUsd": 0.05,
+        "workMs": 42000,
+        "createdAt": 1763449200000,
+        "startedAt": 1763449201000,
+        "endedAt": 1763449243000
+      }
+    ],
+    "changed": [
+      "who"
+    ],
+    "updatedAt": 1763452800000
+  }
+}

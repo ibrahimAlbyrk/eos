@@ -3,6 +3,7 @@
 // opened: a topic left to its fallthrough would refetch the workers list. A
 // topic whose screen is not in this version is taken and left alone.
 
+import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blueprintStore.js";
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
 import { applyInboxChange, resyncInbox } from "./inboxStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
@@ -10,10 +11,14 @@ import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
 
 const ignored = () => {};
+const both = (a, b) => (payload) => {
+  a(payload);
+  b(payload);
+};
 
 const HANDLERS = {
-  "routine:change": applyRoutineChange,
-  "run:change": applyRunChange,
+  "routine:change": both(applyRoutineChange, applyBlueprintChange),
+  "run:change": both(applyRunChange, applyTrialChange),
   "runs:active": applyRunsActive,
   "run:activity": applyRunActivity,
   "signals:change": ignored,
@@ -45,6 +50,7 @@ export function applyEosEvent(reason, payload) {
 export function resyncEos() {
   resyncRoutines();
   resyncRuns();
+  resyncBlueprints();
   resyncInbox();
   resyncCapabilities();
 }

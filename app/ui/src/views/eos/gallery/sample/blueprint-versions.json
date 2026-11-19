@@ -1,0 +1,47 @@
+{
+  "rt-6t1y4u8i2o5p": [
+    {
+      "id": "rv-9w3e7r1t5y2u",
+      "number": 1,
+      "status": "draft",
+      "author": "architect",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763452800000
+    }
+  ],
+  "rt-2x8k5n1q6w0r": [
+    {
+      "id": "rv-1a2s3d4f5g6h",
+      "number": 1,
+      "status": "kept",
+      "author": "architect",
+      "note": "Made by talking.",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763280000000
+    },
+    {
+      "id": "rv-3m7p1q5r9s2t",
+      "number": 2,
+      "parentId": "rv-1a2s3d4f5g6h",
+      "status": "kept",
+      "author": "user",
+      "note": "Only the replies that matter.",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763366400000
+    },
+    {
+      "id": "rv-7j8k9l0z1x2c",
+      "number": 3,
+      "parentId": "rv-3m7p1q5r9s2t",
+      "status": "draft",
+      "author": "architect",
+      "note": "A writer joins the sorter.",
+      "format": 1,
+      "runnable": true,
+      "createdAt": 1763452800000
+    }
+  ]
+}

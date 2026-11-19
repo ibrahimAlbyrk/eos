@@ -51,7 +51,6 @@ async function page(location, transport = fixtureTransport(reads)) {
 
 const draw = () => renderToStaticMarkup(<EosMain />);
 const tabs = (html) => [...html.matchAll(/aria-selected="(true|false)"[^>]*>([^<]*)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
-const facts = (html) => [...html.matchAll(/<dt>([^<]*)<\/dt><dd>([^<]*)<\/dd>/g)].map((m) => [m[1], m[2]]);
 
 function rowState(id) {
   let read;
@@ -142,10 +141,8 @@ describe("the routine page", () => {
 
     const blueprint = await page(`eos:/routines/${MAIL}?tab=blueprint`);
     expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Blueprint*"]);
-    expect(facts(blueprint)).toEqual([
-      ["Takes", "mail"], ["When", "When you run it"], ["Who", "Sorter"], ["How", "Sort the mail · Draft the replies that matter"],
-      ["Makes", "Draft replies"], ["Goes to", "You"], ["Freedom", "You send"],
-    ]);
+    expect(blueprint).toContain('aria-label="Conversation with the architect"');
+    expect([...blueprint.matchAll(/<dt class="eos-bp-row__label">([^<]*)</g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
     expect(blueprint).toContain("Runs when you start it, until triggers arrive");
   });
 

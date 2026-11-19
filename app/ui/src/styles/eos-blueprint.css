@@ -1,0 +1,139 @@
+/* eos-blueprint.css — the blueprint editor: the architect conversation on
+   the left, the blueprint card with its slot rows on the right, the trial
+   cards under it, and the version menu and comparison. Text keeps eos.css's
+   contrast floor: never dimmer than --fg-dim2 on the dark grounds. */
+
+.eos-bp { display: flex; align-items: flex-start; gap: 24px; }
+.eos-bp-chat {
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 420px;
+}
+.eos-bp__side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Conversation ─────────────────────────────────────────────────────────── */
+.eos-bp-bubble {
+  align-self: flex-end;
+  max-width: 92%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--chip);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  white-space: pre-wrap;
+}
+.eos-bp-checks { display: flex; flex-direction: column; gap: 6px; }
+.eos-bp-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-check svg { flex: none; color: var(--ok); }
+.eos-bp-question { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--panel); }
+.eos-bp-question__text { font-size: var(--text-base); color: var(--fg-strong); }
+.eos-bp-question__text p { margin: 0; }
+.eos-bp-chat__fill { flex: 1; }
+.eos-bp-say { display: flex; gap: 8px; }
+.eos-bp-say .eos-bp-input { flex: 1; }
+
+/* ── Card ─────────────────────────────────────────────────────────────────── */
+.eos-bp-card { display: flex; flex-direction: column; gap: 16px; }
+.eos-bp-card--outline { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+.eos-bp-card__head { display: flex; align-items: center; gap: 10px; }
+.eos-bp-card__version { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-card__title { display: flex; align-items: flex-start; gap: 12px; }
+.eos-bp-card__icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--raised);
+  color: var(--fg-mid);
+}
+.eos-bp-card__name { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
+.eos-bp-card__sentence { margin: 4px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
+
+.eos-bp-rows { margin: 0; display: flex; flex-direction: column; }
+.eos-bp-row { display: flex; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.eos-bp-row--changed { box-shadow: inset 2px 0 0 var(--accent); padding-left: 10px; }
+.eos-bp-row__label {
+  flex: 0 0 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-dim2);
+}
+.eos-bp-row__mark { font-family: inherit; letter-spacing: 0; text-transform: none; color: var(--accent); }
+.eos-bp-row__value { flex: 1; min-width: 0; margin: 0; font-size: var(--text-sm); line-height: 1.7; color: var(--fg); }
+.eos-bp-row__value--empty { color: var(--fg-dim2); }
+.eos-bp-break { display: block; height: 4px; }
+
+.eos-bp-value {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--fg-strong);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.eos-bp-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 6px 4px 0;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  color: var(--fg);
+}
+.eos-bp-chip.eos-bp-value { text-decoration: none; }
+.eos-bp-chip__sub { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-bp-act {
+  margin: 0 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--chip);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--fg-mid);
+  cursor: pointer;
+}
+.eos-bp-locked { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); }
+.eos-bp-lock { color: var(--fg-dim); }
+
+.eos-bp-editor { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.eos-bp-row__value .eos-menu { position: static; width: max-content; }
+.eos-bp-input {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+}
+.eos-bp-input--glob { font-family: var(--font-mono); }
+.eos-bp-wrong { margin: 0; font-size: var(--text-xs); color: var(--err); }
+
+.eos-bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.eos-bp-actions__cost { margin-left: auto; font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-bp-issues { margin: 6px 0 0; padding-left: 18px; width: 100%; }
+
+/* ── Trials ───────────────────────────────────────────────────────────────── */
+.eos-bp-trials { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.eos-bp-trial { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
+.eos-bp-trial__item { font-size: var(--text-sm); color: var(--fg-strong); }
+.eos-bp-trial__line { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-bp-trial .eos-link { align-self: flex-start; font-size: var(--text-xs); }
+
+@media (max-width: 960px) {
+  .eos-bp { flex-direction: column; }
+  .eos-bp-chat { flex-basis: auto; width: 100%; min-height: 0; }
+}

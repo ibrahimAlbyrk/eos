@@ -83,11 +83,12 @@ export function applyRoutineChange(payload) {
   }
   const row = payload.row;
   if (row?.id !== id) return;
-  putRow(row);
+  putRoutineRow(row);
 }
 
-// The row in the list and in its detail.
-function putRow(row) {
+// The row in the list and in its detail; the blueprint editor's writes
+// answer it too.
+export function putRoutineRow(row) {
   const detail = state.details[row.id];
   set({
     list: withRow(state.list, row),
@@ -112,10 +113,10 @@ const rowOf = (id) => state.details[id]?.routine ?? state.list?.find((r) => r.id
 // states wait for the answer.
 export async function setRoutineState(id, next) {
   const before = rowOf(id);
-  if (next === "paused" && before) putRow({ ...before, state: "paused", pausedReason: "user" });
+  if (next === "paused" && before) putRoutineRow({ ...before, state: "paused", pausedReason: "user" });
   const r = await routineWrite("PUT", ROUTES.routineState(id), { state: next });
-  if (r?.body?.id === id) putRow(r.body);
-  else if (!r && next === "paused" && before) putRow(before);
+  if (r?.body?.id === id) putRoutineRow(r.body);
+  else if (!r && next === "paused" && before) putRoutineRow(before);
   return Boolean(r);
 }
 
@@ -132,7 +133,7 @@ export async function copyRoutine(id) {
   const r = await routineWrite("POST", ROUTES.routineCopy(id));
   const row = r?.body?.row;
   if (typeof row?.id !== "string") return null;
-  putRow(row);
+  putRoutineRow(row);
   return row.id;
 }
 
