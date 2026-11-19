@@ -432,6 +432,9 @@ impl SessionHooks for AppHooks {
 
     fn exited(&self, worker_id: &str) {
         self.offsets.lock().unwrap_or_else(PoisonError::into_inner).forget(worker_id);
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.on_session_exit(worker_id);
+        }
     }
 
     fn agent_event(&self, worker_id: &str, event: &AgentEvent) {

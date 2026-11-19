@@ -3,7 +3,7 @@
 use eos_contracts::RoutineState;
 use eos_core::Clock;
 use eos_core::routine::RunOrigin;
-use eos_domain::routine::run::{Reason, RunState, Station};
+use eos_domain::routine::run::{Reason, RunState};
 
 use crate::bench::{Bench, blueprint, new_run, pull_request};
 
@@ -27,7 +27,7 @@ async fn runs_leave_by_priority_then_age_within_the_global_and_the_routines_slot
     bench.eventually(|| bench.state(&last) == RunState::Running).await;
     for id in [&first, &narrow_first, &last] {
         let run = bench.run(id);
-        assert_eq!((run.state, run.station), (RunState::Running, Some(Station::Brief)), "{id}");
+        assert_eq!(run.state, RunState::Running, "{id}");
         assert!(run.started_at.is_some() && run.version_id.is_some(), "{id}: its version is bound");
     }
     assert_eq!(bench.state(&narrow_second), RunState::Queued, "its routine runs one at a time");

@@ -8,6 +8,7 @@ use eos_contracts::SessionFactsRole;
 use eos_contracts::SettingValue;
 use eos_core::agent::{HostTool, LaunchSpec, ToolCaller, ToolReply, ToolSets};
 use eos_core::capability::{AllInstalled, BuiltinCapability};
+use eos_core::routine::{RoutineTools, SubmittedResult};
 use eos_prompts::PromptRegistry;
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
@@ -37,6 +38,53 @@ pub(crate) struct Bench {
     pub(crate) runner: Arc<FakeActionRunner>,
     /// The user's settings; the Eos preview is off until a test turns it on.
     pub(crate) settings: Arc<FakeSettings>,
+    /// What the run tools asked of the routines feature.
+    pub(crate) runs: RunCalls,
+}
+
+/// The routines feature as the run tools reach it: each call recorded, a
+/// worker named `w-none` refused as one of no run.
+#[derive(Clone, Default)]
+pub(crate) struct RunCalls(pub(crate) Arc<std::sync::Mutex<Vec<String>>>);
+
+impl RunCalls {
+    fn record(&self, worker_id: &str, call: String) -> eos_core::BoxFuture<'static, Result<(), eos_core::Error>> {
+        let answer = if worker_id == "w-none" {
+            Err(eos_core::Error::Conflict("this session works for no run".into()))
+        } else {
+            self.0.lock().expect("calls").push(call);
+            Ok(())
+        };
+        Box::pin(std::future::ready(answer))
+    }
+}
+
+impl RoutineTools for RunCalls {
+    fn report_progress<'a>(
+        &'a self,
+        worker_id: &'a str,
+        line: &'a str,
+        milestone: Option<&'a str>,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("progress {worker_id} {line} {milestone:?}"))
+    }
+
+    fn submit_result<'a>(
+        &'a self,
+        worker_id: &'a str,
+        result: SubmittedResult,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        let SubmittedResult { kind, headline, body, files } = result;
+        self.record(worker_id, format!("result {worker_id} {kind} {headline} {body} {files:?}"))
+    }
+
+    fn report_failure<'a>(
+        &'a self,
+        worker_id: &'a str,
+        reason: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("failure {worker_id} {reason}"))
+    }
 }
 
 pub(crate) fn bench(features: Arc<FakeFeatures>) -> Bench {
@@ -76,6 +124,7 @@ pub(crate) fn bench_with(
         clock.clone(),
     ));
     let settings = Arc::new(FakeSettings::default());
+    let runs = RunCalls::default();
     let tools = Tools::new(Services {
         prompts: Arc::new(PromptRegistry::new(Arc::new(LibraryPromptSource::embedded()))),
         clock: clock.clone(),
@@ -98,12 +147,18 @@ pub(crate) fn bench_with(
         reactions: Some(features.clone()),
         capabilities: Some(capabilities.clone()),
         settings: settings.clone(),
+        routines: Some(Arc::new(runs.clone())),
     });
-    Bench { tools, features, clock, store, capabilities, runner, settings }
+    Bench { tools, runs, features, clock, store, capabilities, runner, settings }
 }
 
 fn session(role: SessionFactsRole, collaborate: bool) -> LaunchSpec {
     LaunchSpec { role, collaborate, ..LaunchSpec::new("w-self0001", "/repo/app", "sonnet") }
+}
+
+/// A routine run's session, which starts focused as its reserved definition.
+fn run_session(definition: &str) -> LaunchSpec {
+    LaunchSpec { worker_definition: Some(definition.into()), ..session(SessionFactsRole::Focused, false) }
 }
 
 /// The session kinds of the vectors.
@@ -114,6 +169,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "peer" => session(SessionFactsRole::Worker, true),
         "focused" => session(SessionFactsRole::Focused, false),
         "focused-peer" => session(SessionFactsRole::Focused, true),
+        "run-lead" => run_session("eos-run-solo"),
         other => panic!("unknown session kind {other}"),
     }
 }
@@ -141,11 +197,8 @@ impl Bench {
 
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
-        let kind = if self.tools.for_session(&session_of("orchestrator")).iter().any(|t| t.definition().name == bare) {
-            "orchestrator"
-        } else {
-            "focused-peer"
-        };
+        let has = |kind: &str| self.tools.for_session(&session_of(kind)).iter().any(|t| t.definition().name == bare);
+        let kind = ["orchestrator", "focused-peer"].into_iter().find(|kind| has(kind)).unwrap_or("run-lead");
         self.tool(kind, bare)
     }
 }
@@ -210,7 +263,7 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
     bench.preview(true);
-    let mut names: Vec<String> = ["orchestrator", "focused-peer"]
+    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-lead"]
         .iter()
         .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
         .map(|tool| tool.definition().name.clone())
@@ -239,6 +292,63 @@ fn the_capability_tools_are_handed_out_only_while_the_eos_preview_is_on() {
         bench.preview(false);
         assert_eq!(capability_tools(bench.names(kind)), Vec::<String>::new(), "{kind}: off again");
     }
+}
+
+/// A run's lead is keyed on its reserved definition: its run tools, a
+/// question for the user, the date, memory search and, with the preview on,
+/// the capability tools; nothing of a chat's that reaches people or
+/// machines.
+#[test]
+fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
+    let bench = bench(FakeFeatures::new([]));
+    let lead = ["report_progress", "submit_result", "report_failure", "ask_user", "current_datetime", "search_memory"];
+    for definition in ["eos-run-solo", "eos-run-lead", "eos-run-script"] {
+        let names = |spec: &LaunchSpec| -> Vec<String> {
+            bench.tools.for_session(spec).iter().map(|tool| tool.definition().name.clone()).collect()
+        };
+        assert_eq!(names(&run_session(definition)), lead, "{definition}");
+        let as_worker = LaunchSpec { worker_definition: Some(definition.into()), ..session_of("peer") };
+        assert_eq!(names(&as_worker), lead, "{definition}: the definition decides, not the role");
+    }
+    bench.preview(true);
+    let with_preview = bench.names("run-lead");
+    assert_eq!(with_preview[6..], ["list_capabilities", "call_capability"]);
+    for never in
+        ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
+    {
+        assert!(!with_preview.iter().any(|name| name == never), "{never}");
+    }
+    // A chat never gets a run's tools.
+    for kind in ["orchestrator", "worker", "focused", "focused-peer"] {
+        assert!(!bench.names(kind).iter().any(|name| name == "submit_result"), "{kind}");
+    }
+}
+
+#[tokio::test]
+async fn the_run_tools_hand_the_call_to_the_routines_feature() {
+    let bench = bench(FakeFeatures::new([]));
+    let progress =
+        call(&bench.tool("run-lead", "report_progress"), "w-lead", serde_json::json!({"line": "Reading"})).await;
+    assert_eq!((progress.text.as_str(), progress.is_error), ("Noted.", false));
+    let result = serde_json::json!({"kind": "github.review", "headline": "Two issues", "body": {"summary": "s"}});
+    let submitted = call(&bench.tool("run-lead", "submit_result"), "w-lead", result).await;
+    assert!(!submitted.is_error && submitted.ends_turn, "{}", submitted.text);
+    let failed =
+        call(&bench.tool("run-lead", "report_failure"), "w-lead", serde_json::json!({"reason": "Closed."})).await;
+    assert!(!failed.is_error && failed.ends_turn);
+    assert_eq!(
+        *bench.runs.0.lock().expect("calls"),
+        [
+            "progress w-lead Reading None",
+            r#"result w-lead github.review Two issues {"summary":"s"} []"#,
+            "failure w-lead Closed."
+        ]
+    );
+    let refused = call(&bench.tool("run-lead", "report_failure"), "w-none", serde_json::json!({"reason": "x"})).await;
+    assert_eq!(
+        (refused.text.as_str(), refused.is_error),
+        (r#"daemon 409: {"error":"this session works for no run"}"#, true)
+    );
 }
 
 #[test]
@@ -285,6 +395,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         reactions: None,
         capabilities: None,
         settings: Arc::new(FakeSettings::default()),
+        routines: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()

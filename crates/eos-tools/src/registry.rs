@@ -13,6 +13,7 @@ use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
+use eos_core::routine::RoutineTools;
 use eos_core::store::{Store, UserSettingsStore};
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
@@ -23,7 +24,9 @@ use eos_workers::WorkerDefinitions;
 use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
-use crate::{browser, capabilities, control, memory, pages, peers, plugins, reactions, time, transfer, user, visual};
+use crate::{
+    browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, time, transfer, user, visual,
+};
 
 /// What the tools call. The optional parts belong to features that may not
 /// be in the app yet: without one, its tools are in no session.
@@ -52,6 +55,8 @@ pub struct Services {
     pub capabilities: Option<Arc<dyn CapabilityCalls>>,
     /// The user's settings: the Eos preview hands out the capability tools.
     pub settings: Arc<dyn UserSettingsStore>,
+    /// Routines: the tools of a run's sessions.
+    pub routines: Option<Arc<dyn RoutineTools>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -76,6 +81,9 @@ pub struct Tools {
     pub(crate) worker: Vec<Spec>,
     pub(crate) peer: Vec<Spec>,
     pub(crate) focused: Vec<Spec>,
+    /// A routine run's lead: its run tools, `ask_user`, the date, memory
+    /// search and the capability tools; none of a chat's.
+    pub(crate) run_lead: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
     /// only when its description changed. A name is one tool whichever list
@@ -147,6 +155,16 @@ impl Tools {
         focused.extend(visual());
         focused.extend(reactions());
 
+        let mut run_lead = s.routines.as_ref().map(routines::lead_specs).unwrap_or_default();
+        run_lead.push(user::ask_user(&s.questions));
+        run_lead.push(time::spec(&s.clock, &s.zone));
+        run_lead.extend(
+            memory::specs(&s.memory_search, &s.memory_suggestions).into_iter().filter(|t| t.name == "search_memory"),
+        );
+        if let Some(calls) = &s.capabilities {
+            run_lead.extend(capabilities::specs(calls));
+        }
+
         Self {
             prompts: s.prompts,
             plugins: s.plugins,
@@ -155,6 +173,7 @@ impl Tools {
             worker,
             peer,
             focused,
+            run_lead,
             handed: Mutex::default(),
         }
     }
@@ -169,6 +188,10 @@ impl Tools {
         };
         if spec.role == SessionFactsRole::Orchestrator {
             return self.orchestrator.iter().filter(on).collect();
+        }
+        // A run's sessions are keyed on their reserved definition, never on the role alone.
+        if spec.worker_definition.as_deref().is_some_and(|name| routines::LEAD_DEFINITIONS.contains(&name)) {
+            return self.run_lead.iter().filter(on).collect();
         }
         let mut list: Vec<&Spec> = self.worker.iter().collect();
         if spec.collaborate {

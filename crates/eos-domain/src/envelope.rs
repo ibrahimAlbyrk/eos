@@ -54,6 +54,11 @@ pub enum Envelope {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         pct: Option<f64>,
     },
+    /// Eos to a routine run's session: a nudge, a check's findings, the
+    /// user's words while a result waits.
+    RoutineNote {
+        run_id: String,
+    },
 }
 
 impl Envelope {
@@ -66,6 +71,7 @@ impl Envelope {
             Self::ReportReminder => "report_reminder",
             Self::PermissionAsk { .. } => "permission_ask",
             Self::ContextThreshold { .. } => "context_threshold",
+            Self::RoutineNote { .. } => "routine_note",
         }
     }
 }
@@ -165,6 +171,9 @@ pub fn sender_tag(envelope: &Envelope) -> (SenderClass, Vec<(&'static str, Optio
                 ("pct", pct.map(|p| eos_contracts::primitives::Num(p).to_string())),
             ],
         ),
+        Envelope::RoutineNote { run_id } => {
+            (SenderClass::System, vec![("kind", some("routine_note")), ("run-id", some(run_id))])
+        }
     }
 }
 
@@ -172,6 +181,19 @@ pub fn sender_tag(envelope: &Envelope) -> (SenderClass, Vec<(&'static str, Optio
 mod tests {
     use super::*;
     use crate::display::strip_sender_tags;
+
+    #[test]
+    fn a_routine_note_is_a_system_message_naming_its_run() {
+        let note = Envelope::RoutineNote { run_id: "rn-1".into() };
+        let (class, attrs) = sender_tag(&note);
+        assert_eq!(
+            apply_sender_tag("submit_result, or report_failure", class, &attrs),
+            "<system_message kind=\"routine_note\" run-id=\"rn-1\">\nsubmit_result, or report_failure\n</system_message>"
+        );
+        let json = serde_json::to_string(&note).expect("json");
+        assert_eq!(json, r#"{"kind":"routine_note","runId":"rn-1"}"#);
+        assert_eq!(note.kind(), "routine_note");
+    }
 
     #[test]
     fn a_message_is_wrapped_in_its_senders_tag() {

@@ -9,40 +9,32 @@ use eos_core::store::{StoredRoutine, StoredRun, StoredVersion};
 use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::Trust;
-use eos_mod_routines::{RoutinesModule, RoutinesParts};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
-use eos_testkit::{FakeClock, FakeSleeper, SeqIds, TempStore};
+use eos_testkit::{FakeClock, SeqIds};
 use serde_json::{Value, json};
 
 const DAY: i64 = 24 * 60 * 60 * 1000;
 
 struct Bench {
     runtime: Runtime,
-    temp: TempStore,
+    /// The module and its store.
+    rig: crate::bench::Bench,
     ids: SeqIds,
     now: i64,
 }
 
 impl Bench {
     fn new() -> Self {
-        let temp = TempStore::new();
-        let clock = Arc::new(FakeClock::new());
+        let rig = crate::bench::Bench::new(true);
         let now = FakeClock::START_MS;
-        let module = Arc::new(RoutinesModule::new(RoutinesParts {
-            store: temp.port(),
-            clock,
-            sleeper: Arc::new(FakeSleeper::default()),
-            ids: Arc::new(SeqIds::new()),
-            device: "mac-1".into(),
-            autostart: true,
-        }));
+        let module: Arc<dyn eos_runtime::module::Module> = rig.module.clone();
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
-        Self { runtime, temp, ids: SeqIds::new(), now }
+        Self { runtime, rig, ids: SeqIds::new(), now }
     }
 
     async fn get(&self, caller: Caller, path: &str) -> (u16, Value) {
@@ -103,7 +95,8 @@ impl Bench {
             started_at: Some(made),
             deleted_at: (state == RoutineState::Deleted).then_some(self.now - 31 * DAY),
         };
-        self.temp
+        self.rig
+            .temp
             .store
             .write_blocking(move |tx, _| {
                 tx.routines().insert(&routine)?;
@@ -149,7 +142,7 @@ impl Bench {
             ended_at: None,
             updated_at: self.now - ago,
         };
-        self.temp.store.write_blocking(move |tx, _| tx.runs().insert(&run)).expect("writes");
+        self.rig.temp.store.write_blocking(move |tx, _| tx.runs().insert(&run)).expect("writes");
         id
     }
 }
@@ -272,7 +265,7 @@ async fn a_built_in_routine_is_not_listed_and_a_deleted_one_only_while_it_can_co
 
     // Deleted yesterday: listed and readable, so it can come back.
     let (recent, _) = bench.routine("hand", RoutineState::Deleted, &[pr_review("Deleted.")]);
-    bench.temp.exec(&format!("UPDATE routines SET deleted_at = {} WHERE id = '{recent}'", bench.now - DAY));
+    bench.rig.temp.exec(&format!("UPDATE routines SET deleted_at = {} WHERE id = '{recent}'", bench.now - DAY));
     let (_, list) = bench.read("/api/routines").await;
     assert_eq!(ids(&list), [own.as_str(), recent.as_str()]);
     assert_eq!(bench.read(&format!("/api/routines/{recent}")).await.1["routine"]["state"], "deleted");

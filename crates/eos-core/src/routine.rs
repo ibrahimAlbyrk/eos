@@ -247,3 +247,60 @@ pub trait RoutineControl: Send + Sync {
     /// The routines whose current version needs the capability.
     fn using_capability<'a>(&'a self, capability_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>>;
 }
+
+/// What a run's lead hands in with `submit_result`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubmittedResult {
+    /// What Makes names, or `nothing`.
+    pub kind: String,
+    pub headline: String,
+    /// The result in the shape its kind asks for, or plain text.
+    pub body: serde_json::Value,
+    /// Paths of the files it carries, as the agent names them.
+    pub files: Vec<String>,
+}
+
+/// What the tools of a run's sessions do. Each call names the worker that
+/// made it; a worker of no run, or of a run that is not at work, is refused.
+pub trait RoutineTools: Send + Sync {
+    /// Where the run is, in one line for the run view.
+    fn report_progress<'a>(
+        &'a self,
+        worker_id: &'a str,
+        line: &'a str,
+        milestone: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// Keeps a copy of the result and its files, then moves the run to its
+    /// check.
+    fn submit_result<'a>(&'a self, worker_id: &'a str, result: SubmittedResult) -> BoxFuture<'a, Result<(), Error>>;
+    /// Ends the run as failed, the agent's reason its headline.
+    fn report_failure<'a>(&'a self, worker_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+}
+
+/// A file a result carries, as it was kept.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptFile {
+    /// Its name in the run's `files/`.
+    pub name: String,
+    pub bytes: u64,
+}
+
+/// A run's folders under Eos's data folder, `routines/<routine>/runs/<run>/`:
+/// `work/`, the empty folder an untrusted run's sessions work in, and
+/// `files/`, the copies of what its result carries. No agent's file tool
+/// writes either's parent entry.
+pub trait RunFolders: Send + Sync {
+    /// `work/`, made when it is missing; its absolute path.
+    fn work_dir(&self, routine_id: &str, run_id: &str) -> Result<PathBuf, Error>;
+    /// Copies each file into `files/` (never a link, never a folder, at most
+    /// [`RUN_FILE_MAX_BYTES`] each); a name already taken gets a number.
+    fn keep_files<'a>(
+        &'a self,
+        routine_id: &'a str,
+        run_id: &'a str,
+        files: &'a [String],
+    ) -> BoxFuture<'a, Result<Vec<KeptFile>, Error>>;
+}
+
+/// The largest file a result carries.
+pub const RUN_FILE_MAX_BYTES: u64 = 50 * 1024 * 1024;

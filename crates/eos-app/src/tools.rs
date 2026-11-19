@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use eos_core::routine::RoutineTools;
 use eos_mod_agents::{AgentsModule, ToolControl};
 use eos_mod_genui::GenuiModule;
 use eos_mod_pages::PagesModule;
@@ -20,6 +21,7 @@ pub(crate) fn build(
     pages: &PagesModule,
     profile: &ProfileModule,
     transfer: &TransferModule,
+    routines: Arc<dyn RoutineTools>,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
     let control = Arc::new(ToolControl::new(agents)?);
@@ -49,5 +51,6 @@ pub(crate) fn build(
         reactions: Some(Arc::new(cx.sessions.clone())),
         capabilities: Some(cx.capabilities.clone()),
         settings: cx.settings.clone(),
+        routines: Some(routines),
     })))
 }
