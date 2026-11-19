@@ -160,6 +160,9 @@ pub trait RunRepo {
 }
 
 pub trait RunResultRepo {
+    /// One round's result. A round the user reopened (a message during its
+    /// check, or its result sent back from the gate) is handed in again:
+    /// the new result replaces the round's earlier one and its verdict.
     fn insert(&self, result: &StoredRunResult) -> Result<(), Error>;
     /// A run's results, first round first.
     fn by_run(&self, run_id: &str) -> Result<Vec<StoredRunResult>, Error>;

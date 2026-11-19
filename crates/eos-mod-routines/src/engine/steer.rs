@@ -20,7 +20,7 @@ const RESUMED_BY_USER: &str = "The user resumed this run. Carry on where you lef
 /// The user's words to the run's lead, as their own.
 pub(crate) async fn message(engine: &Engine, run_id: &str, text: &str) -> Result<(), Error> {
     let (id, now, gate) = (run_id.to_owned(), engine.clock.now_ms(), engine.gate.clone());
-    let lead = engine
+    let (lead, was_checking) = engine
         .store
         .write(move |tx, out| {
             let run = tx.runs().find(&id)?.ok_or_else(|| Error::not_found("run", id.clone()))?;
@@ -42,10 +42,14 @@ pub(crate) async fn message(engine: &Engine, run_id: &str, text: &str) -> Result
                 }
                 _ => return Err(Error::Conflict("the run is not at work".into())),
             }
-            Ok(lead)
+            Ok((lead, run.state == RunState::Checking))
         })
         .await?;
     Engine::locked(&engine.held).remove(&lead);
+    if was_checking {
+        // The check stops: its checker gives no verdict on a result the lead now reworks.
+        quiet_where(engine, run_id, |role| role == "checker").await;
+    }
     let words = MessageInput {
         worker_id: lead.clone(),
         text: text.to_owned(),
@@ -104,6 +108,11 @@ pub(crate) async fn resume(engine: &Arc<Engine>, run_id: &str) -> Result<(), Err
 /// Interrupts and suspends every session of a run that stopped working; a
 /// session that is gone already is left as it is.
 pub(crate) async fn quiet(engine: &Engine, run_id: &str) {
+    quiet_where(engine, run_id, |_| true).await;
+}
+
+/// Interrupts and suspends the run's sessions whose role `which` takes.
+async fn quiet_where(engine: &Engine, run_id: &str, which: impl Fn(&str) -> bool) {
     let id = run_id.to_owned();
     let sessions = match engine.store.read(move |tx| tx.routine_sessions().by_run(&id)).await {
         Ok(sessions) => sessions,
@@ -112,7 +121,7 @@ pub(crate) async fn quiet(engine: &Engine, run_id: &str) {
             return;
         }
     };
-    for session in sessions {
+    for session in sessions.into_iter().filter(|session| which(&session.role)) {
         let worker = session.worker_id;
         Engine::locked(&engine.held).remove(&worker);
         let _ = engine.sessions.interrupt(&worker).await;

@@ -325,7 +325,7 @@ impl RunRepo for SqliteTx<'_> {
 impl RunResultRepo for SqliteTx<'_> {
     fn insert(&self, result: &StoredRunResult) -> Result<(), Error> {
         self.exec(
-            &format!("INSERT INTO run_results ({RESULT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
+            &format!("INSERT OR REPLACE INTO run_results ({RESULT_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
             params![
                 result.run_id,
                 result.attempt,

@@ -237,11 +237,22 @@ async fn a_message_reaches_the_lead_and_reopens_a_check_or_a_held_result_but_not
 
     bench.module.tools().submit_result(&lead, result()).await.expect("handed in");
     assert_eq!(bench.state(&running), RunState::Checking);
+    let is_checker = |s: &eos_core::agent::LaunchSpec| s.worker_definition.as_deref() == Some("eos-run-checker");
+    bench.eventually(|| bench.agents.started().iter().any(is_checker)).await;
+    let checker = bench.agents.started().into_iter().find(is_checker).expect("a checker").worker_id;
     let (path, body) = tell(&running);
     assert_eq!(routes.post(&path, body).await.0, 200);
     let reopened = bench.run(&running);
     assert_eq!((reopened.state, reopened.station), (RunState::Running, Some(Station::Work)));
     assert!(!bench.module.holds_worker(&lead));
+    let id = checker.clone();
+    let worker = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads").expect("a row");
+    assert_eq!(worker.state, eos_contracts::WorkerState::Suspended, "the check stops");
+    let again = SubmittedResult { headline: "R2".into(), ..result() };
+    bench.module.tools().submit_result(&lead, again).await.expect("the reopened round is handed in again");
+    assert_eq!(bench.state(&running), RunState::Checking);
+    let (_, latest) = routes.get(&format!("/api/runs/{running}/result")).await;
+    assert_eq!((latest["attempt"].clone(), latest["headline"].clone()), (json!(1), json!("R2")));
 
     let (held, held_lead) = routes.working(&routine, 2).await;
     bench.temp.exec(&format!("UPDATE runs SET state = 'waiting_for_user', station = 'gate' WHERE id = '{held}'"));
