@@ -15,6 +15,7 @@
 //! | The check of an older install's setup token (`config.anthropic.authToken`) | never asked: the token counts as signed in, as when the network does not answer |
 //! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
 //! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
+//! | GitHub, for its capability's calls, checks and sign-in | every request is refused unsent, as when GitHub does not answer |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -31,6 +32,7 @@ use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultC
 use eos_core::{BoxFuture, Error};
 use eos_domain::sync::SyncIdentity;
 use eos_domain::update::UpdateInstall;
+use eos_github::{HttpRequest, HttpResponse, Transport};
 
 /// Why sync does nothing on another data folder, as Settings › Sync shows it.
 const SYNC_OFF: &str = "Sync runs only in the installed Eos on your own data folder";
@@ -39,6 +41,8 @@ const SYNC_OFF: &str = "Sync runs only in the installed Eos on your own data fol
 const ACCOUNT_READS_OFF: &str = "Only the installed Eos on your own data folder reads your accounts";
 /// Why a capability secret is not kept on another data folder.
 const SECRETS_OFF: &str = "Only the installed Eos on your own data folder keeps capability secrets";
+/// Why GitHub is not asked from another data folder.
+const GITHUB_OFF: &str = "only the installed Eos on your own data folder reaches GitHub";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reach {
@@ -88,6 +92,11 @@ impl Reach {
         if self.network { secrets } else { Arc::new(NoSecrets) }
     }
 
+    /// How the GitHub capability reaches GitHub.
+    pub(crate) fn github(self, transport: Arc<dyn Transport>) -> Arc<dyn Transport> {
+        if self.network { transport } else { Arc::new(NoGitHub) }
+    }
+
     /// How an older install's setup token is checked: it is sent to Claude.
     pub(crate) fn token_probe(self, probe: Arc<dyn TokenProbe>) -> Arc<dyn TokenProbe> {
         if self.network { probe } else { Arc::new(NoProbe) }
@@ -122,6 +131,16 @@ impl CapabilitySecrets for NoSecrets {
 
     fn has<'a>(&'a self, _capability: &'a str, _name: &'a str) -> BoxFuture<'a, Result<bool, Error>> {
         Box::pin(std::future::ready(Ok(false)))
+    }
+}
+
+/// A way to GitHub that sends nothing: every request fails as one that got
+/// no answer.
+struct NoGitHub;
+
+impl Transport for NoGitHub {
+    fn send(&self, _request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, eos_github::Error>> {
+        Box::pin(std::future::ready(Err(eos_github::Error::Transport(GITHUB_OFF.into()))))
     }
 }
 
@@ -201,7 +220,10 @@ impl PlanStores for NoTokens {
 #[cfg(test)]
 mod tests {
     use eos_contracts::update::UpdatePlatform;
-    use eos_testkit::{FakeCapabilitySecrets, FakePlanStores, FakeTokenProbe};
+    use eos_core::capability::{ActionContext, BuiltinCapability};
+    use eos_github::GitHub;
+    use eos_testkit::{FakeCapabilitySecrets, FakeClock, FakeGitHub, FakePlanStores, FakeSleeper, FakeTokenProbe};
+    use serde_json::json;
 
     use super::*;
 
@@ -241,6 +263,41 @@ mod tests {
         assert!(keychain.has("github", "token").await.expect("asked"), "the real store is left alone");
         let on = Reach::new(true).capabilities(keychain);
         assert!(on.read("github", "token").await.expect("read").is_some());
+    }
+
+    #[tokio::test]
+    async fn off_the_network_github_is_never_sent_a_call_or_a_sign_in() {
+        let github = Arc::new(FakeGitHub::new());
+        let capability = GitHub::new(eos_github::Parts {
+            transport: Reach::new(false).github(github.clone()),
+            secrets: Arc::new(FakeCapabilitySecrets::new()),
+            clock: Arc::new(FakeClock::at(1_763_460_000_000)),
+            sleeper: Arc::new(FakeSleeper::default()),
+            client_id: "Iv1.fake".into(),
+        });
+        let ctx = ActionContext {
+            secrets: [("token".to_owned(), "gho_planted_secret_1".to_owned().into())].into(),
+            settings: json!({}),
+            idempotency_key: None,
+        };
+
+        let read = capability.call("get_pull_request", json!({ "repo": "acme/game", "number": 7 }), &ctx).await;
+        let sign_in = capability.device_sign_in().expect("GitHub signs in with a code").start().await;
+
+        assert!(read.is_err(), "the call fails as one with no answer");
+        assert!(sign_in.is_err(), "and so does the sign-in");
+        assert!(github.calls().is_empty(), "nothing reached GitHub");
+        assert!(Reach::new(true).github(github.clone()).send(probe()).await.is_ok());
+        assert_eq!(github.calls().len(), 1, "on the network it does");
+    }
+
+    fn probe() -> HttpRequest {
+        HttpRequest {
+            method: eos_github::Method::Get,
+            url: format!("{}/user", eos_github::API),
+            headers: vec![("Authorization".into(), "Bearer gho_planted_secret_1".into())],
+            body: None,
+        }
     }
 
     #[test]
