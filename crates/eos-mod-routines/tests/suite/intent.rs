@@ -153,3 +153,58 @@ async fn only_the_users_dashboard_reads_a_sentence() {
     let too_long = asked(&"x".repeat(2_001), 1);
     assert_eq!(routes.post("/api/routines/intent", too_long).await.0, 400);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_row_carries_its_trigger_line_item_patterns_usual_cost_and_rung() {
+    let (routes, id) = routes();
+    let (_, rows) = routes.get("/api/routines").await;
+    let row = &rows[0];
+    assert_eq!(row["triggerLine"], "When a pull request opens in acme/game");
+    assert_eq!(row["takes"]["itemPatterns"], json!([NUMBER]));
+    assert_eq!(row["rung"], "draft");
+    assert_eq!(row["activeRuns"], 0);
+    assert!(row.get("usual").is_none(), "nothing tells yet");
+    for pattern in row["takes"]["itemPatterns"].as_array().into_iter().flatten() {
+        let pattern = pattern.as_str().unwrap_or_default().to_owned();
+        let known = eos_domain::routine::intent::Known::new("rt", "r", "r", &[], std::slice::from_ref(&pattern));
+        assert_eq!(known.patterns.len(), 1, "a JavaScript pattern: {pattern}");
+    }
+
+    for (n, (usd, ms)) in [(0.2, 60_000), (0.4, 120_000), (0.3, 90_000)].into_iter().enumerate() {
+        routes.bench.temp.exec(&format!(
+            "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, cost_usd, work_ms, \
+             created_at, updated_at) VALUES ('rn-u{n}', '{id}', 'standing', 'hand', '{{\"result\":\"usual\"}}', \
+             'done', 0, 'mac-1', {usd}, {ms}, {n}, {n})"
+        ));
+    }
+    let (_, rows) = routes.get("/api/routines").await;
+    assert_eq!(rows[0]["usual"], json!({ "usd": 0.3, "ms": 90_000 }), "the median of its finished runs");
+    assert_eq!(rows[0]["lastRun"]["id"], "rn-u2");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dropped_thing_finds_the_routines_that_take_it_then_doing_it_once() {
+    let (routes, id) = routes();
+    let item = |kind: &str, value: &str| json!({ "item": { "kind": kind, "value": value } });
+    let (status, answer) = routes.post("/api/routines/match-item", item("text", "#470")).await;
+    assert_eq!(status, 200, "{answer}");
+    assert_eq!(
+        answer["choices"],
+        json!([
+            { "intent": "run", "line": "Run PR Review on #470", "routineId": id },
+            { "intent": "once", "line": "Do it once, here" },
+        ])
+    );
+    let (_, answer) = routes.post("/api/routines/match-item", item("github.pull_request", "acme/game 12")).await;
+    assert_eq!(answer["choices"][0]["routineId"], json!(id), "its kind is the routine's");
+    let (_, answer) = routes.post("/api/routines/match-item", item("file", "~/notes.txt")).await;
+    assert_eq!(answer["choices"].as_array().map(Vec::len), Some(1), "only doing it once");
+
+    let body = item("text", "#1");
+    assert_eq!(
+        routes.call(Method::Post, Caller::UNTRUSTED, "/api/routines/match-item", Some(body.clone())).await.0,
+        403
+    );
+    let phone = Caller::Phone { grant: Tier::Read, mutate: true };
+    assert_eq!(routes.call(Method::Post, phone, "/api/routines/match-item", Some(body)).await.0, 200);
+}

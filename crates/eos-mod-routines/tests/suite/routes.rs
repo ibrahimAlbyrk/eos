@@ -216,7 +216,9 @@ async fn a_routine_reads_back_with_its_versions_numbered_by_when_they_were_made(
     assert_eq!((&row["runs7d"], &row["activeRuns"]), (&json!(2), &json!(2)), "the week's runs; those not ended");
     assert_eq!(row["lastRun"]["id"], newest.as_str());
     assert_eq!(row["lastRun"]["itemTitle"], "Fix the login");
-    for absent in ["triggerLine", "usual", "stats", "pausedReason"] {
+    assert_eq!(row["triggerLine"], "Every weekday at 05:00");
+    assert_eq!(row["usual"], json!({"usd": 0.25, "ms": 60_000}), "its one finished run");
+    for absent in ["stats", "pausedReason"] {
         assert!(row.get(absent).is_none(), "{absent}");
     }
 
