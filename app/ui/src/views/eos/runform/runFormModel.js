@@ -151,10 +151,12 @@ function runWord(form, inline) {
 
 // The estimate in words (D7): with an API key time and dollars, on a Claude
 // plan time only. `estimate` is the core's answer for the form as it is, or
-// the routine's usual cost while its options are the defaults.
-export function estimateLine(estimate, { form, inline, plan }) {
+// the routine's usual cost while its options are the defaults; its dollars
+// are for all `count` runs. The answer's own `n` is how many past runs it was
+// taken over, not how many will run.
+export function estimateLine(estimate, { form, inline, plan, count = 1 }) {
   if (!estimate || !(estimate.ms > 0)) return null;
-  const n = Math.max(1, estimate.n ?? 1);
+  const n = Math.max(1, count);
   const time = timeWords(estimate.ms);
   if (n === 1) {
     const cost = plan ? "" : ` and ${dollars(estimate.usd)}`;
@@ -171,7 +173,7 @@ export function usualEstimate(routine, options, form, count) {
   if (!routine.usual) return null;
   const defaults = defaultsOf(options);
   if (Object.entries(form.options).some(([key, value]) => value !== defaults[key])) return null;
-  return { usd: routine.usual.usd * count, ms: routine.usual.ms, n: count };
+  return { usd: routine.usual.usd * count, ms: routine.usual.ms };
 }
 
 // Bills by the run: the Claude account's own key, not its plan (D7).

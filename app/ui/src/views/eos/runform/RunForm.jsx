@@ -102,7 +102,7 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, again
     },
   }, [form, starting, door, againOf]);
 
-  const line = estimateLine(estimate ?? usualEstimate(routine, options, form, count), { form, inline, plan: !billsByRun(accounts) });
+  const line = estimateLine(estimate ?? usualEstimate(routine, options, form, count), { form, inline, count, plan: !billsByRun(accounts) });
   const option = (o) => <OptionControl key={o.key} option={o} value={form.options[o.key] ?? o.default} onChange={(v) => setOption(o.key, v)} />;
   return (
     <form
