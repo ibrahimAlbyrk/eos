@@ -13,7 +13,7 @@ use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
-use eos_core::store::Store;
+use eos_core::store::{Store, UserSettingsStore};
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
 use eos_prompts::PromptRegistry;
@@ -50,6 +50,8 @@ pub struct Services {
     pub reactions: Option<Arc<dyn AgentReactions>>,
     /// What Eos can reach for the user: GitHub, Mail, the packages installed.
     pub capabilities: Option<Arc<dyn CapabilityCalls>>,
+    /// The user's settings: the Eos preview hands out the capability tools.
+    pub settings: Arc<dyn UserSettingsStore>,
 }
 
 impl std::fmt::Debug for Services {
@@ -69,6 +71,7 @@ struct Handed {
 pub struct Tools {
     prompts: Arc<PromptRegistry>,
     plugins: Arc<dyn Plugins>,
+    settings: Arc<dyn UserSettingsStore>,
     pub(crate) orchestrator: Vec<Spec>,
     pub(crate) worker: Vec<Spec>,
     pub(crate) peer: Vec<Spec>,
@@ -144,13 +147,26 @@ impl Tools {
         focused.extend(visual());
         focused.extend(reactions());
 
-        Self { prompts: s.prompts, plugins: s.plugins, orchestrator, worker, peer, focused, handed: Mutex::default() }
+        Self {
+            prompts: s.prompts,
+            plugins: s.plugins,
+            settings: s.settings,
+            orchestrator,
+            worker,
+            peer,
+            focused,
+            handed: Mutex::default(),
+        }
     }
 
     /// The registry entries a session of this kind gets, in order.
     fn listed(&self, spec: &LaunchSpec) -> Vec<&Spec> {
         let off = self.plugins.disabled_builtins();
-        let on = |tool: &&Spec| tool.plugin.is_none_or(|plugin| !off.iter().any(|id| id == plugin));
+        let preview = capabilities::preview_on(&self.settings.read());
+        let on = |tool: &&Spec| {
+            tool.plugin.is_none_or(|plugin| !off.iter().any(|id| id == plugin))
+                && (preview || !capabilities::previewed(tool.name))
+        };
         if spec.role == SessionFactsRole::Orchestrator {
             return self.orchestrator.iter().filter(on).collect();
         }

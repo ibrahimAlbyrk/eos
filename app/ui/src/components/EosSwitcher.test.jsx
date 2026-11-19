@@ -2,12 +2,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../state/eos/transport.js";
-import { probeEosStatus } from "../state/eos/eosStatusStore.js";
+import { probeEosStatus, setEosPreview } from "../state/eos/eosStatusStore.js";
 import { visibleTabs } from "../views/tabs.js";
 import { SwitcherMenu } from "./EosSwitcher.jsx";
 
 async function eosServed(served) {
   setEosTransport(fixtureTransport(served ? { [ROUTES.routines]: [] } : {}));
+  setEosPreview(true);
   await probeEosStatus();
 }
 

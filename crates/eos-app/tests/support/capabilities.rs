@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eos_app::{App, CapabilityOptions};
+use eos_contracts::SettingValue;
 use eos_core::agent::{ToolCaller, ToolReply};
 use eos_runtime::http::Method;
 use eos_testkit::{
@@ -75,8 +76,10 @@ impl Planted {
     }
 }
 
-/// `call_capability` as the engine calls it for `chat`'s model.
+/// `call_capability` as the engine calls it for `chat`'s model, with the Eos preview on.
 pub(crate) async fn call_capability(app: &App, agents: &ScriptedRuntime, chat: &str, input: Value) -> ToolReply {
+    let preview = [("eos.preview".to_owned(), SettingValue::Flag(true))].into_iter().collect();
+    app.settings().patch(preview).expect("the preview is on");
     let spec = agents.started().into_iter().find(|spec| spec.worker_id == chat).expect("the chat's session");
     let tools = app.tools().for_session(&spec);
     let tool = tools.iter().find(|tool| tool.definition().name == "call_capability").expect("the tool");
