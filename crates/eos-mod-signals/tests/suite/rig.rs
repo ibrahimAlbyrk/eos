@@ -171,6 +171,9 @@ pub(crate) fn add_source(temp: &TempStore) {
     temp.store.write_blocking(move |tx, _| tx.signal_sources().insert(&source)).expect("the source");
 }
 
+/// `(signal, routine, decision, reason, run)`.
+pub(crate) type Route = (i64, String, String, Option<String>, Option<String>);
+
 pub(crate) struct Bench {
     pub(crate) temp: TempStore,
     pub(crate) directory: Arc<FakeRoutineDirectory>,
@@ -215,8 +218,8 @@ impl Bench {
         .expect("every signal is routed");
     }
 
-    /// `(signal, routine, decision, reason, run)` of every route, in order.
-    pub(crate) fn routes(&self) -> Vec<(i64, String, String, Option<String>, Option<String>)> {
+    /// Every route, in order.
+    pub(crate) fn routes(&self) -> Vec<Route> {
         let ids: Vec<i64> = self
             .temp
             .store
