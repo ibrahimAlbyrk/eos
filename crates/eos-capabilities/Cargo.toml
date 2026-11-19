@@ -1,0 +1,24 @@
+[package]
+name = "eos-capabilities"
+description = "The capability service: the registry of built-in and installed capabilities, the call path with its grants, limits and health, and install, rollback and remove."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

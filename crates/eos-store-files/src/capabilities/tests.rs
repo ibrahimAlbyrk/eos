@@ -164,3 +164,18 @@ async fn a_leftover_partial_of_the_same_version_goes_to_the_trash_before_the_cop
     assert!(!rig.root().join("sms-messages/1.0.0/half").exists(), "the half copy is not part of it");
     assert_eq!(rig.trash.trashed(), [rig.root().join("sms-messages/1.0.0.partial")]);
 }
+
+#[tokio::test]
+async fn a_file_is_read_only_from_inside_the_installed_package() {
+    let rig = rig();
+    let package = rig.package("read");
+    rig.store.install(&package, "sms-messages", "1.0.0", &hash_of(&package)).await.expect("installs");
+    let text = rig.store.read_text("sms-messages", "1.0.0", "tests/run.sh").await.expect("reads");
+    assert_eq!(text, "#!/bin/zsh\nexit 0\n");
+    for outside in ["../1.0.0/capability.toml", "/etc/hosts", "tests/../../x", ".hidden", ""] {
+        let refused = rig.store.read_text("sms-messages", "1.0.0", outside).await;
+        assert!(matches!(refused, Err(Error::Validation(_))), "{outside}: {refused:?}");
+    }
+    let missing = rig.store.read_text("sms-messages", "9.9.9", "capability.toml").await;
+    assert!(matches!(missing, Err(Error::NotFound { .. })), "{missing:?}");
+}

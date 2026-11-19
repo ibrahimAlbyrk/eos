@@ -78,6 +78,8 @@ pub trait CapabilityInstallRepo {
     fn find(&self, id: &str) -> Result<Option<StoredInstall>, Error>;
     /// Every capability, by id.
     fn list(&self) -> Result<Vec<StoredInstall>, Error>;
+    /// Removes the capability's row; its versions stay. A missing row is not an error.
+    fn delete(&self, id: &str) -> Result<(), Error>;
 }
 
 pub trait CapabilityVersionRepo {

@@ -9,7 +9,7 @@
 //! |---|---|
 //! | [`accounts`] | sign-ins, API keys, plan usage, a session's credential |
 //! | [`agent`] | the agent engine: sessions, models, usage |
-//! | [`capability`] | capability packages on disk |
+//! | [`capability`] | capability packages on disk, their secrets, the code that answers their actions |
 //! | [`delivery`] | the services a routine's results go out to, through channels |
 //! | [`git`] | the `git` program: status, branches, worktrees |
 //! | [`net`] | other computers: sync vault, updates, artifacts, media, the relay |
