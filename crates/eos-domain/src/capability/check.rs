@@ -1,10 +1,10 @@
 //! The static check of a manifest, the first of the proofs a capability
-//! from the Forge or from elsewhere passes before it runs: its names, the
-//! hosts it reaches, its schemas, that every secret it asks for is handed to
-//! its code, that every channel, source and check names an action of a
-//! fitting class, that its actions are of its form, and the limits. A
-//! manifest of Eos's own code passes the same check with what only Eos may
-//! do.
+//! from the Forge or from elsewhere passes before it runs: its names and the
+//! version its folder is named by, the hosts it reaches, its schemas, that
+//! every secret it asks for is handed to its code, that every channel,
+//! source and check names an action of a fitting class, that its actions are
+//! of its form, and the limits. A manifest of Eos's own code passes the same
+//! check with what only Eos may do.
 
 use eos_contracts::{ActionClass, Issue, Issues};
 
@@ -27,6 +27,23 @@ pub const INPUT_SCHEMA_MAX_BYTES: usize = 16 * 1024;
 /// The longest a call may run.
 pub const TIMEOUT_MAX_S: u32 = 300;
 
+/// Ends the name of a version's folder while the version installs.
+pub const PARTIAL_SUFFIX: &str = ".partial";
+
+/// The folder beside a capability's versions that holds its code's own
+/// state.
+const DATA_FOLDER: &str = "data";
+
+/// Whether `version` can name its package's folder: one plain name, not
+/// hidden, and neither the code's own folder nor an install's.
+pub fn is_version(version: &str) -> bool {
+    !version.trim().is_empty()
+        && !version.starts_with('.')
+        && !version.contains(['/', '\\', '\0'])
+        && version != DATA_FOLDER
+        && !version.ends_with(PARTIAL_SUFFIX)
+}
+
 /// Every finding for a package's manifest, in the order of its fields; none
 /// for a manifest that passes. A package is never `builtin`: what it says of
 /// itself does not make it Eos's own code.
@@ -44,7 +61,12 @@ fn findings(manifest: &Manifest, builtin: bool) -> Vec<Issue> {
     let mut cx = Issues::default();
     cx.at("id", |cx| id(manifest, builtin, cx));
     cx.at("name", |cx| cx.str_min(manifest.name.trim(), 1));
-    cx.at("version", |cx| cx.str_min(manifest.version.trim(), 1));
+    if !is_version(&manifest.version) {
+        cx.push_at(
+            "version",
+            "A version names its folder: not blank, no slash, no leading dot, not data and not ending in .partial",
+        );
+    }
     cx.at("summary", |cx| cx.str_min(manifest.summary.trim(), 1));
     if manifest.form == Form::Builtin && !builtin {
         cx.push_at("form", "Only Eos's own capabilities are builtin");

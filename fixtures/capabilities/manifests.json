@@ -85,6 +85,16 @@
       ]
     },
     {
+      "name": "a version that leaves its folder",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"../1\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\n",
+      "issues": [
+        {
+          "path": "version",
+          "message": "A version names its folder: not blank, no slash, no leading dot, not data and not ending in .partial"
+        }
+      ]
+    },
+    {
       "name": "an IP address as a host",
       "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nreach = { hosts = [\"api.example.com\", \"127.0.0.1\"] }\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
       "issues": [

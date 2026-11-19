@@ -11,13 +11,8 @@ use std::time::UNIX_EPOCH;
 use eos_core::capability::{CapabilityFiles, PACKAGE_MAX_BYTES};
 use eos_core::os::FileSystem;
 use eos_core::{BoxFuture, Error};
+use eos_domain::capability::check::{PARTIAL_SUFFIX, is_version};
 use eos_domain::capability::hash::package_hash;
-
-/// What a folder being installed is called beside its final name.
-const PARTIAL: &str = ".partial";
-
-/// The folder of a capability's own state, beside its versions.
-const DATA: &str = "data";
 
 pub struct FsCapabilityFiles {
     root: PathBuf,
@@ -130,8 +125,7 @@ impl FsCapabilityFiles {
     }
 
     fn version_dir(&self, id: &str, version: &str) -> Result<PathBuf, Error> {
-        let version = component("version", version)?;
-        if version == DATA || version.ends_with(PARTIAL) {
+        if !is_version(version) {
             return Err(Error::Validation(format!("not a capability version: {version:?}")));
         }
         Ok(self.root.join(component("id", id)?).join(version))
@@ -149,7 +143,7 @@ impl FsCapabilityFiles {
         for capability in capabilities.flatten().filter(|entry| entry.path().is_dir()) {
             let dir = capability.path();
             for entry in fs::read_dir(&dir).map_err(io(&dir))?.flatten() {
-                if entry.file_name().to_string_lossy().ends_with(PARTIAL) && entry.path().is_dir() {
+                if entry.file_name().to_string_lossy().ends_with(PARTIAL_SUFFIX) && entry.path().is_dir() {
                     partials.push(entry.path());
                 }
             }
@@ -172,7 +166,7 @@ impl CapabilityFiles for FsCapabilityFiles {
             if target.exists() {
                 return Err(Error::Conflict(format!("capability {id} has version {version} already")));
             }
-            let partial = target.with_file_name(format!("{version}{PARTIAL}"));
+            let partial = target.with_file_name(format!("{version}{PARTIAL_SUFFIX}"));
             if partial.exists() {
                 self.files.trash(&partial).await?;
             }
