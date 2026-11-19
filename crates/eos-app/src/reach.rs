@@ -14,6 +14,7 @@
 //! | Eos's own reads of the user's accounts: plan usage, the artifact catalog, the model list | no sign-in's token is handed out or renewed for them; usage and artifacts say why |
 //! | The check of an older install's setup token (`config.anthropic.authToken`) | never asked: the token counts as signed in, as when the network does not answer |
 //! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
+//! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -24,6 +25,7 @@ use std::sync::Arc;
 use eos_contracts::ProviderUsage;
 use eos_contracts::update::UpdateOffReason;
 use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
+use eos_core::capability::CapabilitySecrets;
 use eos_core::net::relay::Relay;
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::{BoxFuture, Error};
@@ -35,6 +37,8 @@ const SYNC_OFF: &str = "Sync runs only in the installed Eos on your own data fol
 /// Why usage and artifacts are not read, as Settings › Usage and the
 /// artifact list show it.
 const ACCOUNT_READS_OFF: &str = "Only the installed Eos on your own data folder reads your accounts";
+/// Why a capability secret is not kept on another data folder.
+const SECRETS_OFF: &str = "Only the installed Eos on your own data folder keeps capability secrets";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reach {
@@ -78,9 +82,46 @@ impl Reach {
         if self.network { cache } else { Arc::new(ReadOnly(cache)) }
     }
 
+    /// Where capability secrets are kept: the Keychain items every run on
+    /// this computer shares, so another run gets a store of its own, empty.
+    pub(crate) fn capabilities(self, secrets: Arc<dyn CapabilitySecrets>) -> Arc<dyn CapabilitySecrets> {
+        if self.network { secrets } else { Arc::new(NoSecrets) }
+    }
+
     /// How an older install's setup token is checked: it is sent to Claude.
     pub(crate) fn token_probe(self, probe: Arc<dyn TokenProbe>) -> Arc<dyn TokenProbe> {
         if self.network { probe } else { Arc::new(NoProbe) }
+    }
+}
+
+/// Capability secrets of a store that keeps none: nothing is set, and a
+/// write says why it is refused.
+struct NoSecrets;
+
+impl CapabilitySecrets for NoSecrets {
+    fn read<'a>(
+        &'a self,
+        _capability: &'a str,
+        _name: &'a str,
+    ) -> BoxFuture<'a, Result<Option<zeroize::Zeroizing<String>>, Error>> {
+        Box::pin(std::future::ready(Ok(None)))
+    }
+
+    fn write<'a>(
+        &'a self,
+        _capability: &'a str,
+        _name: &'a str,
+        _value: zeroize::Zeroizing<String>,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(std::future::ready(Err(Error::Rule(SECRETS_OFF.into()))))
+    }
+
+    fn delete<'a>(&'a self, _capability: &'a str, _name: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn has<'a>(&'a self, _capability: &'a str, _name: &'a str) -> BoxFuture<'a, Result<bool, Error>> {
+        Box::pin(std::future::ready(Ok(false)))
     }
 }
 
@@ -160,7 +201,7 @@ impl PlanStores for NoTokens {
 #[cfg(test)]
 mod tests {
     use eos_contracts::update::UpdatePlatform;
-    use eos_testkit::{FakePlanStores, FakeTokenProbe};
+    use eos_testkit::{FakeCapabilitySecrets, FakePlanStores, FakeTokenProbe};
 
     use super::*;
 
@@ -186,6 +227,20 @@ mod tests {
         assert_eq!(off.probe("setup").await, TokenProbeResult::Unknown, "never read as expired");
         assert_eq!(probe.calls(), 0);
         assert_eq!(Reach::new(true).token_probe(probe.clone()).probe("setup").await, TokenProbeResult::Rejected);
+    }
+
+    #[tokio::test]
+    async fn off_the_network_the_capability_secret_store_is_empty() {
+        let keychain = Arc::new(FakeCapabilitySecrets::new().with("github", "token", "gho_planted_secret_1"));
+        let off = Reach::new(false).capabilities(keychain.clone());
+        assert_eq!(off.read("github", "token").await.expect("read"), None);
+        assert!(!off.has("github", "token").await.expect("asked"));
+        let refused = off.write("github", "token", "gho_other".to_owned().into()).await;
+        assert_eq!(refused.map_err(|e| e.to_string()), Err(SECRETS_OFF.to_owned()), "and says why");
+        off.delete("github", "token").await.expect("nothing to delete");
+        assert!(keychain.has("github", "token").await.expect("asked"), "the real store is left alone");
+        let on = Reach::new(true).capabilities(keychain);
+        assert!(on.read("github", "token").await.expect("read").is_some());
     }
 
     #[test]

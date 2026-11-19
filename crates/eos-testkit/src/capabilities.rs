@@ -38,6 +38,7 @@ pub struct FakeBuiltin {
     manifest: Manifest,
     answers: Mutex<HashMap<String, Result<Value, ActionError>>>,
     health: Mutex<Event>,
+    checks: Mutex<usize>,
     calls: Mutex<Vec<BuiltinCall>>,
     gate: Option<Arc<Semaphore>>,
 }
@@ -49,6 +50,7 @@ impl FakeBuiltin {
             manifest: parse(manifest).expect("a manifest"),
             answers: Mutex::default(),
             health: Mutex::new(Event::Passed),
+            checks: Mutex::default(),
             calls: Mutex::default(),
             gate: None,
         }
@@ -84,6 +86,11 @@ impl FakeBuiltin {
     pub fn calls(&self) -> Vec<BuiltinCall> {
         locked(&self.calls).clone()
     }
+
+    /// How often its health check ran.
+    pub fn checks(&self) -> usize {
+        *locked(&self.checks)
+    }
 }
 
 impl BuiltinCapability for FakeBuiltin {
@@ -110,6 +117,7 @@ impl BuiltinCapability for FakeBuiltin {
     }
 
     fn health<'a>(&'a self, _ctx: &'a ActionContext) -> BoxFuture<'a, Event> {
+        *locked(&self.checks) += 1;
         Box::pin(std::future::ready(locked(&self.health).clone()))
     }
 }

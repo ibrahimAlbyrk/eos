@@ -65,6 +65,8 @@ pub const USER_DATA_ENTRIES: &[&str] = &[
     ".eos-trash",
     // Routines' workflow scripts and what their runs were given and made.
     "routines",
+    // Installed capability packages, each version as it was reviewed, and their code's own data.
+    "capabilities",
 ];
 
 /// What no agent's file tool (Edit, Write, NotebookEdit) writes in the data
@@ -95,6 +97,8 @@ pub(crate) const AGENT_PROTECTED_ENTRIES: &[&str] = &[
     "conversations",
     // Routines' kept scripts and their runs' results: a run's agents must not rewrite what was checked.
     "routines",
+    // Installed capability packages: a change by an agent would run unreviewed code with the user's secrets.
+    "capabilities",
 ];
 
 /// Paths inside one data folder.

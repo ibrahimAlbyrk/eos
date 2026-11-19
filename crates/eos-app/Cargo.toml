@@ -36,6 +36,7 @@ eos-mod-auto-name.workspace = true
 eos-mod-boot.workspace = true
 eos-mod-browser.workspace = true
 eos-mod-btw.workspace = true
+eos-mod-capabilities.workspace = true
 eos-mod-compaction.workspace = true
 eos-mod-dreams.workspace = true
 eos-mod-fs.workspace = true
@@ -88,6 +89,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 tracing.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 eos-engine = { workspace = true, features = ["mock-api"] }

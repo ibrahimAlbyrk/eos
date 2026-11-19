@@ -11,10 +11,13 @@ use eos_core::{Clock, Ids};
 use eos_platform::DataPaths;
 use eos_store_files::capabilities::FsCapabilityFiles;
 
+use crate::reach::Reach;
+
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
-/// Keychain items, every installed action granted to every chat. No package
-/// runner and no built-ins yet.
+/// Keychain items (none off the network), every installed action granted to
+/// every chat. No package runner and no built-ins yet.
 pub(crate) fn service(
+    reach: Reach,
     paths: &DataPaths,
     store: Arc<dyn Store>,
     clock: Arc<dyn Clock>,
@@ -25,7 +28,7 @@ pub(crate) fn service(
         CapabilityPorts {
             store,
             files: Arc::new(FsCapabilityFiles::new(paths.join("capabilities"), trash)),
-            secrets: Arc::new(AppKeychainSecrets::host()),
+            secrets: reach.capabilities(Arc::new(AppKeychainSecrets::host())),
             grants: Arc::new(AllInstalled),
             runner: None,
             clock,

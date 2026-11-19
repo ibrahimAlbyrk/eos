@@ -215,6 +215,7 @@ impl CapabilityService {
             duration_ms = row.duration_ms,
             "capability call"
         );
+        self.early.after(&capability.id, event.as_ref());
         let (id, event) = (capability.id.clone(), event.clone());
         let written = self
             .ports
