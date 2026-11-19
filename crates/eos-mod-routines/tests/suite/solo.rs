@@ -163,14 +163,17 @@ async fn a_lead_whose_session_dies_is_resumed_once_then_the_run_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_lead_this_version_cannot_start_fails_the_run_and_says_why() {
     let bench = Bench::new(true);
-    let mut team = blueprint(1);
-    team["who"]["agents"][0]["workspace"] = json!("worktree");
-    let routine = bench.routine(RoutineState::Active, team);
+    let mut script = blueprint(1);
+    script["who"]["depth"] = json!("script");
+    script["who"]["agents"] = json!([]);
+    let source = "return 1;";
+    script["who"]["script"] = json!({"source": source, "hash": eos_domain::routine::blueprint::hash(source)});
+    let routine = bench.routine(RoutineState::Active, script);
     let run = bench.hand(&routine, Some(pull_request(1))).await;
     bench.supervise().await;
     bench.eventually(|| bench.state(&run) == RunState::Failed).await;
     let stored = bench.run(&run);
     assert_eq!(stored.reason, Some(Reason::Invalid));
-    assert!(stored.headline.is_some_and(|line| line.contains("newer Eos")));
+    assert!(stored.headline.as_ref().is_some_and(|line| line.contains("newer Eos")), "{:?}", stored.headline);
     assert!(bench.agents.started().is_empty());
 }

@@ -189,6 +189,17 @@ impl RemoteSync for Git {
         })
     }
 
+    fn fetch_ref<'a>(&'a self, cwd: &'a Path, remote: &'a str, refspec: &'a str) -> BoxFuture<'a, OpResult> {
+        Box::pin(async move {
+            let limits = Limits { cap: REMOTE_CAP, timeout: Some(REMOTE_TIMEOUT) };
+            // `--` keeps a remote or refspec that starts with a dash from reading as an option.
+            match self.run_with(cwd, &["fetch", "--no-tags", "--", remote, refspec], &[], limits).await {
+                Ok(_) => OpResult::ok(),
+                Err(e) => OpResult::failed(e.first_line()),
+            }
+        })
+    }
+
     fn pull<'a>(&'a self, cwd: &'a Path) -> BoxFuture<'a, PullExec> {
         Box::pin(async move {
             let limits = Limits { cap: REMOTE_CAP, timeout: Some(REMOTE_TIMEOUT) };

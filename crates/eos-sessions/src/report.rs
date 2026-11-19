@@ -40,9 +40,11 @@ impl Sessions {
             return Ok(Reported { delivered: false, parent_found: false });
         };
         self.revive(&parent.id).await?;
+        let mut read = text.to_owned();
+        self.0.deps.hooks.shape_report(&worker.id, &mut read);
         let message = MessageInput {
             worker_id: parent.id.clone(),
-            text: text.to_owned(),
+            text: read,
             display_text: Some(text.to_owned()),
             envelope: Some(Envelope::WorkerReport {
                 provenance: Some("agent".into()),

@@ -166,6 +166,9 @@ async fn start_checker(engine: &Arc<Engine>, run_id: &str, checking: &Checking) 
         effort: word(&checker.effort),
         trust: checking.trust,
         fence: Some(read_only),
+        place: super::workspace::Place::Scratch,
+        parent_id: None,
+        reads_outside: false,
         at: (RunState::Checking, Station::Check),
     };
     spawn::start(engine, session, |_| render(engine, checking)).await.map(drop)

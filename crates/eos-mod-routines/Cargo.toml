@@ -21,8 +21,12 @@ tokio = { workspace = true, features = ["macros", "rt", "sync"] }
 tracing.workspace = true
 
 [dev-dependencies]
+eos-git.workspace = true
+eos-kit-proc.workspace = true
+eos-platform.workspace = true
 eos-store-files.workspace = true
 eos-testkit.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 
 [lints]

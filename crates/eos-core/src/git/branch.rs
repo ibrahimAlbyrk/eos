@@ -47,6 +47,9 @@ pub struct PullExec {
 pub trait RemoteSync: Send + Sync {
     /// Fetches `remote`, or every remote when `None`. The working tree is untouched.
     fn fetch<'a>(&'a self, cwd: &'a Path, remote: Option<&'a str>, prune: bool) -> BoxFuture<'a, FetchResponse>;
+    /// Fetches `refspec` of `remote` (a name or a URL) into the repository's
+    /// objects, so a commit it names can be checked out.
+    fn fetch_ref<'a>(&'a self, cwd: &'a Path, remote: &'a str, refspec: &'a str) -> BoxFuture<'a, OpResult>;
     /// `git pull --ff-only`: the only pull that ever runs.
     fn pull<'a>(&'a self, cwd: &'a Path) -> BoxFuture<'a, PullExec>;
     fn delete_remote_branch<'a>(

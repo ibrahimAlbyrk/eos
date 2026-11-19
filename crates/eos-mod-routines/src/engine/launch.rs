@@ -28,6 +28,8 @@ pub(crate) struct RunLaunch {
     pub(crate) routine_id: String,
     pub(crate) run_id: String,
     pub(crate) trust: Trust,
+    /// A specialist that reads outside text: its reports are marked as such.
+    pub(crate) reads_outside: bool,
 }
 
 /// An agent's own fence, when it has one.
@@ -83,7 +85,14 @@ pub(crate) async fn rebuild(engine: &Engine) -> Result<(), Error> {
             let mut launches = Vec::new();
             for session in tx.routine_sessions().of_live_runs()? {
                 if let Some(run) = tx.routine_sessions().run_of(&session.worker_id)? {
-                    let launch = RunLaunch { routine_id: run.routine_id, run_id: run.run_id, trust: run.trust };
+                    let version = tx.routine_versions().find(&run.routine_id, &run.version_id)?;
+                    let blueprint = version.as_ref().map(crate::routes::readable).transpose()?.flatten();
+                    let agent = blueprint.iter().flat_map(|b| b.who.agents.iter()).find(|agent| {
+                        run.role == RunRole::Specialist && run.agent_key.as_deref() == Some(agent.key.as_str())
+                    });
+                    let reads_outside = agent.is_some_and(|agent| agent.reads_outside);
+                    let launch =
+                        RunLaunch { routine_id: run.routine_id, run_id: run.run_id, trust: run.trust, reads_outside };
                     launches.push((session.worker_id, launch));
                 }
             }

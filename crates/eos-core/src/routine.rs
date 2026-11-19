@@ -280,6 +280,36 @@ pub trait RoutineTools: Send + Sync {
     /// The checker's verdict on the result it was given: a pass goes on, a
     /// fail goes back to the lead (once) or fails the run.
     fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>>;
+    /// A team lead starts the specialist `agent` of its routine on `task`.
+    fn start_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        task: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// A team lead's follow-up for a specialist it started.
+    fn message_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        text: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// A team lead stops a specialist; its conversation is kept.
+    fn stop_specialist<'a>(&'a self, worker_id: &'a str, agent: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// The specialists of a team lead's routine and where each stands.
+    fn list_specialists<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<Specialist>, Error>>;
+}
+
+/// A specialist of a run's team, as its lead sees it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Specialist {
+    /// Its key in the routine's Who.
+    pub agent: String,
+    pub name: String,
+    /// `not_started`, `working`, `waiting` or `stopped`.
+    pub state: &'static str,
+    /// The first line of its last report this run, while Eos is up.
+    pub last_report: Option<String>,
 }
 
 /// A file a result carries, as it was kept.

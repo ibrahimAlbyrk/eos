@@ -65,6 +65,9 @@ pub trait SessionHooks: Send + Sync + 'static {
     /// spawn and at every resume: what a feature keeps of a worker that its
     /// row does not hold.
     fn shape_launch(&self, _spec: &mut LaunchSpec) {}
+    /// The last word on the text of a worker's report before its parent's
+    /// model reads it.
+    fn shape_report(&self, _worker_id: &str, _text: &mut String) {}
 }
 
 /// The pauses before each new try of a batch of events the database did not take

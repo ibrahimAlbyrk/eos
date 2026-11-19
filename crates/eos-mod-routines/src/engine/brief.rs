@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{AgentWorkspace, Blueprint, RoutineAgent, RunInput, WhoDepth};
+use eos_contracts::{Blueprint, RoutineAgent, RunInput, WhoDepth};
 use eos_core::Error;
 use eos_core::store::RunMove;
 use eos_domain::routine::blueprint::{Context, Severity, validate};
@@ -15,11 +15,14 @@ use eos_domain::run_scope::{RunRole, Trust};
 
 use super::launch::fence_of;
 use super::spawn::{self, RunSession};
+use super::workspace::{self, NO_CLONE_HEADLINE, NO_LOCAL_CLONE, NoPlace};
 use super::{Engine, fail, move_run};
 use crate::routes::readable;
 
 /// The definition a solo run's lead starts as; its tools and prompt key on it.
 pub(crate) const SOLO_DEFINITION: &str = "eos-run-solo";
+/// The definition a team's lead starts as.
+pub(crate) const TEAM_LEAD_DEFINITION: &str = "eos-run-lead";
 
 /// What the headline of a run says when it could not start here.
 const NOT_HERE: &str = "This routine's team or workspace needs a newer Eos.";
@@ -49,7 +52,7 @@ pub(crate) async fn start_lead(engine: &Arc<Engine>, run_id: &str) {
     }
 }
 
-type Refusal = (Reason, Option<&'static str>, Option<Error>);
+pub(crate) type Refusal = (Reason, Option<&'static str>, Option<Error>);
 
 fn internal(error: Error) -> Refusal {
     (Reason::Internal, None, Some(error))
@@ -61,23 +64,38 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     if !passes(&routine_id, &blueprint) {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
     }
-    let agent = match (blueprint.who.depth, blueprint.who.agents.as_slice()) {
-        (WhoDepth::Solo, [agent]) if agent.workspace == AgentWorkspace::None => agent.clone(),
+    let (agent, role, role_word, definition) = match (blueprint.who.depth, blueprint.who.agents.as_slice()) {
+        (WhoDepth::Solo, [agent]) => (agent.clone(), RunRole::Solo, "solo", SOLO_DEFINITION),
+        (WhoDepth::Team, agents) => match agents.iter().find(|agent| agent.lead) {
+            Some(lead) => (lead.clone(), RunRole::Lead, "lead", TEAM_LEAD_DEFINITION),
+            None => return Err((Reason::Invalid, Some(NOT_HERE), None)),
+        },
         _ => return Err((Reason::Invalid, Some(NOT_HERE), None)),
+    };
+    let place = match workspace::place(engine, run_id, &blueprint, &input, &agent.key, agent.workspace, None).await {
+        Ok(place) => place,
+        Err(NoPlace::NoClone) => {
+            no_clone(engine, run_id).await.map_err(internal)?;
+            return Err((Reason::Invalid, Some(NO_CLONE_HEADLINE), None));
+        }
+        Err(NoPlace::Failed(error)) => return Err(internal(error)),
     };
     let (model, effort) = model_of(&blueprint, &agent, &input);
     let session = RunSession {
         run_id: run_id.to_owned(),
         routine_id: routine_id.clone(),
-        role: RunRole::Solo,
-        role_word: "solo",
+        role,
+        role_word,
         agent_key: Some(agent.key.clone()),
-        definition: SOLO_DEFINITION,
+        definition,
         name: format!("{} · {}", blueprint.name, agent.name),
         model,
         effort,
         trust,
         fence: fence_of(&agent),
+        place,
+        parent_id: None,
+        reads_outside: false,
         at: (RunState::Running, Station::Brief),
     };
     let render = |folder: &str| render(engine, &blueprint, &agent, &input, folder);
@@ -85,6 +103,12 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     to_work(engine, run_id).await.map_err(internal)?;
     tracing::info!(run_id, worker_id, routine_id, "a run's lead started");
     Ok(())
+}
+
+/// Puts on the run's timeline that its repository has no local clone.
+pub(crate) async fn no_clone(engine: &Engine, run_id: &str) -> Result<(), Error> {
+    let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+    engine.store.write(move |tx, _| tx.runs().append_event(&id, now, NO_LOCAL_CLONE, None)).await
 }
 
 /// The rules again, as at the version's keeping: what changed since (a
@@ -180,7 +204,7 @@ fn render(
     let pairs = [
         ("ROUTINE_NAME", blueprint.name.clone()),
         ("SUMMARY", blueprint.summary.clone()),
-        ("WHO", format!("{}: {}", agent.name, agent.brief)),
+        ("WHO", who(blueprint, agent)),
         ("HOW", how),
         ("MAKES", format!("{} ({})", blueprint.makes.description, blueprint.makes.kind)),
         ("ITEM", if items.is_empty() { "No item: this run works on its own.".into() } else { items.join("\n\n") }),
@@ -192,6 +216,17 @@ fn render(
     ];
     let values = pairs.into_iter().map(|(name, value)| (name.to_owned(), serde_json::Value::String(value))).collect();
     engine.prompts.render("routine/run-brief", &values, &eos_prompts::service::no_values())
+}
+
+/// The lead and, for a team, each specialist by the key the team tools take.
+fn who(blueprint: &Blueprint, lead: &RoutineAgent) -> String {
+    let mut lines = vec![format!("{}: {}", lead.name, lead.brief)];
+    if blueprint.who.depth == WhoDepth::Team {
+        lines.push("\nYour team (start each with start_specialist by its key):".to_owned());
+        let team = blueprint.who.agents.iter().filter(|agent| !agent.lead);
+        lines.extend(team.map(|agent| format!("- {} ({}): {}", agent.key, agent.name, agent.brief)));
+    }
+    lines.join("\n")
 }
 
 fn result_mode(input: &RunInput) -> String {

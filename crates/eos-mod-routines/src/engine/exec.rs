@@ -6,14 +6,14 @@
 use std::sync::Arc;
 
 use eos_contracts::CheckVerdict;
-use eos_core::routine::{RoutineTools, RunRef, SubmittedResult};
+use eos_core::routine::{RoutineTools, RunRef, Specialist, SubmittedResult};
 use eos_core::store::{RunMove, StoredRunResult};
 use eos_core::{BoxFuture, Error};
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use serde_json::json;
 
-use super::{Engine, check, fail, move_run};
+use super::{Engine, check, fail, move_run, team};
 
 /// The largest result body kept, in bytes of its JSON.
 pub(crate) const RESULT_BODY_MAX_BYTES: usize = 512 * 1024;
@@ -120,5 +120,31 @@ impl RoutineTools for Tools {
             };
             check::judged(&self.0, &run_id, attempt, verdict).await
         })
+    }
+
+    fn start_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        task: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(team::start(&self.0, worker_id, agent, task))
+    }
+
+    fn message_specialist<'a>(
+        &'a self,
+        worker_id: &'a str,
+        agent: &'a str,
+        text: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(team::message(&self.0, worker_id, agent, text))
+    }
+
+    fn stop_specialist<'a>(&'a self, worker_id: &'a str, agent: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(team::stop(&self.0, worker_id, agent))
+    }
+
+    fn list_specialists<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<Specialist>, Error>> {
+        Box::pin(team::list(&self.0, worker_id))
     }
 }

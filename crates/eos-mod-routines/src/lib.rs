@@ -22,8 +22,11 @@
 //! change a routine through [`RoutineControl`].
 //!
 //! A run that leaves the queue starts its lead at the brief station: a
-//! focused session of a reserved definition (`eos-run-solo`) whose first
-//! message is the run brief. The lead works with the run tools
+//! focused session of a reserved definition (`eos-run-solo`, or
+//! `eos-run-lead` for a team) whose first message is the run brief. A
+//! team's lead starts its specialists, its own workers, with the team tools;
+//! each agent works where its blueprint says (a scratch folder, the
+//! repository, its own worktree or the lead's). The lead works with the run tools
 //! ([`RoutineTools`]) and hands in its result. A lead that ends its turn
 //! without a result is reminded once (`routine-lead-idle`); a lead whose
 //! session dies is resumed once. Every run session starts in `AcceptEdits`
@@ -55,6 +58,7 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::{RoutineChange, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
+use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::routine::{
     RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunStarter,
 };
@@ -98,6 +102,10 @@ pub struct RoutinesParts {
     pub gate: Arc<dyn RunGate>,
     /// Model prices, for what a run will likely cost.
     pub config: Arc<dyn ConfigSource>,
+    /// Where the user's clone of an item's repository is.
+    pub keys: Arc<dyn ProjectKeys>,
+    /// Fetches a pull request's head into that clone, with the user's git.
+    pub remotes: Arc<dyn RemoteSync>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -134,6 +142,8 @@ impl RoutinesModule {
             reads,
             gate,
             config,
+            keys,
+            remotes,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -156,6 +166,9 @@ impl RoutinesModule {
             config,
             tasks: tokio::runtime::Handle::try_current().ok(),
             reads,
+            keys,
+            remotes,
+            reports: Mutex::new(HashMap::new()),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -230,6 +243,10 @@ impl Module for RoutinesModule {
 
     fn shape_launch(&self, spec: &mut LaunchSpec) {
         engine::shape_launch(&self.engine, spec);
+    }
+
+    fn shape_report(&self, worker_id: &str, text: &mut String) {
+        engine::shape_report(&self.engine, worker_id, text);
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {

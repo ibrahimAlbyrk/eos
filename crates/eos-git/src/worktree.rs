@@ -136,7 +136,8 @@ impl Git {
         if let Some(parent) = dir.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let start_point = if input.carry_uncommitted { self.snapshot_dirty_state(&root).await } else { None };
+        let start_point =
+            if input.carry_uncommitted { self.snapshot_dirty_state(&root).await } else { input.start_point.clone() };
         let dir_text = dir.to_string_lossy().into_owned();
         let mut args = vec!["worktree", "add", dir_text.as_str(), "-b", input.branch.as_str()];
         args.extend(start_point.as_deref());
