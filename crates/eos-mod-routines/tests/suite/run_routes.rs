@@ -314,6 +314,8 @@ async fn a_workers_run_is_found_and_who_may_call_what() {
 
     let estimate = json!({"routineId": routine, "input": {"result": "usual"}});
     assert_eq!(routes.call(Method::Post, Caller::UNTRUSTED, "/api/runs/estimate", Some(estimate)).await.0, 200, "open");
+    let (status, active) = routes.call(Method::Get, Caller::UNTRUSTED, "/api/runs/active", None).await;
+    assert_eq!((status, active), (200, json!({"count": 1, "needsUser": 0})), "what runs:active says, to anyone");
     let read = Caller::Phone { grant: Tier::Read, mutate: true };
     let low = Caller::Phone { grant: Tier::Low, mutate: true };
     for path in ["/api/runs".to_owned(), format!("/api/runs/{run}"), format!("/api/routines/{routine}/candidates")] {
