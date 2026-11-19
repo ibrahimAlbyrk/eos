@@ -8,22 +8,34 @@
 //! announced, all saved together or not at all. A crash between the two
 //! leaves `received` signals, which the next pass routes; a signal written
 //! `routed` (a run started by hand) is never routed again.
+//!
+//! A match that may start a run first supersedes the subject's run that
+//! still waits, then joins the routine's batch when it has one, then meets
+//! the routine's limits (`limits`, `batch`); the decision, its run and the
+//! over-limit notice commit together. Each pass ends by closing the batches
+//! that came due.
 
 use std::sync::Arc;
 
 use eos_contracts::{
     Facts, ItemRef, ResultMode, RoutineState, RunInput, RunTrigger, SignalChange, SignalChangeWhat, Trigger,
 };
-use eos_core::routine::{Admission, AdmitOutcome, AdmitRefusal, RoutineDirectory, RoutineTriggers, RunIntake};
+use eos_core::os::TimeZone;
+use eos_core::routine::{
+    Admission, AdmitOutcome, AdmitRefusal, RoutineControl, RoutineDirectory, RoutineTriggers, RunIntake,
+};
 use eos_core::signals::{Holder, PollPage, Runner};
 use eos_core::store::{NewSignal, Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
-use eos_core::{Clock, Error};
+use eos_core::{Clock, Error, Ids};
 use eos_domain::signals::decision::Decision;
 use eos_domain::signals::key::{capability_scope, fits};
 use eos_domain::signals::which::{Verdict, evaluate};
+use eos_inbox::Opening;
 use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
+use crate::batch;
+use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
 
 /// The signals one read takes to route.
 const BATCH: i64 = 100;
@@ -82,6 +94,10 @@ pub(crate) struct Router {
     pub(crate) autostart: bool,
     /// Rings when there may be signals to route.
     pub(crate) kick: Notify,
+    /// What opening the over-limit notice needs.
+    pub(crate) ids: Arc<dyn Ids>,
+    pub(crate) zone: Arc<dyn TimeZone>,
+    pub(crate) control: Arc<dyn RoutineControl>,
 }
 
 /// What one signal's routing needs inside its write.
@@ -90,6 +106,9 @@ struct Routing {
     intake: Arc<dyn RunIntake>,
     autostart: bool,
     now: i64,
+    ids: Arc<dyn Ids>,
+    zone: Arc<dyn TimeZone>,
+    control: Arc<dyn RoutineControl>,
 }
 
 impl Routing {
@@ -118,6 +137,15 @@ impl Routing {
         if !self.autostart {
             return Ok((Decision::HeldDev, None, None));
         }
+        let stale = stale_in(tx, &routine.id, &signal.signal.subject)?;
+        if routine.when.batch.is_some() {
+            supersede_in(tx, out, self.intake.as_ref(), &stale)?;
+            return Ok((Decision::Batched, None, None));
+        }
+        if !fits_in(tx, self.intake.as_ref(), &routine.id, &routine.when, self.now, stale.len())? {
+            return Ok((Decision::OverLimit, Some("limits".into()), None));
+        }
+        supersede_in(tx, out, self.intake.as_ref(), &stale)?;
         let input = RunInput {
             item: serde_json::from_str::<ItemRef>(&signal.signal.item_json).ok(),
             items: None,
@@ -164,6 +192,21 @@ impl Routing {
                 decided_at: self.now,
             })?;
             tracing::info!(signal_id = id, routine_id = %routine.id, decision = decision.as_str(), "a signal was decided");
+            match decision {
+                Decision::Batched => {
+                    batch::close_in(tx, out, self.intake.as_ref(), routine, self.now)?;
+                }
+                Decision::OverLimit => {
+                    let at = Opening {
+                        now: self.now,
+                        ids: self.ids.as_ref(),
+                        zone: self.zone.as_ref(),
+                        control: self.control.as_ref(),
+                    };
+                    notice_over_limit_in(tx, out, &at, &routine.id)?;
+                }
+                _ => {}
+            }
             let change = SignalChange {
                 routine_id: Some(routine.id.clone()),
                 source_id: source_id.clone(),
@@ -183,20 +226,43 @@ impl Router {
         loop {
             let waiting = self.store.read(|tx| tx.signals().received(BATCH)).await?;
             if waiting.is_empty() {
+                self.close_due_batches(&routines).await?;
                 return Ok(routed);
             }
             for signal in waiting {
-                let routing = Routing {
-                    runner: self.runner.clone(),
-                    intake: self.intake.clone(),
-                    autostart: self.autostart,
-                    now: self.clock.now_ms(),
-                };
+                let routing = self.routing();
                 let routines = routines.clone();
                 self.store.write(move |tx, out| routing.route_in(tx, out, signal.id, &routines)).await?;
                 routed += 1;
             }
         }
+    }
+
+    fn routing(&self) -> Routing {
+        Routing {
+            runner: self.runner.clone(),
+            intake: self.intake.clone(),
+            autostart: self.autostart,
+            now: self.clock.now_ms(),
+            ids: self.ids.clone(),
+            zone: self.zone.clone(),
+            control: self.control.clone(),
+        }
+    }
+
+    /// Closes the batches of the active routines held here that came due,
+    /// one write each.
+    async fn close_due_batches(&self, routines: &[RoutineTriggers]) -> Result<(), Error> {
+        if !self.autostart {
+            return Ok(());
+        }
+        let held = |routine: &&RoutineTriggers| matches!(self.runner.holder(&routine.id), Holder::Here { .. });
+        let batching = routines.iter().filter(|routine| routine.when.batch.is_some()).filter(held);
+        for routine in batching.filter(|routine| routine.state == RoutineState::Active) {
+            let (intake, routine, now) = (self.intake.clone(), routine.clone(), self.clock.now_ms());
+            self.store.write(move |tx, out| batch::close_in(tx, out, intake.as_ref(), &routine, now)).await?;
+        }
+        Ok(())
     }
 
     /// Routes until stopped: at once (what a crash left `received`), then

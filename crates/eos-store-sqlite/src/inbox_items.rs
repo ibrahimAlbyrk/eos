@@ -113,6 +113,15 @@ impl InboxRepo for SqliteTx<'_> {
         Ok(changed > 0)
     }
 
+    fn retell(&self, item: &StoredItem, rev: i64) -> Result<bool, Error> {
+        let changed = self.exec(
+            "UPDATE inbox_items SET title = ?3, summary = ?4, payload = ?5, rev = ?6, updated_at = ?7 \
+             WHERE id = ?1 AND rev = ?2 AND state IN ('open','later')",
+            params![item.id, rev, item.title, item.summary, item.payload, item.rev, item.updated_at],
+        )?;
+        Ok(changed == 1)
+    }
+
     fn update_waiting(&self, item: &StoredItem, rev: i64) -> Result<bool, Error> {
         let changed = self.exec(
             "UPDATE inbox_items SET state = ?3, working = ?4, rev = ?5, stale_at = ?6, stale_reason = ?7, \

@@ -3,8 +3,8 @@
 
 use eos_core::Error;
 use eos_core::store::{
-    ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo,
-    StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
+    BatchedSignal, ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
+    SignalSourceRepo, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
 };
 use eos_domain::signals::decision::Decision;
 use eos_domain::signals::key;
@@ -273,6 +273,11 @@ impl SignalRepo for SqliteTx<'_> {
     fn mark_routed(&self, id: i64) -> Result<(), Error> {
         self.exec("UPDATE signals SET state = ?2 WHERE id = ?1", params![id, ROUTED]).map(drop)
     }
+
+    fn received_count(&self) -> Result<i64, Error> {
+        self.row("SELECT COUNT(*) FROM signals WHERE state = ?1", [RECEIVED], |r| r.get(0).map_err(failed))
+            .map(Option::unwrap_or_default)
+    }
 }
 
 impl SignalRouteRepo for SqliteTx<'_> {
@@ -299,6 +304,49 @@ impl SignalRouteRepo for SqliteTx<'_> {
             [signal_id],
             route,
         )
+    }
+
+    fn runs_of_subject(&self, routine_id: &str, subject: &str) -> Result<Vec<String>, Error> {
+        self.rows(
+            "SELECT r.run_id FROM signal_routes r JOIN signals s ON s.id = r.signal_id \
+             WHERE r.routine_id = ?1 AND s.subject = ?2 AND r.decision = ?3 AND r.run_id IS NOT NULL \
+             ORDER BY r.signal_id",
+            params![routine_id, subject, Decision::Run.as_str()],
+            |r| r.get(0).map_err(failed),
+        )
+    }
+
+    fn open_batch(&self, routine_id: &str) -> Result<Vec<BatchedSignal>, Error> {
+        self.rows(
+            "SELECT r.signal_id, r.decided_at, s.item_json FROM signal_routes r JOIN signals s ON s.id = r.signal_id \
+             WHERE r.routine_id = ?1 AND r.decision = ?2 AND r.run_id IS NULL ORDER BY r.signal_id",
+            params![routine_id, Decision::Batched.as_str()],
+            |r| {
+                let read = || -> rusqlite::Result<BatchedSignal> {
+                    Ok(BatchedSignal { signal_id: r.get(0)?, decided_at: r.get(1)?, item_json: r.get(2)? })
+                };
+                read().map_err(failed)
+            },
+        )
+    }
+
+    fn set_run(&self, routine_id: &str, signal_ids: &[i64], run_id: &str) -> Result<(), Error> {
+        for signal_id in signal_ids {
+            self.exec(
+                "UPDATE signal_routes SET run_id = ?3 WHERE signal_id = ?1 AND routine_id = ?2",
+                params![signal_id, routine_id, run_id],
+            )?;
+        }
+        Ok(())
+    }
+
+    fn count_since(&self, routine_id: &str, decision: Decision, since: i64) -> Result<i64, Error> {
+        self.row(
+            "SELECT COUNT(*) FROM signal_routes WHERE routine_id = ?1 AND decision = ?2 AND decided_at >= ?3",
+            params![routine_id, decision.as_str(), since],
+            |r| r.get(0).map_err(failed),
+        )
+        .map(Option::unwrap_or_default)
     }
 }
 
