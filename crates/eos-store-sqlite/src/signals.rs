@@ -4,8 +4,10 @@
 use eos_core::Error;
 use eos_core::store::{
     BatchedSignal, ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
-    SignalSourceRepo, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
+    SignalSourceRepo, SignalTally, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule,
+    StoredSignalSource,
 };
+use eos_domain::routine::run::RunState;
 use eos_domain::signals::decision::Decision;
 use eos_domain::signals::key;
 use eos_kit_sqlite::rusqlite::{self, params};
@@ -278,6 +280,26 @@ impl SignalRepo for SqliteTx<'_> {
         self.row("SELECT COUNT(*) FROM signals WHERE state = ?1", [RECEIVED], |r| r.get(0).map_err(failed))
             .map(Option::unwrap_or_default)
     }
+
+    fn page(
+        &self,
+        routine: Option<&str>,
+        decision: Option<Decision>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<Vec<StoredSignal>, Error> {
+        let decision = decision.map(Decision::as_str);
+        self.rows(
+            &format!(
+                "SELECT {SIGNAL_COLUMNS} FROM signals s WHERE (?1 IS NULL OR s.id < ?1) \
+                 AND ((?2 IS NULL AND ?3 IS NULL) OR EXISTS (SELECT 1 FROM signal_routes r \
+                 WHERE r.signal_id = s.id AND (?2 IS NULL OR r.routine_id = ?2) AND (?3 IS NULL OR r.decision = ?3))) \
+                 ORDER BY s.id DESC LIMIT ?4"
+            ),
+            params![before, routine, decision, limit],
+            signal,
+        )
+    }
 }
 
 impl SignalRouteRepo for SqliteTx<'_> {
@@ -296,6 +318,47 @@ impl SignalRouteRepo for SqliteTx<'_> {
             ],
         )
         .map(drop)
+    }
+
+    fn put(&self, route: &StoredSignalRoute) -> Result<(), Error> {
+        self.exec(
+            &format!(
+                "INSERT INTO signal_routes ({ROUTE_COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
+                 ON CONFLICT (signal_id, routine_id) DO UPDATE SET routine_version = excluded.routine_version, \
+                 decision = excluded.decision, reason = excluded.reason, run_id = excluded.run_id, \
+                 model_asked = excluded.model_asked, decided_at = excluded.decided_at"
+            ),
+            params![
+                route.signal_id,
+                route.routine_id,
+                route.routine_version,
+                route.decision.as_str(),
+                route.reason,
+                route.run_id,
+                route.model_asked,
+                route.decided_at,
+            ],
+        )
+        .map(drop)
+    }
+
+    fn tally(&self, routine_id: &str, since: i64) -> Result<Vec<SignalTally>, Error> {
+        self.rows(
+            "SELECT r.decision, u.state, COUNT(*) FROM signal_routes r LEFT JOIN runs u ON u.id = r.run_id \
+             WHERE r.routine_id = ?1 AND r.decided_at >= ?2 GROUP BY r.decision, u.state ORDER BY r.decision, u.state",
+            params![routine_id, since],
+            |r| {
+                let read = || -> rusqlite::Result<SignalTally> {
+                    let state: Option<String> = r.get(1)?;
+                    Ok(SignalTally {
+                        decision: known(r, 0, Decision::parse)?,
+                        run_state: state.as_deref().and_then(RunState::parse),
+                        signals: r.get(2)?,
+                    })
+                };
+                read().map_err(failed)
+            },
+        )
     }
 
     fn by_signal(&self, signal_id: i64) -> Result<Vec<StoredSignalRoute>, Error> {

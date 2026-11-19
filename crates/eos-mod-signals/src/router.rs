@@ -84,6 +84,45 @@ fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str) -> 
     })
 }
 
+/// Admits one run of `routine` for `signal` when the routine's limits let
+/// it, then supersedes the subject's `stale` runs: the decision, with its
+/// reason and run. A refused admission leaves the waiting run to run.
+pub(crate) fn run_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    intake: &dyn RunIntake,
+    routine: &RoutineTriggers,
+    signal: &StoredSignal,
+    now: i64,
+    stale: &[String],
+) -> Result<(Decision, Option<String>, Option<String>), Error> {
+    if !fits_in(tx, intake, &routine.id, &routine.when, now, stale.len())? {
+        return Ok((Decision::OverLimit, Some("limits".into()), None));
+    }
+    let input = RunInput {
+        item: serde_json::from_str::<ItemRef>(&signal.signal.item_json).ok(),
+        items: None,
+        trigger: Some(RunTrigger { signal_id: signal.id.to_string(), slot_at: None, late_by_ms: None }),
+        options: Default::default(),
+        note: None,
+        result: ResultMode::Usual,
+        at: None,
+    };
+    let admission = Admission { routine_id: routine.id.clone(), signal_id: signal.id, input };
+    Ok(match intake.admit(tx, out, &admission)? {
+        AdmitOutcome::Queued { run_id } => {
+            supersede_in(tx, out, intake, stale)?;
+            (Decision::Run, None, Some(run_id))
+        }
+        AdmitOutcome::Refused { reason: AdmitRefusal::QueueFull } => {
+            (Decision::OverLimit, Some("queue_full".into()), None)
+        }
+        AdmitOutcome::Refused { reason: AdmitRefusal::NotActive } => {
+            (Decision::Refused, Some("not_active".into()), None)
+        }
+    })
+}
+
 /// What routes signals: the store, who holds each routine, and the runs.
 pub(crate) struct Router {
     pub(crate) store: Arc<dyn Store>,
@@ -142,33 +181,7 @@ impl Routing {
             supersede_in(tx, out, self.intake.as_ref(), &stale)?;
             return Ok((Decision::Batched, None, None));
         }
-        if !fits_in(tx, self.intake.as_ref(), &routine.id, &routine.when, self.now, stale.len())? {
-            return Ok((Decision::OverLimit, Some("limits".into()), None));
-        }
-        let input = RunInput {
-            item: serde_json::from_str::<ItemRef>(&signal.signal.item_json).ok(),
-            items: None,
-            trigger: Some(RunTrigger { signal_id: signal.id.to_string(), slot_at: None, late_by_ms: None }),
-            options: Default::default(),
-            note: None,
-            result: ResultMode::Usual,
-            at: None,
-        };
-        let admission = Admission { routine_id: routine.id.clone(), signal_id: signal.id, input };
-        // The waiting run is replaced only once its successor is queued: a
-        // refused admission leaves it to run.
-        Ok(match self.intake.admit(tx, out, &admission)? {
-            AdmitOutcome::Queued { run_id } => {
-                supersede_in(tx, out, self.intake.as_ref(), &stale)?;
-                (Decision::Run, None, Some(run_id))
-            }
-            AdmitOutcome::Refused { reason: AdmitRefusal::QueueFull } => {
-                (Decision::OverLimit, Some("queue_full".into()), None)
-            }
-            AdmitOutcome::Refused { reason: AdmitRefusal::NotActive } => {
-                (Decision::Refused, Some("not_active".into()), None)
-            }
-        })
+        run_in(tx, out, self.intake.as_ref(), routine, signal, self.now, &stale)
     }
 
     /// Routes one received signal inside a write job.

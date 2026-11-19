@@ -127,6 +127,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/capabilities/{id}/sign-in"),
     ("GET", "/api/capabilities/{id}/sign-in"),
     ("DELETE", "/api/capabilities/{id}/sign-in"),
+    // Signals: a replay admits runs, which start agents.
+    ("POST", "/api/signals/replay"),
     // Needs you: an answer lets a run start, a routine resume or a change be kept.
     ("POST", "/api/inbox/{id}/answer"),
     // Runs: a start, a message to a run's team and a resume set agents working; the items a
@@ -371,6 +373,10 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/inbox/{id}/draft"),
     ("POST", "/api/inbox/{id}/later"),
     ("POST", "/api/inbox/{id}/discard"),
+    // Signals: the previews compute a schedule's next times and try a Which's rules on kept
+    // signals; neither writes or asks the model.
+    ("POST", "/api/signals/schedule/preview"),
+    ("POST", "/api/signals/which/preview"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

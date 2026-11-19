@@ -2,6 +2,7 @@
 //! `signal_schedules` and `signal_runners`. Keys, subjects, scopes and facts
 //! are the user's data: never logged.
 
+use eos_domain::routine::run::RunState;
 use eos_domain::signals::decision::Decision;
 
 use crate::Error;
@@ -167,6 +168,15 @@ pub trait SignalRepo {
     fn mark_routed(&self, id: i64) -> Result<(), Error>;
     /// How many signals wait to be routed.
     fn received_count(&self) -> Result<i64, Error>;
+    /// Up to `limit` signals older than `before`, newest first: only those
+    /// routed to `routine` and only those decided `decision`, when given.
+    fn page(
+        &self,
+        routine: Option<&str>,
+        decision: Option<Decision>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<Vec<StoredSignal>, Error>;
 }
 
 /// A signal that waits in a routine's open batch.
@@ -178,9 +188,25 @@ pub struct BatchedSignal {
     pub item_json: String,
 }
 
+/// How many of a routine's signals got one decision, by the state of the
+/// run they are in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignalTally {
+    pub decision: Decision,
+    /// `None` when no run took them, or its run is gone.
+    pub run_state: Option<RunState>,
+    pub signals: i64,
+}
+
 pub trait SignalRouteRepo {
     /// Fails when the signal has a decision for the routine already.
     fn insert(&self, route: &StoredSignalRoute) -> Result<(), Error>;
+    /// Writes the signal's decision for the routine in place of the one
+    /// before, if any.
+    fn put(&self, route: &StoredSignalRoute) -> Result<(), Error>;
+    /// The routine's signals decided at or after `since`, counted by
+    /// decision and run state.
+    fn tally(&self, routine_id: &str, since: i64) -> Result<Vec<SignalTally>, Error>;
     /// A signal's decisions, by routine id.
     fn by_signal(&self, signal_id: i64) -> Result<Vec<StoredSignalRoute>, Error>;
     /// The runs the routine's `run` decisions on signals about `subject`
