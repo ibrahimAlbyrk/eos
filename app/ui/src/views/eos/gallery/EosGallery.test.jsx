@@ -29,7 +29,8 @@ describe("#eos-gallery", () => {
     expect(rendered).toHaveLength(1);
     const html = renderToStaticMarkup(rendered[0]);
     expect(html).toContain('<aside class="side">');
-    expect(html).toContain('<nav class="sb-nav" aria-label="Eos"><button class="sb-nav-row strong on">');
+    expect(html).toContain('<nav class="sb-nav" aria-label="Eos">');
+    expect(html).toContain('<button class="sb-nav-row strong on"><span class="sb-nav-row__ic">');
     expect(html).toContain('<section class="center"><main class="eos-screen">');
 
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routines });
