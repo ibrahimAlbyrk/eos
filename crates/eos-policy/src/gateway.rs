@@ -11,6 +11,7 @@ use eos_contracts::{
     ActionClass, AllowVariant, Decision, DenyVariant, ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType,
 };
 use eos_core::capability::CapabilityRegistry;
+use eos_core::inbox::{AskRoute, AskRouting};
 use eos_core::policy::{DecisionCounter, DecisionCounts, PolicyDecider, PolicyFile, ToolCall};
 use eos_core::store::{NewPending, Store};
 use eos_core::{BoxFuture, Clock, Error, Ids};
@@ -37,6 +38,8 @@ pub struct GatewayOptions {
     pub default_ttl_ms: i64,
     /// The plans folder (`~/.claude/plans`): edits inside it pass in every mode.
     pub plans_dir: Option<String>,
+    /// Where an ask shows; without it every ask fires the banner.
+    pub ask_routing: Option<Arc<dyn AskRouting>>,
 }
 
 impl std::fmt::Debug for GatewayOptions {
@@ -95,6 +98,7 @@ pub struct PolicyGateway {
     file: Arc<dyn PolicyFile>,
     default_ttl_ms: i64,
     plans_dir: Option<String>,
+    ask_routing: Option<Arc<dyn AskRouting>>,
     /// Where `call_capability` finds the class of the action it calls.
     capabilities: Option<Arc<dyn CapabilityRegistry>>,
     policy: RwLock<Arc<Policy>>,
@@ -123,6 +127,7 @@ impl PolicyGateway {
             file: options.file,
             default_ttl_ms: options.default_ttl_ms,
             plans_dir: options.plans_dir,
+            ask_routing: options.ask_routing,
             capabilities: None,
             policy: RwLock::new(Arc::new(policy)),
             waiters: Waiters::default(),
@@ -172,7 +177,8 @@ impl PolicyGateway {
 
     /// Decides a call. An allow or a deny answers at once; an ask is stored,
     /// announced (`notification:fire` "Approval needed", then
-    /// `pending:created`) and waits until [`resolve`](Self::resolve) answers
+    /// `pending:created`; a routine run's ask skips the banner and shows in
+    /// Needs you) and waits until [`resolve`](Self::resolve) answers
     /// it or the worker ends. Every decision is logged on the worker
     /// (`policy`) and announced (`policy:decision`).
     pub async fn decide(&self, call: ToolCall) -> Result<ExternalDecision, Error> {
@@ -222,6 +228,7 @@ impl PolicyGateway {
 
         let (worker_id, tool) = (call.worker_id, call.tool_name);
         let pending = parked.as_ref().map(|(pending, ..)| pending.clone());
+        let routing = self.ask_routing.clone();
         self.store
             .write(move |tx, out| {
                 tx.events().append_json(
@@ -242,10 +249,13 @@ impl PolicyGateway {
                         WorkerEventType::PermissionPending,
                         &json!({ "id": pending.id, "tool": tool }),
                     )?;
-                    // The banner goes out ahead of `pending:created`, as today.
-                    let name = tx.workers().find(&worker_id)?.and_then(|worker| worker.name);
-                    let banner = approval_notification(&worker_id, &tool, &pending.input, name.as_deref(), now);
-                    out.push(topics::NOTIFICATION_FIRE, &banner);
+                    let route = routing.as_ref().map_or(AskRoute::Banner, |routing| routing.route(tx, &worker_id));
+                    if route == AskRoute::Banner {
+                        // The banner goes out ahead of `pending:created`, as today.
+                        let name = tx.workers().find(&worker_id)?.and_then(|worker| worker.name);
+                        let banner = approval_notification(&worker_id, &tool, &pending.input, name.as_deref(), now);
+                        out.push(topics::NOTIFICATION_FIRE, &banner);
+                    }
                     out.push(topics::PENDING_CREATED, &json!({ "id": pending.id, "workerId": worker_id }));
                 }
                 Ok(())

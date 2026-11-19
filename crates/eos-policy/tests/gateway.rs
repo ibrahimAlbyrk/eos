@@ -10,7 +10,7 @@ use eos_core::capability::ActionError;
 use eos_core::policy::{AgentMode, DecisionCounter, DecisionCounts, PolicyDecider, SubagentModes, ToolCall};
 use eos_domain::capability::health::Health;
 use eos_policy::{Answer, GatewayOptions, PolicyGateway};
-use eos_testkit::{FakeCapabilityRegistry, FakeClock, FakePolicyFile, LogCapture, SeqIds, TempStore};
+use eos_testkit::{FakeAskRouting, FakeCapabilityRegistry, FakeClock, FakePolicyFile, LogCapture, SeqIds, TempStore};
 use serde_json::{Value, json};
 
 struct Fixture {
@@ -35,6 +35,7 @@ fn fixture(mode: &str, policy: Value) -> Fixture {
         file: file.clone(),
         default_ttl_ms: 0,
         plans_dir: None,
+        ask_routing: None,
     }));
     Fixture { gateway, temp, clock, file }
 }
@@ -175,6 +176,66 @@ async fn an_ask_leaves_a_row_two_events_and_its_announcements_in_order() {
         (row.resolved, row.decision.as_deref(), row.reason, row.updated_input.as_deref()),
         (true, Some("allow"), None, Some(r#"{"url":"https://x","n":2}"#))
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_runs_ask_is_stored_and_announced_without_the_banner_and_a_chats_keeps_it() {
+    let f = fixture("acceptEdits", ask_rule());
+    f.temp.exec(
+        "INSERT INTO workers (id, state, prompt, started_at, permission_mode) VALUES ('w-run', 'IDLE', '', 1, 'acceptEdits')",
+    );
+    let routing = Arc::new(FakeAskRouting::new().inbox("w-run"));
+    let gateway = Arc::new(PolicyGateway::new(GatewayOptions {
+        store: f.temp.port(),
+        clock: f.clock.clone(),
+        ids: Arc::new(SeqIds::new()),
+        file: f.file.clone(),
+        default_ttl_ms: 0,
+        plans_dir: None,
+        ask_routing: Some(routing.clone()),
+    }));
+    let asking = gateway.clone();
+    let run = tokio::spawn(async move { asking.decide(ToolCall::new("w-run", "WebFetch", record(json!({})))).await });
+    let asking = gateway.clone();
+    let chat = tokio::spawn(async move { asking.decide(call("WebFetch", json!({}))).await });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while gateway.waiting() != 2 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("both calls park");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while f.temp.announced.topics().iter().filter(|t| **t == "pending:created").count() != 2 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("both asks are stored");
+
+    let announced = f.temp.announced.list();
+    let fired: Vec<&String> =
+        announced.iter().filter(|(topic, _)| *topic == "notification:fire").map(|(_, payload)| payload).collect();
+    assert_eq!(fired.len(), 1, "only the chat's ask fires the banner");
+    assert!(fired[0].contains(r#""workerId":"w1""#));
+    let created = announced.iter().filter(|(topic, _)| *topic == "pending:created").count();
+    assert_eq!(created, 2, "both asks are announced as always");
+    let rows = f.temp.store.read_blocking(|tx| tx.pending().list_unresolved()).expect("reads");
+    assert_eq!(rows.len(), 2, "both rows are written");
+    let events = f
+        .temp
+        .store
+        .read_blocking(|tx| tx.events().list_by_type("w-run", WorkerEventType::PermissionPending, None))
+        .expect("reads");
+    assert_eq!(events.len(), 1, "the run worker's trail keeps its ask");
+    let mut asked = routing.asked();
+    asked.sort();
+    assert_eq!(asked, ["w-run", "w1"], "each ask is routed once");
+
+    gateway.worker_gone("w-run").await.expect("released");
+    gateway.worker_gone("w1").await.expect("released");
+    assert_eq!(behavior(&run.await.expect("joins").expect("decides")), "deny");
+    assert_eq!(behavior(&chat.await.expect("joins").expect("decides")), "deny");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -395,6 +456,7 @@ async fn call_capability_is_decided_by_the_class_the_registry_gives() {
             file: f.file.clone(),
             default_ttl_ms: 0,
             plans_dir: None,
+            ask_routing: None,
         })
         .with_capabilities(Arc::new(registry)),
     );
@@ -436,6 +498,7 @@ async fn a_registry_that_cannot_be_read_is_logged_without_the_call_input() {
         file: f.file.clone(),
         default_ttl_ms: 0,
         plans_dir: None,
+        ask_routing: None,
     })
     .with_capabilities(Arc::new(FakeCapabilityRegistry::broken()));
     let logs = LogCapture::start();

@@ -380,6 +380,7 @@ impl App {
                 file: Arc::new(YamlPolicyFile::new(paths.join("policy.yaml"))),
                 default_ttl_ms: current.permissions.default_ttl_ms,
                 plans_dir: Some(plans_dir()),
+                ask_routing: Some(Arc::new(eos_inbox::RunAsks)),
             })
             .with_capabilities(capabilities.clone()),
         );

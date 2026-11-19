@@ -25,6 +25,7 @@ eos-fs.workspace = true
 eos-genui-media.workspace = true
 eos-git.workspace = true
 eos-github.workspace = true
+eos-inbox.workspace = true
 eos-kit-fs.workspace = true
 eos-kit-net.workspace = true
 eos-kit-proc.workspace = true

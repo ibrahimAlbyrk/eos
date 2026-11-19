@@ -55,6 +55,7 @@ async fn app() -> App {
         )),
         default_ttl_ms: 0,
         plans_dir: None,
+        ask_routing: None,
     }));
     let module = Arc::new(PolicyModule::new(gateway.clone(), store, kernel.bus.clone()));
     let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
