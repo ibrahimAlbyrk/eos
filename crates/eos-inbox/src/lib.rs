@@ -13,6 +13,8 @@
 //!   and on `inbox:change`, and marks each one in its own write job with
 //!   [`consume_in`]. At least once, keyed by the item's id.
 //! - A deleted routine's waiting items are withdrawn ([`withdraw_routine_in`]).
+//! - A routine run's permission asks show in Needs you instead of on the
+//!   banner ([`RunAsks`], the gateway's routing).
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
@@ -21,6 +23,7 @@
 mod answer;
 mod handoff;
 mod items;
+mod routing;
 
 use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};
@@ -29,6 +32,7 @@ use eos_domain::inbox::ItemState;
 pub use answer::Items;
 pub use handoff::consume_in;
 pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, open_in, withdraw_routine_in};
+pub use routing::RunAsks;
 
 /// The topic every write of an item announces.
 pub const INBOX_CHANGE: &str = "inbox:change";

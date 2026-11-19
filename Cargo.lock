@@ -1370,6 +1370,7 @@ dependencies = [
  "eos-genui-media",
  "eos-git",
  "eos-github",
+ "eos-inbox",
  "eos-kit-fs",
  "eos-kit-log",
  "eos-kit-net",
