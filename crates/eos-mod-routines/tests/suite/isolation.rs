@@ -93,7 +93,8 @@ async fn an_untrusted_runs_lead_works_in_an_empty_folder_with_its_workspace_besi
     let routine = bench.routine(RoutineState::Active, blueprint(1));
     let (run, lead) = lead_of(&bench, &routine, true).await;
 
-    let work = bench.temp.home.path().join(format!("routines/{routine}/runs/{run}/work"));
+    let work_of = |n: u32| bench.temp.home.path().join(format!("routines/{routine}/runs/{run}/work/{n}"));
+    let work = work_of(1);
     let folder = format!("/scratch/{lead}");
     let spec = &bench.agents.started()[0];
     assert_eq!(spec.cwd, work.to_string_lossy());
@@ -107,15 +108,20 @@ async fn an_untrusted_runs_lead_works_in_an_empty_folder_with_its_workspace_besi
     let stored: ToolScope = serde_json::from_str(row.tool_scope.as_deref().expect("a scope")).expect("a scope");
     assert_eq!(stored, scope(Trust::Untrusted, &folder), "edits stay in the workspace");
 
-    // Its session dies and is resumed: the same start, the folder made again.
-    std::fs::remove_dir(&work).expect("removed");
+    // Its session dies and is resumed: the same start in a new empty folder;
+    // what the agent left in the first one stays out.
+    std::fs::write(work.join("CLAUDE.md"), "left behind").expect("left");
     bench.agents.settled().await;
     bench.agents.crash(&lead).await;
     bench.eventually(|| bench.agents.started().len() == 2).await;
     let resumed = &bench.agents.started()[1];
     assert!(resumed.resume.is_some());
-    assert_eq!((resumed.cwd.as_str(), resumed.additional_dirs.clone()), (spec.cwd.as_str(), vec![folder.clone()]));
-    assert!(!resumed.folder_mcp && work.is_dir());
+    let second = work_of(2);
+    assert_eq!(
+        (resumed.cwd.as_str(), resumed.additional_dirs.clone()),
+        (&*second.to_string_lossy(), vec![folder.clone()])
+    );
+    assert!(!resumed.folder_mcp && std::fs::read_dir(&second).expect("a folder").next().is_none());
 
     // After a restart, the module reads its run sessions again before any resume.
     let restarted = bench.another_module();
@@ -124,7 +130,7 @@ async fn an_untrusted_runs_lead_works_in_an_empty_folder_with_its_workspace_besi
     restarted.shape_launch(&mut again);
     assert_eq!(
         (again.cwd.as_str(), again.additional_dirs.as_slice(), again.folder_mcp),
-        (spec.cwd.as_str(), &[folder.clone()][..], false)
+        (&*work_of(3).to_string_lossy(), &[folder.clone()][..], false)
     );
     let mut chat = eos_core::agent::LaunchSpec::new("w-chat", "/repo", "sonnet");
     restarted.shape_launch(&mut chat);

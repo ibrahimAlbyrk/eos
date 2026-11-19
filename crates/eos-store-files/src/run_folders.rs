@@ -24,8 +24,17 @@ impl FsRunFolders {
 
 impl RunFolders for FsRunFolders {
     fn work_dir(&self, routine_id: &str, run_id: &str) -> Result<PathBuf, Error> {
-        let dir = self.run_dir(routine_id, run_id).join("work");
-        std::fs::create_dir_all(&dir).map_err(|e| Error::storage(format!("the run's working folder: {e}")))?;
+        let work = self.run_dir(routine_id, run_id).join("work");
+        let failed = |e: std::io::Error| Error::storage(format!("the run's working folder: {e}"));
+        std::fs::create_dir_all(&work).map_err(failed)?;
+        let highest = std::fs::read_dir(&work)
+            .map_err(failed)?
+            .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse::<u32>().ok())
+            .max()
+            .unwrap_or(0);
+        let dir = work.join((highest + 1).to_string());
+        // `create_dir` fails on a folder that is there: never an old one.
+        std::fs::create_dir(&dir).map_err(failed)?;
         Ok(dir)
     }
 
@@ -109,6 +118,9 @@ mod tests {
         let folder = [source.join("sub").to_string_lossy().into_owned()];
         assert!(matches!(folders.keep_files("rt-1", "rn-1", &folder).await, Err(Error::Validation(_))));
         let work = folders.work_dir("rt-1", "rn-1").expect("made");
-        assert!(work.ends_with("routines/rt-1/runs/rn-1/work") && work.is_dir());
+        assert!(work.ends_with("routines/rt-1/runs/rn-1/work/1") && work.is_dir());
+        std::fs::write(work.join("CLAUDE.md"), "left").expect("left");
+        let next = folders.work_dir("rt-1", "rn-1").expect("made");
+        assert!(next.ends_with("work/2") && std::fs::read_dir(&next).expect("a folder").next().is_none());
     }
 }
