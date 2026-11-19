@@ -49,6 +49,10 @@ pub(crate) struct Meter {
     wrapped_time: bool,
     time_up_at: Option<i64>,
     written_at: i64,
+    /// Since when a question of the run has waited for the user, and how
+    /// long the questions answered before waited: neither is working time.
+    asked_since: Option<i64>,
+    waited_ms: i64,
 }
 
 /// A run's caps, from the version it runs: a project has none of its own.
@@ -190,7 +194,10 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
 /// A working run as the time check reads it.
 struct AtWork {
     run: StoredRun,
+    /// Its running and checking time up to now, questions included.
     worked: i64,
+    /// When the oldest of its questions that still wait was asked.
+    asked_at: Option<i64>,
     caps: Option<Caps>,
 }
 
@@ -201,14 +208,16 @@ pub(crate) async fn tick(engine: &Arc<Engine>) -> bool {
     let read = engine.store.read(move |tx| {
         let mut working = Vec::new();
         for run in tx.runs().at_work()? {
-            let asked = tx
+            let asked_at = tx
                 .inbox_items()
                 .waiting_of_routine(&run.routine_id)?
                 .iter()
-                .any(|item| item.kind == ItemKind::Question && item.run_id.as_deref() == Some(run.id.as_str()));
-            let worked = work_ms(&tx.runs().events(&run.id)?, (!asked).then_some(now));
+                .filter(|item| item.kind == ItemKind::Question && item.run_id.as_deref() == Some(run.id.as_str()))
+                .map(|item| item.created_at)
+                .min();
+            let worked = work_ms(&tx.runs().events(&run.id)?, Some(now));
             let caps = caps_of(tx, &run)?;
-            working.push(AtWork { run, worked, caps });
+            working.push(AtWork { run, worked, asked_at, caps });
         }
         Ok(working)
     });
@@ -230,27 +239,38 @@ pub(crate) async fn tick(engine: &Arc<Engine>) -> bool {
 
 async fn hold_to_time(engine: &Arc<Engine>, at: &AtWork, now: i64) -> Result<(), Error> {
     let run_id = at.run.id.clone();
-    let (write, wrap_up, time_up) = {
+    let (worked, write, wrap_up, time_up) = {
         let mut meters = Engine::locked(&engine.meters);
         let meter = meters.entry(run_id.clone()).or_insert_with(|| Meter { written_at: now, ..Meter::default() });
         let write = now - meter.written_at >= WRITE_EVERY_MS;
         if write {
             meter.written_at = now;
         }
-        let state = at.caps.as_ref().map_or(Budget::Within, |caps| budget(at.worked as f64, caps.ms as f64));
+        // G30: a question's wait is seen from when it was asked to the
+        // first turn that finds it answered.
+        match (at.asked_at, meter.asked_since) {
+            (Some(asked_at), None) => meter.asked_since = Some(asked_at.min(now)),
+            (None, Some(since)) => {
+                meter.waited_ms += now - since;
+                meter.asked_since = None;
+            }
+            _ => {}
+        }
+        let waiting = meter.asked_since.map_or(0, |since| now - since);
+        let worked = (at.worked - meter.waited_ms - waiting).max(0);
+        let state = at.caps.as_ref().map_or(Budget::Within, |caps| budget(worked as f64, caps.ms as f64));
         let wrap_up = state != Budget::Within && !std::mem::replace(&mut meter.wrapped_time, true);
         let time_up = state == Budget::Reached && now - *meter.time_up_at.get_or_insert(now) >= GRACE_MS;
-        (write, wrap_up, time_up)
+        (worked, write, wrap_up, time_up)
     };
     if time_up {
-        tracing::info!(run_id = %run_id, work_ms = at.worked, "a run's working time is up");
+        tracing::info!(run_id = %run_id, work_ms = worked, "a run's working time is up");
         return fail(engine, &run_id, Reason::BudgetTime, None).await;
     }
     if wrap_up && let Some(lead) = &at.run.lead_id {
         note(engine, lead, &run_id, WRAP_UP_TIME).await?;
     }
     if write {
-        let worked = at.worked;
         engine
             .store
             .write(move |tx, _| {

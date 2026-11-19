@@ -3,12 +3,17 @@
 //! with one notice and refuse a start by hand, plan headroom, and spend
 //! booked on the user's local day.
 
+use std::sync::Arc;
+
 use eos_contracts::{Num, RoutineState, SettingValue};
+use eos_core::Clock;
 use eos_core::routine::RunOrigin;
-use eos_core::store::StoredSpend;
+use eos_core::store::{ItemAnswer, StoredItem, StoredSpend};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::worker::Usage;
+use eos_inbox::{NewItem, Opening, open_in};
+use eos_testkit::FakeTimeZone;
 use serde_json::{Value, json};
 
 use crate::bench::{Bench, blueprint, new_run, pull_request};
@@ -131,6 +136,58 @@ async fn a_run_out_of_time_is_told_to_wrap_up_and_fails_two_minutes_after_its_ca
     bench.eventually(|| bench.state(&run) == RunState::Failed).await;
     assert_eq!(bench.run(&run).reason, Some(Reason::BudgetTime));
     assert_eq!(bench.told(&lead, "90% of its working time"), 1);
+}
+
+impl Bench {
+    /// A question of `run` that waits for the user, as the run's ask opens it.
+    fn ask(&self, routine: &str, run: &str) -> StoredItem {
+        let (control, now) = (self.module.control(), self.clock.now_ms());
+        let (ids, zone) = (self.ids.clone(), Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)));
+        let new = NewItem {
+            kind: ItemKind::Question,
+            producer: "routines".into(),
+            routine_id: Some(routine.to_owned()),
+            run_id: Some(run.to_owned()),
+            subject_key: None,
+            title: "t".into(),
+            summary: "s".into(),
+            payload: json!({}),
+            by_hand: false,
+        };
+        let open = move |tx: &dyn eos_core::store::Tx, out: &mut eos_core::store::Outbox| {
+            let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+            open_in(tx, out, &at, new)
+        };
+        self.temp.store.write_blocking(open).expect("opens")
+    }
+
+    fn answered(&self, item: &StoredItem) {
+        let (id, rev, at) = (item.id.clone(), item.rev, self.clock.now_ms());
+        let answer = ItemAnswer { by: "dashboard".into(), answer: None, at };
+        let done = self.temp.store.write_blocking(move |tx, _| tx.inbox_items().answer(&id, rev, &answer));
+        assert!(done.expect("answers"));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_time_a_question_waits_for_the_user_is_not_working_time() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, limited(5.0, 10, 50.0));
+    bench.supervise().await;
+    let (run, lead) = bench.working(&routine, 1).await;
+
+    bench.later(5 * MINUTE).await;
+    let question = bench.ask(&routine, &run);
+    bench.later(20 * MINUTE).await;
+    bench.answered(&question);
+    // The wait ends at the first turn that finds the question answered.
+    bench.later(MINUTE).await;
+    bench.later(MINUTE).await;
+    assert_eq!(bench.told(&lead, "90% of its working time"), 0, "six minutes worked");
+    assert_eq!(bench.state(&run), RunState::Running);
+
+    bench.later(3 * MINUTE + MINUTE / 2).await;
+    bench.eventually(|| bench.told(&lead, "90% of its working time") == 1).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
