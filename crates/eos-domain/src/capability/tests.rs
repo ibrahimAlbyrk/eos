@@ -1,7 +1,7 @@
 use eos_contracts::{ActionClass, Issue, Issues};
 use serde_json::{Value, json};
 
-use super::check::check;
+use super::check::{check, check_builtin};
 use super::manifest::{Form, McpServer, Recipient, parse};
 use super::schema::{self, Schema};
 
@@ -28,7 +28,8 @@ fn every_valid_manifest_reads_and_passes_the_check() {
     let vectors = vectors();
     for (name, toml, _) in cases(&vectors, "valid") {
         let manifest = parse(toml).unwrap_or_else(|e| panic!("{name}: {e}"));
-        assert_eq!(issues(&check(&manifest)), json!([]), "{name}");
+        let found = if manifest.form == Form::Builtin { check_builtin(&manifest) } else { check(&manifest) };
+        assert_eq!(issues(&found), json!([]), "{name}");
         let stored = serde_json::to_value(&manifest).expect("a manifest is JSON too");
         assert_eq!(serde_json::from_value::<super::manifest::Manifest>(stored).ok(), Some(manifest), "{name}");
     }

@@ -67,6 +67,24 @@
       ]
     },
     {
+      "name": "a package that says it is built in, to take a reserved id and keep a secret from its code",
+      "toml": "id = \"github\"\nname = \"GitHub\"\nversion = \"1.0.0\"\nsummary = \"Pull requests and reviews on GitHub.\"\nform = \"builtin\"\nworks = \"any_mac\"\n\n[[secrets]]\nname = \"token\"\nlabel = \"GitHub sign-in\"\nhosts = [\"api.github.com\"]\n\n[[actions]]\nname = \"check\"\nsummary = \"See that the sign-in works.\"\nclass = \"read\"\n",
+      "issues": [
+        {
+          "path": "id",
+          "message": "github is reserved"
+        },
+        {
+          "path": "form",
+          "message": "Only Eos's own capabilities are builtin"
+        },
+        {
+          "path": "secrets.0",
+          "message": "token is never handed to the code: give it an env, or name it as the server's header_secret"
+        }
+      ]
+    },
+    {
       "name": "an IP address as a host",
       "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nreach = { hosts = [\"api.example.com\", \"127.0.0.1\"] }\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
       "issues": [
