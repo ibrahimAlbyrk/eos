@@ -275,7 +275,10 @@ fn received(value: &Value) -> &'static str {
 
 /// What a model reads when a call's input fails its action's schema:
 /// `Input validation error: Invalid arguments for github.post_review: event:
-/// Required; comments.0.line: Expected number, received string`.
+/// Required; comments.0.line: Expected number, received string`. Today's
+/// tools open the same way and list zod's issues as JSON; an action's input
+/// has no recorded answer to match, so each issue is only its path and its
+/// words, and the model reads the same words in fewer tokens.
 pub fn input_error(capability: &str, action: &str, issues: &[Issue]) -> String {
     let issues: Vec<String> = issues
         .iter()
