@@ -2,11 +2,14 @@
 //! whole app once instead of once per file. A test that needs the process to itself, or that a
 //! script runs by name, is a file of its own beside this folder.
 
+#[path = "../support/capabilities.rs"]
+mod planted;
 #[path = "../support/rig.rs"]
 mod rig;
 
 mod agent_smoke;
 mod boot;
+mod capabilities;
 mod crash;
 mod flows;
 mod isolation;

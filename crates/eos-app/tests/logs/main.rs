@@ -6,9 +6,12 @@
 //! whose steps run against one app and hand back what they planted and what the log must
 //! tell; the file is read and scanned once, at the end.
 
+#[path = "../support/capabilities.rs"]
+mod planted;
 #[path = "../support/rig.rs"]
 mod rig;
 
+mod capabilities;
 mod chats;
 
 use std::time::Duration;
@@ -39,10 +42,11 @@ async fn every_area_is_told_by_id_and_nothing_private_reaches_the_log() {
     let home = TempHome::new();
     let agents = ScriptedRuntime::new();
     agents.otherwise(rig::turn_for);
-    let app = rig::build(home.path(), &agents);
+    let planted = planted::Planted::plant();
+    let app = rig::build_with(home.path(), &agents, planted.options());
     app.start().await.expect("starts");
 
-    let areas = [chats::steps(&app).await];
+    let areas = [chats::steps(&app).await, capabilities::steps(&app, &agents, &planted).await];
 
     app.shutdown(Duration::from_secs(5)).await;
     assert!(eos_kit_log::flush(Duration::from_secs(5)));
