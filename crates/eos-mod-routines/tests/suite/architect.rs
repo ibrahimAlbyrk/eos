@@ -193,7 +193,7 @@ async fn three_architects_work_at_once_and_leaving_a_draft_makes_room() {
         made.push(routes.made(sentence).await);
     }
     let (status, refused) = routes.post("/api/routines/architect", json!({"sentence": "Four"})).await;
-    assert_eq!(status, 409, "{refused}");
+    assert_eq!((status, &refused["code"]), (409, &json!("architects_busy")), "{refused}");
     assert_eq!(routes.get("/api/routines").await.1.as_array().map(Vec::len), Some(3), "nothing was made");
 
     let (routine, architect) = &made[0];
@@ -265,4 +265,25 @@ async fn a_hand_save_after_the_architects_draft_is_the_version_that_starts() {
     let (status, row) = routes.post(&format!("/api/routines/{routine}/start"), json!({"withoutTrial": true})).await;
     assert_eq!(status, 200, "{row}");
     assert_eq!(routes.routine_head(&routine).as_deref(), Some(by_hand.as_str()), "the version the editor shows");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_draft_without_an_architect_refuses_a_message_with_a_code() {
+    let routes = Routes::new();
+    let (routine, _) = routes.made("Review my pull requests").await;
+
+    let id = routine.clone();
+    routes
+        .bench
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            let mut draft = tx.routines().draft(&id)?.expect("a draft");
+            draft.architect_id = None;
+            tx.routines().update_draft(&draft)
+        })
+        .expect("writes");
+    let (status, refused) =
+        routes.post(&format!("/api/routines/{routine}/draft/message"), json!({"text": "Hello"})).await;
+    assert_eq!((status, &refused["code"]), (409, &json!("no_architect")), "{refused}");
 }

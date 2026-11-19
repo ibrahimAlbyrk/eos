@@ -25,6 +25,7 @@ pub(crate) use routines::{BUILTIN, gone, param, readable, run_summary, showing_v
 pub(crate) use runs::start_refused;
 pub(crate) use settings::{current as current_settings, protected_settings, today};
 
+use crate::architect::{ARCHITECTS_BUSY, NO_ARCHITECT};
 use crate::engine::{Engine, NEWER_FORMAT};
 
 /// 409 `newer_format`: the routine's version was made by a newer Eos
@@ -37,6 +38,10 @@ pub(crate) fn newer_format() -> ApiError {
 pub(crate) fn refusal(error: Error) -> ApiError {
     match &error {
         Error::Conflict(message) if message == NEWER_FORMAT => newer_format(),
+        Error::Conflict(message) if message == ARCHITECTS_BUSY => {
+            ApiError::coded(409, ARCHITECTS_BUSY, "architects_busy")
+        }
+        Error::Conflict(message) if message == NO_ARCHITECT => ApiError::coded(409, NO_ARCHITECT, "no_architect"),
         _ => error.into(),
     }
 }

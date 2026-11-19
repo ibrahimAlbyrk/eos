@@ -48,6 +48,12 @@ pub(crate) const IDLE_MS: i64 = 30 * 60 * 1000;
 /// replaced by a new one that starts from the head.
 const REVIVE_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 const SUSPEND_REASON: &str = "routine_architect";
+/// The refusal of one more architect while [`LIVE_MAX`] are live; its
+/// route answers it with code `architects_busy`.
+pub(crate) const ARCHITECTS_BUSY: &str = "too many architects are at work; finish or leave one first";
+/// The refusal of a message to a draft no architect works on; its route
+/// answers it with code `no_architect`.
+pub(crate) const NO_ARCHITECT: &str = "the draft has no architect";
 
 /// The routine and draft row of the architect `worker_id`; refused for a
 /// worker that is not the architect of its routine now.
@@ -65,7 +71,7 @@ fn room(engine: &Engine, worker_id: Option<&str>) -> Result<(), Error> {
     if worker_id.is_some_and(|id| live.contains_key(id)) || live.len() < LIVE_MAX {
         return Ok(());
     }
-    Err(Error::Conflict(format!("{LIVE_MAX} architects are at work; finish or leave one first")))
+    Err(Error::Conflict(ARCHITECTS_BUSY.into()))
 }
 
 /// The architect was active: its idle time starts again.
