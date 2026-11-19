@@ -15,6 +15,8 @@ use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets
 use serde_json::Value;
 
 // A folder of its own, so cargo does not build it as a test program of its own.
+#[path = "engine/confine_api.rs"]
+mod confine_api;
 #[path = "engine/ports.rs"]
 mod ports;
 
