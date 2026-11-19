@@ -84,6 +84,7 @@ describe("a run's stations", () => {
     }
     expect(at("failed", undefined, "invalid")).toEqual(["failed", "todo", "todo", "todo", "todo"]);
     expect(at("cancelled", "work", "user")).toEqual(["done", "stopped", "todo", "todo", "todo"]);
+    expect(at("cancelled", undefined, "user")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
   });
 
   it("say each interruption and when the run carried on", () => {
