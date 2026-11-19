@@ -2,8 +2,9 @@
 //! from the Forge or from elsewhere passes before it runs: its names, the
 //! hosts it reaches, its schemas, that every secret it asks for is handed to
 //! its code, that every channel, source and check names an action of a
-//! fitting class, and the limits. A manifest of Eos's own code passes the
-//! same check with what only Eos may do.
+//! fitting class, that its actions are of its form, and the limits. A
+//! manifest of Eos's own code passes the same check with what only Eos may
+//! do.
 
 use eos_contracts::{ActionClass, Issue, Issues};
 
@@ -56,6 +57,9 @@ fn findings(manifest: &Manifest, builtin: bool) -> Vec<Issue> {
         let fitting = [ActionClass::Read, ActionClass::WriteLocal, ActionClass::TellUser];
         cx.at("tests", |cx| names_action(manifest, live, "live", &fitting, cx));
     }
+    if manifest.form == Form::Mcp && manifest.server.is_none() {
+        cx.push_at("server", "An mcp capability names the server its actions are tools of");
+    }
     cx.at("actions", |cx| actions(manifest, cx));
     cx.at("channels", |cx| {
         let fitting = [ActionClass::TellUser, ActionClass::Speak, ActionClass::Irreversible];
@@ -94,6 +98,9 @@ fn hosts(hosts: &[String], cx: &mut Issues) {
 }
 
 fn actions(manifest: &Manifest, cx: &mut Issues) {
+    if manifest.form == Form::Skill && !manifest.actions.is_empty() {
+        cx.push("A skill has no actions: its instructions are all it gives");
+    }
     if manifest.actions.len() > ACTIONS_MAX {
         cx.push(format!("At most {ACTIONS_MAX} actions"));
     }
@@ -107,6 +114,11 @@ fn actions(manifest: &Manifest, cx: &mut Issues) {
             cx.at("summary", |cx| cx.str_min(action.summary.trim(), 1));
             if !action.undo.is_empty() && manifest.action(&action.undo).is_none() {
                 cx.push_at("undo", format!("Names no action: {}", action.undo));
+            }
+            match manifest.form {
+                Form::Script if action.run.is_empty() => cx.push_at("run", "A script action names the program it runs"),
+                Form::Mcp if action.tool.is_none() => cx.push_at("tool", "An mcp action names its server's tool"),
+                _ => {}
             }
             if !(1..=TIMEOUT_MAX_S).contains(&action.timeout_s) {
                 cx.push_at("timeout_s", format!("Expected 1 to {TIMEOUT_MAX_S} seconds"));
