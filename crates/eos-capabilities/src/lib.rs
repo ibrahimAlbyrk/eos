@@ -14,7 +14,9 @@
 //! refused for its sign-in, or whose answer broke its shape, asks for an
 //! early health check ([`CapabilityService::early_checks`]). The user
 //! switches a capability off and on and sets its settings; the items its
-//! `[[candidates]]` actions offer are gathered for the user to pick. No
+//! `[[candidates]]` actions offer are gathered for the user to pick. A
+//! built-in the user signs in to by a code is handed out for the sign-in,
+//! and the account's label is kept once it is done. No
 //! class gate here: the policy decides an agent's call before the tool
 //! runs, and a delivery calls after the Needs-you gate.
 //!
@@ -32,6 +34,7 @@ mod limits;
 mod manage;
 mod output;
 mod registry;
+mod sign_in;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

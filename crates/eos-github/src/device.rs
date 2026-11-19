@@ -1,9 +1,10 @@
 //! Signing in by GitHub's device flow (06 G5): GitHub gives a code, the user
 //! enters it on github.com, and Eos polls until GitHub hands over a token
 //! with the `repo` scope. Codes live 15 minutes; polls keep GitHub's
-//! interval and add 5 s each time it says `slow_down`. The token is kept
-//! with the capability's secrets; the account's login is its label. None of
-//! the codes, the token or the login reaches a log.
+//! interval and add 5 s each time it says `slow_down` or limits the rate; a
+//! poll that got no answer is tried again until the code runs out. The
+//! token is kept with the capability's secrets; the account's login is its
+//! label. None of the codes, the token or the login reaches a log.
 
 use eos_core::BoxFuture;
 use eos_core::capability::{ActionError, DeviceCode, DeviceSignIn, SignInError};
@@ -79,7 +80,15 @@ impl GitHub {
                 return Err(SignInError::Expired);
             }
             self.sleeper.sleep(i64::try_from(interval_s * 1000).unwrap_or(i64::MAX)).await;
-            let answer = self.form("/login/oauth/access_token", &fields).await?;
+            let answer = match self.form("/login/oauth/access_token", &fields).await {
+                Ok(answer) => answer,
+                // The code still lives: a poll that got no answer is tried again.
+                Err(SignInError::RateLimited) => {
+                    interval_s += SLOW_DOWN_S;
+                    continue;
+                }
+                Err(_) => continue,
+            };
             if let Some(token) = answer["access_token"].as_str() {
                 return self.keep(Zeroizing::new(token.to_owned())).await;
             }

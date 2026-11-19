@@ -2,4 +2,5 @@
 
 mod rig;
 mod routes;
+mod sign_in;
 mod ticker;

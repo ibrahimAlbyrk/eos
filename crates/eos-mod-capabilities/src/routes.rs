@@ -18,6 +18,8 @@ use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use serde_json::{Value, json};
 
+use crate::sign_in::SignIns;
+
 /// The calls a capability's page lists.
 const RECENT_CALLS: i64 = 20;
 /// The items the candidates route lists when the request names no limit.
@@ -154,10 +156,11 @@ fn limit_of(req: &Request) -> Result<usize, ApiError> {
 struct Parts {
     service: Arc<CapabilityService>,
     store: Arc<dyn Store>,
+    sign_ins: Arc<SignIns>,
 }
 
-pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>) -> Vec<RouteDef> {
-    let parts = Parts { service: service.clone(), store: store.clone() };
+pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>, sign_ins: &Arc<SignIns>) -> Vec<RouteDef> {
+    let parts = Parts { service: service.clone(), store: store.clone(), sign_ins: sign_ins.clone() };
 
     let p = parts.clone();
     let list = RouteDef::get("/api/capabilities", move |_req: Request| {
@@ -228,6 +231,24 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>) -> V
             Ok(Response::json(200, &row_of(&p.service, &p.store, &id).await?))
         }
     });
+    let p = parts.clone();
+    let sign_in = RouteDef::post("/api/capabilities/{id}/sign-in", move |req: Request| {
+        let p = p.clone();
+        async move { Ok(Response::json(200, &p.sign_ins.start(&p.service, &id_of(&req)).await?)) }
+    });
+    let p = parts.clone();
+    let sign_in_status = RouteDef::get("/api/capabilities/{id}/sign-in", move |req: Request| {
+        let p = p.clone();
+        async move { Ok(Response::json(200, &p.sign_ins.status(&p.service, &id_of(&req))?)) }
+    });
+    let p = parts.clone();
+    let sign_in_cancel = RouteDef::delete("/api/capabilities/{id}/sign-in", move |req: Request| {
+        let p = p.clone();
+        async move {
+            p.sign_ins.cancel(&p.service, &id_of(&req))?;
+            Ok(Response::json(200, &json!({ "ok": true })))
+        }
+    });
     let p = parts;
     let remove = RouteDef::delete("/api/capabilities/{id}", move |req: Request| {
         let p = p.clone();
@@ -238,7 +259,7 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>) -> V
     });
 
     // What a capability is and does reads from the phone; switching one off and checking it
-    // act from there too. Its settings, versions and removal are this computer's alone.
+    // act from there too. Its settings, versions, sign-in and removal are this computer's alone.
     let read = Access::ui_token().phone_user(Tier::Read);
     let act = Access::ui_token().phone_user(Tier::Low);
     let here = Access::ui_token().local_only();
@@ -251,6 +272,9 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>) -> V
         settings.access(here),
         check.access(act),
         rollback.access(here),
+        sign_in.access(here),
+        sign_in_status.access(here),
+        sign_in_cancel.access(here),
         remove.access(here),
     ]
 }
