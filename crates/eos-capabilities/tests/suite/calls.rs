@@ -9,7 +9,7 @@ use eos_core::capability::{
     ActionCaller, ActionError, CapabilityCalls, CapabilityGrants, CapabilityRegistry, Grant, GrantedAction,
 };
 use eos_domain::untrusted::wrap;
-use eos_testkit::{FakeActionRunner, FakeBuiltin};
+use eos_testkit::{FakeActionRunner, FakeBuiltin, LogCapture};
 use serde_json::json;
 
 use crate::rig::{GITHUB, SECRET, Setup, agent_call, github_rig, notes, rig};
@@ -177,4 +177,17 @@ async fn a_capability_installed_while_a_call_runs_is_callable_on_the_next_call()
     running.await.expect("joins").expect("the first call ends well");
     let row = "SELECT COUNT(*) FROM capability_calls WHERE capability_id = 'notes-db' AND version = '1.0.0'";
     assert_eq!(rig.temp.count(row), 1);
+}
+
+#[tokio::test]
+async fn a_store_that_cannot_be_read_fails_the_call_and_logs_no_name_the_model_wrote() {
+    let rig = rig(Setup::default()).await;
+    rig.temp.exec("DROP TABLE capability_installs");
+    let logs = LogCapture::start();
+
+    let failed = rig.service.call(agent_call("planted-capability-name", "list", json!({}))).await;
+    assert!(matches!(failed, Err(ActionError::Failed { .. })), "{failed:?}");
+    let text = logs.text();
+    assert!(text.contains("the capabilities could not be read"), "{text}");
+    assert!(!text.contains("planted-capability-name"), "{text}");
 }
