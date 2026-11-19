@@ -67,7 +67,8 @@ export function OverviewTab({ detail, now }) {
   );
 }
 
-// The blueprint editor with its architect (views/eos/blueprint).
-export function BlueprintTab({ detail }) {
-  return <BlueprintEditor detail={detail} />;
+// The blueprint editor with its architect (views/eos/blueprint), or one of
+// the routine's versions read-only.
+export function BlueprintTab({ detail, version }) {
+  return <BlueprintEditor key={version ?? "in-use"} detail={detail} versionNumber={version} />;
 }

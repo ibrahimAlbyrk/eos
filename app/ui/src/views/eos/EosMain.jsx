@@ -47,6 +47,7 @@ export function EosMain() {
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
   if (location?.screen === "new-routine") return <NewRoutine />;
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
+  if (location?.screen === "version") return <RoutinePage key={location.routineId} id={location.routineId} tab="blueprint" version={location.version} />;
   if (location?.screen === "run") return <RunView key={location.runId} id={location.runId} />;
   if (location?.screen === "capabilities") return <CapabilitiesScreen />;
   if (location?.screen === "capability") return <CapabilityScreen key={location.capabilityId} id={location.capabilityId} />;

@@ -126,6 +126,14 @@
 .eos-bp-actions__cost { margin-left: auto; font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-bp-issues { margin: 6px 0 0; padding-left: 18px; width: 100%; }
 
+/* ── Versions ───────────────────────────────────────────────────────────── */
+.eos-bp-versions { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.eos-bp-versions:hover { color: var(--fg-strong); }
+.eos-bp-versions__menu { left: 0; right: auto; min-width: 280px; }
+.eos-bp-compare { width: 100%; border-collapse: collapse; font-size: var(--text-sm); color: var(--fg); }
+.eos-bp-compare th, .eos-bp-compare td { padding: 10px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.eos-bp-compare thead th, .eos-bp-compare tbody th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+
 /* ── Trials ───────────────────────────────────────────────────────────────── */
 .eos-bp-trials { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 .eos-bp-trial { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
