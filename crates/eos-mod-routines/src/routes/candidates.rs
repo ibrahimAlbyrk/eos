@@ -72,7 +72,7 @@ fn merge(listed: Vec<CapabilityItem>, recent: Vec<(i64, ItemRef)>, q: Option<&st
     };
     let mut all: Vec<(i64, ItemRef)> = listed.into_iter().map(|item| (item.updated_at, item_ref(item))).collect();
     all.extend(recent.into_iter().filter(|(_, item)| matches(item)));
-    all.sort_by(|a, b| b.0.cmp(&a.0));
+    all.sort_by_key(|(at, _)| std::cmp::Reverse(*at));
     let mut items: Vec<ItemRef> = Vec::new();
     for (_, item) in all {
         let seen = item.key.is_some() && items.iter().any(|kept| kept.key == item.key);
