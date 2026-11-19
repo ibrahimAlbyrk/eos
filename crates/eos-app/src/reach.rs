@@ -103,9 +103,14 @@ impl Reach {
         }
     }
 
-    /// How the GitHub capability reaches GitHub.
-    pub(crate) fn github(self, transport: Arc<dyn Transport>) -> Arc<dyn Transport> {
-        if self.network { transport } else { Arc::new(NoGitHub) }
+    /// How the GitHub capability reaches GitHub: through the transport only
+    /// the host hands in, so a run without it (a test that reaches local
+    /// fakes) or off the network sends nothing.
+    pub(crate) fn github(self, transport: Option<Arc<dyn Transport>>) -> Arc<dyn Transport> {
+        match transport.filter(|_| self.network) {
+            Some(transport) => transport,
+            None => Arc::new(NoGitHub),
+        }
     }
 
     /// The sources signals come from: off the network each still says what
@@ -330,7 +335,7 @@ mod tests {
     async fn off_the_network_github_is_never_sent_a_call_or_a_sign_in() {
         let github = Arc::new(FakeGitHub::new());
         let capability = GitHub::new(eos_github::Parts {
-            transport: Reach::new(false).github(github.clone()),
+            transport: Reach::new(false).github(Some(github.clone())),
             secrets: Arc::new(FakeCapabilitySecrets::new()),
             clock: Arc::new(FakeClock::at(1_763_460_000_000)),
             sleeper: Arc::new(FakeSleeper::default()),
@@ -348,8 +353,14 @@ mod tests {
         assert!(read.is_err(), "the call fails as one with no answer");
         assert!(sign_in.is_err(), "and so does the sign-in");
         assert!(github.calls().is_empty(), "nothing reached GitHub");
-        assert!(Reach::new(true).github(github.clone()).send(probe()).await.is_ok());
+        assert!(Reach::new(true).github(Some(github.clone())).send(probe()).await.is_ok());
         assert_eq!(github.calls().len(), 1, "on the network it does");
+    }
+
+    #[tokio::test]
+    async fn on_the_network_without_the_host_s_transport_github_is_never_sent_a_call() {
+        let refused = Reach::new(true).github(None).send(probe()).await.map(drop).map_err(|e| e.to_string());
+        assert_eq!(refused, Err(eos_github::Error::Transport(GITHUB_OFF.into()).to_string()));
     }
 
     fn probe() -> HttpRequest {

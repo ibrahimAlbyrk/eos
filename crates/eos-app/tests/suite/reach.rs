@@ -19,7 +19,7 @@ use eos_relay::{RelayClient, RelayOptions};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_testkit::relay::FakeRelay;
-use eos_testkit::{FakeClock, FakeGitHub, NoKeychain, SeqIds, TempHome};
+use eos_testkit::{FakeCapabilitySecrets, FakeClock, FakeGitHub, NoKeychain, SeqIds, TempHome};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
@@ -285,6 +285,27 @@ async fn a_run_on_the_network_without_the_host_s_keychain_keeps_no_capability_se
     assert_eq!(status, 200, "{detail}");
     assert_eq!(detail["secrets"][0]["set"], json!(false), "{detail}");
     assert!(github.calls().is_empty(), "nothing asked GitHub");
+    app.shutdown(Duration::from_secs(5)).await;
+}
+
+/// A request to GitHub acts as the user: a run that turns the network on for
+/// its local fakes sends GitHub nothing unless the host hands it the app's
+/// own transport, even with a token in its own secret store.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_on_the_network_without_the_host_s_transport_sends_github_nothing() {
+    let home = TempHome::new();
+    let options = options(&home, true);
+    assert!(options.github.is_none(), "only the host hands in the transport");
+    let secrets = Arc::new(FakeCapabilitySecrets::new().with("github", "token", "gho_planted_secret_1"));
+    let capabilities = CapabilityOptions { secrets: Some(secrets), ..CapabilityOptions::default() };
+    let app = App::build(Options { capabilities, ..options }).expect("builds");
+    app.start().await.expect("starts");
+
+    // On the network with a real transport this would ask github.com for a device code.
+    let (status, body) = call(&app, Method::Post, "/api/capabilities/github/sign-in", None).await;
+    assert_eq!((status, body), (502, json!({"error": "unreachable: github"})));
+    let (_, pending) = call(&app, Method::Get, "/api/capabilities/github/sign-in", None).await;
+    assert_eq!(pending, json!({"error": "capability sign-in not found: github"}), "no sign-in waits");
     app.shutdown(Duration::from_secs(5)).await;
 }
 

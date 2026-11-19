@@ -239,6 +239,11 @@ fn start_core(
         sweep_leftovers: real_data,
         relay: Some(eos_app::relay()),
         keychain: Some(eos_app::keychain()),
+        github: Some(
+            eos_app::github()
+                .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
+                .ok()?,
+        ),
         reaches_network: network,
         dashboard: Some(dist.to_path_buf()).filter(|dist| dist.join("index.html").is_file()),
         callers: Some(callers),
