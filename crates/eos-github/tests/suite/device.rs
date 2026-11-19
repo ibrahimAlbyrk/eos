@@ -78,3 +78,26 @@ async fn without_a_client_id_nothing_starts_and_the_check_asks_for_setup() {
     assert_eq!(rig.github.health(&ctx(None)).await, Event::Missing(StateCode::ClientIdMissing));
     assert!(rig.fake.calls().is_empty(), "GitHub was never asked");
 }
+
+#[tokio::test]
+async fn a_sign_in_github_does_not_answer_ends_after_thirty_seconds_and_polls_stop_at_the_code_s_end() {
+    let rig = rig();
+    rig.fake.hang();
+    let github = rig.github.clone();
+    let started = tokio::spawn(async move { github.device_sign_in().expect("signs in").start().await.map(drop) });
+    assert_eq!(rig.next_wait().await, 30_000);
+    rig.sleeper.wake();
+    assert_eq!(started.await.expect("joins"), Err(SignInError::Failed), "no code came");
+
+    let fresh = rig_with("Iv1.fake");
+    let code = fresh.github.device_sign_in().expect("signs in").start().await.expect("a code");
+    fresh.fake.hang();
+    let (github, clock) = (fresh.github.clone(), fresh.clock.clone());
+    let finished = tokio::spawn(async move { github.device_sign_in().expect("signs in").finish(&code).await });
+    assert_eq!(fresh.next_wait().await, 5_000, "GitHub's interval");
+    fresh.sleeper.wake();
+    assert_eq!(fresh.next_wait().await, 30_000, "the poll is bounded");
+    clock.advance(900_000);
+    fresh.sleeper.wake();
+    assert_eq!(finished.await.expect("joins"), Err(SignInError::Expired), "the code ran out while GitHub was silent");
+}

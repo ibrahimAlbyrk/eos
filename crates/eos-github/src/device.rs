@@ -2,12 +2,13 @@
 //! enters it on github.com, and Eos polls until GitHub hands over a token
 //! with the `repo` scope. Codes live 15 minutes; polls keep GitHub's
 //! interval and add 5 s each time it says `slow_down` or limits the rate; a
-//! poll that got no answer is tried again until the code runs out. The
+//! poll that got no answer in 30 s is tried again until the code runs out. The
 //! token is kept with the capability's secrets; the account's login is its
 //! label. None of the codes, the token or the login reaches a log.
 
 use eos_core::BoxFuture;
 use eos_core::capability::{ActionError, DeviceCode, DeviceSignIn, SignInError};
+use eos_domain::capability::manifest::DEFAULT_TIMEOUT_S;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
@@ -37,7 +38,16 @@ impl GitHub {
             ],
             body: Some(body.into_bytes()),
         };
-        let response = self.transport.send(request).await.map_err(|e| {
+        // Nothing else bounds the exchange: a request that hangs would keep the
+        // attempt pending past its code's end.
+        let sent = tokio::select! {
+            sent = self.transport.send(request) => sent,
+            () = self.sleeper.sleep(i64::from(DEFAULT_TIMEOUT_S) * 1000) => {
+                tracing::info!(host = "github.com", "GitHub's sign-in did not answer in time");
+                return Err(SignInError::Failed);
+            }
+        };
+        let response = sent.map_err(|e| {
             tracing::warn!(host = "github.com", error = %e, "GitHub's sign-in could not be reached");
             SignInError::Failed
         })?;
@@ -107,7 +117,11 @@ impl GitHub {
 
     /// Reads the account's login with the new token, then keeps the token.
     async fn keep(&self, token: Zeroizing<String>) -> Result<String, SignInError> {
-        let user = self.get(&token, "/user").await.map_err(|e| match e {
+        let user = tokio::select! {
+            user = self.get(&token, "/user") => user,
+            () = self.sleeper.sleep(i64::from(DEFAULT_TIMEOUT_S) * 1000) => Err(ActionError::Timeout),
+        };
+        let user = user.map_err(|e| match e {
             ActionError::RateLimited { .. } => SignInError::RateLimited,
             _ => SignInError::Failed,
         })?;
