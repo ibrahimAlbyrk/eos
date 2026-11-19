@@ -4,7 +4,9 @@
 
 use std::path::PathBuf;
 
-use eos_contracts::{Freedom, ItemRef, Recipient, RoutineKind, RoutineState, RunInput, Rung, When, Which};
+use eos_contracts::{
+    CheckVerdict, Freedom, ItemRef, Recipient, RoutineKind, RoutineState, RunInput, Rung, When, Which,
+};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::run_scope::{RunRole, Trust};
@@ -275,6 +277,9 @@ pub trait RoutineTools: Send + Sync {
     fn submit_result<'a>(&'a self, worker_id: &'a str, result: SubmittedResult) -> BoxFuture<'a, Result<(), Error>>;
     /// Ends the run as failed, the agent's reason its headline.
     fn report_failure<'a>(&'a self, worker_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// The checker's verdict on the result it was given: a pass goes on, a
+    /// fail goes back to the lead (once) or fails the run.
+    fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>>;
 }
 
 /// A file a result carries, as it was kept.

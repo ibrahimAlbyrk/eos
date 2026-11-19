@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use eos_contracts::CheckVerdict;
 use eos_core::routine::{RoutineTools, RunRef, SubmittedResult};
 use eos_core::store::{RunMove, StoredRunResult};
 use eos_core::{BoxFuture, Error};
@@ -12,7 +13,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use serde_json::json;
 
-use super::{Engine, fail, move_run};
+use super::{Engine, check, fail, move_run};
 
 /// The largest result body kept, in bytes of its JSON.
 pub(crate) const RESULT_BODY_MAX_BYTES: usize = 512 * 1024;
@@ -97,6 +98,9 @@ impl RoutineTools for Tools {
                 })
                 .await?;
             Engine::locked(&engine.progress).remove(&run.run_id);
+            // Held until the check lets it go: what the user says meanwhile waits.
+            Engine::locked(&engine.held).insert(worker_id.to_owned());
+            check::begin(engine, &run.run_id);
             tracing::info!(run_id = %run.run_id, worker_id, bytes = size, files = kept.len(), "a run's result was handed in");
             Ok(())
         })
@@ -106,6 +110,15 @@ impl RoutineTools for Tools {
         Box::pin(async move {
             let run = self.working_run(worker_id).await?;
             fail(&self.0, &run.run_id, Reason::Reported, Some(reason.to_owned())).await
+        })
+    }
+
+    fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move {
+            let Some((run_id, attempt)) = check::current_checker(&self.0, worker_id).await? else {
+                return Err(Error::Conflict("this session checks no result now".into()));
+            };
+            check::judged(&self.0, &run_id, attempt, verdict).await
         })
     }
 }

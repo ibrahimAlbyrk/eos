@@ -6,15 +6,15 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{AgentWorkspace, Blueprint, NameSource, RoutineAgent, RunInput, WhoDepth};
+use eos_contracts::{AgentWorkspace, Blueprint, RoutineAgent, RunInput, WhoDepth};
 use eos_core::Error;
-use eos_core::store::{RunMove, StoredRoutineSession};
+use eos_core::store::RunMove;
 use eos_domain::routine::blueprint::{Context, Severity, validate};
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::{RunRole, Trust};
-use eos_sessions::SpawnRequest;
 
-use super::launch::{RUN_PERMISSION_MODE, RunLaunch, run_scope};
+use super::launch::fence_of;
+use super::spawn::{self, RunSession};
 use super::{Engine, fail, move_run};
 use crate::routes::readable;
 
@@ -65,38 +65,23 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         (WhoDepth::Solo, [agent]) if agent.workspace == AgentWorkspace::None => agent.clone(),
         _ => return Err((Reason::Invalid, Some(NOT_HERE), None)),
     };
-    let worker_id = engine.ids.worker_id();
-    let folder = engine.scratch.create(&worker_id).await.map_err(internal)?;
-    if !record(engine, run_id, &routine_id, &worker_id, &agent).await.map_err(internal)? {
-        engine.scratch.remove(&folder).await;
-        return Ok(());
-    }
     let (model, effort) = model_of(&blueprint, &agent, &input);
-    let prompt = render(engine, &blueprint, &agent, &input, &folder).map_err(internal)?;
-    let scope = run_scope(RunRole::Solo, trust, &agent, &folder).map_err(internal)?;
-    let launch = RunLaunch { routine_id: routine_id.clone(), run_id: run_id.to_owned(), trust };
-    Engine::locked(&engine.launches).insert(worker_id.clone(), launch);
-    let request = SpawnRequest {
-        prompt,
-        cwd: Some(folder.clone()),
-        name: Some(format!("{} · {}", blueprint.name, agent.name)),
-        name_source: Some(NameSource::Auto),
-        model: Some(model),
-        effort: Some(effort),
-        role: Some(eos_contracts::FOCUSED_ROLE.to_owned()),
-        worker_definition: Some(SOLO_DEFINITION.to_owned()),
-        scratch: true,
-        fixed_id: Some(worker_id.clone()),
-        skip_recents: true,
-        permission_mode: Some(RUN_PERMISSION_MODE.to_owned()),
-        tool_scope: Some(scope),
-        ..SpawnRequest::default()
+    let session = RunSession {
+        run_id: run_id.to_owned(),
+        routine_id: routine_id.clone(),
+        role: RunRole::Solo,
+        role_word: "solo",
+        agent_key: Some(agent.key.clone()),
+        definition: SOLO_DEFINITION,
+        name: format!("{} · {}", blueprint.name, agent.name),
+        model,
+        effort,
+        trust,
+        fence: fence_of(&agent),
+        at: (RunState::Running, Station::Brief),
     };
-    if let Err(error) = engine.sessions.spawn(request).await {
-        Engine::locked(&engine.launches).remove(&worker_id);
-        engine.scratch.remove(&folder).await;
-        return Err(internal(error));
-    }
+    let render = |folder: &str| render(engine, &blueprint, &agent, &input, folder);
+    let Some(worker_id) = spawn::start(engine, session, render).await.map_err(internal)? else { return Ok(()) };
     to_work(engine, run_id).await.map_err(internal)?;
     tracing::info!(run_id, worker_id, routine_id, "a run's lead started");
     Ok(())
@@ -128,37 +113,6 @@ async fn read(engine: &Engine, run_id: &str) -> Result<Option<Briefing>, Error> 
                 serde_json::from_str(&run.input).map_err(|_| Error::storage(format!("run {id} has no input")))?;
             let trust = eos_domain::routine::trust::of_run(Some(version.trust), &input);
             Ok(Some(Briefing { routine_id: run.routine_id, blueprint, input, trust }))
-        })
-        .await
-}
-
-/// The lead's `routine_sessions` row and the run's lead, written before the
-/// session starts. False when the run left the brief meanwhile (stopped).
-async fn record(
-    engine: &Engine,
-    run_id: &str,
-    routine_id: &str,
-    worker_id: &str,
-    agent: &RoutineAgent,
-) -> Result<bool, Error> {
-    let row = StoredRoutineSession {
-        worker_id: worker_id.to_owned(),
-        routine_id: routine_id.to_owned(),
-        run_id: Some(run_id.to_owned()),
-        role: "solo".into(),
-        agent_key: Some(agent.key.clone()),
-        created_at: engine.clock.now_ms(),
-    };
-    let id = run_id.to_owned();
-    engine
-        .store
-        .write(move |tx, _| {
-            let at_brief = tx.runs().find(&id)?.is_some_and(|run| run.station == Some(Station::Brief));
-            if at_brief {
-                tx.routine_sessions().insert(&row)?;
-                tx.runs().set_lead(&id, &row.worker_id)?;
-            }
-            Ok(at_brief)
         })
         .await
 }
@@ -198,7 +152,7 @@ fn model_of(blueprint: &Blueprint, agent: &RoutineAgent, input: &RunInput) -> (S
     (model, effort)
 }
 
-fn word<T: serde::Serialize>(value: &T) -> String {
+pub(crate) fn word<T: serde::Serialize>(value: &T) -> String {
     serde_json::to_value(value).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()
 }
 

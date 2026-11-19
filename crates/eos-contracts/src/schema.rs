@@ -126,6 +126,8 @@ bundle![
     ChangedFile,
     ChatArtifact,
     ChatAttachment,
+    CheckOutcome,
+    CheckVerdict,
     ClaimRequest,
     ClaimResponse,
     ClaudeMdImportResponse,

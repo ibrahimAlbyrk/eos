@@ -8,15 +8,18 @@
 
 mod brief;
 mod cancel;
+mod check;
 mod control;
 mod exec;
 mod grants;
 mod idle;
 mod launch;
 mod ports;
+mod spawn;
 mod start;
 mod supervisor;
 
+pub(crate) use check::holds;
 pub(crate) use control::Control;
 pub(crate) use exec::Tools;
 pub(crate) use grants::Grants;
@@ -24,7 +27,7 @@ pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use ports::{Directory, Intake, Lookup};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
@@ -71,6 +74,8 @@ pub(crate) struct Engine {
     pub(crate) launches: Mutex<HashMap<String, launch::RunLaunch>>,
     /// The capabilities there are, for what a run session may call.
     pub(crate) reads: Arc<dyn CapabilityReads>,
+    /// Leads held while their result is checked: messages to them queue.
+    pub(crate) held: Mutex<HashSet<String>>,
 }
 
 impl Engine {

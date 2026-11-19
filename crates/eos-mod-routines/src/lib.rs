@@ -115,6 +115,7 @@ impl RoutinesModule {
             folders,
             progress: Mutex::new(HashMap::new()),
             launches: Mutex::new(HashMap::new()),
+            held: Mutex::new(std::collections::HashSet::new()),
             reads,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
@@ -177,6 +178,10 @@ impl Module for RoutinesModule {
 
     fn on_session_exit(&self, worker_id: &str) {
         engine::session_exited(&self.engine, worker_id);
+    }
+
+    fn holds_worker(&self, worker_id: &str) -> bool {
+        engine::holds(&self.engine, worker_id)
     }
 
     fn shape_launch(&self, spec: &mut LaunchSpec) {

@@ -3,7 +3,8 @@
 //! the run fails as `no_result`. A lead whose session ends unexpectedly is
 //! resumed once with a message; the second time the run fails as
 //! `crashed`. Both count from the run's own timeline, so a restart forgets
-//! nothing.
+//! nothing. A checker that goes quiet or dies without its verdict is the
+//! check station's (`check::checker_failed`).
 
 use std::sync::Arc;
 
@@ -14,7 +15,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use eos_runtime::idle::IdleHook;
 
-use super::{Engine, fail, note};
+use super::{Engine, check, fail, note};
 
 /// After the watcher's own idle hooks (report gap 30, context 40).
 const IDLE_ORDER: i32 = 50;
@@ -85,8 +86,12 @@ pub(crate) fn lead_idle_hook(engine: &Arc<Engine>) -> IdleHook {
     })
 }
 
-async fn idle(engine: &Engine, worker_id: &str) -> Result<bool, Error> {
-    let Some((run, nudged)) = at_work(engine, worker_id, NUDGED, true).await? else { return Ok(false) };
+async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
+    let Some((run, nudged)) = at_work(engine, worker_id, NUDGED, true).await? else {
+        // A checker that ends its turn without a verdict gives none.
+        check::checker_failed(engine, worker_id).await?;
+        return Ok(false);
+    };
     if nudged > 0 {
         fail(engine, &run.run_id, Reason::NoResult, None).await?;
         return Ok(false);
@@ -108,8 +113,10 @@ pub(crate) fn session_exited(engine: &Arc<Engine>, worker_id: &str) {
     });
 }
 
-async fn exited(engine: &Engine, worker_id: &str) -> Result<(), Error> {
-    let Some((run, crashed)) = at_work(engine, worker_id, CRASHED, false).await? else { return Ok(()) };
+async fn exited(engine: &Arc<Engine>, worker_id: &str) -> Result<(), Error> {
+    let Some((run, crashed)) = at_work(engine, worker_id, CRASHED, false).await? else {
+        return check::checker_failed(engine, worker_id).await;
+    };
     if crashed > 0 {
         return fail(engine, &run.run_id, Reason::Crashed, None).await;
     }

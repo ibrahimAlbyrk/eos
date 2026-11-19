@@ -28,11 +28,20 @@ pub(crate) struct RunLaunch {
     pub(crate) trust: Trust,
 }
 
+/// An agent's own fence, when it has one.
+pub(crate) fn fence_of(agent: &RoutineAgent) -> Option<ToolScope> {
+    let fence = tool_scope(Some(&agent.tools.allow), Some(&agent.tools.deny), None);
+    is_restrictive(&fence).then_some(fence)
+}
+
 /// The tool scope a run session is spawned with, as its row stores it: the
 /// run scope narrowed by the agent's own fence; edits stay in `edit_folder`.
-pub(crate) fn run_scope(role: RunRole, trust: Trust, agent: &RoutineAgent, edit_folder: &str) -> Result<String, Error> {
-    let fence = tool_scope(Some(&agent.tools.allow), Some(&agent.tools.deny), None);
-    let fence: Option<&ToolScope> = is_restrictive(&fence).then_some(&fence);
+pub(crate) fn run_scope(
+    role: RunRole,
+    trust: Trust,
+    fence: Option<&ToolScope>,
+    edit_folder: &str,
+) -> Result<String, Error> {
     let scope = scope_for(role, trust, &[CALL_CAPABILITY_TOOL], fence, edit_folder);
     serde_json::to_string(&scope).map_err(|e| Error::storage(e.to_string()))
 }

@@ -81,3 +81,28 @@ pub struct RunsActive {
 }
 
 impl Validate for RunsActive {}
+
+/// What a run's check found: whether the result passes, each of the
+/// routine's checks, and what the lead must change when it does not.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckVerdict {
+    pub pass: bool,
+    #[serde(default)]
+    pub checks: Vec<CheckOutcome>,
+    #[serde(default)]
+    pub must_fix: Vec<String>,
+}
+
+impl Validate for CheckVerdict {}
+
+/// One of the routine's checks, as the check found it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckOutcome {
+    pub key: String,
+    pub ok: bool,
+    pub note: String,
+}
+
+impl Validate for CheckOutcome {}
