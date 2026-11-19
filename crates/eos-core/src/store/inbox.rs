@@ -223,6 +223,9 @@ pub trait InboxRepo {
     /// `replaced_by`) if it still waits at `rev`; `false`, and nothing
     /// written, when it ended or changed since.
     fn update_waiting(&self, item: &StoredItem, rev: i64) -> Result<bool, Error>;
+    /// Writes a waiting item's title, summary, payload, `rev` and
+    /// `updated_at` when its stored `rev` is still `rev`.
+    fn retell(&self, item: &StoredItem, rev: i64) -> Result<bool, Error>;
     /// One page in Needs you's order, after `query.after`.
     fn page(&self, query: &ItemQuery) -> Result<Vec<StoredItem>, Error>;
     /// The items that wait, counted by state, kind and routine.

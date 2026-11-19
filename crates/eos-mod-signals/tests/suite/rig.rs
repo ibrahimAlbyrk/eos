@@ -8,12 +8,16 @@ use std::time::Duration;
 use eos_contracts::{Fact, Facts, RoutineKind, RoutineState};
 use eos_core::routine::{Admission, AdmitOutcome, RoutineLoad, RoutineTriggers, RunIntake};
 use eos_core::signals::{PollPage, SignalDraft};
-use eos_core::store::{Outbox, ReadJob, Store, StoredSignalSource, Tx, WriteJob};
+use eos_core::store::{Outbox, ReadJob, RunMove, Store, StoredSignalSource, Tx, WriteJob};
 use eos_core::{BoxFuture, Error};
+use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::signals::key::capability_scope;
 use eos_mod_signals::{SignalsModule, SignalsParts, SoloRunner};
 use eos_runtime::module::Module;
-use eos_testkit::{FakeClock, FakeRoutineDirectory, FakeSignalSources, FakeZoneRules, SeqIds, TempStore};
+use eos_testkit::{
+    FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeTimeZone, FakeZoneRules, SeqIds,
+    TempStore,
+};
 use serde_json::{Value, json};
 
 pub(crate) const SOURCE_ID: &str = "src-0a1b2c3d4e5f";
@@ -177,26 +181,29 @@ pub(crate) type Route = (i64, String, String, Option<String>, Option<String>);
 pub(crate) struct Bench {
     pub(crate) temp: TempStore,
     pub(crate) directory: Arc<FakeRoutineDirectory>,
+    pub(crate) clock: Arc<FakeClock>,
 }
 
 impl Bench {
     pub(crate) fn new(routines: Vec<RoutineTriggers>) -> Self {
         let temp = TempStore::new();
         add_source(&temp);
-        Self { temp, directory: Arc::new(FakeRoutineDirectory::new(routines)) }
+        Self { temp, directory: Arc::new(FakeRoutineDirectory::new(routines)), clock: Arc::new(FakeClock::at(5_000)) }
     }
 
     /// The module over the store as `store` lets it write.
     pub(crate) fn module(&self, store: Arc<dyn Store>, intake: Arc<dyn RunIntake>, autostart: bool) -> SignalsModule {
         SignalsModule::new(SignalsParts {
             store,
-            clock: Arc::new(FakeClock::at(5_000)),
+            clock: self.clock.clone(),
             ids: Arc::new(SeqIds::new()),
             zones: Arc::new(FakeZoneRules::new()),
             sources: Arc::new(FakeSignalSources::new()),
             runner: Arc::new(SoloRunner::new("dev-1")),
             intake,
             directory: self.directory.clone(),
+            control: Arc::new(FakeRoutineControl::new()),
+            zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
             bus: eos_runtime::Kernel::new(eos_runtime::KernelOptions::default()).bus,
             autostart,
         })
@@ -253,5 +260,106 @@ impl Bench {
                 (value["routine"].as_str().unwrap_or_default().to_owned(), value["signal"].as_i64().unwrap_or_default())
             })
             .collect()
+    }
+}
+
+/// Queues each admission as a real queued run, as routines do, so the
+/// limits count it and a supersede skips it. Its runs never leave the
+/// queue.
+pub(crate) struct TableIntake {
+    clock: Arc<FakeClock>,
+    runs: AtomicUsize,
+}
+
+impl TableIntake {
+    pub(crate) fn new(clock: Arc<FakeClock>) -> Self {
+        Self { clock, runs: AtomicUsize::new(0) }
+    }
+}
+
+impl RunIntake for TableIntake {
+    fn admit(&self, tx: &dyn Tx, _out: &mut Outbox, admission: &Admission) -> Result<AdmitOutcome, Error> {
+        let id = format!("rn-{}", self.runs.fetch_add(1, Ordering::SeqCst) + 1);
+        let now = eos_core::Clock::now_ms(self.clock.as_ref());
+        let run = eos_core::store::StoredRun {
+            id: id.clone(),
+            routine_id: admission.routine_id.clone(),
+            version_id: None,
+            kind: "standing".into(),
+            origin: "trigger".into(),
+            origin_ref: Some(admission.signal_id.to_string()),
+            door: None,
+            input: serde_json::to_string(&admission.input).expect("an input"),
+            item_key: None,
+            state: RunState::Queued,
+            station: None,
+            reason: None,
+            attempt: 1,
+            resumed: 0,
+            not_before: None,
+            priority: 2,
+            progress_done: None,
+            progress_total: None,
+            headline: None,
+            outcome: None,
+            cost_usd: 0.0,
+            work_ms: 0,
+            lead_id: None,
+            device: "dev-1".into(),
+            remote: false,
+            created_at: now,
+            started_at: None,
+            ended_at: None,
+            updated_at: now,
+        };
+        tx.runs().insert(&run)?;
+        Ok(AdmitOutcome::Queued { run_id: id })
+    }
+
+    fn supersede(&self, tx: &dyn Tx, _out: &mut Outbox, run_id: &str) -> Result<bool, Error> {
+        let skipped = RunMove {
+            state: RunState::Skipped,
+            station: None,
+            reason: Some(Reason::Superseded),
+            at: eos_core::Clock::now_ms(self.clock.as_ref()),
+        };
+        tx.runs().move_to(run_id, &skipped).map(|_| true)
+    }
+
+    fn load(&self, tx: &dyn Tx, routine_id: &str, since: i64) -> Result<RoutineLoad, Error> {
+        let runs = tx.runs().by_routine(routine_id, 10_000)?;
+        let queued = runs.iter().filter(|run| run.state == RunState::Queued).count() as i64;
+        let started_since = runs.iter().filter(|run| run.created_at >= since).count() as i64;
+        Ok(RoutineLoad { queued, started_since, active: 0 })
+    }
+
+    fn finished_after(
+        &self,
+        _tx: &dyn Tx,
+        _routine_id: &str,
+        _after_seq: i64,
+        _limit: i64,
+    ) -> Result<Vec<eos_core::routine::FinishedRun>, Error> {
+        Ok(Vec::new())
+    }
+}
+
+impl Bench {
+    /// The routine's runs, as `(state, number of items)`, oldest first.
+    pub(crate) fn runs(&self, routine: &str) -> Vec<(RunState, usize)> {
+        let id = routine.to_owned();
+        let mut runs = self.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10_000)).expect("reads");
+        runs.sort_by(|a, b| a.id.len().cmp(&b.id.len()).then(a.id.cmp(&b.id)));
+        runs.iter()
+            .map(|run| {
+                let input: Value = serde_json::from_str(&run.input).expect("an input");
+                (run.state, input["items"].as_array().map_or(0, Vec::len))
+            })
+            .collect()
+    }
+
+    /// How many routes have each decision.
+    pub(crate) fn decided(&self, decision: &str) -> usize {
+        self.routes().iter().filter(|route| route.2 == decision).count()
     }
 }

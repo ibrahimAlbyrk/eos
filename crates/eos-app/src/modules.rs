@@ -310,6 +310,8 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
             intake: routines.intake(),
             directory: routines.directory(),
+            control: routines.control(),
+            zone: Arc::new(crate::host::HostTimeZone),
             bus: cx.bus.clone(),
             autostart: cx.reach.autostart(),
         })),

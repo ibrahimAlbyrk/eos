@@ -2221,6 +2221,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-inbox",
  "eos-runtime",
  "eos-testkit",
  "serde_json",

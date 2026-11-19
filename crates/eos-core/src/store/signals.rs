@@ -165,6 +165,17 @@ pub trait SignalRepo {
     /// The oldest `limit` signals not routed yet, oldest first.
     fn received(&self, limit: i64) -> Result<Vec<StoredSignal>, Error>;
     fn mark_routed(&self, id: i64) -> Result<(), Error>;
+    /// How many signals wait to be routed.
+    fn received_count(&self) -> Result<i64, Error>;
+}
+
+/// A signal that waits in a routine's open batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BatchedSignal {
+    pub signal_id: i64,
+    pub decided_at: i64,
+    /// Its item, as JSON.
+    pub item_json: String,
 }
 
 pub trait SignalRouteRepo {
@@ -172,6 +183,17 @@ pub trait SignalRouteRepo {
     fn insert(&self, route: &StoredSignalRoute) -> Result<(), Error>;
     /// A signal's decisions, by routine id.
     fn by_signal(&self, signal_id: i64) -> Result<Vec<StoredSignalRoute>, Error>;
+    /// The runs the routine's `run` decisions on signals about `subject`
+    /// started.
+    fn runs_of_subject(&self, routine_id: &str, subject: &str) -> Result<Vec<String>, Error>;
+    /// The routine's signals decided `batched` that no run took yet, first
+    /// first.
+    fn open_batch(&self, routine_id: &str) -> Result<Vec<BatchedSignal>, Error>;
+    /// The run that took these batched signals of the routine.
+    fn set_run(&self, routine_id: &str, signal_ids: &[i64], run_id: &str) -> Result<(), Error>;
+    /// How many of the routine's signals were decided `decision` at or after
+    /// `since`.
+    fn count_since(&self, routine_id: &str, decision: Decision, since: i64) -> Result<i64, Error>;
 }
 
 pub trait SignalScheduleRepo {

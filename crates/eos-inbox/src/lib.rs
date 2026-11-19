@@ -31,7 +31,7 @@ use eos_domain::inbox::ItemState;
 
 pub use answer::Items;
 pub use handoff::consume_in;
-pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, open_in, withdraw_routine_in};
+pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in};
 pub use routing::RunAsks;
 
 /// The topic every write of an item announces.

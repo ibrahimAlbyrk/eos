@@ -133,6 +133,26 @@ pub fn open_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) ->
     Ok(item)
 }
 
+/// A notice that keeps count through the day (`over-limit`): the day's
+/// waiting notice of the same producer, routine and subject is brought up
+/// to date in place; otherwise one opens.
+pub fn notice_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) -> Result<StoredItem, Error> {
+    let subject = new.subject_key.clone().unwrap_or_default();
+    let waiting = tx.inbox_items().waiting_with_subject(&subject)?;
+    let today = waiting.into_iter().find(|old| old.kind == ItemKind::Notice && replaced_by(old, &new, at));
+    let Some(mut item) = today else { return open_in(tx, out, at, new) };
+    let rev = item.rev;
+    item.title = new.title;
+    item.summary = new.summary;
+    item.payload = serde_json::to_string(&new.payload).map_err(|e| Error::Validation(e.to_string()))?;
+    item.rev += 1;
+    item.updated_at = at.now;
+    if tx.inbox_items().retell(&item, rev)? {
+        announce(tx, out, &item)?;
+    }
+    Ok(item)
+}
+
 /// Pauses a routine with more than [`ROUTINE_CAP`] items waiting, so nobody
 /// pays for results nobody reads, and tells the user once.
 fn cap_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, routine_id: &str) -> Result<(), Error> {
