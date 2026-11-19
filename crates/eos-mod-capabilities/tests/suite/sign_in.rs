@@ -16,6 +16,8 @@ use serde_json::{Value, json};
 use crate::rig::{MAIL, Rig, rig_with};
 
 const PATH: &str = "/api/capabilities/github/sign-in";
+/// GitHub's interval between polls, as `FakeGitHub` names it.
+const POLL_MS: i64 = 5_000;
 
 struct SignIn {
     rig: Rig,
@@ -41,10 +43,12 @@ async fn sign_in(client_id: &str) -> SignIn {
 }
 
 impl SignIn {
-    /// Ends the next wait between polls, once it is asked for.
+    /// Ends the next wait between polls, once it is the only one: each
+    /// request to GitHub waits too, on its 30 s bound, until GitHub answers,
+    /// and such a wait is never ended here.
     async fn poll(&self) {
         for _ in 0..10_000 {
-            if self.polls.wake() {
+            if self.polls.pending() == [POLL_MS] && self.polls.wake() {
                 return;
             }
             tokio::task::yield_now().await;
