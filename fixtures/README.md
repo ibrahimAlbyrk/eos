@@ -150,6 +150,12 @@ What the TypeScript computed for inputs no route shows, frozen at `059c4b38`.
 | `update/` | the chunker's cut points and ids, a release built and signed by the publisher | `eos-domain::update`, `eos-update`, `cargo xtask publish-update` |
 | `claude-plugin/` | each file's SHA-256 of the plugin-authoring skill as the 0.1.x app shipped it | `assets/claude-plugin` (`eos-plugin-files`) |
 
+One corpus is Eos's own, not the TypeScript's: `routines/intent-vectors.json`, sentences typed at
+Home with the user's routines (`id`, `name`, `slug`, `aliases`, `itemPatterns`) and what the rules
+decide (`expect`: `intent`, `routineId`), only cases they decide for certain. `eos-domain`'s
+`routine::intent` is held to it, and the dashboard's local matcher reads the same file. It changes
+only with the rules that need it.
+
 Next to the crates that read them, from the same tree: `eos-contracts/tests/vectors` (every Zod
 schema's answer to ~4,800 inputs) and `tests/golden` (the `ROUTES` table, the built-in plugin
 manifests); `eos-kit-sqlite/migrations` and `tests/fixtures/ts-schema.json` (the migrations and

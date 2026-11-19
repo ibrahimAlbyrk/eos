@@ -207,6 +207,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         zone: Arc::new(crate::host::HostTimeZone),
         settings: cx.settings.clone(),
         headroom: Arc::new(crate::headroom::CachedHeadroom { cache: cx.usage_cache.clone(), clock: cx.clock.clone() }),
+        one_shot: cx.one_shot.clone(),
     }));
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);

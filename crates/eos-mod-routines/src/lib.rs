@@ -54,6 +54,7 @@
 
 mod architect;
 mod engine;
+mod intent;
 mod routes;
 mod trial;
 
@@ -61,7 +62,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
-use eos_core::agent::{LaunchSpec, ScratchFolders};
+use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{TimeZone, ZoneRules};
@@ -125,6 +126,8 @@ pub struct RoutinesParts {
     pub settings: Arc<dyn UserSettingsStore>,
     /// Whether the user's plan has room for runs from triggers.
     pub headroom: Arc<dyn PlanHeadroom>,
+    /// The small model that reads what a sentence typed at Home asks for.
+    pub one_shot: Arc<dyn OneShot>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -168,6 +171,7 @@ impl RoutinesModule {
             zone,
             settings,
             headroom,
+            one_shot,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -203,6 +207,8 @@ impl RoutinesModule {
             meters: Mutex::new(HashMap::new()),
             usage: Mutex::new(None),
             architects: Mutex::new(HashMap::new()),
+            one_shot,
+            intent_reads: Mutex::new(None),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }

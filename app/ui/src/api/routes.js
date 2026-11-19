@@ -327,6 +327,11 @@ export const ROUTES = {
   routineDraft: (id) => `/api/routines/${id}/draft`,
   routineDraftMessage: (id) => `/api/routines/${id}/draft/message`,
   routineTrial: (id) => `/api/routines/${id}/trial`,
+  // What a sentence typed at Home asks for, by the rules and by a small
+  // model, and which routines take a thing the user dropped.
+  routinesIntent: "/api/routines/intent",
+  routinesIntentModel: "/api/routines/intent/model",
+  routinesMatchItem: "/api/routines/match-item",
   // Runs (eos-contracts `routine/runs.rs`): what a routine may run on; start,
   // estimate and list runs; one run, its result and timeline; telling its
   // team something, stopping, pausing and resuming it; and the run a worker

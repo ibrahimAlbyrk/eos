@@ -55,7 +55,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
-use eos_core::agent::ScratchFolders;
+use eos_core::agent::{OneShot, ScratchFolders};
 use eos_core::capability::CapabilityReads;
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{TimeZone, ZoneRules};
@@ -135,6 +135,9 @@ pub(crate) struct Engine {
     pub(crate) usage: Mutex<Option<Subscription>>,
     /// The live architects, with when each was last active.
     pub(crate) architects: Mutex<HashMap<String, i64>>,
+    pub(crate) one_shot: Arc<dyn OneShot>,
+    /// The model reads of the Home input today: the local day and how many.
+    pub(crate) intent_reads: Mutex<Option<(String, i64)>>,
 }
 
 impl Engine {

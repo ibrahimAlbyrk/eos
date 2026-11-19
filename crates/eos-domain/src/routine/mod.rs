@@ -31,6 +31,7 @@ macro_rules! words {
 }
 
 pub mod blueprint;
+pub mod intent;
 pub mod item;
 pub mod limits;
 pub mod numbers;

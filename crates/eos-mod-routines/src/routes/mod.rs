@@ -5,6 +5,7 @@
 mod architect;
 mod candidates;
 mod estimate;
+mod intent;
 mod routines;
 mod run_agents;
 mod run_view;
@@ -44,6 +45,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let mut routes = routines::all(&engine.store, &engine.clock);
     routes.extend(writes::all(engine));
     routes.extend(architect::all(engine));
+    routes.extend(intent::all(engine));
     routes.extend(settings::all(engine));
     routes.extend(runs::all(engine));
     routes.extend(run_view::all(engine));
