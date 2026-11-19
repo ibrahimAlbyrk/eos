@@ -12,7 +12,10 @@ anyhow.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
+eos-kit-sqlite.workspace = true
 eos-platform.workspace = true
+eos-store-sqlite.workspace = true
+eos-testkit.workspace = true
 eos-update.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -20,7 +23,6 @@ tokio = { workspace = true, features = ["rt"] }
 zstd.workspace = true
 
 [dev-dependencies]
-eos-testkit.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 

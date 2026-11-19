@@ -12,12 +12,15 @@
 //! - `cargo xtask install [--restore] …` builds Eos from this checkout and installs it as the
 //!   user's app, keeping the one it replaces (see `install.rs`).
 //! - `cargo xtask eos …` is the `eos` command (`scripts/eos` runs it; see `eos.rs`).
+//! - `cargo xtask sample <copy>` writes sample routines into a dev data copy's `state.db`
+//!   and refuses `~/.eos` (see `sample.rs`).
 
 mod contracts;
 mod eos;
 mod install;
 mod layers;
 mod publish;
+mod sample;
 mod shell;
 
 fn main() -> anyhow::Result<()> {
@@ -28,6 +31,7 @@ fn main() -> anyhow::Result<()> {
         Some("contracts") => contracts::export(args.get(1).map(std::path::PathBuf::from)),
         Some("publish-update") => publish::run(&args[1..]),
         Some("install") => install::run(&args[1..]),
+        Some("sample") => sample::run(&args[1..]),
         Some("eos") => match eos::run(&args[1..]) {
             Ok(code) => std::process::exit(code),
             Err(e) => {
@@ -37,7 +41,7 @@ fn main() -> anyhow::Result<()> {
         },
         _ => {
             eprintln!(
-                "usage: cargo xtask <layers | shell | contracts [out dir] | publish-update … | install … | eos …>"
+                "usage: cargo xtask <layers | shell | contracts [out dir] | publish-update … | install … | eos … | sample <copy>>"
             );
             std::process::exit(2);
         }
