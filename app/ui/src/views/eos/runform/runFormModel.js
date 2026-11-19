@@ -35,13 +35,14 @@ const defaultsOf = (options) => Object.fromEntries(options.map((o) => [o.key, o.
 
 // The form a routine opens with: the blueprint's defaults, or what an earlier
 // run was given (Run again). An earlier run's time is kept only while it is
-// still ahead.
-export function initialForm(options, input, now) {
+// still ahead. A routine that takes several holds even one item among its
+// items.
+export function initialForm(options, input, now, many = false) {
   const given = input?.options ?? {};
   const known = Object.fromEntries(Object.entries(given).filter(([key]) => options.some((o) => o.key === key)));
   return {
-    item: input?.item ?? null,
-    items: input?.items ?? [],
+    item: many ? null : input?.item ?? null,
+    items: input?.items ?? (many && input?.item ? [input.item] : []),
     text: "",
     options: { ...defaultsOf(options), ...known },
     note: input?.note ?? "",

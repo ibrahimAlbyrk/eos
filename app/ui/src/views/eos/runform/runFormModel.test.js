@@ -23,6 +23,7 @@ describe("the run form's model", () => {
       item: ITEM, items: [], text: "", options: { depth: "deep" }, note: "Look at the shaders.", result: "showOnly", at: null,
     });
     expect(initialForm(options, { ...again, at: NOW + HOUR }, NOW).at).toBe(NOW + HOUR);
+    expect(initialForm(options, again, NOW, true)).toMatchObject({ item: null, items: [ITEM] });
     const blueprint = { options: [opt("depth", true), opt("tone", false)] };
     expect(optionsOf(PR, blueprint)).toBe(blueprint.options);
   });
