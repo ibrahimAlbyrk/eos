@@ -302,6 +302,30 @@ step = "jobs-with-running"
 at = "/frames"
 reason = "Timing, not content: the job's throttled `jobs:change` (dropped by the normalizer) fell inside this step when it was recorded and left an empty frame list; in process the step is over before the throttle fires, so there is no list at all."
 
+[[known]]
+scenario = "36-terminals"
+step = "jobs-*"
+at = "/json/jobs/*"
+reason = "Follows from 19-cors: its foreign-origin step's `POST /terminal` (`echo never`) was refused by the daemon's origin check and runs here, so the jobs list holds that finished shell job too."
+
+[[known]]
+scenario = "36-terminals"
+step = "jobs-clear"
+at = "/frames/main/0/data/payload/removed/*"
+reason = "Follows from 19-cors: clearing removes its finished `echo never` job as well, which shifts the recorded ids."
+
+[[known]]
+scenario = "36-terminals"
+step = "jobs-after-run"
+at = "/headers/etag"
+reason = "Follows from 19-cors: with its `echo never` job the list passes 512 bytes, so it carries a weak etag (crates/eos-runtime/src/http/response.rs)."
+
+[[known]]
+scenario = "36-terminals"
+step = "jobs-after-run"
+at = "/headers/cache-control"
+reason = "Follows from 19-cors: sent with the weak etag that list now carries."
+
 # The Rust app has no goal loops, and sends no prompt after an account switch.
 
 [[known]]
