@@ -97,9 +97,14 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Opti
 fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
     let state = tx.routines().find(routine_id)?.map_or(RoutineState::Deleted, |routine| routine.state);
     let version = showing_version(tx, routine_id)?;
-    let blueprint = match &version {
-        Some(version) => readable(version)?,
-        None => None,
+    // A stored version that is no blueprint fails this routine's runs; it
+    // must not stop the queue for every other routine.
+    let blueprint = match version.as_ref().map(readable).transpose() {
+        Ok(blueprint) => blueprint.flatten(),
+        Err(error) => {
+            tracing::warn!(routine_id, %error, "a routine's version could not be read");
+            None
+        }
     };
     Ok(Allowed {
         state,
