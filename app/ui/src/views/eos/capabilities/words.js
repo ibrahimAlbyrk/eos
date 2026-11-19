@@ -1,0 +1,76 @@
+// What the Capabilities screens say for the core's words (06 G10, §6). A word
+// from a newer core that is not here shows as it came.
+
+const STATES = {
+  ready: { word: "Ready", tone: "ok", line: "Working." },
+  degraded: { word: "Slow", tone: "warn", line: "Working, but slower than usual." },
+  needs_sign_in: { word: "Needs sign-in", tone: "warn", line: "Sign in again to use it." },
+  needs_setup: { word: "Needs setup", tone: "warn", line: "It needs a step from you first." },
+  broken: { word: "Broken", tone: "err", line: "It stopped working." },
+  disabled: { word: "Disabled", tone: null, line: "You turned it off." },
+  available: { word: "Not installed", tone: null, line: "It is not installed." },
+};
+
+const CODES = {
+  client_id_missing: "Eos has no GitHub client id to sign in with.",
+  automation_denied: "macOS has not let it control the app it needs.",
+  http_401: "The service no longer accepts its sign-in.",
+  hash_mismatch: "Its files changed after they were checked.",
+  program_missing: "A program it needs is not installed.",
+  sandbox_unavailable: "Its sandbox is not available.",
+  rate_limited: "The service is limiting how often Eos may ask.",
+  health_failed: "Its last checks failed.",
+  output_schema: "Its answers no longer have the shape it promised.",
+};
+
+export const stateWord = (row) => STATES[row.state]?.word ?? row.state;
+
+export const stateTone = (row) => STATES[row.state]?.tone ?? null;
+
+// Why it is in its state, in a sentence.
+export function stateLine(row) {
+  const code = row.stateCode ?? "";
+  if (code.startsWith("secret_missing:")) return "A secret it needs is missing.";
+  return CODES[code] ?? STATES[row.state]?.line ?? "";
+}
+
+export const ORIGINS = {
+  builtin: "Built in",
+  forge: "Made by the Forge",
+  registry: "From a registry",
+  synced: "From another Mac",
+};
+
+export const WORKS = { this_mac: "This Mac only", any_mac: "Any of your Macs" };
+
+export const CLASSES = {
+  read: "Only reads",
+  write_local: "Changes things on this Mac",
+  tell_user: "Tells you",
+  speak: "Speaks for you to others",
+  irreversible: "Cannot be taken back, or costs money",
+};
+
+export const VERSION_STATUSES = { proposed: "Proposed", installed: "Kept", retired: "Retired", rejected: "Turned down" };
+
+export const OUTCOMES = { ok: "Worked", error: "Failed", denied: "Not allowed", timeout: "Took too long", busy: "Busy" };
+
+export function usedBy(row) {
+  const n = row.usedBy?.length ?? 0;
+  if (n === 0) return "No routine uses it";
+  return n === 1 ? "Used by 1 routine" : `Used by ${n} routines`;
+}
+
+// The built-in that signs in through GitHub's device flow.
+export const signsIn = (row) => row.id === "github";
+
+// The one action that fixes a bad state: sign in, enable, or check again
+// once the cause is gone. None for a capability that works.
+export function fixFor(row) {
+  if (row.state === "ready" || row.state === "available") return null;
+  if (row.state === "disabled") return "enable";
+  if (signsIn(row) && (row.state === "needs_sign_in" || row.state === "needs_setup")) return "sign-in";
+  return "check";
+}
+
+export const FIX_LABELS = { "sign-in": "Sign in", enable: "Enable", check: "Check now" };

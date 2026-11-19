@@ -1,3 +1,5 @@
+import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
+import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosHeader } from "./nav/EosHeader.jsx";
 import { parseLocation, useEosLocation } from "./nav/eosNav.js";
 
@@ -34,5 +36,8 @@ function PlaceholderScreen({ location }) {
 // Eos's own stores, never the app's providers, so the sample gallery draws it
 // as the app does.
 export function EosMain() {
-  return <PlaceholderScreen location={parseLocation(useEosLocation())} />;
+  const location = parseLocation(useEosLocation());
+  if (location?.screen === "capabilities") return <CapabilitiesScreen />;
+  if (location?.screen === "capability") return <CapabilityScreen key={location.capabilityId} id={location.capabilityId} />;
+  return <PlaceholderScreen location={location} />;
 }

@@ -7,6 +7,8 @@ import { useSyncExternalStore } from "react";
 
 const SCHEME = "eos:/";
 const HOME = SCHEME;
+// Where Eos opens when no usable place is remembered.
+const START = `${SCHEME}capabilities`;
 const STORAGE_KEY = "eos:location";
 const BACK_LIMIT = 50;
 
@@ -143,9 +145,9 @@ const subs = new Set();
 function restored() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return parseLocation(stored) ? stored : HOME;
+    return parseLocation(stored) ? stored : START;
   } catch {
-    return HOME;
+    return START;
   }
 }
 

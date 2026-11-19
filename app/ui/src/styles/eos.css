@@ -1,6 +1,7 @@
 /* eos.css — Eos mode's base styles: the screen frame and header, and the parts
    every Eos screen is built from (section label, card, chip, segmented control,
-   status chip). Colours are the app's tokens.
+   status chip, buttons, loading blocks, facts, sheet), then each screen's own.
+   Colours are the app's tokens.
 
    Contrast (WCAG 1.4.3): text is never dimmer than --fg-dim2 (#8b8b8b, 4.7:1
    on #212121) on the dark grounds, and on #262626 or lighter it is --fg-dim
@@ -121,6 +122,114 @@
 .eos-status--active { --eos-status-dot: var(--accent); }
 .eos-status--warn { --eos-status-dot: var(--warn); }
 .eos-status--err { --eos-status-dot: var(--err); }
+
+/* Pill buttons; the primary one is the light one. */
+.eos-btn {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--chip);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eos-btn:hover { color: var(--fg-strong); }
+.eos-btn--primary { background: var(--solid-btn-bg); color: var(--solid-btn-fg); }
+.eos-btn--primary:hover { background: var(--solid-btn-bg-hover); color: var(--solid-btn-fg); }
+.eos-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.eos-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* A read that takes longer than 300 ms shows blocks; a quicker one shows nothing. */
+.eos-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  animation: eos-appear 0s linear 300ms forwards;
+}
+.eos-skeleton__block { height: 56px; border-radius: 16px; background: var(--raised); }
+@keyframes eos-appear { to { opacity: 1; } }
+
+/* A labelled list of facts. */
+.eos-facts { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.eos-facts__row { display: flex; gap: 16px; font-size: var(--text-sm); }
+.eos-facts__row dt { flex: 0 0 140px; color: var(--fg-dim2); }
+.eos-facts__row dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--fg); }
+
+/* A sheet over the screen. */
+.eos-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 480; /* where the app's other sheets sit: above settings, below the palette */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+.eos-sheet {
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-radius: var(--r-modal);
+  background: var(--raised);
+  box-shadow: var(--sh-modal);
+}
+.eos-sheet__title { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
+
+/* ── Capabilities ─────────────────────────────────────────────────────────── */
+.eos-caps { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-cap-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; }
+.eos-cap-row + .eos-cap-row { border-top: 1px solid var(--line); }
+.eos-cap-row__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-cap-row__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-cap-row__facts { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-state { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.eos-cap-line { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-cap-section { display: flex; flex-direction: column; gap: 12px; }
+.eos-cap-summary { margin: 0; font-size: var(--text-base); color: var(--fg); }
+.eos-cap-list { margin: 0; padding: 0; list-style: none; }
+.eos-cap-item { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 10px 0; }
+.eos-cap-item + .eos-cap-item { border-top: 1px solid var(--line); }
+.eos-cap-item__main { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--fg); }
+.eos-cap-item__side { font-size: var(--text-xs); color: var(--fg-dim2); }
+/* The sign-in code, to read off and type. */
+.eos-code {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 26px;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: var(--fg-strong);
+  user-select: all;
+}
 
 /* Read by screen readers, not drawn. */
 .eos-sr {

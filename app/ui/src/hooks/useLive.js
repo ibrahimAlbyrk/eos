@@ -62,6 +62,7 @@ import { applyArtifactsChange, resyncArtifactCatalog } from "../state/artifactCa
 import { applyArtifactOpen } from "../state/artifactViewStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
 import { dispatchResync, dispatchTopic } from "../lib/liveTopics.js";
+import { applyEosEvent, resyncEos } from "../state/eos/live.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -263,6 +264,7 @@ export function useLive() {
         resyncReactions();
         resyncUpdate();
         resyncArtifactCatalog();
+        resyncEos();
         dispatchResync();
       },
       onChange: (e) => {
@@ -270,6 +272,8 @@ export function useLive() {
           const data = JSON.parse(e.data);
           // Topics registered at runtime (plugins) — see lib/liveTopics.js.
           if (dispatchTopic(data.reason, data.payload)) return;
+          // Eos's topics (state/eos/live.js) — never worker deltas.
+          if (applyEosEvent(data.reason, data.payload)) return;
           if (data.reason === "state:patch") { applyStatePatch(data.payload?.changes); return; }
           // Peering: a controlled computer's link changed (Machines menu), or a
           // computer connected to / left this Mac (the "… connected" chip).

@@ -17,6 +17,12 @@ export const transport = {
   send: (method, path, body) => current.send(method, path, body),
 };
 
+// A dev run turns away what would start work or leave the Mac (403, "refused in
+// a dev run: …"): screens say so in words instead of reporting a failure.
+export function isDevRunRefusal(r) {
+  return r?.status === 403 && typeof r.body?.error === "string" && r.body.error.startsWith("refused in a dev run");
+}
+
 // The gallery and tests swap the transport; null puts the core back.
 export function setEosTransport(next) {
   current = next ?? coreTransport;

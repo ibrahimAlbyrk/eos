@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { transport, setEosTransport, fixtureTransport } from "./transport.js";
+import { transport, setEosTransport, fixtureTransport, isDevRunRefusal } from "./transport.js";
 import { ROUTES } from "../../api/routes.js";
 import routinesOne from "../../views/eos/gallery/sample/routines-one.json";
 import routinesEmpty from "../../views/eos/gallery/sample/routines-empty.json";
@@ -76,5 +76,14 @@ describe("the fixture transport", () => {
     setEosTransport(null);
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a dev run's refusal", () => {
+  it("is a 403 whose reason says so; other refusals are not", () => {
+    expect(isDevRunRefusal({ ok: false, status: 403, body: { error: "refused in a dev run: this request can start an agent" } })).toBe(true);
+    expect(isDevRunRefusal({ ok: false, status: 403, body: { error: "sample data" } })).toBe(false);
+    expect(isDevRunRefusal({ ok: false, status: 400, body: { error: "refused in a dev run" } })).toBe(false);
+    expect(isDevRunRefusal(null)).toBe(false);
   });
 });
