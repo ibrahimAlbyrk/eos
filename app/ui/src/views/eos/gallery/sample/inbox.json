@@ -1,0 +1,97 @@
+{
+  "items": [
+    {
+      "id": "perm:pa-7f3k1m9q",
+      "kind": "permission",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Allow Bash?",
+      "summary": "git push origin review/470",
+      "rev": 1,
+      "createdAt": 1763453400000,
+      "updatedAt": 1763453400000
+    },
+    {
+      "id": "ib-3k9d2f7h1j5l",
+      "kind": "question",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Which branch should the review compare against?",
+      "summary": "The pull request targets release/2.4, not main.",
+      "rev": 1,
+      "createdAt": 1763453100000,
+      "updatedAt": 1763453100000
+    },
+    {
+      "id": "ib-5q1w9e3r7t2y",
+      "kind": "routine_alert",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "title": "Mail Triage is paused",
+      "summary": "Paused after three failed runs in a row.",
+      "rev": 1,
+      "createdAt": 1763449300000,
+      "updatedAt": 1763449300000
+    },
+    {
+      "id": "ib-8m2n6b0v4c1x",
+      "kind": "draft",
+      "state": "open",
+      "attention": "digest",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "runId": "rn-9c1v5b0z2w8e",
+      "title": "Review of #470 Fix the login",
+      "summary": "Two findings, one of them blocking.",
+      "rev": 2,
+      "createdAt": 1763452990000,
+      "updatedAt": 1763452990000
+    },
+    {
+      "id": "sugg:um-2p6o0i4u8y",
+      "kind": "about_you",
+      "state": "open",
+      "attention": "silent",
+      "title": "You prefer short reviews with the blocking findings first.",
+      "summary": "",
+      "rev": 1,
+      "createdAt": 1763440000000,
+      "updatedAt": 1763440000000
+    },
+    {
+      "id": "ib-0z4x8c2v6b9n",
+      "kind": "notice",
+      "state": "later",
+      "attention": "digest",
+      "routineId": "rt-7b3m1c9d0e4f",
+      "title": "A run started late",
+      "summary": "Morning Paper ran 40 minutes late: the Mac was asleep.",
+      "rev": 1,
+      "laterUntil": 1763470800000,
+      "createdAt": 1763438400000,
+      "updatedAt": 1763438400000
+    }
+  ],
+  "counts": {
+    "open": 5,
+    "later": 1,
+    "byKind": {
+      "permission": 1,
+      "question": 1,
+      "draft": 1,
+      "routine_alert": 1,
+      "about_you": 1,
+      "notice": 1
+    },
+    "byRoutine": {
+      "rt-4k2n8q1x7m3p": 3,
+      "rt-2x8k5n1q6w0r": 1,
+      "rt-7b3m1c9d0e4f": 1
+    }
+  },
+  "agentsWaiting": 2
+}

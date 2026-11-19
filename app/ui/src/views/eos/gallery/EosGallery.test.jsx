@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
 import { eosLocation, openLocation, _resetEosNav } from "../nav/eosNav.js";
-import routinesOne from "./sample/routines-one.json";
+import routines from "./sample/routines.json";
 import { startEosGallery } from "./EosGallery.jsx";
 
 const rendered = [];
@@ -32,7 +32,7 @@ describe("#eos-gallery", () => {
     expect(html).toContain('<nav class="sb-nav" aria-label="Eos"><button class="sb-nav-row strong on">');
     expect(html).toContain('<section class="center"><main class="eos-screen">');
 
-    expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
+    expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routines });
     const rows = (await transport.get(ROUTES.capabilities)).body;
     expect(rows.map((r) => r.state)).toEqual(["needs_setup", "ready", "needs_sign_in", "degraded", "broken", "disabled"]);
     expect(rows[0]).not.toHaveProperty("actions");

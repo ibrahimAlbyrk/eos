@@ -1,0 +1,84 @@
+{
+  "run": {
+    "id": "rn-9c1v5b0z2w8e",
+    "routineId": "rt-4k2n8q1x7m3p",
+    "kind": "standing",
+    "origin": "trigger",
+    "state": "done",
+    "itemTitle": "Fix the login",
+    "needsUser": false,
+    "costUsd": 0.42,
+    "workMs": 184000,
+    "createdAt": 1763452800000,
+    "startedAt": 1763452802000,
+    "endedAt": 1763452986000,
+    "headline": "Two findings, one of them blocking.",
+    "outcome": "shown"
+  },
+  "input": {
+    "item": {
+      "kind": "github.pull_request",
+      "key": "github:pr:acme/game#470",
+      "title": "Fix the login",
+      "url": "https://github.com/acme/game/pull/470",
+      "untrusted": true
+    },
+    "options": {
+      "depth": "quick"
+    },
+    "result": "usual"
+  },
+  "attempt": 1,
+  "agents": [
+    {
+      "workerId": "w-3c7e1a9b5d2f",
+      "role": "lead",
+      "model": "claude-sonnet-4-5",
+      "state": "done",
+      "costUsd": 0.36,
+      "startedAt": 1763452802000,
+      "endedAt": 1763452950000
+    },
+    {
+      "workerId": "w-6b0d4f8a2c1e",
+      "role": "checker",
+      "model": "claude-haiku-4-5",
+      "state": "done",
+      "costUsd": 0.06,
+      "startedAt": 1763452951000,
+      "endedAt": 1763452986000
+    }
+  ],
+  "verdict": {
+    "pass": true,
+    "checks": [
+      {
+        "key": "cites_lines",
+        "ok": true,
+        "note": "Every finding names its file and line."
+      },
+      {
+        "key": "no_secrets",
+        "ok": true,
+        "note": "Nothing secret-like in the text."
+      }
+    ],
+    "mustFix": []
+  },
+  "usual": {
+    "usd": 0.4,
+    "ms": 180000
+  },
+  "events": [
+    {
+      "id": 1,
+      "at": 1763452802000,
+      "kind": "started"
+    },
+    {
+      "id": 2,
+      "at": 1763452986000,
+      "kind": "done"
+    }
+  ]
+}
