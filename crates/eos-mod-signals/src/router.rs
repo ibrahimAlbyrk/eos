@@ -145,7 +145,6 @@ impl Routing {
         if !fits_in(tx, self.intake.as_ref(), &routine.id, &routine.when, self.now, stale.len())? {
             return Ok((Decision::OverLimit, Some("limits".into()), None));
         }
-        supersede_in(tx, out, self.intake.as_ref(), &stale)?;
         let input = RunInput {
             item: serde_json::from_str::<ItemRef>(&signal.signal.item_json).ok(),
             items: None,
@@ -156,8 +155,13 @@ impl Routing {
             at: None,
         };
         let admission = Admission { routine_id: routine.id.clone(), signal_id: signal.id, input };
+        // The waiting run is replaced only once its successor is queued: a
+        // refused admission leaves it to run.
         Ok(match self.intake.admit(tx, out, &admission)? {
-            AdmitOutcome::Queued { run_id } => (Decision::Run, None, Some(run_id)),
+            AdmitOutcome::Queued { run_id } => {
+                supersede_in(tx, out, self.intake.as_ref(), &stale)?;
+                (Decision::Run, None, Some(run_id))
+            }
             AdmitOutcome::Refused { reason: AdmitRefusal::QueueFull } => {
                 (Decision::OverLimit, Some("queue_full".into()), None)
             }

@@ -269,16 +269,21 @@ impl Bench {
 pub(crate) struct TableIntake {
     clock: Arc<FakeClock>,
     runs: AtomicUsize,
+    /// Refuses every admission as a routine that is no longer active.
+    pub(crate) refusing: AtomicBool,
 }
 
 impl TableIntake {
     pub(crate) fn new(clock: Arc<FakeClock>) -> Self {
-        Self { clock, runs: AtomicUsize::new(0) }
+        Self { clock, runs: AtomicUsize::new(0), refusing: AtomicBool::new(false) }
     }
 }
 
 impl RunIntake for TableIntake {
     fn admit(&self, tx: &dyn Tx, _out: &mut Outbox, admission: &Admission) -> Result<AdmitOutcome, Error> {
+        if self.refusing.load(Ordering::SeqCst) {
+            return Ok(AdmitOutcome::Refused { reason: eos_core::routine::AdmitRefusal::NotActive });
+        }
         let id = format!("rn-{}", self.runs.fetch_add(1, Ordering::SeqCst) + 1);
         let now = eos_core::Clock::now_ms(self.clock.as_ref());
         let run = eos_core::store::StoredRun {
