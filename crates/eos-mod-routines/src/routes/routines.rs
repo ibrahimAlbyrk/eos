@@ -244,7 +244,7 @@ fn usual_cost(tx: &dyn Tx, routine_id: &str, blueprint: &Blueprint) -> Result<Op
         at: None,
     };
     let found = usual(blueprint, &runs, &input, |_| None);
-    Ok((found.basis == Basis::History).then(|| UsualCost { usd: Num(found.usd), ms: found.ms }))
+    Ok((found.basis == Basis::History).then_some(UsualCost { usd: Num(found.usd), ms: found.ms }))
 }
 
 /// The version a routine shows and runs from: its head, or while it is
