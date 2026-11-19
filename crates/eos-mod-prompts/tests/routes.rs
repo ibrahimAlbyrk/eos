@@ -39,10 +39,14 @@ fn recorded_profile(prompts: &PromptService) -> String {
     profile.expect("the recorded preview is ours around the profile block").to_owned()
 }
 
+/// Prompts of tools the TypeScript app did not have.
+const ADDED: [&str; 2] = ["tool/call_capability", "tool/list_capabilities"];
+
 /// A recorded answer as this app gives it: the catalog without the goal loop's
 /// prompts, the one sent after an account switch and the separate summarizer's,
-/// which it does not ship, and with compaction's own words (`ours`: a session
-/// summarizes inside its conversation) (`fixtures/wire/rust-differences.toml`).
+/// which it does not ship, with compaction's own words (`ours`: a session
+/// summarizes inside its conversation), and with the prompts of its own tools
+/// where it lists them (`fixtures/wire/rust-differences.toml`).
 fn shipped(mut recorded: Value, ours: &Value) -> Value {
     let gone = |id: &str| {
         id.starts_with("loop/")
@@ -60,6 +64,10 @@ fn shipped(mut recorded: Value, ours: &Value) -> Value {
             if let Some(id) = prompt["id"].as_str().filter(|id| id.starts_with("compaction/")).map(str::to_owned) {
                 *prompt = own(&id);
             }
+        }
+        let list_of_ours = ours["prompts"].as_array().into_iter().flatten().enumerate();
+        for (at, prompt) in list_of_ours.filter(|(_, p)| p["id"].as_str().is_some_and(|id| ADDED.contains(&id))) {
+            list.insert(at.min(list.len()), prompt.clone());
         }
     }
     recorded
