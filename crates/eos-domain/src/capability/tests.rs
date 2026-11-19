@@ -1,7 +1,7 @@
 use eos_contracts::{ActionClass, Issue, Issues};
 use serde_json::{Value, json};
 
-use super::check::{check, check_builtin};
+use super::check::{check, check_builtin, is_version};
 use super::manifest::{Form, McpServer, Recipient, parse};
 use super::schema::{self, Schema};
 
@@ -45,6 +45,16 @@ fn each_invalid_manifest_gives_its_issues_in_the_order_of_its_fields() {
         count += 1;
     }
     assert!(count >= 10);
+}
+
+#[test]
+fn a_version_is_a_name_its_folder_can_have_beside_the_codes_own_and_an_installs() {
+    for version in ["1.0.0", "1", "2.0.0-beta.1+7", "0.3.1"] {
+        assert!(is_version(version), "{version}");
+    }
+    for version in ["", " ", "data", "1.partial", "../1", "1/2", "1\\2", ".1", "1\0"] {
+        assert!(!is_version(version), "{version:?}");
+    }
 }
 
 #[test]
