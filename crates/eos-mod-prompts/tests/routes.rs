@@ -39,8 +39,16 @@ fn recorded_profile(prompts: &PromptService) -> String {
     profile.expect("the recorded preview is ours around the profile block").to_owned()
 }
 
-/// Prompts of tools the TypeScript app did not have.
-const ADDED: [&str; 2] = ["tool/call_capability", "tool/list_capabilities"];
+/// Prompts of features the TypeScript app did not have: the capability tools,
+/// reactions and a focused chat's subagent models.
+const ADDED: [&str; 6] = [
+    "tool/call_capability",
+    "tool/list_capabilities",
+    "reactions",
+    "tool/react",
+    "tool/no_reply",
+    "role/focused/06-models",
+];
 
 /// A recorded answer as this app gives it: the catalog without the goal loop's
 /// prompts, the one sent after an account switch and the separate summarizer's,
