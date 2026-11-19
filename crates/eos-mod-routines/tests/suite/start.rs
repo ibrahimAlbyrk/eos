@@ -167,3 +167,22 @@ async fn a_retried_request_answers_the_runs_it_made_for_ten_minutes() {
     let later = bench.start(request()).await;
     assert_eq!(later, Err(StartError::SameItem { existing_run_id: made[0].id.clone() }), "checked as a new start");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_store_error_part_way_keeps_and_announces_none_of_the_starts_runs() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
+    // The second run of the start cannot be written.
+    bench.temp.exec(
+        "CREATE TRIGGER one_run BEFORE INSERT ON runs WHEN (SELECT COUNT(*) FROM runs) >= 1 \
+         BEGIN SELECT RAISE(ABORT, 'one run only'); END",
+    );
+    let mut new = new_run(&routine, RunOrigin::Hand, None);
+    new.items = vec![pull_request(1), pull_request(2)];
+
+    assert!(matches!(bench.start(new).await, Err(StartError::Store(_))));
+
+    let written = bench.temp.store.read_blocking(|tx| tx.runs().queued()).expect("reads");
+    assert!(written.is_empty(), "the first run was undone with the second");
+    assert!(bench.changes().is_empty(), "nothing was announced");
+}

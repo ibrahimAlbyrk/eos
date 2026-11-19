@@ -41,7 +41,15 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
     }
     let (ids, device) = (engine.ids.clone(), engine.device.clone());
     let request = new.client_request_id.clone();
-    let made = engine.store.write(move |tx, out| Ok(queue(tx, out, &new, now, ids.as_ref(), &device))).await??;
+    let made = engine
+        .store
+        .write(move |tx, out| match queue(tx, out, &new, now, ids.as_ref(), &device) {
+            // A store error may come after some runs were written: the job
+            // must fail, so none of them is kept or announced.
+            Err(StartError::Store(error)) => Err(error),
+            refused_or_made => Ok(refused_or_made),
+        })
+        .await??;
     if let Some(id) = request {
         Engine::locked(&engine.requests).insert(id, (now, made.clone()));
     }
