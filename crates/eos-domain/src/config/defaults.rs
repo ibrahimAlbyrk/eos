@@ -56,6 +56,9 @@ pub struct Host {
 
 const DEFAULT_RELAY_URL: &str = "wss://silver-giraffe-71764.zap.cloud/";
 
+/// The OAuth App Eos signs in to GitHub with. A client id is public.
+const DEFAULT_GITHUB_CLIENT_ID: &str = "Ov23li8QQZilyzYjPuab";
+
 fn flat(input: f64, output: f64, cache_read: f64, cache_create: f64, cache_create_1h: f64) -> Value {
     json!({ "in": input, "out": output, "cacheRead": cache_read, "cacheCreate": cache_create, "cacheCreate1h": cache_create_1h })
 }
@@ -183,5 +186,6 @@ pub(super) fn defaults(host: &Host) -> Value {
         json!({ "enabled": true, "chromePath": null, "allowedOrigins": [], "persistProfile": true, "perSession": true }),
     );
     put("genui", json!({}));
+    put("github", json!({ "clientId": env.text("EOS_GITHUB_CLIENT_ID", DEFAULT_GITHUB_CLIENT_ID) }));
     Value::Object(out)
 }

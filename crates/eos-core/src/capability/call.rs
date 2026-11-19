@@ -71,6 +71,13 @@ pub enum FailureKind {
     Unauthorized,
     /// The service refused the input (422).
     Validation,
+    /// The service does not let this account do it there, whatever the
+    /// input (GitHub: approving one's own pull request). Trying again does
+    /// not help.
+    NotAllowed,
+    /// The user has a draft of their own where this would go (a pending
+    /// GitHub review); it is left alone.
+    UserDraftInProgress,
     /// The service failed, or could not be reached.
     Service,
     /// The answer broke the action's declared output.
@@ -86,6 +93,8 @@ impl FailureKind {
         match self {
             FailureKind::Unauthorized => "unauthorized",
             FailureKind::Validation => "validation",
+            FailureKind::NotAllowed => "not_allowed",
+            FailureKind::UserDraftInProgress => "user_draft_in_progress",
             FailureKind::Service => "service",
             FailureKind::Output => "output",
             FailureKind::Code => "code",
@@ -97,6 +106,8 @@ impl FailureKind {
         match self {
             FailureKind::Unauthorized => "the service refused the sign-in",
             FailureKind::Validation => "the service refused the input",
+            FailureKind::NotAllowed => "the service does not let this account do that here",
+            FailureKind::UserDraftInProgress => "the user has a draft of their own in the way, left as it is",
             FailureKind::Service => "the service failed or could not be reached",
             FailureKind::Output => "its answer did not have the shape it declares",
             FailureKind::Code => "its code failed",

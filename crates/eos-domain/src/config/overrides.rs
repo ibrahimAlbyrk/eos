@@ -72,6 +72,7 @@ partial!(PeerOverride {
     advertise: Vec<String>,
     relay_url: String,
 });
+partial!(GitHubOverride { client_id: String });
 partial!(BrowserOverride {
     enabled: bool,
     chrome_path: String,
@@ -149,6 +150,7 @@ partial!(
         anthropic: AnthropicConfig,
         browser: BrowserOverride,
         genui: GenuiConfig,
+        github: GitHubOverride,
     }
 );
 

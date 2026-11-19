@@ -175,3 +175,13 @@ fn a_model_is_priced_by_name_then_by_family() {
     assert_eq!(rate(None), Some(json!(15)), "no model: opus");
     assert_eq!(rate(Some("gpt-9")), None);
 }
+
+#[test]
+fn github_signs_in_with_the_built_in_client_id_unless_the_environment_or_the_file_names_another() {
+    assert_eq!(resolve(&host(&[]), None).0.github.client_id, "Ov23li8QQZilyzYjPuab");
+    let env = [("EOS_GITHUB_CLIENT_ID", "Iv1.test")];
+    assert_eq!(resolve(&host(&env), None).0.github.client_id, "Iv1.test");
+    let (config, rejected) = resolve(&host(&env), Some(json!({ "github": { "clientId": "" } })));
+    assert_eq!(rejected, None);
+    assert_eq!(config.github.client_id, "", "set empty: the sign-in cannot start");
+}

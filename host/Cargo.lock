@@ -1914,6 +1914,7 @@ dependencies = [
  "eos-fs",
  "eos-genui-media",
  "eos-git",
+ "eos-github",
  "eos-kit-fs",
  "eos-kit-net",
  "eos-kit-proc",
@@ -2194,6 +2195,23 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-github"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-net",
+ "reqwest",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "zeroize",
 ]
 
 [[package]]
