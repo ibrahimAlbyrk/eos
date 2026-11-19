@@ -28,7 +28,7 @@ pub(crate) fn by_the_user(origin: &str) -> bool {
 
 pub(crate) fn spawn(engine: &Arc<Engine>) {
     let task = tokio::spawn(supervise(engine.clone()));
-    if let Some(previous) = Engine::locked(&engine.supervisor).replace(task.abort_handle()) {
+    if let Some(previous) = Engine::locked(&engine.supervisor).replace(task) {
         previous.abort();
     }
 }

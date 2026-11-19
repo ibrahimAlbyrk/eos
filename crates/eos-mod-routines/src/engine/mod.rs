@@ -21,7 +21,7 @@ use eos_core::store::{Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::routine::run::RunState;
 use tokio::sync::Notify;
-use tokio::task::AbortHandle;
+use tokio::task::JoinHandle;
 
 use crate::{RUN_CHANGE, RUNS_ACTIVE};
 
@@ -40,7 +40,7 @@ pub(crate) struct Engine {
     pub(crate) wake: Notify,
     /// Client request ids of the last ten minutes, with the runs they made.
     pub(crate) requests: Mutex<HashMap<String, (i64, Vec<RunCreated>)>>,
-    pub(crate) supervisor: Mutex<Option<AbortHandle>>,
+    pub(crate) supervisor: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Engine {
@@ -161,8 +161,12 @@ pub(crate) fn start_supervisor(engine: &Arc<Engine>) {
     supervisor::spawn(engine);
 }
 
-pub(crate) fn stop_supervisor(engine: &Engine) {
-    if let Some(task) = Engine::locked(&engine.supervisor).take() {
+/// Ends the supervisor and waits until it let go of the engine, so the store
+/// is free once the app shuts down.
+pub(crate) async fn stop_supervisor(engine: &Engine) {
+    let task = Engine::locked(&engine.supervisor).take();
+    if let Some(task) = task {
         task.abort();
+        let _ = task.await;
     }
 }
