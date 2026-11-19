@@ -15,6 +15,7 @@ mimalloc = ["dep:mimalloc"]
 bytes.workspace = true
 eos-accounts.workspace = true
 eos-auth.workspace = true
+eos-capabilities.workspace = true
 eos-config.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true

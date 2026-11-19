@@ -357,14 +357,18 @@ impl App {
             sleeper: sleeper.clone(),
             sessions: Arc::new(NoLiveSessions),
         });
-        let policy = Arc::new(PolicyGateway::new(GatewayOptions {
-            store: store.clone(),
-            clock: clock.clone(),
-            ids: ids.clone(),
-            file: Arc::new(YamlPolicyFile::new(paths.join("policy.yaml"))),
-            default_ttl_ms: current.permissions.default_ttl_ms,
-            plans_dir: Some(plans_dir()),
-        }));
+        let capabilities = crate::capabilities::service(&paths, store.clone(), clock.clone(), ids.clone());
+        let policy = Arc::new(
+            PolicyGateway::new(GatewayOptions {
+                store: store.clone(),
+                clock: clock.clone(),
+                ids: ids.clone(),
+                file: Arc::new(YamlPolicyFile::new(paths.join("policy.yaml"))),
+                default_ttl_ms: current.permissions.default_ttl_ms,
+                plans_dir: Some(plans_dir()),
+            })
+            .with_capabilities(capabilities.clone()),
+        );
         // The shipped prompts, with the user's `prompts` folder over them.
         let library = Arc::new(LibraryPromptSource::with_overrides(vec![paths.join("prompts")]));
         let prompts = Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars()));
@@ -551,6 +555,7 @@ impl App {
             media,
             location,
             policy,
+            capabilities,
             profile_prompt,
             prompts,
             templates,

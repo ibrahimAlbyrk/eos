@@ -11,8 +11,8 @@
 //!
 //! | Session | Tools |
 //! |---|---|
-//! | orchestrator | control, pages, memory, browser, visual answers, plugins, reactions |
-//! | worker (and its sub-workers, the git worker) | report, date, pages, memory, browser, plugins |
+//! | orchestrator | control, pages, memory, browser, capabilities, visual answers, plugins, reactions |
+//! | worker (and its sub-workers, the git worker) | report, date, pages, memory, browser, capabilities, plugins |
 //! | … started to collaborate | + the peer tools |
 //! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers, reactions |
 //!
@@ -24,6 +24,7 @@
 //! gate refuses each such call anyway.
 
 mod browser;
+mod capabilities;
 mod control;
 mod js;
 mod memory;

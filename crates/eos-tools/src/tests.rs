@@ -3,12 +3,17 @@
 
 use std::sync::Arc;
 
+use eos_capabilities::{CapabilityPorts, CapabilityService};
 use eos_contracts::SessionFactsRole;
 use eos_core::agent::{HostTool, LaunchSpec, ToolCaller, ToolReply, ToolSets};
+use eos_core::capability::{AllInstalled, BuiltinCapability};
 use eos_prompts::PromptRegistry;
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
-use eos_testkit::{FakeClock, FakeFeatures, FakeModelCatalog, FakeSleeper, FakeTimeZone, TempStore};
+use eos_testkit::{
+    FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeFeatures, FakeModelCatalog,
+    FakeSleeper, FakeTimeZone, FakeTrash, SeqIds, TempStore,
+};
 use eos_workers::WorkerDefinitions;
 use serde_json::Value;
 
@@ -26,6 +31,9 @@ pub(crate) struct Bench {
     pub(crate) features: Arc<FakeFeatures>,
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) store: TempStore,
+    /// The capability service the capability tools call, on the same database.
+    pub(crate) capabilities: Arc<CapabilityService>,
+    pub(crate) runner: Arc<FakeActionRunner>,
 }
 
 pub(crate) fn bench(features: Arc<FakeFeatures>) -> Bench {
@@ -34,7 +42,31 @@ pub(crate) fn bench(features: Arc<FakeFeatures>) -> Bench {
 
 /// The registry over a database a test filled.
 pub(crate) fn bench_over(features: Arc<FakeFeatures>, store: TempStore) -> Bench {
+    bench_with(features, store, Vec::new(), FakeCapabilitySecrets::new())
+}
+
+/// The registry with these built-in capabilities and capability secrets.
+pub(crate) fn bench_with(
+    features: Arc<FakeFeatures>,
+    store: TempStore,
+    builtins: Vec<Arc<dyn BuiltinCapability>>,
+    secrets: FakeCapabilitySecrets,
+) -> Bench {
     let clock = Arc::new(FakeClock::new());
+    let runner = Arc::new(FakeActionRunner::new());
+    let trash = Arc::new(FakeTrash::new(store.home.join("trash")));
+    let capabilities = Arc::new(CapabilityService::new(
+        CapabilityPorts {
+            store: store.port(),
+            files: Arc::new(FakeCapabilityFiles::new(store.home.join("capabilities"), trash)),
+            secrets: Arc::new(secrets),
+            grants: Arc::new(AllInstalled),
+            runner: Some(runner.clone()),
+            clock: clock.clone(),
+            ids: Arc::new(SeqIds::new()),
+        },
+        builtins,
+    ));
     let definitions = Arc::new(WorkerDefinitions::new(
         Arc::new(FsWorkerDefinitionFiles::new(store.home.path().join("workers"))),
         store.port(),
@@ -60,8 +92,9 @@ pub(crate) fn bench_over(features: Arc<FakeFeatures>, store: TempStore) -> Bench
         peers: Some(features.clone()),
         transfers: Some(features.clone()),
         reactions: Some(features.clone()),
+        capabilities: Some(capabilities.clone()),
     });
-    Bench { tools, features, clock, store }
+    Bench { tools, features, clock, store, capabilities, runner }
 }
 
 fn session(role: SessionFactsRole, collaborate: bool) -> LaunchSpec {
@@ -153,9 +186,11 @@ fn each_tool_is_described_to_the_model_as_today() {
     }
 }
 
+/// Besides `call_capability`, which the gate decides by the class of the
+/// action it calls.
 #[test]
 fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
-    use eos_contracts::tool_scope::{EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
+    use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
     let mut names: Vec<String> = ["orchestrator", "focused-peer"]
         .iter()
@@ -164,6 +199,8 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
         .collect();
     names.sort();
     names.dedup();
+    assert!(names.iter().any(|name| name == CALL_CAPABILITY_TOOL) && !is_eos_control_tool(CALL_CAPABILITY_TOOL));
+    names.retain(|name| name != CALL_CAPABILITY_TOOL);
     for name in &names {
         assert!(is_eos_control_tool(name), "{name} is not in eos-contracts' list");
     }
@@ -213,6 +250,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         peers: None,
         transfers: None,
         reactions: None,
+        capabilities: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()
@@ -220,6 +258,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
     let bare = names(&tools, "focused-peer");
     assert!(!bare.iter().any(|n| n.contains("browser_") || n.contains("present") || n.contains("peer")), "{bare:?}");
     assert!(!bare.iter().any(|n| n.ends_with("send_to_machine") || n.ends_with("find_places")), "{bare:?}");
+    assert!(!bare.iter().any(|n| n.contains("capabilit")), "{bare:?}");
     // What is left keeps its order.
     let all = names(&full.tools, "focused-peer");
     let kept: Vec<String> = all.into_iter().filter(|n| bare.contains(n)).collect();

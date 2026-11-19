@@ -74,6 +74,8 @@ pub(crate) struct Context {
     /// The window shell's reading of this computer's position, when there is a shell.
     pub(crate) location: Option<Arc<dyn Location>>,
     pub(crate) policy: Arc<PolicyGateway>,
+    /// What Eos can reach for the user: the agent tools and the gateway share it.
+    pub(crate) capabilities: Arc<eos_capabilities::CapabilityService>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,

@@ -16,6 +16,7 @@ mod announce;
 mod app;
 mod boot;
 mod callers;
+mod capabilities;
 mod display;
 mod files;
 mod host;
