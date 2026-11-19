@@ -89,6 +89,25 @@ pub struct SignalListQuery {
 
 impl Validate for SignalListQuery {}
 
+/// A row of `GET /api/signals/routines`: when one routine runs next, and
+/// whether what starts it works.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineNext {
+    pub routine_id: String,
+    /// The soonest slot of its schedules; none without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_at: Option<i64>,
+    /// The device id of the computer that acts on its triggers; none while
+    /// no lease is known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub holder: Option<String>,
+    /// Every source it reads is `active`.
+    pub sources_ok: bool,
+}
+
+impl Validate for RoutineNext {}
+
 /// `GET /api/signals/routines/{routineId}`: what starts one routine's runs,
 /// and how that went.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -1,7 +1,7 @@
-//! The signal routes (02 §6): what starts one routine's runs (`status`),
-//! the signal list, replay (`replay`) and the two previews (`preview`).
-//! Every one needs the user; the phone reads at `Read` and replays at
-//! `High`, and never tries a Which.
+//! The signal routes (02 §6): when each routine runs next and what starts
+//! one routine's runs (`status`), the signal list, replay (`replay`) and
+//! the two previews (`preview`). Every one needs the user; the phone reads
+//! at `Read` and replays at `High`, and never tries a Which.
 
 mod preview;
 mod replay;
@@ -50,6 +50,7 @@ impl Routes {
 pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
     let routes = Arc::new(routes);
     vec![
+        status::every(&routes),
         status::route(&routes),
         list(&routes),
         replay::route(&routes),

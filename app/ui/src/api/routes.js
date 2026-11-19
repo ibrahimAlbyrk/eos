@@ -344,9 +344,11 @@ export const ROUTES = {
   runPause: (id) => `/api/runs/${id}/pause`,
   runResume: (id) => `/api/runs/${id}/resume`,
   runAgent: (workerId) => `/api/run-agents/${workerId}`,
-  // Signals (eos-contracts `signals.rs`): what starts one routine's runs, the
-  // signal list, the counts, replay, the two previews and the setting; then
+  // Signals (eos-contracts `signals.rs`): when each routine runs next, what
+  // starts one routine's runs, the signal list, the counts, replay, the two
+  // previews and the setting; then
   // which computer holds each routine, and moving one to this computer.
+  signalsRoutines: "/api/signals/routines",
   signalsRoutine: (routineId) => `/api/signals/routines/${routineId}`,
   signals: "/api/signals",
   signalsSummary: "/api/signals/summary",

@@ -534,6 +534,7 @@ bundle![
     RoutineHolder,
     RoutineKind,
     RoutineLimits,
+    RoutineNext,
     RoutineOption,
     RoutineProject,
     RoutineScript,
