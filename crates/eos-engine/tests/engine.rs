@@ -20,6 +20,8 @@ use serde_json::Value;
 mod confine;
 #[path = "engine/confine_api.rs"]
 mod confine_api;
+#[path = "engine/isolation.rs"]
+mod isolation;
 #[path = "engine/ports.rs"]
 mod ports;
 
