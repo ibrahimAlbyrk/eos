@@ -200,6 +200,9 @@ pub enum CapabilitySignInState {
     Expired,
     /// The user turned it down.
     Denied,
+    /// It could not finish (the service refused Eos's client, or the token
+    /// could not be kept); starting again may work.
+    Failed,
 }
 
 impl Validate for CapabilitySignInState {}

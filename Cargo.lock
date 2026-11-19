@@ -1879,6 +1879,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-github",
  "eos-runtime",
  "eos-testkit",
  "serde",

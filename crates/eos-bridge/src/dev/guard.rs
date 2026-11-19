@@ -123,6 +123,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     // the items one offers to pick are read from the user's accounts.
     ("POST", "/api/capabilities/{id}/check"),
     ("GET", "/api/capabilities/candidates"),
+    // A capability's sign-in reaches the service and keeps a token as the user.
+    ("POST", "/api/capabilities/{id}/sign-in"),
+    ("GET", "/api/capabilities/{id}/sign-in"),
+    ("DELETE", "/api/capabilities/{id}/sign-in"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),

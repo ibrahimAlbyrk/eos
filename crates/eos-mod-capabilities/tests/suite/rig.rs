@@ -117,20 +117,26 @@ pub(crate) struct Rig {
 /// The module over these built-ins, with GitHub signed in when `signed_in`,
 /// its app ready.
 pub(crate) async fn rig(builtins: Vec<Arc<dyn BuiltinCapability>>, signed_in: bool) -> Rig {
-    let temp = TempStore::new();
-    let clock = Arc::new(FakeClock::new());
-    let sleeper = Arc::new(FakeSleeper::default());
-    let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
     let secrets = if signed_in {
         FakeCapabilitySecrets::new().with("github", "token", SECRET)
     } else {
         FakeCapabilitySecrets::new()
     };
+    rig_with(builtins, Arc::new(secrets)).await
+}
+
+/// The module over these built-ins and the secrets they share with the
+/// service.
+pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets: Arc<FakeCapabilitySecrets>) -> Rig {
+    let temp = TempStore::new();
+    let clock = Arc::new(FakeClock::new());
+    let sleeper = Arc::new(FakeSleeper::default());
+    let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
     let service = Arc::new(CapabilityService::new(
         CapabilityPorts {
             store: temp.port(),
             files: Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash)),
-            secrets: Arc::new(secrets),
+            secrets,
             grants: Arc::new(AllInstalled),
             runner: Some(Arc::new(FakeActionRunner::new())),
             clock: clock.clone(),

@@ -14,7 +14,10 @@
 //!   back to a version kept here, or remove it (to the trash, its secrets
 //!   kept), from this computer only;
 //! - `GET /api/capabilities/candidates?item=&q=&limit=`: the items the
-//!   capabilities offer to pick, newest first.
+//!   capabilities offer to pick, newest first;
+//! - `POST`, `GET`, `DELETE …/sign-in`: sign in to a capability by a code on
+//!   the service's own page (GitHub), from this computer only: start it and
+//!   get the code, see how it stands, end it.
 //!
 //! A change of a capability's state or version is announced on
 //! `capabilities:change` from the write job that made it. Once the app is
@@ -23,9 +26,10 @@
 //! sign-in or whose answer broke its shape.
 //!
 //! Logs carry ids, states, outcomes and durations; never settings, labels,
-//! input or output.
+//! sign-in codes, tokens, input or output.
 
 mod routes;
+mod sign_in;
 mod ticker;
 
 use std::sync::Arc;
@@ -48,6 +52,7 @@ pub struct CapabilitiesModule {
     clock: Arc<dyn Clock>,
     sleeper: Arc<dyn Sleeper>,
     ticker: ticker::Ticker,
+    sign_ins: Arc<sign_in::SignIns>,
 }
 
 impl std::fmt::Debug for CapabilitiesModule {
@@ -65,7 +70,7 @@ impl CapabilitiesModule {
         clock: Arc<dyn Clock>,
         sleeper: Arc<dyn Sleeper>,
     ) -> Self {
-        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default() }
+        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins: Arc::default() }
     }
 }
 
@@ -79,7 +84,7 @@ impl Module for CapabilitiesModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        routes::all(&self.service, &self.store)
+        routes::all(&self.service, &self.store, &self.sign_ins)
     }
 
     /// Sweeps what an interrupted install left and gives each built-in its
@@ -94,6 +99,7 @@ impl Module for CapabilitiesModule {
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         self.ticker.stop();
+        self.sign_ins.stop();
         Box::pin(std::future::ready(()))
     }
 }
