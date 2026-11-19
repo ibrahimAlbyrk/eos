@@ -182,6 +182,7 @@ impl GitHub {
                     FailureKind::Validation
                 }
             }
+            404 => FailureKind::Gone,
             500.. => FailureKind::Service,
             _ => FailureKind::Validation,
         };

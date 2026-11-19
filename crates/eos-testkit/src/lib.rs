@@ -49,7 +49,8 @@
 //! copies packages into a folder without hashing them; [`FakeBuiltin`] is a scripted built-in,
 //! [`FakeActionRunner`] a scripted runner of packages, [`FakeCapabilityRegistry`] the registry as
 //! the test sets it, [`FakeConfinement`] confinement that records its specs and reports scripted
-//! violations.
+//! violations; [`FakeCapabilityReads`] answers routines' reads as the test sets them and
+//! [`FakeCapabilityHealth`] records what sources report.
 //!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
@@ -63,6 +64,7 @@ pub mod agent;
 mod browser;
 mod capabilities;
 mod capability_files;
+mod capability_reads;
 mod clock;
 mod confinement;
 mod db;
@@ -107,6 +109,7 @@ pub use agent::{
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use capabilities::{BuiltinCall, FakeActionRunner, FakeBuiltin, FakeCapabilityRegistry, RunnerCall};
 pub use capability_files::FakeCapabilityFiles;
+pub use capability_reads::{FakeCapabilityHealth, FakeCapabilityReads};
 pub use clock::FakeClock;
 pub use confinement::FakeConfinement;
 pub use db::{Announced, TempStore};

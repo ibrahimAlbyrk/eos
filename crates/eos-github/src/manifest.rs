@@ -141,10 +141,17 @@ fn actions() -> Value {
           "output": object(json!({
               "items": list(item), "cursor": cursor, "pollAfterS": int(), "baseline": flag(),
           }), &["items", "cursor", "pollAfterS"]) },
-        { "name": "find_pull_requests", "summary": "Open pull requests that involve you, for you to pick.",
+        { "name": "find_review", "summary": "Find the review Eos sent for a delivery, by the marker it ends with.",
           "class": "read",
-          "input": object(json!({ "q": text(), "limit": { "type": "integer", "minimum": 1, "maximum": 100 } }),
-                          &["limit"]),
+          "input": object(json!({ "repo": repo(), "number": number(), "key": { "type": "string", "minLength": 1 } }),
+                          &["repo", "number", "key"]),
+          "output": object(json!({ "found": flag(), "reviewId": int(), "url": text(), "state": text() }), &["found"]) },
+        { "name": "find_pull_requests", "summary": "Pull requests for you to pick: open ones that involve you, or a repository's.",
+          "class": "read",
+          "input": object(json!({
+              "q": text(), "limit": { "type": "integer", "minimum": 1, "maximum": 100 }, "repo": repo(),
+              "state": { "type": "string", "enum": ["open", "closed", "all"] },
+          }), &["limit"]),
           "output": object(json!({ "items": list(candidate) }), &["items"]) },
     ])
 }

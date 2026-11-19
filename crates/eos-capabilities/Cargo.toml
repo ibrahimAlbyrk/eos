@@ -17,6 +17,7 @@ tracing.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+eos-github.workspace = true
 eos-testkit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 

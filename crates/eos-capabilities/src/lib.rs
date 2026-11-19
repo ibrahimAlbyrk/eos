@@ -20,12 +20,23 @@
 //! class gate here: the policy decides an agent's call before the tool
 //! runs, and a delivery calls after the Needs-you gate.
 //!
+//! Routines read through it too: the built-ins' signal sources
+//! ([`CapabilityService::signal_sources`], each poll a call of the source's
+//! action with the cursor kept opaque), what a source's failure does to its
+//! capability (`CapabilityHealth`), items to pick and past ones, how items
+//! are recognised, whether a result fits the action that sends it, what a
+//! routine lacks and where a pull request's code is (`CapabilityReads`),
+//! and the channels deliveries go out through
+//! ([`CapabilityService::channels`]). A source's items reach a run marked
+//! as outside text.
+//!
 //! Logs carry the capability's id, the action, its class, the caller's kind,
 //! the outcome, the error's kind and the duration; never input, output,
 //! secrets, settings or account labels.
 
 mod call;
 mod candidates;
+mod channels;
 mod describe;
 mod early;
 mod health;
@@ -33,8 +44,11 @@ mod install;
 mod limits;
 mod manage;
 mod output;
+mod pull;
+mod reads;
 mod registry;
 mod sign_in;
+mod sources;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -43,6 +57,8 @@ use eos_core::capability::{
     ActionCall, ActionError, ActionResult, ActionRunner, BuiltinCapability, CapabilityCalls, CapabilityDescription,
     CapabilityFiles, CapabilityGrants, CapabilitySecrets,
 };
+use eos_core::delivery::Channels;
+use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Error, Ids};
 
@@ -95,6 +111,16 @@ impl CapabilityService {
     pub fn new(ports: CapabilityPorts, builtins: Vec<Arc<dyn BuiltinCapability>>) -> Self {
         let builtins = builtins.into_iter().map(|builtin| (builtin.manifest().id.clone(), builtin)).collect();
         Self { ports, builtins, limits: limits::Limits::default(), stamps: Mutex::default(), early: Default::default() }
+    }
+
+    /// The signal sources the built-ins declare, by `<capability>.<source>`.
+    pub fn signal_sources(self: &Arc<Self>) -> Arc<dyn SignalSources> {
+        Arc::new(sources::Sources(self.clone()))
+    }
+
+    /// The channels deliveries go out through.
+    pub fn channels(self: &Arc<Self>) -> Arc<dyn Channels> {
+        Arc::new(channels::BuiltinChannels(self.clone()))
     }
 }
 

@@ -74,6 +74,8 @@ pub enum StateCode {
     HealthFailed,
     /// Its output broke the schema it declares: the service changed.
     OutputSchema,
+    /// What a routine's source reads is gone (a deleted repository).
+    SourceGone,
 }
 
 impl StateCode {
@@ -89,6 +91,7 @@ impl StateCode {
             StateCode::RateLimited => "rate_limited".to_owned(),
             StateCode::HealthFailed => "health_failed".to_owned(),
             StateCode::OutputSchema => "output_schema".to_owned(),
+            StateCode::SourceGone => "source_gone".to_owned(),
         }
     }
 
@@ -107,6 +110,7 @@ impl StateCode {
             StateCode::RateLimited,
             StateCode::HealthFailed,
             StateCode::OutputSchema,
+            StateCode::SourceGone,
         ]
         .into_iter()
         .find(|code| code.as_string() == text)
@@ -131,7 +135,7 @@ pub enum Event {
     Unauthorized,
     /// A step the user takes is missing: one of the setup codes
     /// (`secret_missing`, `client_id_missing`, `automation_denied`,
-    /// `program_missing`).
+    /// `program_missing`, `source_gone`).
     Missing(StateCode),
     HashMismatch,
     SandboxUnavailable,

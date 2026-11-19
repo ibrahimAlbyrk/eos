@@ -98,6 +98,7 @@ impl GitHub {
             }
             "post_review" => self.post_review(token, &input, key).await,
             "withdraw_review" => self.withdraw_review(token, &input).await,
+            "find_review" => self.find_review(token, &input).await,
             "approve_pull_request" => self.approve(token, &input, key).await,
             "poll_pull_requests" => self.poll(token, &input).await,
             "find_pull_requests" => self.find(token, &input).await,
@@ -166,11 +167,23 @@ impl GitHub {
         Ok(files)
     }
 
-    /// Open pull requests that involve the user, newest first: GitHub's
-    /// search, narrowed by `q`.
+    /// Pull requests, newest first, through GitHub's search: of `repo` when
+    /// given, else those that involve the user; open unless `state` says
+    /// `closed` or `all`; narrowed by `q`.
     async fn find(&self, token: &str, input: &Value) -> Result<Value, ActionError> {
         let limit = input["limit"].as_u64().unwrap_or(30);
-        let query = format!("is:pr is:open involves:@me {}", text(input, "q")).trim().to_owned();
+        let whose = if input["repo"].is_string() {
+            format!("repo:{}", repo("find_pull_requests", input)?.0)
+        } else {
+            "involves:@me".to_owned()
+        };
+        let state = match text(input, "state") {
+            "all" => "",
+            "closed" => "is:closed",
+            _ => "is:open",
+        };
+        let query =
+            format!("is:pr {state} {whose} {}", text(input, "q")).split_whitespace().collect::<Vec<_>>().join(" ");
         let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
         let path = format!("/search/issues?q={encoded}&sort=updated&order=desc&per_page={limit}");
         let found = self.get(token, &path).await?;

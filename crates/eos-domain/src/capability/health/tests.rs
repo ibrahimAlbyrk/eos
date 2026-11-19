@@ -25,6 +25,7 @@ fn states_and_codes_are_stored_as_their_words_and_read_back() {
         "rate_limited",
         "health_failed",
         "output_schema",
+        "source_gone",
     ] {
         assert_eq!(StateCode::parse(code).map(|code| code.as_string()).as_deref(), Some(code));
     }

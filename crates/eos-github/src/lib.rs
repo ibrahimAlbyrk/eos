@@ -4,8 +4,10 @@
 //! [`GitHub`] answers `BuiltinCapability`: it reads pull requests, posts a
 //! review as one request (line comments outside the diff moved into its
 //! body, a marker at its end so a repeated send finds the first), withdraws
-//! one, approves, polls a repository's pull requests with conditional
-//! requests, and lists pull requests for the user to pick. Its health check
+//! one, finds the review a delivery sent by its marker, approves, polls a
+//! repository's pull requests with conditional requests, and lists pull
+//! requests for the user to pick (a repository's, done ones too, for a
+//! routine's past items). Its health check
 //! is `GET /user` with the `repo` scope. It signs in by GitHub's device flow
 //! (`DeviceSignIn`) with the client id from `github.clientId`, and keeps the
 //! token with the capability's secrets as `token`. Writes stay under its

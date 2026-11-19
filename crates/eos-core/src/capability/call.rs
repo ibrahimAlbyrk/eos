@@ -78,6 +78,8 @@ pub enum FailureKind {
     /// The user has a draft of their own where this would go (a pending
     /// GitHub review); it is left alone.
     UserDraftInProgress,
+    /// What the input names is not there, or no longer (404).
+    Gone,
     /// The service failed, or could not be reached.
     Service,
     /// The answer broke the action's declared output.
@@ -95,6 +97,7 @@ impl FailureKind {
             FailureKind::Validation => "validation",
             FailureKind::NotAllowed => "not_allowed",
             FailureKind::UserDraftInProgress => "user_draft_in_progress",
+            FailureKind::Gone => "gone",
             FailureKind::Service => "service",
             FailureKind::Output => "output",
             FailureKind::Code => "code",
@@ -108,6 +111,7 @@ impl FailureKind {
             FailureKind::Validation => "the service refused the input",
             FailureKind::NotAllowed => "the service does not let this account do that here",
             FailureKind::UserDraftInProgress => "the user has a draft of their own in the way, left as it is",
+            FailureKind::Gone => "what it names is not there",
             FailureKind::Service => "the service failed or could not be reached",
             FailureKind::Output => "its answer did not have the shape it declares",
             FailureKind::Code => "its code failed",

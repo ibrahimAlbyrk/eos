@@ -37,7 +37,7 @@ pub(crate) fn allows(grant: &Grant, capability: &str, action: &Action) -> bool {
 }
 
 /// What `value` breaks of the declared `schema`.
-fn issues(schema: &Value, value: &Value) -> Vec<Issue> {
+pub(crate) fn issues(schema: &Value, value: &Value) -> Vec<Issue> {
     match compile(schema) {
         Ok(schema) => {
             let mut cx = Issues::default();
@@ -189,7 +189,8 @@ impl CapabilityService {
         let now = self.ports.clock.now_ms();
         let (worker_id, run_id) = match &call.caller {
             ActionCaller::Agent { worker_id } => (Some(worker_id.clone()), None),
-            ActionCaller::Delivery { run_id, .. } => (None, Some(run_id.clone())),
+            // A channel's reads and sends name their delivery, not always its run.
+            ActionCaller::Delivery { run_id, .. } => (None, Some(run_id.clone()).filter(|id| !id.is_empty())),
             _ => (None, None),
         };
         let row = StoredCall {

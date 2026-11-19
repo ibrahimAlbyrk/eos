@@ -12,6 +12,7 @@ use crate::{BoxFuture, Error};
 
 mod call;
 mod confine;
+mod reads;
 mod registry;
 mod sign_in;
 
@@ -20,6 +21,7 @@ pub use call::{
     FailureKind,
 };
 pub use confine::{ConfineError, ConfineGuard, ConfineReport, ConfineSpec, Confined, Confinement, Violation};
+pub use reads::{CapabilityHealth, CapabilityReads, Checkout, ItemRecogniser, MissingNeed, PastItemFilter};
 pub use registry::{
     ActionContext, ActionRunner, AllInstalled, BuiltinCapability, Capability, CapabilityGrants, CapabilityRegistry,
     Grant, GrantedAction, INSTALLED_MAX, Package,

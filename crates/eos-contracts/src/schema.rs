@@ -422,6 +422,8 @@ bundle![
     PolicyRule,
     PolicyRuleRequest,
     PolicyRuleResponse,
+    PrReview,
+    PrReviewComment,
     ProblemChoice,
     ProfileLanguage,
     Project,
