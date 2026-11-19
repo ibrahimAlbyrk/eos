@@ -39,9 +39,11 @@ pub(crate) struct Listed {
     pub(crate) takes_label: String,
 }
 
-/// The patterns that recognise an item of `kind`.
+/// The patterns that recognise an item of `kind`, leaving out any a
+/// JavaScript engine would not compile: the dashboard runs them as they are.
 pub(crate) fn item_patterns(recognisers: &[ItemRecogniser], kind: &str) -> Vec<String> {
-    recognisers.iter().filter(|recogniser| recogniser.kind == kind).flat_map(|r| r.patterns.clone()).collect()
+    let patterns = recognisers.iter().filter(|recogniser| recogniser.kind == kind).flat_map(|r| r.patterns.iter());
+    patterns.filter(|pattern| Known::compiles(pattern)).cloned().collect()
 }
 
 /// The routines the user has and may run, each with its item patterns.

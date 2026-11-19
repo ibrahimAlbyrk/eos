@@ -18,13 +18,15 @@ use crate::bench::{Bench, blueprint};
 use crate::run_routes::Routes;
 
 const NUMBER: &str = r"(?:^|\s)#(\d+)\b";
+/// A pattern Rust's regex reads and JavaScript does not.
+const RUST_ONLY: &str = r"(?i)\Apr-(\d+)\z";
 
 /// A PR Review routine, alias `review`, whose pull requests are recognised.
 fn routes() -> (Routes, String) {
     let reads = FakeCapabilityReads::new().recognising(ItemRecogniser {
         kind: "github.pull_request".into(),
         noun: "pull request".into(),
-        patterns: vec![NUMBER.into()],
+        patterns: vec![NUMBER.into(), RUST_ONLY.into()],
     });
     let routes = Routes::over(Bench::with_reads(true, reads));
     let mut shape = blueprint(1);
@@ -160,7 +162,8 @@ async fn a_routine_row_carries_its_trigger_line_item_patterns_usual_cost_and_run
     let (_, rows) = routes.get("/api/routines").await;
     let row = &rows[0];
     assert_eq!(row["triggerLine"], "When a pull request opens in acme/game");
-    assert_eq!(row["takes"]["itemPatterns"], json!([NUMBER]));
+    assert!(!eos_domain::routine::intent::Known::compiles(RUST_ONLY));
+    assert_eq!(row["takes"]["itemPatterns"], json!([NUMBER]), "only what JavaScript compiles");
     assert_eq!(row["rung"], "draft");
     assert_eq!(row["activeRuns"], 0);
     assert!(row.get("usual").is_none(), "nothing tells yet");

@@ -36,6 +36,11 @@ impl Known {
         }
     }
 
+    /// Whether a JavaScript engine compiles `pattern` as the rules do.
+    pub fn compiles(pattern: &str) -> bool {
+        Regex::new(pattern).is_ok()
+    }
+
     /// The first part of `text` one of its patterns matches.
     pub fn item_in<'t>(&self, text: &'t str) -> Option<&'t str> {
         self.patterns.iter().find_map(|re| re.find(text).map(|found| text[found.range()].trim()))
