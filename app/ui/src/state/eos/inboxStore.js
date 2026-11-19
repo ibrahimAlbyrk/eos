@@ -155,6 +155,14 @@ function dropShown(id) {
   });
 }
 
+// A 409 on a write: another device answered first, or the item was replaced
+// (kept in `refused`, the item read again to say who or by what), or it
+// changed since it was read (read again).
+function conflicted(id, r) {
+  if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
+  void loadInboxItem(id);
+}
+
 // One answer → true once the core took it. No answer at all shows as
 // Reconnecting on the screen. A 409 says another device answered
 // first (the item is read again to show who) or that the item changed since it
@@ -165,8 +173,7 @@ async function answerWith(id, method, path, body) {
   if (r?.ok) return true;
   if (r === null) return false;
   if (r?.status === 409) {
-    if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
-    void loadInboxItem(id);
+    conflicted(id, r);
   } else if (isDevRunRefusal(r)) {
     set({ devRun: true });
   } else {
@@ -182,9 +189,26 @@ export function answerInboxItem(id, answer) {
   return answerWith(id, "POST", ROUTES.inboxAnswer(id), { rev: revOf(id), answer });
 }
 
-// Sends a draft as it is.
-export function sendInboxDraft(id) {
-  return answerWith(id, "POST", ROUTES.inboxSend(id), { rev: revOf(id) });
+// Sends a draft: as it is, or the whole edited ResultDoc `doc`. A 409
+// "replaced" is kept in `refused` and the item read again, which names the
+// newer draft; "changed" reads the item again.
+export function sendInboxDraft(id, doc) {
+  return answerWith(id, "POST", ROUTES.inboxSend(id), doc ? { rev: revOf(id), doc } : { rev: revOf(id) });
+}
+
+// PUT draft: keeps the user's edits of a draft in the core, so another
+// device sees them. The answer is the item's row with its new rev; a
+// refusal is handled as an answer's is.
+export async function saveInboxDraft(id, doc) {
+  const r = heard(await transport.send("PUT", ROUTES.inboxDraft(id), { rev: revOf(id), doc }).catch(() => null));
+  if (r?.ok && r.body?.id === id) {
+    const detail = state.details[id];
+    if (detail) set({ details: { ...state.details, [id]: { ...detail, item: r.body, working: doc } } });
+    return true;
+  }
+  if (r === null) return false;
+  if (r.status === 409) conflicted(id, r);
+  return false;
 }
 
 export function discardInboxItem(id) {
