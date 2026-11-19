@@ -106,7 +106,7 @@ impl CapabilityService {
             if fits { Ok(output) } else { Err(ActionError::Failed { kind: FailureKind::Output }) }
         });
         let event = match &answered {
-            Ok(_) => Some(Event::Passed),
+            Ok(_) => Some(Event::Worked),
             Err(e) => event_of(e),
         };
         (answered.map(|output| finish(&capability.id, action, output, &values, call.caller.is_model())), event)

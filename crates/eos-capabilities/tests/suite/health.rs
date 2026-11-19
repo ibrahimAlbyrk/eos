@@ -91,3 +91,31 @@ async fn an_early_check_is_asked_for_after_the_failure_is_kept() {
     assert_eq!(queued, ["github"]);
     assert!(seen > before, "the move to needs_sign_in was announced before the check was asked for");
 }
+
+/// G10: the early check after a broken output passes for a built-in, since
+/// a check does not look at outputs, and must not forgive the output.
+#[tokio::test]
+async fn three_broken_outputs_in_a_row_break_it_though_the_early_checks_pass() {
+    let github =
+        Arc::new(FakeBuiltin::new(GITHUB).answering("get_pull_request", Ok(json!({ "number": "not a number" }))));
+    let rig = github_rig(github.clone()).await;
+    for _ in 0..2 {
+        let failed = rig.service.call(agent_call("github", "get_pull_request", json!({ "number": 7 }))).await;
+        assert_eq!(failed, Err(ActionError::Failed { kind: FailureKind::Output }));
+        assert_eq!(rig.service.early_checks().await, ["github"]);
+        let checked = rig.service.check("github").await.expect("checks");
+        assert_eq!(checked.state, HealthState::Ready, "the check passed");
+    }
+    assert_eq!(github.checks(), 2);
+
+    let failed = rig.service.call(agent_call("github", "get_pull_request", json!({ "number": 7 }))).await;
+    assert_eq!(failed, Err(ActionError::Failed { kind: FailureKind::Output }));
+    let state = rig.service.state("github").await.expect("read").expect("there");
+    assert_eq!((state.state, state.code), (HealthState::Broken, Some(StateCode::OutputSchema)));
+    assert_eq!(
+        rig.changes().last().map(String::as_str),
+        Some(r#"{"id":"github","state":"broken","stateCode":"output_schema"}"#)
+    );
+    let refused = rig.service.call(agent_call("github", "get_pull_request", json!({ "number": 7 }))).await;
+    assert_eq!(refused, Err(ActionError::NotReady("output_schema".into())));
+}
