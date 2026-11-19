@@ -307,6 +307,10 @@ export const ROUTES = {
   routine: (id) => `/api/routines/${id}`,
   routineVersions: (id) => `/api/routines/${id}/versions`,
   routineVersion: (id, versionId) => `/api/routines/${id}/versions/${versionId}`,
+  // A routine's life by hand: its state, Recently deleted and back, a one-off kept.
+  routineState: (id) => `/api/routines/${id}/state`,
+  routineUndelete: (id) => `/api/routines/${id}/undelete`,
+  routineKeep: (id) => `/api/routines/${id}/keep`,
   // Runs (eos-contracts `routine/runs.rs`): what a routine may run on; start,
   // estimate and list runs; one run, its result and timeline; telling its
   // team something, stopping, pausing and resuming it; and the run a worker

@@ -18,13 +18,13 @@ use serde_json::{Value, json};
 
 use crate::bench::{Bench, blueprint, new_run, pull_request};
 
-struct Routes {
-    bench: Bench,
+pub(crate) struct Routes {
+    pub(crate) bench: Bench,
     runtime: Runtime,
 }
 
 impl Routes {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::over(Bench::new(true))
     }
 
@@ -36,7 +36,7 @@ impl Routes {
         Self { bench, runtime }
     }
 
-    async fn call(&self, method: Method, caller: Caller, path: &str, body: Option<Value>) -> (u16, Value) {
+    pub(crate) async fn call(&self, method: Method, caller: Caller, path: &str, body: Option<Value>) -> (u16, Value) {
         let mut request = Request::new(method, path, caller);
         if let Some(body) = body {
             request = request.body(body.to_string());
@@ -47,11 +47,11 @@ impl Routes {
         (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
     }
 
-    async fn get(&self, path: &str) -> (u16, Value) {
+    pub(crate) async fn get(&self, path: &str) -> (u16, Value) {
         self.call(Method::Get, Caller::DASHBOARD, path, None).await
     }
 
-    async fn post(&self, path: &str, body: Value) -> (u16, Value) {
+    pub(crate) async fn post(&self, path: &str, body: Value) -> (u16, Value) {
         self.call(Method::Post, Caller::DASHBOARD, path, Some(body)).await
     }
 

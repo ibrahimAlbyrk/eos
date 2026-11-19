@@ -326,6 +326,10 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/routines/{id}"),
     ("GET", "/api/routines/{id}/versions"),
     ("GET", "/api/routines/{id}/versions/{versionId}"),
+    ("PUT", "/api/routines/{id}/state"),
+    ("DELETE", "/api/routines/{id}"),
+    ("POST", "/api/routines/{id}/undelete"),
+    ("POST", "/api/routines/{id}/keep"),
     // Runs: the estimate, the list, one run, its result and timeline, and a worker's run are
     // read from the data copy; stopping and pausing a run only stop its agents.
     ("POST", "/api/runs/estimate"),

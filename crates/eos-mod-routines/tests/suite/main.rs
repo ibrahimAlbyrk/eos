@@ -14,3 +14,4 @@ mod solo;
 mod start;
 mod supervisor;
 mod team;
+mod writes;

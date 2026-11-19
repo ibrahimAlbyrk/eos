@@ -252,6 +252,17 @@ impl RunRepo for SqliteTx<'_> {
         )
     }
 
+    fn live_of(&self, routine_id: &str) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {RUN_COLUMNS} FROM runs WHERE routine_id = ?1 \
+                 AND state NOT IN ('done','failed','cancelled','skipped') ORDER BY created_at, rowid"
+            ),
+            [routine_id],
+            run,
+        )
+    }
+
     fn set_resumed(&self, id: &str, resumed: i64) -> Result<(), Error> {
         self.exec("UPDATE runs SET resumed = ?1 WHERE id = ?2", params![resumed, id]).map(drop)
     }
