@@ -209,15 +209,22 @@ impl ActionRunner for FakeActionRunner {
     }
 }
 
-/// The capabilities the test gives, as the registry answers them.
+/// The capabilities the test gives, as the registry answers them; a
+/// broken one cannot be read.
 #[derive(Debug, Default)]
 pub struct FakeCapabilityRegistry {
     capabilities: Mutex<Vec<Capability>>,
+    broken: bool,
 }
 
 impl FakeCapabilityRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Every class it is asked for fails as a store that cannot be read.
+    pub fn broken() -> Self {
+        Self { broken: true, ..Self::default() }
     }
 
     /// A built-in from `manifest` (a `capability.toml`), in `health`.
@@ -250,6 +257,9 @@ impl CapabilityRegistry for FakeCapabilityRegistry {
     }
 
     fn class_of<'a>(&'a self, id: &'a str, action: &'a str) -> BoxFuture<'a, Result<Option<ActionClass>, Error>> {
+        if self.broken {
+            return Box::pin(std::future::ready(Err(Error::Storage("the store cannot be read".to_owned()))));
+        }
         let class = self.find(id).and_then(|capability| capability.manifest.action(action).map(|a| a.class));
         Box::pin(std::future::ready(Ok(class)))
     }

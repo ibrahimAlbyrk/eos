@@ -75,6 +75,7 @@ mod github;
 mod home;
 mod ids;
 mod inbox;
+mod logs;
 mod os;
 mod peer;
 pub mod plugins;
@@ -118,6 +119,7 @@ pub use github::{FakeGitHub, GITHUB_DEVICE_CODE, GITHUB_TOKEN, GITHUB_USER_CODE,
 pub use home::TempHome;
 pub use ids::SeqIds;
 pub use inbox::{FakeActionGate, FakeAskRouting, FakeResultEdits};
+pub use logs::LogCapture;
 pub use os::{FakeDockBadge, FakePower, FakeWorkHold, FakeZoneRules};
 pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;

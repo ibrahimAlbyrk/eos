@@ -152,7 +152,8 @@ impl PolicyGateway {
         match registry.class_of(capability, action).await {
             Ok(class) => class,
             Err(e) => {
-                tracing::warn!(capability, action, error = %e, "the capability registry could not be read");
+                // The names are the model's input, not ids from a manifest: never logged.
+                tracing::warn!(error = %e, "the capability registry could not be read");
                 None
             }
         }

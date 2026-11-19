@@ -10,7 +10,7 @@ use eos_core::capability::ActionError;
 use eos_core::policy::{AgentMode, DecisionCounter, DecisionCounts, PolicyDecider, SubagentModes, ToolCall};
 use eos_domain::capability::health::Health;
 use eos_policy::{Answer, GatewayOptions, PolicyGateway};
-use eos_testkit::{FakeCapabilityRegistry, FakeClock, FakePolicyFile, SeqIds, TempStore};
+use eos_testkit::{FakeCapabilityRegistry, FakeClock, FakePolicyFile, LogCapture, SeqIds, TempStore};
 use serde_json::{Value, json};
 
 struct Fixture {
@@ -422,4 +422,28 @@ async fn call_capability_is_decided_by_the_class_the_registry_gives() {
     // Without a registry nothing is there to call.
     let unknown = f.gateway.decide(capability("get_pull_request")).await.expect("decides");
     assert_eq!(behavior(&unknown), "deny");
+}
+
+/// A registry that cannot be read leaves the call without a class, and the
+/// log says so without the names the model wrote.
+#[tokio::test]
+async fn a_registry_that_cannot_be_read_is_logged_without_the_call_input() {
+    let f = fixture("bypassPermissions", json!({"default": "allow", "rules": []}));
+    let gateway = PolicyGateway::new(GatewayOptions {
+        store: f.temp.port(),
+        clock: f.clock.clone(),
+        ids: Arc::new(SeqIds::new()),
+        file: f.file.clone(),
+        default_ttl_ms: 0,
+        plans_dir: None,
+    })
+    .with_capabilities(Arc::new(FakeCapabilityRegistry::broken()));
+    let logs = LogCapture::start();
+    let input = json!({"capability": "planted-capability-name", "action": "planted-action-name", "input": {}});
+
+    let refused = gateway.decide(call("call_capability", input)).await.expect("decides");
+    assert_eq!(behavior(&refused), "deny");
+    let text = logs.text();
+    assert!(text.contains("the capability registry could not be read"), "{text}");
+    assert!(!text.contains("planted-capability-name") && !text.contains("planted-action-name"), "{text}");
 }

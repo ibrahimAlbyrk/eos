@@ -55,7 +55,8 @@ impl CapabilityService {
             Ok(Some(loaded)) => loaded,
             Ok(None) => return Err(ActionError::NotFound),
             Err(e) => {
-                tracing::warn!(capability = %call.capability, error = %e, "the capabilities could not be read");
+                // The id is the caller's input until a row is found: never logged.
+                tracing::warn!(error = %e, "the capabilities could not be read");
                 return Err(ActionError::Failed { kind: FailureKind::Internal });
             }
         };
