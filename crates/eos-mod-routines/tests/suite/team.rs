@@ -122,7 +122,7 @@ async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked
     git(&repo.clone, &["cat-file", "-e", &repo.sha]);
     let worktree = repo.clone.join(format!(".eos/worktrees/eos/run/{run}/editor")).to_string_lossy().into_owned();
     // The pull request is outside text: the session works in an empty folder, the worktree beside it.
-    assert_eq!(lead_spec.additional_dirs, [worktree.clone()]);
+    assert_eq!(lead_spec.additional_dirs, std::slice::from_ref(&worktree));
     let brief = lead_spec.prompt.expect("a brief");
     assert!(brief.contains("- tester (TESTER): tester brief.") && brief.contains(&worktree), "{brief}");
 
@@ -138,11 +138,11 @@ async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked
     let tester_spec = specialist(&bench, &tester);
     assert_eq!(tester_spec.worker_definition.as_deref(), Some("eos-run-specialist"));
     assert_eq!(tester_spec.parent_id.as_deref(), Some(lead.as_str()));
-    assert_eq!(tester_spec.additional_dirs, [worktree.clone()], "it shares the lead's worktree");
+    assert_eq!(tester_spec.additional_dirs, std::slice::from_ref(&worktree), "it shares the lead's worktree");
     let task = tester_spec.prompt.expect("a boot prompt");
     assert!(task.contains("tester brief.") && task.contains("Run the tests.") && task.contains("<untrusted"), "{task}");
     let clone = repo.clone.to_string_lossy().into_owned();
-    assert_eq!(specialist(&bench, &reader).additional_dirs, [clone.clone()], "the reader reads the clone");
+    assert_eq!(specialist(&bench, &reader).additional_dirs, std::slice::from_ref(&clone), "the reader reads the clone");
     let id = reader.clone();
     let row = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads").expect("a row");
     let scope: ToolScope = serde_json::from_str(row.tool_scope.as_deref().expect("a scope")).expect("json");
