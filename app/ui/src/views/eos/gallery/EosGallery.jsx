@@ -56,6 +56,6 @@ export function EosGallery() {
 // opens where Eos opens and leaves where the user's own Eos opens untouched.
 export function startEosGallery(rootEl) {
   setEosTransport(fixtureTransport(SAMPLE_READS));
-  holdEosNavInMemory("eos:/capabilities");
+  holdEosNavInMemory("eos:/");
   createRoot(rootEl).render(<EosGallery />);
 }

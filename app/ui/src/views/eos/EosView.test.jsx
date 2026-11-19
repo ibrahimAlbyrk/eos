@@ -52,10 +52,10 @@ describe("EosView", () => {
     expect(html).toContain('<h1 class="eos-title">Memory</h1>');
   });
 
-  it("opens at Capabilities when no place is remembered, its row selected", () => {
+  it("opens at its start, Needs you, when no place is remembered, its row selected", () => {
     const html = draw();
     expect(html).toContain('<button class="sb-nav-row strong on">');
-    expect(html).toContain('<h1 class="eos-title">Capabilities</h1>');
+    expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
   });
 
   it("goes back with ⌘[ and forward with ⌘]", () => {

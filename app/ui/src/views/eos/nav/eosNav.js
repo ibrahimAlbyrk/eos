@@ -7,8 +7,9 @@ import { useSyncExternalStore } from "react";
 
 const SCHEME = "eos:/";
 const HOME = SCHEME;
-// Where Eos opens when no usable place is remembered.
-const START = `${SCHEME}capabilities`;
+// Where Eos opens when no usable place is remembered: Home, which shows the
+// Needs-you list until Home itself arrives.
+const START = HOME;
 const STORAGE_KEY = "eos:location";
 const BACK_LIMIT = 50;
 
