@@ -4,9 +4,9 @@
 use std::sync::Arc;
 
 use eos_core::Error;
-use eos_core::capability::{CapabilityCalls, CapabilityRegistry, CapabilitySecrets};
+use eos_core::capability::{CapabilityCalls, CapabilityRegistry, CapabilitySecrets, INSTALLED_MAX};
 use eos_domain::capability::health::HealthState;
-use eos_testkit::FakeBuiltin;
+use eos_testkit::{FakeActionRunner, FakeBuiltin};
 use serde_json::json;
 
 use crate::rig::{GITHUB, Setup, agent_call, notes, rig};
@@ -108,4 +108,49 @@ async fn removing_trashes_every_version_drops_the_row_and_keeps_the_secrets() {
     assert!(matches!(builtin, Err(Error::Rule(_))), "{builtin:?}");
     rig.install(&notes("1.1.0"), "h-2").await;
     assert!(rig.service.get("notes-db").await.expect("read").is_some(), "the same version installs again");
+}
+
+#[tokio::test]
+async fn installs_at_once_never_pass_the_limit() {
+    let rig = rig(Setup::default()).await;
+    for n in 1..INSTALLED_MAX {
+        rig.install(&notes("1.0.0").replace("notes-db", &format!("notes-{n}")), "h-1").await;
+    }
+    let last = |id: &str| {
+        let manifest = notes("1.0.0").replace("notes-db", id);
+        eos_capabilities::Install {
+            package_dir: rig.package(id, &manifest),
+            manifest: eos_domain::capability::manifest::parse(&manifest).expect("reads"),
+            hash: "h-1".into(),
+            origin: "forge".into(),
+            source: "rn-1".into(),
+        }
+    };
+    let (a, b) = tokio::join!(rig.service.install(last("last-a")), rig.service.install(last("last-b")));
+
+    let refused = [&a, &b].into_iter().filter(|out| matches!(out, Err(Error::LimitExceeded(_)))).count();
+    assert_eq!((a.is_ok() || b.is_ok(), refused), (true, 1), "{a:?} {b:?}");
+    let count = "SELECT COUNT(*) FROM capability_installs WHERE origin != 'builtin'";
+    assert_eq!(rig.temp.count(count), INSTALLED_MAX as i64);
+    let refused_id = if a.is_ok() { "last-b" } else { "last-a" };
+    assert!(!rig.files.dir(refused_id, "1.0.0").exists(), "the refused install's files go");
+}
+
+#[tokio::test]
+async fn a_removal_announces_the_state_the_row_had_when_it_went() {
+    let rig = rig(Setup { runner: FakeActionRunner::new().holding_stops(), ..Setup::default() }).await;
+    rig.install(&notes("1.0.0"), "h-1").await;
+
+    let switch_off = async {
+        while rig.runner.stopped().is_empty() {
+            tokio::task::yield_now().await;
+        }
+        rig.service.disable("notes-db").await.expect("switches off");
+        rig.runner.release();
+    };
+    let (removed, ()) = tokio::join!(rig.service.remove("notes-db"), switch_off);
+    removed.expect("removes");
+
+    assert_eq!(rig.service.get("notes-db").await.expect("read"), None);
+    assert_eq!(rig.changes().last().map(String::as_str), Some(r#"{"id":"notes-db","state":"disabled"}"#));
 }

@@ -134,12 +134,14 @@ pub struct RunnerCall {
 }
 
 /// Runs nothing: each package action answers what the test set (`{}` until
-/// then). Records every run and every stop.
+/// then). Records every run and every stop; a held runner's stops wait
+/// for [`release`](Self::release).
 #[derive(Debug, Default)]
 pub struct FakeActionRunner {
     answers: Mutex<HashMap<(String, String), Result<Value, ActionError>>>,
     runs: Mutex<Vec<RunnerCall>>,
     stopped: Mutex<Vec<String>>,
+    hold: Option<Arc<Semaphore>>,
 }
 
 impl FakeActionRunner {
@@ -150,6 +152,18 @@ impl FakeActionRunner {
     pub fn answering(self, capability: &str, action: &str, answer: Result<Value, ActionError>) -> Self {
         locked(&self.answers).insert((capability.to_owned(), action.to_owned()), answer);
         self
+    }
+
+    /// Each stop waits until the test calls [`release`](Self::release).
+    pub fn holding_stops(self) -> Self {
+        Self { hold: Some(Arc::new(Semaphore::new(0))), ..self }
+    }
+
+    /// Lets one held stop end.
+    pub fn release(&self) {
+        if let Some(hold) = &self.hold {
+            hold.add_permits(1);
+        }
     }
 
     pub fn runs(&self) -> Vec<RunnerCall> {
@@ -186,7 +200,12 @@ impl ActionRunner for FakeActionRunner {
 
     fn stop<'a>(&'a self, id: &'a str) -> BoxFuture<'a, ()> {
         locked(&self.stopped).push(id.to_owned());
-        Box::pin(std::future::ready(()))
+        let hold = self.hold.clone();
+        Box::pin(async move {
+            if let Some(hold) = hold {
+                hold.acquire().await.map(|permit| permit.forget()).unwrap_or_default();
+            }
+        })
     }
 }
 

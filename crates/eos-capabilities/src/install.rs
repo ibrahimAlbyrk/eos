@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use eos_core::Error;
 use eos_core::capability::INSTALLED_MAX;
-use eos_core::store::{StoredCapabilityVersion, StoredInstall};
+use eos_core::store::{StoredCapabilityVersion, StoredInstall, Tx};
 use eos_domain::capability::check::check;
 use eos_domain::capability::manifest::Manifest;
 
@@ -47,26 +47,10 @@ impl CapabilityService {
         if self.builtins.contains_key(&id) {
             return Err(Error::Conflict(format!("{id} is a built-in capability")));
         }
-        let (others, known) = {
-            let (id, version) = (id.clone(), version.clone());
-            self.ports
-                .store
-                .read(move |tx| {
-                    let others = tx
-                        .capability_installs()
-                        .list()?
-                        .iter()
-                        .filter(|install| install.origin != BUILTIN && install.id != id)
-                        .count();
-                    Ok((others, tx.capability_versions().find(&id, &version)?))
-                })
-                .await?
-        };
-        if others >= INSTALLED_MAX {
-            return Err(Error::LimitExceeded(format!("at most {INSTALLED_MAX} capabilities are installed")));
-        }
-        if known.as_ref().is_some_and(|known| known.hash != hash) {
-            return Err(Error::Conflict(format!("capability {id} {version} was installed with other files")));
+        {
+            let (id, version, hash) = (id.clone(), version.clone(), hash.clone());
+            // Refused before any file is copied; the write checks again.
+            self.ports.store.read(move |tx| admit(tx, &id, &version, &hash)).await?;
         }
         self.ports.files.install(&package_dir, &id, &version, &hash).await?;
         let health = self.fresh_health(&manifest).await?;
@@ -76,7 +60,7 @@ impl CapabilityService {
             capability_id: id.clone(),
             version: version.clone(),
             status: INSTALLED.to_owned(),
-            hash,
+            hash: hash.clone(),
             manifest_json,
             source,
             tests_json: None,
@@ -85,11 +69,11 @@ impl CapabilityService {
             activated_at: Some(now),
             retired_at: None,
         };
-        let replaced = self
+        let written = self
             .ports
             .store
             .write(move |tx, outbox| {
-                if known.is_none() {
+                if admit(tx, &id, &version, &hash)?.is_none() {
                     tx.capability_versions().insert(&row)?;
                 }
                 let before = tx.capability_installs().find(&id)?;
@@ -108,7 +92,15 @@ impl CapabilityService {
                 announce(outbox, &install);
                 Ok(before.and_then(|before| before.active_version))
             })
-            .await?;
+            .await;
+        let replaced = match written {
+            Ok(replaced) => replaced,
+            Err(e) => {
+                // The files were copied by this call alone; without their row they go.
+                let _left = self.ports.files.remove(&manifest.id, &manifest.version).await;
+                return Err(e);
+            }
+        };
         if replaced.is_some() {
             self.stop_runs(&manifest.id).await;
         }
@@ -174,7 +166,7 @@ impl CapabilityService {
                 .read(move |tx| Ok((tx.capability_installs().find(&id)?, tx.capability_versions().of_capability(&id)?)))
                 .await?
         };
-        let mut install = install.ok_or_else(|| Error::not_found("capability", id))?;
+        let install = install.ok_or_else(|| Error::not_found("capability", id))?;
         if install.origin == BUILTIN {
             return Err(Error::Rule(format!("{id} is a built-in capability: it cannot be removed")));
         }
@@ -186,11 +178,14 @@ impl CapabilityService {
         }
         self.stop_runs(id).await;
         self.stamps.lock().unwrap_or_else(|p| p.into_inner()).retain(|(capability, _), _| capability != id);
-        install.active_version = None;
+        let id = id.to_owned();
         self.ports
             .store
             .write(move |tx, outbox| {
-                tx.capability_installs().delete(&install.id)?;
+                let mut install =
+                    tx.capability_installs().find(&id)?.ok_or_else(|| Error::not_found("capability", &id))?;
+                tx.capability_installs().delete(&id)?;
+                install.active_version = None;
                 announce(outbox, &install);
                 Ok(())
             })
@@ -203,4 +198,19 @@ impl CapabilityService {
             runner.stop(id).await;
         }
     }
+}
+
+/// Refuses a capability past [`INSTALLED_MAX`] or a known version with
+/// other files; returns the known version's row.
+fn admit(tx: &dyn Tx, id: &str, version: &str, hash: &str) -> Result<Option<StoredCapabilityVersion>, Error> {
+    let others =
+        tx.capability_installs().list()?.iter().filter(|install| install.origin != BUILTIN && install.id != id).count();
+    if others >= INSTALLED_MAX {
+        return Err(Error::LimitExceeded(format!("at most {INSTALLED_MAX} capabilities are installed")));
+    }
+    let known = tx.capability_versions().find(id, version)?;
+    if known.as_ref().is_some_and(|known| known.hash != hash) {
+        return Err(Error::Conflict(format!("capability {id} {version} was installed with other files")));
+    }
+    Ok(known)
 }
