@@ -1,0 +1,23 @@
+[package]
+name = "eos-inbox"
+description = "Needs you: the items that wait for the user, opened inside a producer's own write, answered once on the rev they were made on, and handed back to their producer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

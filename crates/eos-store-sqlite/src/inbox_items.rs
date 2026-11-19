@@ -1,11 +1,15 @@
 //! `inbox_items`.
 
 use eos_core::Error;
-use eos_core::store::{InboxRepo, ItemAnswer, StoredItem};
+use eos_core::store::{InboxRepo, ItemAnswer, ItemQuery, StoredItem, WaitingCount};
 use eos_domain::inbox::{Attention, ItemKind, ItemState};
 use eos_kit_sqlite::rusqlite::{self, params};
 
 use crate::tx::{SqliteTx, failed, known};
+
+/// `eos_domain::inbox::order_rank`, in SQL.
+const RANK: &str = "(CASE state WHEN 'later' THEN 3 ELSE 0 END + \
+                    CASE attention WHEN 'interrupt' THEN 0 WHEN 'digest' THEN 1 ELSE 2 END)";
 
 const ITEM_COLUMNS: &str = "id, kind, state, producer, routine_id, run_id, subject_key, title, summary, payload, \
                             working, rev, attention, stale_at, stale_reason, later_until, expires_at, created_at, \
@@ -105,6 +109,116 @@ impl InboxRepo for SqliteTx<'_> {
             "UPDATE inbox_items SET state = ?3, answered_at = ?4, answered_by = ?5, answer = ?6, rev = rev + 1, \
              updated_at = ?4 WHERE id = ?1 AND state IN ('open','later') AND rev = ?2",
             params![id, rev, ItemState::Answered.as_str(), answer.at, answer.by, answer.answer],
+        )?;
+        Ok(changed > 0)
+    }
+
+    fn update_waiting(&self, item: &StoredItem, rev: i64) -> Result<bool, Error> {
+        let changed = self.exec(
+            "UPDATE inbox_items SET state = ?3, working = ?4, rev = ?5, stale_at = ?6, stale_reason = ?7, \
+             later_until = ?8, updated_at = ?9, answered_at = ?10, answered_by = ?11, answer = ?12, \
+             replaced_by = ?13 WHERE id = ?1 AND rev = ?2 AND state IN ('open','later')",
+            params![
+                item.id,
+                rev,
+                item.state.as_str(),
+                item.working,
+                item.rev,
+                item.stale_at,
+                item.stale_reason,
+                item.later_until,
+                item.updated_at,
+                item.answered_at,
+                item.answered_by,
+                item.answer,
+                item.replaced_by,
+            ],
+        )?;
+        Ok(changed > 0)
+    }
+
+    fn page(&self, query: &ItemQuery) -> Result<Vec<StoredItem>, Error> {
+        let state = query.state.map(ItemState::as_str);
+        let (rank, created_at, id) = match &query.after {
+            Some(place) => (place.rank, place.created_at, Some(place.id.as_str())),
+            None => (-1, 0, None),
+        };
+        self.rows(
+            &format!(
+                "SELECT {ITEM_COLUMNS} FROM inbox_items \
+                 WHERE (CASE WHEN ?1 IS NULL THEN state IN ('open','later') ELSE state = ?1 END) \
+                 AND (?2 IS NULL OR routine_id = ?2) \
+                 AND (?5 IS NULL OR {RANK} > ?3 OR ({RANK} = ?3 AND (created_at < ?4 \
+                      OR (created_at = ?4 AND id < ?5)))) \
+                 ORDER BY {RANK}, created_at DESC, id DESC LIMIT ?6"
+            ),
+            params![state, query.routine_id, rank, created_at, id, query.limit],
+            item,
+        )
+    }
+
+    fn counts(&self) -> Result<Vec<WaitingCount>, Error> {
+        self.rows(
+            "SELECT state, kind, routine_id, COUNT(*) FROM inbox_items WHERE state IN ('open','later') \
+             GROUP BY state, kind, routine_id ORDER BY state, kind, routine_id",
+            [],
+            |r| {
+                let read = || -> rusqlite::Result<WaitingCount> {
+                    Ok(WaitingCount {
+                        state: known(r, 0, ItemState::parse)?,
+                        kind: known(r, 1, ItemKind::parse)?,
+                        routine_id: r.get(2)?,
+                        count: r.get(3)?,
+                    })
+                };
+                read().map_err(failed)
+            },
+        )
+    }
+
+    fn open_count(&self) -> Result<i64, Error> {
+        let count = self
+            .row("SELECT COUNT(*) FROM inbox_items WHERE state = 'open'", [], |r| r.get::<_, i64>(0).map_err(failed))?;
+        Ok(count.unwrap_or(0))
+    }
+
+    fn waiting_of_routine(&self, routine_id: &str) -> Result<Vec<StoredItem>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {ITEM_COLUMNS} FROM inbox_items WHERE routine_id = ?1 AND state IN ('open','later') \
+                 ORDER BY created_at, rowid"
+            ),
+            [routine_id],
+            item,
+        )
+    }
+
+    fn waiting_with_subject(&self, subject_key: &str) -> Result<Vec<StoredItem>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {ITEM_COLUMNS} FROM inbox_items WHERE subject_key = ?1 AND state IN ('open','later') \
+                 ORDER BY created_at, rowid"
+            ),
+            [subject_key],
+            item,
+        )
+    }
+
+    fn unconsumed(&self, producer: &str) -> Result<Vec<StoredItem>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {ITEM_COLUMNS} FROM inbox_items WHERE producer = ?1 AND state = 'answered' \
+                 AND consumed_at IS NULL ORDER BY answered_at, rowid"
+            ),
+            [producer],
+            item,
+        )
+    }
+
+    fn consume(&self, id: &str, at: i64) -> Result<bool, Error> {
+        let changed = self.exec(
+            "UPDATE inbox_items SET consumed_at = ?2 WHERE id = ?1 AND state = 'answered' AND consumed_at IS NULL",
+            params![id, at],
         )?;
         Ok(changed > 0)
     }

@@ -4,9 +4,10 @@
 
 use eos_contracts::ActionClass;
 use eos_core::store::{
-    ItemAnswer, NewEdit, NewOutcome, StoredDelivery, StoredHalt, StoredItem, StoredOffer, StoredOutcome,
+    ItemAnswer, ItemPlace, ItemQuery, NewEdit, NewOutcome, StoredDelivery, StoredHalt, StoredItem, StoredOffer,
+    StoredOutcome, WaitingCount,
 };
-use eos_domain::inbox::{Attention, ItemKind, ItemState};
+use eos_domain::inbox::{Attention, ItemKind, ItemState, order_rank};
 use eos_testkit::TempStore;
 
 fn item(id: &str, state: ItemState, attention: Attention, created_at: i64) -> StoredItem {
@@ -122,6 +123,84 @@ fn an_answer_lands_once_and_only_on_the_rev_it_was_made_on() {
     assert_eq!(one.answer.as_deref(), Some(r#"{"kind":"send"}"#));
     let edited = edited.expect("the item");
     assert_eq!((edited.state, edited.rev, edited.answered_at), (ItemState::Answered, 4, Some(103)));
+}
+
+#[test]
+fn pages_follow_the_order_counts_group_and_the_handoff_lists_until_consumed() {
+    let temp = TempStore::new();
+    let mut other = item("nd-other", ItemState::Open, Attention::Digest, 30);
+    other.routine_id = Some("rt-2".into());
+    other.subject_key = None;
+    let items = [
+        item("nd-a", ItemState::Open, Attention::Interrupt, 10),
+        item("nd-b", ItemState::Open, Attention::Interrupt, 10),
+        item("nd-c", ItemState::Later, Attention::Interrupt, 50),
+        other,
+    ];
+    let (first, second, of_routine, later, counts, open) = temp
+        .store
+        .write_blocking(move |tx, _| {
+            let repo = tx.inbox_items();
+            for item in &items {
+                repo.insert(item)?;
+            }
+            let query = |after: Option<ItemPlace>, routine: Option<&str>, state: Option<ItemState>| ItemQuery {
+                state,
+                routine_id: routine.map(str::to_owned),
+                after,
+                limit: 2,
+            };
+            let first = repo.page(&query(None, None, None))?;
+            let last = first.last().expect("a page");
+            let place = ItemPlace {
+                rank: order_rank(last.state, last.attention),
+                created_at: last.created_at,
+                id: last.id.clone(),
+            };
+            let second = repo.page(&query(Some(place), None, None))?;
+            let of_routine = repo.page(&query(None, Some("rt-2"), None))?;
+            let later = repo.page(&query(None, None, Some(ItemState::Later)))?;
+            Ok((first, second, of_routine, later, repo.counts()?, repo.open_count()?))
+        })
+        .expect("writes");
+    let ids = |items: &[StoredItem]| items.iter().map(|item| item.id.clone()).collect::<Vec<_>>();
+    assert_eq!(ids(&first), ["nd-b", "nd-a"], "of one time, the higher id first");
+    assert_eq!(ids(&second), ["nd-other", "nd-c"]);
+    assert_eq!(ids(&of_routine), ["nd-other"]);
+    assert_eq!(ids(&later), ["nd-c"]);
+    assert_eq!(open, 3);
+    let count =
+        |state, kind, routine: &str, count| WaitingCount { state, kind, routine_id: Some(routine.to_owned()), count };
+    assert_eq!(
+        counts,
+        [
+            count(ItemState::Later, ItemKind::Draft, "rt-1", 1),
+            count(ItemState::Open, ItemKind::Draft, "rt-1", 2),
+            count(ItemState::Open, ItemKind::Draft, "rt-2", 1),
+        ]
+    );
+
+    let (stale, moved, subject, unconsumed, consumed, again, after) = temp
+        .store
+        .write_blocking(|tx, _| {
+            let repo = tx.inbox_items();
+            let mut later = repo.find("nd-a")?.expect("the item");
+            later.state = ItemState::Later;
+            later.rev = 1;
+            let stale = repo.update_waiting(&later, 5)?;
+            let moved = repo.update_waiting(&later, 0)?;
+            repo.answer("nd-b", 0, &answer("phone", 60))?;
+            let subject = repo.waiting_with_subject("github:pr:acme/game#482")?;
+            let unconsumed = repo.unconsumed("inbox")?;
+            let consumed = repo.consume("nd-b", 70)?;
+            let again = repo.consume("nd-b", 71)?;
+            Ok((stale, moved, subject, unconsumed, consumed, again, repo.unconsumed("inbox")?))
+        })
+        .expect("writes");
+    assert_eq!((stale, moved), (false, true), "a write on an old rev changes nothing");
+    assert_eq!(ids(&subject), ["nd-a", "nd-c"], "an answered item is no longer about its subject");
+    assert_eq!(ids(&unconsumed), ["nd-b"]);
+    assert_eq!((consumed, again, after.len()), (true, false, 0));
 }
 
 fn delivery(id: &str, state: &str, next_attempt_at: Option<i64>, created_at: i64) -> StoredDelivery {

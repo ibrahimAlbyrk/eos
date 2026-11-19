@@ -181,6 +181,34 @@ pub struct StoredHalt {
     pub updated_at: i64,
 }
 
+/// An item's place in Needs you's order: a page starts after it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemPlace {
+    /// `eos_domain::inbox::order_rank` of its state and attention.
+    pub rank: i64,
+    pub created_at: i64,
+    pub id: String,
+}
+
+/// Which items a page lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemQuery {
+    /// Every item that waits when none is named.
+    pub state: Option<ItemState>,
+    pub routine_id: Option<String>,
+    pub after: Option<ItemPlace>,
+    pub limit: i64,
+}
+
+/// How many items wait in one state, of one kind, for one routine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WaitingCount {
+    pub state: ItemState,
+    pub kind: ItemKind,
+    pub routine_id: Option<String>,
+    pub count: i64,
+}
+
 pub trait InboxRepo {
     fn insert(&self, item: &StoredItem) -> Result<(), Error>;
     fn find(&self, id: &str) -> Result<Option<StoredItem>, Error>;
@@ -191,6 +219,25 @@ pub trait InboxRepo {
     /// its rev goes one up. `false`, and nothing written, when it was
     /// answered, closed or changed since.
     fn answer(&self, id: &str, rev: i64, answer: &ItemAnswer) -> Result<bool, Error>;
+    /// Writes what may change of an item (state, working, rev, times, answer,
+    /// `replaced_by`) if it still waits at `rev`; `false`, and nothing
+    /// written, when it ended or changed since.
+    fn update_waiting(&self, item: &StoredItem, rev: i64) -> Result<bool, Error>;
+    /// One page in Needs you's order, after `query.after`.
+    fn page(&self, query: &ItemQuery) -> Result<Vec<StoredItem>, Error>;
+    /// The items that wait, counted by state, kind and routine.
+    fn counts(&self) -> Result<Vec<WaitingCount>, Error>;
+    /// How many items are open.
+    fn open_count(&self) -> Result<i64, Error>;
+    /// The items of a routine that wait, oldest first.
+    fn waiting_of_routine(&self, routine_id: &str) -> Result<Vec<StoredItem>, Error>;
+    /// The items about `subject_key` that wait, oldest first.
+    fn waiting_with_subject(&self, subject_key: &str) -> Result<Vec<StoredItem>, Error>;
+    /// `producer`'s answered items it has not acted on yet, first answered
+    /// first.
+    fn unconsumed(&self, producer: &str) -> Result<Vec<StoredItem>, Error>;
+    /// Marks an answered item as acted on; `false` when it was already.
+    fn consume(&self, id: &str, at: i64) -> Result<bool, Error>;
 }
 
 pub trait DeliveryRepo {

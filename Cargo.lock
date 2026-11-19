@@ -1686,6 +1686,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-inbox"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-kit-fs"
 version = "0.0.1"
 dependencies = [

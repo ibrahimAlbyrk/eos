@@ -70,8 +70,8 @@ pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, Wor
 pub use events::{EventOrder, EventQuery, EventRepo};
 pub use files::{ConfigSource, ProjectMemoryStore, ProjectStore, RecentFolders, UserSettingsStore};
 pub use inbox::{
-    DeliveryRepo, EditRepo, HaltRepo, InboxRepo, ItemAnswer, NewEdit, NewOutcome, OfferRepo, OutcomeRepo,
-    StoredDelivery, StoredEdit, StoredHalt, StoredItem, StoredOffer, StoredOutcome,
+    DeliveryRepo, EditRepo, HaltRepo, InboxRepo, ItemAnswer, ItemPlace, ItemQuery, NewEdit, NewOutcome, OfferRepo,
+    OutcomeRepo, StoredDelivery, StoredEdit, StoredHalt, StoredItem, StoredOffer, StoredOutcome, WaitingCount,
 };
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
