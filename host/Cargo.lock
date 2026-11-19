@@ -1939,6 +1939,7 @@ dependencies = [
  "eos-mod-questions",
  "eos-mod-reactions",
  "eos-mod-remote",
+ "eos-mod-routines",
  "eos-mod-settings",
  "eos-mod-sync",
  "eos-mod-system",
@@ -2000,6 +2001,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]
@@ -2064,6 +2066,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "zeroize",
 ]
 
 [[package]]
@@ -2541,6 +2544,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-routines"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "serde_json",
+]
+
+[[package]]
 name = "eos-mod-settings"
 version = "0.0.1"
 dependencies = [
@@ -2713,10 +2727,12 @@ dependencies = [
  "jiff",
  "libc",
  "rustix",
+ "security-framework",
  "serde_json",
  "sha2 0.11.1",
  "thiserror 2.0.21",
  "unicode-normalization",
+ "zeroize",
 ]
 
 [[package]]
