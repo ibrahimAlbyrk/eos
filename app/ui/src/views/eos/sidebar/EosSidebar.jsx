@@ -6,6 +6,7 @@ import { HostChip } from "../../../components/machines/HostChip.jsx";
 import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
 import { ensureInboxLoaded } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded } from "../../../state/eos/routinesStore.js";
+import { ensureRunsActiveLoaded } from "../../../state/eos/runsStore.js";
 import { parseLocation, useEosLocation } from "../nav/eosNav.js";
 import { NavRows } from "./NavRows.jsx";
 import { RoutineRows } from "./RoutineRows.jsx";
@@ -25,6 +26,7 @@ export function EosSidebarRows() {
   useEffect(() => {
     ensureRoutinesLoaded();
     ensureInboxLoaded();
+    ensureRunsActiveLoaded();
   }, []);
   return (
     <>
