@@ -36,6 +36,7 @@ pub(crate) async fn propose(
     };
     let (worker, version_id, now) = (worker_id.to_owned(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (job, zones, device) = (engine.clone(), engine.zones.clone(), engine.device.clone());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -74,7 +75,7 @@ pub(crate) async fn propose(
                 confirm_change_in(tx, out, &job, &routine.name, &id, &version_id, now)?;
             }
             tracing::info!(routine_id = %id, version_id = %version_id, "an architect proposed a draft");
-            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now)?;
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)?;
             Ok(Proposal::Drafted { version_id, warnings: issues })
         })
         .await

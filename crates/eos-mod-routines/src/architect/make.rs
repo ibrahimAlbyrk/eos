@@ -82,6 +82,7 @@ pub(crate) async fn make(engine: &Arc<Engine>, sentence: &str, attachments: &[St
     let prepared = placeholder(&name)?;
     let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (routine_id, purpose, device) = (id.clone(), sentence.to_owned(), engine.device.clone());
+    let patterns = engine.patterns.clone();
     let (saved, routines) = engine
         .store
         .write(move |tx, out| {
@@ -128,8 +129,8 @@ pub(crate) async fn make(engine: &Arc<Engine>, sentence: &str, attachments: &[St
                 updated_at: now,
             })?;
             tracing::info!(routine_id = %id, "a routine was made for its architect");
-            announce_routine(tx, out, &id, RoutineChangeReason::Created, now)?;
-            let saved = RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: Vec::new() };
+            announce_routine(tx, out, &id, RoutineChangeReason::Created, now, &patterns)?;
+            let saved = RoutineSaved { row: row(tx, &id, now, &patterns)?, version_id, warnings: Vec::new() };
             Ok((saved, routines))
         })
         .await?;
@@ -154,6 +155,7 @@ fn render<const N: usize>(engine: &Engine, id: &str, values: [(&str, String); N]
 /// Names the routine's architect on its draft row, once its session is up.
 async fn set_architect(engine: &Engine, routine_id: &str, worker_id: &str) -> Result<(), Error> {
     let (id, worker, now) = (routine_id.to_owned(), worker_id.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -161,7 +163,7 @@ async fn set_architect(engine: &Engine, routine_id: &str, worker_id: &str) -> Re
             draft.architect_id = Some(worker);
             draft.updated_at = now;
             tx.routines().update_draft(&draft)?;
-            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now)
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)
         })
         .await
 }
@@ -184,6 +186,7 @@ enum Taker {
 /// user keeps through start.
 pub(crate) async fn change(engine: &Arc<Engine>, routine_id: &str, text: &str) -> Result<DraftView, Error> {
     let (id, purpose, now) = (routine_id.to_owned(), text.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     let taker = engine
         .store
         .write(move |tx, out| {
@@ -212,7 +215,7 @@ pub(crate) async fn change(engine: &Arc<Engine>, routine_id: &str, text: &str) -
                 Some(_) => tx.routines().update_draft(&row)?,
                 None => tx.routines().insert_draft(&row)?,
             }
-            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now)?;
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)?;
             Ok(match (architect, session) {
                 (Some(worker_id), Some(session)) if young(&session, now) => Taker::Revive(worker_id),
                 (old, _) => Taker::Start { name: routine.name, blueprint: canonical_json(&blueprint), old },

@@ -12,6 +12,7 @@ use crate::engine::{Engine, announce_routine, note};
 /// of the draft its routine's architect works on.
 async fn settle(engine: &Engine, run_id: &str) -> Result<Option<(String, String)>, Error> {
     let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -29,7 +30,7 @@ async fn settle(engine: &Engine, run_id: &str) -> Result<Option<(String, String)
                 draft.status = DraftStatus::Ready;
                 draft.updated_at = now;
                 tx.routines().update_draft(&draft)?;
-                announce_routine(tx, out, &run.routine_id, RoutineChangeReason::Draft, now)?;
+                announce_routine(tx, out, &run.routine_id, RoutineChangeReason::Draft, now, &patterns)?;
             }
             let outcome = run.outcome.map_or(run.state.as_str(), |outcome| outcome.as_str());
             let headline = run.headline.unwrap_or_else(|| "No headline.".into());
