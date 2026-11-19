@@ -69,12 +69,15 @@ export async function startSignIn(id) {
   set({ id, phase: "starting" });
   const r = await transport.send("POST", ROUTES.capabilitySignIn(id)).catch(() => null);
   if (n !== seq) return;
-  if (r?.ok) {
-    const { userCode, verificationUri } = r.body ?? {};
+  // With no client id the core answers the needs_setup reason instead of a
+  // code, as an error's code or as the capability's stateCode.
+  const reason = r?.body?.code ?? r?.body?.stateCode;
+  if (r?.ok && typeof r.body?.userCode === "string") {
+    const { userCode, verificationUri } = r.body;
     set({ id, phase: "code", userCode, verificationUri });
     openSignInPage();
     follow(n);
-  } else if (r?.body?.code === "client_id_missing") {
+  } else if (reason === "client_id_missing") {
     set({ id, phase: "client_id_missing" });
   } else if (isDevRunRefusal(r)) {
     set({ id, phase: "dev_run" });
