@@ -38,6 +38,7 @@ tracing.workspace = true
 eos-agent-compat.workspace = true
 eos-agent-mock-api.workspace = true
 eos-agent-testkit.workspace = true
+eos-kit-proc.workspace = true
 eos-testkit.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }

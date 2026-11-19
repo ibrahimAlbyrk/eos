@@ -14,10 +14,15 @@
 //! do when one stops working from
 //! [`SessionCredentials`](eos_core::accounts::SessionCredentials); a focused
 //! session's questions go to [`UserQuestions`](eos_core::agent::UserQuestions).
+//!
+//! The engine also confines a capability's command
+//! ([`Confinement`](eos_core::capability::Confinement)) with the sandbox,
+//! proxy and violation monitor its agents' commands share.
 
 mod accounts;
 mod commands;
 mod compaction;
+mod confine;
 mod endpoints;
 mod engine;
 mod gate;

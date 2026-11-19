@@ -1582,6 +1582,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-kit-proc",
  "eos-platform",
  "eos-testkit",
  "futures-util",

@@ -520,6 +520,11 @@ impl BackendCatalog for Engine {
 }
 
 impl Engine {
+    /// The engine itself, for what Eos runs on it besides sessions.
+    pub(crate) fn sdk(&self) -> &Sdk {
+        &self.0.sdk
+    }
+
     /// The models the ChatGPT account offers, as its catalog lists them.
     async fn chatgpt_models(&self) -> Vec<ProviderModel> {
         // Where the engine keeps the list between runs.
