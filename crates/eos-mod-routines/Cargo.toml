@@ -14,6 +14,7 @@ eos-domain.workspace = true
 eos-prompts.workspace = true
 eos-runtime.workspace = true
 eos-sessions.workspace = true
+eos-workers.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "sync"] }

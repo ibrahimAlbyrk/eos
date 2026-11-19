@@ -401,6 +401,7 @@ impl Sessions {
         let system_prompt = system_prompt(&deps.prompts, &facts).await;
         let mut launch = launch_of(&facts, cwd, system_prompt, self.fit_of(&facts.model));
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
+        deps.hooks.shape_launch(&mut launch);
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
             tracing::warn!(worker_id = %id, error = %e, "a worker's session did not start");
             // Nothing started: the row and what hung on it go again.
@@ -490,6 +491,7 @@ impl Sessions {
         let fit = self.fit_of(&facts.model);
         let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await, fit);
         launch.resume = Some(session_id.clone());
+        deps.hooks.shape_launch(&mut launch);
         let started = deps.runtime.start(launch, self.sink()).await;
         let (id, now) = (worker_id.to_owned(), self.now());
         if let Err(e) = started {

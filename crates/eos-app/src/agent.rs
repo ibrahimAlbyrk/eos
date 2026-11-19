@@ -447,6 +447,12 @@ impl SessionHooks for AppHooks {
         self.runtime().is_some_and(|r| r.modules.holds_worker(worker_id))
     }
 
+    fn shape_launch(&self, spec: &mut LaunchSpec) {
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.shape_launch(spec);
+        }
+    }
+
     fn idle(&self, worker_id: &str) {
         // The hooks read the database before they decide, so they run in a
         // task of their own; the worker's state is what tells them it moved on.

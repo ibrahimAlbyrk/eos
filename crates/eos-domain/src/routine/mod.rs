@@ -35,3 +35,4 @@ pub mod item;
 pub mod limits;
 pub mod numbers;
 pub mod run;
+pub mod trust;

@@ -11,7 +11,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use eos_contracts::{AgentEvent, WorkflowRunProgress};
-use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, ToolInputDelta};
+use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, LaunchSpec, ToolInputDelta};
 
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
@@ -181,6 +181,10 @@ pub trait Module: Send + Sync + 'static {
     /// A worker's session process is over, meant or not (its exit was
     /// recorded). Must not block.
     fn on_session_exit(&self, _worker_id: &str) {}
+
+    /// The last word on how a worker's session starts, at a spawn and at
+    /// every resume (its folders, its MCP servers). Must not block.
+    fn shape_launch(&self, _spec: &mut LaunchSpec) {}
 
     /// The app is built (routes registered): start timers and watchers.
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
@@ -383,6 +387,13 @@ impl Modules {
             if module.plugin().is_none_or(|plugin| self.plugins.is_on(plugin)) {
                 Self::guarded(module.as_ref(), "on_agent_event", || module.on_agent_event(worker_id, event));
             }
+        }
+    }
+
+    /// Lets every module shape a session's start, in composition order.
+    pub fn shape_launch(&self, spec: &mut LaunchSpec) {
+        for module in self.running() {
+            Self::guarded(module.as_ref(), "shape_launch", || module.shape_launch(spec));
         }
     }
 

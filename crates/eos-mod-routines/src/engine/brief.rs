@@ -11,8 +11,10 @@ use eos_core::Error;
 use eos_core::store::{RunMove, StoredRoutineSession};
 use eos_domain::routine::blueprint::{Context, Severity, validate};
 use eos_domain::routine::run::{Reason, RunState, Station};
+use eos_domain::run_scope::{RunRole, Trust};
 use eos_sessions::SpawnRequest;
 
+use super::launch::{RUN_PERMISSION_MODE, RunLaunch, run_scope};
 use super::{Engine, fail, move_run};
 use crate::routes::readable;
 
@@ -28,6 +30,7 @@ struct Briefing {
     routine_id: String,
     blueprint: Blueprint,
     input: RunInput,
+    trust: Trust,
 }
 
 /// Starts the lead of a run at the brief. Whatever goes wrong fails the run
@@ -54,7 +57,7 @@ fn internal(error: Error) -> Refusal {
 
 async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     let Some(briefing) = read(engine, run_id).await.map_err(internal)? else { return Ok(()) };
-    let Briefing { routine_id, blueprint, input } = briefing;
+    let Briefing { routine_id, blueprint, input, trust } = briefing;
     if !passes(&routine_id, &blueprint) {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
     }
@@ -70,6 +73,9 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     }
     let (model, effort) = model_of(&blueprint, &agent, &input);
     let prompt = render(engine, &blueprint, &agent, &input, &folder).map_err(internal)?;
+    let scope = run_scope(RunRole::Solo, trust, &agent, &folder).map_err(internal)?;
+    let launch = RunLaunch { routine_id: routine_id.clone(), run_id: run_id.to_owned(), trust };
+    Engine::locked(&engine.launches).insert(worker_id.clone(), launch);
     let request = SpawnRequest {
         prompt,
         cwd: Some(folder.clone()),
@@ -82,9 +88,12 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         scratch: true,
         fixed_id: Some(worker_id.clone()),
         skip_recents: true,
+        permission_mode: Some(RUN_PERMISSION_MODE.to_owned()),
+        tool_scope: Some(scope),
         ..SpawnRequest::default()
     };
     if let Err(error) = engine.sessions.spawn(request).await {
+        Engine::locked(&engine.launches).remove(&worker_id);
         engine.scratch.remove(&folder).await;
         return Err(internal(error));
     }
@@ -117,7 +126,8 @@ async fn read(engine: &Engine, run_id: &str) -> Result<Option<Briefing>, Error> 
             let Some(blueprint) = readable(&version)? else { return Ok(None) };
             let input: RunInput =
                 serde_json::from_str(&run.input).map_err(|_| Error::storage(format!("run {id} has no input")))?;
-            Ok(Some(Briefing { routine_id: run.routine_id, blueprint, input }))
+            let trust = eos_domain::routine::trust::of_run(Some(version.trust), &input);
+            Ok(Some(Briefing { routine_id: run.routine_id, blueprint, input, trust }))
         })
         .await
 }

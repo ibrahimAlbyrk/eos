@@ -146,6 +146,15 @@ it ahead of that agent's next model request, mid-turn included, and starts no tu
 A session started with `LaunchSpec.folder_mcp` off connects none of the MCP servers Claude Code's
 settings configure for its folder, whatever `EngineOptions::mcp` says; on, as `LaunchSpec::new`
 sets it, that option decides.
+The engine has no switch that keeps a folder's own project configuration (`CLAUDE.md` files,
+skills, commands, agent types, saved workflows, settings) out of a session: it reads them from
+the working folder and its ancestors. So a routine run that reads outside text starts its
+sessions in an empty folder Eos owns, `routines/<routine>/runs/<run>/work/` in the data folder,
+with the checkout passed as a further root (`LaunchSpec.additional_dirs`): `cd` and file tools
+reach the checkout, nothing of it loads, and the run brief names its path. File tools may
+write that working folder but never the rest of `routines/` (`eos-engine`'s
+`tests/engine/isolation.rs`). The routines feature sets this through
+`SessionHooks::shape_launch` at every start and resume, since the worker row holds neither.
 
 **Tests.** Unit tests beside the code; cross-crate scenarios in the higher crate's `tests/`.
 Anything that must equal what the 0.1.x app answered or wrote is checked against a recorded

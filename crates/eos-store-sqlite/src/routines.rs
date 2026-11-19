@@ -261,6 +261,18 @@ impl RoutineSessionRepo for SqliteTx<'_> {
         )
     }
 
+    fn of_live_runs(&self) -> Result<Vec<StoredRoutineSession>, Error> {
+        let columns = SESSION_COLUMNS.split(", ").map(|c| format!("s.{c}")).collect::<Vec<_>>().join(", ");
+        self.rows(
+            &format!(
+                "SELECT {columns} FROM routine_sessions s JOIN runs ON runs.id = s.run_id \
+                 WHERE runs.state NOT IN ('done', 'skipped', 'cancelled', 'failed') ORDER BY s.rowid"
+            ),
+            [],
+            session,
+        )
+    }
+
     fn run_of(&self, worker_id: &str) -> Result<Option<RunRef>, Error> {
         let row = self.row(
             "SELECT s.role, s.agent_key, runs.id, runs.routine_id, runs.version_id, runs.kind, runs.origin, \
@@ -303,13 +315,11 @@ impl RoutineSessionRepo for SqliteTx<'_> {
             return Ok(None);
         };
         let (Some(role), Some(version_id)) = (RunRole::of_routine_session(&role), version_id) else { return Ok(None) };
-        let input: Option<RunInput> = serde_json::from_str(&input).ok();
-        let outside =
-            input.is_some_and(|input| input.item.iter().chain(input.items.iter().flatten()).any(|item| item.untrusted));
-        let trust = if outside || trust.as_deref().and_then(Trust::parse) != Some(Trust::Trusted) {
-            Trust::Untrusted
-        } else {
-            Trust::Trusted
+        let version_trust = trust.as_deref().and_then(Trust::parse);
+        // An input this app cannot read is held to be from outside.
+        let trust = match serde_json::from_str::<RunInput>(&input) {
+            Ok(input) => eos_domain::routine::trust::of_run(version_trust, &input),
+            Err(_) => Trust::Untrusted,
         };
         let output_dir = PathBuf::from("routines").join(&routine_id).join("runs").join(&run_id);
         Ok(Some(RunRef {

@@ -17,6 +17,16 @@ impl FakePolicyFile {
         Self::default()
     }
 
+    /// The policy the app ships, as a user's file: what a user who never
+    /// edited theirs runs under.
+    pub fn bundled() -> Self {
+        let missing = std::env::temp_dir().join("eos-testkit-no-policy").join("policy.yaml");
+        match eos_store_files::policy::YamlPolicyFile::new(missing).load() {
+            PolicyDocument::Parsed { value, .. } => Self::holding(value),
+            other => panic!("the bundled policy does not parse: {other:?}"),
+        }
+    }
+
     /// A user's file holding `document`.
     pub fn holding(document: Value) -> Self {
         Self { document: Mutex::new(Some(document)) }

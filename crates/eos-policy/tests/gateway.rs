@@ -510,3 +510,51 @@ async fn a_registry_that_cannot_be_read_is_logged_without_the_call_input() {
     assert!(text.contains("the capability registry could not be read"), "{text}");
     assert!(!text.contains("planted-capability-name") && !text.contains("planted-action-name"), "{text}");
 }
+
+/// A routine run's worker under the bundled policy, with full access: the
+/// run scope still keeps MCP, Artifact, browser, push and `gh` out, and
+/// leaves the shell and the web in, whether the run reads outside text or
+/// not (D3, D50).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_scope_holds_under_the_bundled_policy_and_full_access() {
+    use eos_domain::run_scope::{RunRole, Trust, scope_for};
+    for trust in Trust::ALL {
+        let temp = TempStore::new();
+        let scope = scope_for(RunRole::Solo, trust, &["call_capability"], None, "/scratch/w-run");
+        let scope = serde_json::to_string(&scope).expect("json").replace('\'', "''");
+        temp.exec(&format!(
+            "INSERT INTO workers (id, state, prompt, started_at, permission_mode, agent_role, tool_scope) \
+             VALUES ('w-run', 'IDLE', '', 1, 'bypassPermissions', 'focused', '{scope}')"
+        ));
+        let gateway = Arc::new(PolicyGateway::new(GatewayOptions {
+            store: temp.port(),
+            clock: Arc::new(FakeClock::at(1000)),
+            ids: Arc::new(SeqIds::new()),
+            file: Arc::new(FakePolicyFile::bundled()),
+            default_ttl_ms: 0,
+            plans_dir: None,
+            ask_routing: None,
+        }));
+        let decide = |tool: &str, input: Value| {
+            let mut call = ToolCall::new("w-run", tool, record(input));
+            call.full_surface = true;
+            let gateway = gateway.clone();
+            async move { behavior(&gateway.decide(call).await.expect("decides")) }
+        };
+        let cases = [
+            ("mcp__x__y", json!({}), "deny"),
+            ("Artifact", json!({"action": "list"}), "deny"),
+            ("browser_navigate", json!({"url": "https://example.com"}), "deny"),
+            ("Bash", json!({"command": "git push origin main"}), "deny"),
+            ("Bash", json!({"command": "gh pr list"}), "deny"),
+            ("Workflow", json!({"name": "pr-flow"}), "deny"),
+            ("Bash", json!({"command": "cargo test"}), "allow"),
+            ("WebFetch", json!({"url": "https://example.com", "prompt": "read"}), "allow"),
+            ("WebSearch", json!({"query": "rust"}), "allow"),
+        ];
+        for (tool, input, want) in cases {
+            let label = format!("{tool} {input} in a {} run", trust.as_str());
+            assert_eq!(decide(tool, input).await, want, "{label}");
+        }
+    }
+}

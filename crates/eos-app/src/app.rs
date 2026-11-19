@@ -370,6 +370,7 @@ impl App {
             sleeper: sleeper.clone(),
             sessions: Arc::new(NoLiveSessions),
         });
+        let grants = Arc::new(crate::capabilities::LateGrants::default());
         let capabilities = crate::capabilities::service(crate::capabilities::Parts {
             reach,
             paths: &paths,
@@ -379,6 +380,7 @@ impl App {
             sleeper: sleeper.clone(),
             github_client_id: current.github.client_id.clone(),
             keychain,
+            grants: grants.clone(),
             options: capability_options,
         })?;
         let policy = Arc::new(
@@ -580,6 +582,7 @@ impl App {
             location,
             policy,
             capabilities,
+            grants,
             profile_prompt,
             prompts,
             templates,

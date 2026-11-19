@@ -35,7 +35,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::{RoutineChange, RunChange, RunsActive};
-use eos_core::agent::ScratchFolders;
+use eos_core::agent::{LaunchSpec, ScratchFolders};
+use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunIntake, RunLookup, RunStarter};
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
@@ -70,6 +71,8 @@ pub struct RoutinesParts {
     pub scratch: Arc<dyn ScratchFolders>,
     /// The runs' folders under the data folder's `routines`.
     pub folders: Arc<dyn RunFolders>,
+    /// The capabilities there are: what a run session may call of them.
+    pub reads: Arc<dyn CapabilityReads>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -82,6 +85,8 @@ pub struct RoutinesModule {
     store: Arc<dyn Store>,
     clock: Arc<dyn Clock>,
     engine: Arc<Engine>,
+    /// One for the module's life: the capability service holds it weakly.
+    grants: Arc<dyn CapabilityGrants>,
 }
 
 impl std::fmt::Debug for RoutinesModule {
@@ -92,7 +97,7 @@ impl std::fmt::Debug for RoutinesModule {
 
 impl RoutinesModule {
     pub fn new(parts: RoutinesParts) -> Self {
-        let RoutinesParts { store, clock, sleeper, ids, device, autostart, sessions, prompts, scratch, folders } =
+        let RoutinesParts { store, clock, sleeper, ids, device, autostart, sessions, prompts, scratch, folders, reads } =
             parts;
         let engine = Arc::new(Engine {
             store: store.clone(),
@@ -109,8 +114,11 @@ impl RoutinesModule {
             scratch,
             folders,
             progress: Mutex::new(HashMap::new()),
+            launches: Mutex::new(HashMap::new()),
+            reads,
         });
-        Self { store, clock, engine }
+        let grants = Arc::new(engine::Grants(engine.clone()));
+        Self { store, clock, engine, grants }
     }
 
     /// Starts and stops runs.
@@ -136,6 +144,12 @@ impl RoutinesModule {
     /// What other areas change of a routine: its Freedom and its state.
     pub fn control(&self) -> Arc<dyn RoutineControl> {
         Arc::new(engine::Control(self.engine.clone()))
+    }
+
+    /// What capability actions a run session may call; none of its own
+    /// outside runs.
+    pub fn grants(&self) -> Arc<dyn CapabilityGrants> {
+        self.grants.clone()
     }
 
     /// What the tools of a run's sessions do.
@@ -165,9 +179,17 @@ impl Module for RoutinesModule {
         engine::session_exited(&self.engine, worker_id);
     }
 
+    fn shape_launch(&self, spec: &mut LaunchSpec) {
+        engine::shape_launch(&self.engine, spec);
+    }
+
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
-        engine::start_supervisor(&self.engine);
-        Box::pin(std::future::ready(Ok(())))
+        Box::pin(async move {
+            // Before any session of a run is resumed.
+            engine::rebuild_launches(&self.engine).await?;
+            engine::start_supervisor(&self.engine);
+            Ok(())
+        })
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {

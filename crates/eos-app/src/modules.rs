@@ -76,6 +76,8 @@ pub(crate) struct Context {
     pub(crate) policy: Arc<PolicyGateway>,
     /// What Eos can reach for the user: the agent tools, the gateway and its feature share it.
     pub(crate) capabilities: Arc<eos_capabilities::CapabilityService>,
+    /// Where the routines feature's grant to run sessions is attached.
+    pub(crate) grants: Arc<crate::capabilities::LateGrants>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,
@@ -192,7 +194,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         prompts: cx.prompts.clone(),
         scratch: cx.scratch.clone(),
         folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
+        reads: cx.capabilities.clone(),
     }));
+    cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
         crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, routines.tools())?;
