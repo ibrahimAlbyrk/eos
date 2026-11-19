@@ -162,7 +162,9 @@ impl Health {
     /// The health once `event` happened. A capability switched off, or not
     /// installed here, changes only by the user's hand ([`Health::fresh`]);
     /// one that is refused leaves its state only when a check passes or
-    /// another refusal takes its place.
+    /// another refusal takes its place. A pass ends `hash_mismatch` too, so
+    /// a package's check counts as [`Event::Passed`] only once its files
+    /// hashed to the pinned hash again: its code runs only after that hash.
     pub fn after(&self, event: Event) -> Health {
         if matches!(self.state, HealthState::Disabled | HealthState::Available) {
             return self.clone();
