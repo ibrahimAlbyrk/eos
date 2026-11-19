@@ -170,6 +170,18 @@ impl ItemState {
     }
 }
 
+/// An item's place in Needs you's order, lowest first: open before later,
+/// then the loudest. Items of one place are listed newest first.
+pub fn order_rank(state: ItemState, attention: Attention) -> i64 {
+    let later = if state == ItemState::Later { 3 } else { 0 };
+    let loudness = match attention {
+        Attention::Interrupt => 0,
+        Attention::Digest => 1,
+        Attention::Silent => 2,
+    };
+    later + loudness
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Attention {
     /// A banner and a phone push, at once.
@@ -263,6 +275,16 @@ mod tests {
         }
         let waiting: Vec<ItemState> = ItemState::ALL.into_iter().filter(|state| state.is_waiting()).collect();
         assert_eq!(waiting, [Open, Later]);
+    }
+
+    #[test]
+    fn open_items_come_before_later_ones_and_the_loudest_first() {
+        use Attention::{Digest, Interrupt, Silent};
+        use ItemState::{Later, Open};
+        let order =
+            [(Open, Interrupt), (Open, Digest), (Open, Silent), (Later, Interrupt), (Later, Digest), (Later, Silent)];
+        let ranks: Vec<i64> = order.iter().map(|(state, level)| order_rank(*state, *level)).collect();
+        assert_eq!(ranks, [0, 1, 2, 3, 4, 5]);
     }
 
     #[test]

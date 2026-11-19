@@ -42,6 +42,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-genui-media", Layer::Adapter),
     ("eos-git", Layer::Adapter),
     ("eos-github", Layer::Adapter),
+    ("eos-inbox", Layer::Service),
     ("eos-kit-fs", Layer::Kit),
     ("eos-kit-log", Layer::Kit),
     ("eos-kit-net", Layer::Kit),
