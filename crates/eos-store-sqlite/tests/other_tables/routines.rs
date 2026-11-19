@@ -278,3 +278,46 @@ fn a_runs_timeline_drops_its_oldest_events_past_the_bound_but_never_a_state_chan
     assert_eq!(kept.last().map(|e| e.at), Some(RUN_EVENTS_MAX + 5));
     assert_eq!(other.len(), 1, "another run's timeline is its own");
 }
+
+#[test]
+fn the_listed_workers_leave_out_a_routines_sessions_and_every_worker_they_started() {
+    let temp = TempStore::seeded("/sandbox");
+    // o-ORCH leads a run; w-KID1 and w-KID2 are its children. w-ARCH, archived, was an architect.
+    temp.store
+        .write_blocking(|tx, _| {
+            for (worker_id, role) in [("o-ORCH", "lead"), ("w-ARCH", "architect")] {
+                tx.routine_sessions().insert(&StoredRoutineSession {
+                    worker_id: worker_id.into(),
+                    routine_id: "rt-1".into(),
+                    run_id: None,
+                    role: role.into(),
+                    agent_key: None,
+                    created_at: 1,
+                })?;
+            }
+            Ok(())
+        })
+        .expect("writes");
+    let ids = |workers: Vec<eos_domain::Worker>| workers.into_iter().map(|w| w.id).collect::<Vec<_>>();
+    let (active, listed, archived, archived_listed, inside) = temp
+        .store
+        .read_blocking(move |tx| {
+            let workers = tx.workers();
+            let inside = ["o-ORCH", "w-KID1", "w-KID2", "w-ARCH", "w-CHAT", "w-NONE"]
+                .iter()
+                .map(|id| workers.in_routine(id))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok((
+                ids(workers.list_active()?),
+                ids(workers.list_listed()?),
+                ids(workers.list_archived()?),
+                ids(workers.list_archived_listed()?),
+                inside,
+            ))
+        })
+        .expect("reads");
+    assert_eq!(listed, ["w-BUSY", "w-BARE", "w-LONG", "w-CHAT"]);
+    assert_eq!(active.len(), 7, "the active list still holds every row");
+    assert_eq!((archived, archived_listed), (vec!["w-ARCH".to_owned()], Vec::new()));
+    assert_eq!(inside, [true, true, true, true, false, false]);
+}

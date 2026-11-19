@@ -222,6 +222,11 @@ impl AgentsModule {
         if row.state != WorkerState::Idle || self.sessions.live_subagents(id) > 0 {
             return Ok(());
         }
+        // A routine run's lead reports through its run, not through a banner.
+        let worker = id.to_owned();
+        if self.store.read(move |tx| tx.workers().in_routine(&worker)).await? {
+            return Ok(());
+        }
         let query = EventQuery {
             worker_id: id.to_owned(),
             since: turn_started_at - 1,

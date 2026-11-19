@@ -95,11 +95,12 @@ fn not_found() -> ApiError {
 
 /// The rows of `GET /workers`: never archived ones (archived chats are
 /// invisible to agents, and both the dashboard's tree and the agents' list
-/// read this route).
+/// read this route), and never a routine's sessions (they live in Eos's run
+/// view, not among the user's chats).
 fn listed(tx: &dyn Tx, parent_id: Option<&str>) -> Result<Vec<Worker>, Error> {
     match parent_id {
         Some(parent) => Ok(tx.workers().list_by_parent(parent)?.into_iter().filter(|w| !w.is_archived()).collect()),
-        None => tx.workers().list_active(),
+        None => tx.workers().list_listed(),
     }
 }
 
@@ -120,8 +121,10 @@ impl ListedWorkers for Listed {
                 .read(move |tx| {
                     let mut found = Vec::with_capacity(wanted.len());
                     for id in &wanted {
-                        // `listed`: never an archived one.
-                        found.extend(tx.workers().find(id)?.filter(|w| !w.is_archived()));
+                        // `listed`: never an archived one, never a routine's.
+                        if !tx.workers().in_routine(id)? {
+                            found.extend(tx.workers().find(id)?.filter(|w| !w.is_archived()));
+                        }
                     }
                     Ok(found)
                 })
@@ -168,7 +171,7 @@ pub(crate) fn routes(
         move |req: Request| {
             let store = store.clone();
             async move {
-                let workers = store.read(|tx| tx.workers().list_archived()).await?;
+                let workers = store.read(|tx| tx.workers().list_archived_listed()).await?;
                 Ok(Response::json(200, &Rows::of(&workers).brief(wants_brief(&req)).rows))
             }
         }

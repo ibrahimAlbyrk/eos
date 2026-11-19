@@ -61,6 +61,9 @@ pub struct SpawnRequest {
     /// Record the prompt as the chat's first message of the user (a spawn by
     /// the operator; an agent's directive shows through its own tool call).
     pub record_prompt: bool,
+    /// Leave the folder out of the user's recent folders (a run's folder is
+    /// Eos's, not one the user picked).
+    pub skip_recents: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -367,7 +370,12 @@ impl Sessions {
                 Ok(boot)
             })
             .await?;
-        if let Some(folder) = request.cwd.as_deref().or(request.worktree_from.as_deref()).filter(|_| !request.scratch) {
+        if let Some(folder) = request
+            .cwd
+            .as_deref()
+            .or(request.worktree_from.as_deref())
+            .filter(|_| !request.scratch && !request.skip_recents)
+        {
             // The list is written through to its file, flushed to the disk.
             let (recents, folder) = (deps.recents.clone(), folder.to_owned());
             let _ = tokio::task::spawn_blocking(move || recents.push(&folder)).await;

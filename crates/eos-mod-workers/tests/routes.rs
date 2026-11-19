@@ -174,3 +174,36 @@ async fn rows_by_id_are_the_list_routes_rows_byte_for_byte() {
     let chat: Value = serde_json::from_slice(&chat["w-CHAT"]).expect("a row");
     assert_eq!(chat["awaiting_question"], true, "{chat}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routines_sessions_and_their_children_stay_out_of_the_lists() {
+    let temp = TempStore::seeded("/sandbox");
+    // o-ORCH leads a run (w-KID1 and w-KID2 are its children); w-ARCH, archived, was an architect.
+    temp.exec(
+        "INSERT INTO routine_sessions (worker_id, routine_id, run_id, role, created_at) VALUES \
+         ('o-ORCH', 'rt-1', 'rn-1', 'lead', 1), ('w-ARCH', 'rt-1', NULL, 'architect', 1)",
+    );
+    let module =
+        WorkersModule::new(temp.port(), Arc::new(FakeModelCatalog::default()), Arc::new(eos_testkit::FakeClock::new()));
+    let rows = module.listed_rows(true);
+    let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![Arc::new(module)], Arc::new(AllPluginsOn))
+        .expect("composes");
+    let ids = |list: &Value| -> Vec<String> {
+        list.as_array().expect("rows").iter().map(|w| w["id"].as_str().expect("id").to_owned()).collect()
+    };
+
+    let (status, list) = get(&runtime, "/workers", Caller::UNTRUSTED).await;
+    assert_eq!(status, 200);
+    assert_eq!(ids(&list), ["w-BUSY", "w-BARE", "w-LONG", "w-CHAT"], "the run's lead and its children left out");
+    let (_, archived) = get(&runtime, "/workers/archived", Caller::UNTRUSTED).await;
+    assert_eq!(ids(&archived), Vec::<String>::new(), "the architect left out of the archive too");
+
+    let wanted: Vec<String> = ["o-ORCH", "w-KID1", "w-KID2", "w-CHAT"].map(str::to_owned).to_vec();
+    let found = rows.rows(&wanted).await.expect("reads");
+    assert_eq!(found.keys().collect::<Vec<_>>(), ["w-CHAT"], "patches remove the routine's rows");
+
+    for id in ["o-ORCH", "w-KID1", "w-ARCH"] {
+        let (status, row) = get(&runtime, &format!("/workers/{id}"), Caller::UNTRUSTED).await;
+        assert_eq!((status, row["id"].as_str()), (200, Some(id)), "one row is still served by id");
+    }
+}

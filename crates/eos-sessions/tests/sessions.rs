@@ -316,6 +316,20 @@ async fn a_chat_starts_runs_its_first_turn_and_settles_idle() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_spawn_that_skips_recents_leaves_the_recent_folders_alone() {
+    let bench = Bench::new();
+    let request = SpawnRequest {
+        cwd: Some("/sandbox/run-folder".into()),
+        role: Some("focused".into()),
+        skip_recents: true,
+        ..SpawnRequest::default()
+    };
+    bench.sessions.spawn(request).await.expect("spawns");
+    bench.agents.settled().await;
+    assert!(bench.recents.0.lock().expect("recents").is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_message_is_delivered_once_and_recorded_before_the_agent_answers() {
     let bench = Bench::new();
     let id = bench.chat("").await;
