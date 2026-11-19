@@ -2,7 +2,9 @@
 //! user's own first, then by age, while the global slots and the routine's
 //! `limits.parallel` allow. Each pass is one write job, so what it counts
 //! and what it starts cannot drift apart. Leaving the queue binds the
-//! version the run runs from (01 G5) and moves it to `running` at the brief.
+//! version the run runs from (01 G5) and moves it to `running` at the brief;
+//! the brief station then starts its lead, one run after the other, before
+//! the next pass.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,7 +14,7 @@ use eos_core::Error;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 
-use super::{Engine, move_run};
+use super::{Engine, brief, move_run};
 use crate::routes::{readable, showing_version};
 
 /// Runs whose agents work at once, over every routine.
@@ -37,7 +39,12 @@ async fn supervise(engine: Arc<Engine>) {
     loop {
         let (now, autostart) = (engine.clock.now_ms(), engine.autostart);
         let wait = match engine.store.write(move |tx, out| pass(tx, out, now, autostart)).await {
-            Ok(next) => next.map_or(IDLE_WAIT_MS, |at| (at - now).clamp(1, IDLE_WAIT_MS)),
+            Ok(Pass { next_due, left }) => {
+                for run_id in left {
+                    brief::start_lead(&engine, &run_id).await;
+                }
+                next_due.map_or(IDLE_WAIT_MS, |at| (at - now).clamp(1, IDLE_WAIT_MS))
+            }
             Err(error) => {
                 tracing::warn!(%error, "the run queue could not be read");
                 IDLE_WAIT_MS
@@ -57,13 +64,20 @@ struct Allowed {
     version_id: Option<String>,
 }
 
-/// One pass over the queue. Answers when the next run that waits for its
-/// time is due.
-fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Option<i64>, Error> {
+/// What one pass did: when the next run that waits for its time is due, and
+/// the runs that left the queue with a version to run from.
+struct Pass {
+    next_due: Option<i64>,
+    left: Vec<String>,
+}
+
+/// One pass over the queue.
+fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass, Error> {
     let mut busy: HashMap<String, i64> = tx.runs().working()?.into_iter().collect();
     let mut total: i64 = busy.values().sum();
     let mut routines: HashMap<String, Allowed> = HashMap::new();
     let mut next_due: Option<i64> = None;
+    let mut left = Vec::new();
     for run in tx.runs().queued()? {
         if total >= GLOBAL_SLOTS {
             break;
@@ -89,9 +103,11 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Opti
         }
         *working += 1;
         total += 1;
-        leave_queue(tx, out, &run, routine.version_id.as_deref(), now)?;
+        if leave_queue(tx, out, &run, routine.version_id.as_deref(), now)? {
+            left.push(run.id);
+        }
     }
-    Ok(next_due)
+    Ok(Pass { next_due, left })
 }
 
 fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
@@ -115,14 +131,14 @@ fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
 }
 
 /// Binds the version and moves the run to the brief; a run with nothing to
-/// run from fails there.
+/// run from fails there. True when the run is at the brief.
 fn leave_queue(
     tx: &dyn Tx,
     out: &mut Outbox,
     run: &StoredRun,
     version_id: Option<&str>,
     now: i64,
-) -> Result<(), Error> {
+) -> Result<bool, Error> {
     if let Some(version_id) = version_id {
         tx.runs().bind_version(&run.id, version_id)?;
     }
@@ -136,5 +152,5 @@ fn leave_queue(
         move_run(tx, out, &running, failed)?;
         tracing::warn!(run_id = %run.id, routine_id = %run.routine_id, "a run had no version to run from");
     }
-    Ok(())
+    Ok(version_id.is_some())
 }

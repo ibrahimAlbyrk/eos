@@ -181,15 +181,6 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         place_search: cx.media.places.clone(),
         location: cx.location.clone(),
     }));
-    let transfer = crate::machines::transfer(cx);
-    let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer)?;
-    cx.tools.attach(&tools);
-    let workers = Arc::new(
-        eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
-            .with_open_questions(Arc::new(cx.questions.clone()))
-            .with_project_memory(cx.project_memory.clone()),
-    );
-    let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -197,7 +188,21 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         ids: cx.ids.clone(),
         device: cx.peer.device_id(),
         autostart: cx.reach.autostart(),
+        sessions: cx.sessions.clone(),
+        prompts: cx.prompts.clone(),
+        scratch: cx.scratch.clone(),
+        folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
     }));
+    let transfer = crate::machines::transfer(cx);
+    let tools: Arc<dyn ToolSets> =
+        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, routines.tools())?;
+    cx.tools.attach(&tools);
+    let workers = Arc::new(
+        eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
+            .with_open_questions(Arc::new(cx.questions.clone()))
+            .with_project_memory(cx.project_memory.clone()),
+    );
+    let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(

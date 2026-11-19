@@ -19,6 +19,7 @@ mod projects;
 pub mod prompts;
 mod recents;
 pub mod remote;
+pub mod run_folders;
 pub mod sync_dir;
 pub mod templates;
 pub mod worker_definitions;

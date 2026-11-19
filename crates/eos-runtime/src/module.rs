@@ -178,6 +178,10 @@ pub trait Module: Send + Sync + 'static {
     /// A session (a root worker and its subtree) was killed, archived or purged.
     fn on_session_ended(&self, _session_key: &str) {}
 
+    /// A worker's session process is over, meant or not (its exit was
+    /// recorded). Must not block.
+    fn on_session_exit(&self, _worker_id: &str) {}
+
     /// The app is built (routes registered): start timers and watchers.
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         done(Ok(()))
@@ -379,6 +383,13 @@ impl Modules {
             if module.plugin().is_none_or(|plugin| self.plugins.is_on(plugin)) {
                 Self::guarded(module.as_ref(), "on_agent_event", || module.on_agent_event(worker_id, event));
             }
+        }
+    }
+
+    /// Tells every module a worker's session process is over.
+    pub fn on_session_exit(&self, worker_id: &str) {
+        for module in self.running() {
+            Self::guarded(module.as_ref(), "on_session_exit", || module.on_session_exit(worker_id));
         }
     }
 

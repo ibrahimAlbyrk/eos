@@ -20,6 +20,13 @@
 //! the user on `runs:active`. The signals' router admits runs through
 //! [`RunIntake`]; other areas find a worker's run through [`RunLookup`] and
 //! change a routine through [`RoutineControl`].
+//!
+//! A run that leaves the queue starts its lead at the brief station: a
+//! focused session of a reserved definition (`eos-run-solo`) whose first
+//! message is the run brief. The lead works with the run tools
+//! ([`RoutineTools`]) and hands in its result, which waits at the check. A
+//! lead that ends its turn without a result is reminded once
+//! (`routine-lead-idle`); a lead whose session dies is resumed once.
 
 mod engine;
 mod routes;
@@ -28,12 +35,16 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::{RoutineChange, RunChange, RunsActive};
-use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake, RunLookup, RunStarter};
+use eos_core::agent::ScratchFolders;
+use eos_core::routine::{RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunIntake, RunLookup, RunStarter};
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
+use eos_prompts::PromptService;
 use eos_runtime::bus::{Topic, TopicDecl};
+use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
+use eos_sessions::Sessions;
 use tokio::sync::Notify;
 
 use crate::engine::Engine;
@@ -53,6 +64,12 @@ pub struct RoutinesParts {
     /// Whether runs nobody started by hand may leave the queue by
     /// themselves: true only in the installed app.
     pub autostart: bool,
+    /// Where run sessions start and are messaged.
+    pub sessions: Sessions,
+    pub prompts: Arc<PromptService>,
+    pub scratch: Arc<dyn ScratchFolders>,
+    /// The runs' folders under the data folder's `routines`.
+    pub folders: Arc<dyn RunFolders>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -75,7 +92,8 @@ impl std::fmt::Debug for RoutinesModule {
 
 impl RoutinesModule {
     pub fn new(parts: RoutinesParts) -> Self {
-        let RoutinesParts { store, clock, sleeper, ids, device, autostart } = parts;
+        let RoutinesParts { store, clock, sleeper, ids, device, autostart, sessions, prompts, scratch, folders } =
+            parts;
         let engine = Arc::new(Engine {
             store: store.clone(),
             clock: clock.clone(),
@@ -86,6 +104,11 @@ impl RoutinesModule {
             wake: Notify::new(),
             requests: Mutex::new(HashMap::new()),
             supervisor: Mutex::new(None),
+            sessions,
+            prompts,
+            scratch,
+            folders,
+            progress: Mutex::new(HashMap::new()),
         });
         Self { store, clock, engine }
     }
@@ -114,6 +137,11 @@ impl RoutinesModule {
     pub fn control(&self) -> Arc<dyn RoutineControl> {
         Arc::new(engine::Control(self.engine.clone()))
     }
+
+    /// What the tools of a run's sessions do.
+    pub fn tools(&self) -> Arc<dyn RoutineTools> {
+        Arc::new(engine::Tools(self.engine.clone()))
+    }
 }
 
 impl Module for RoutinesModule {
@@ -127,6 +155,14 @@ impl Module for RoutinesModule {
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.store, &self.clock)
+    }
+
+    fn idle_hooks(&self) -> Vec<IdleHook> {
+        vec![engine::lead_idle_hook(&self.engine)]
+    }
+
+    fn on_session_exit(&self, worker_id: &str) {
+        engine::session_exited(&self.engine, worker_id);
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {

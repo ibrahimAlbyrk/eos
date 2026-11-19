@@ -1527,6 +1527,103 @@
    "alwaysLoad": true,
    "searchHint": null,
    "plugin": null
+  },
+  {
+   "name": "report_progress",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Where the run is, in one short line."
+     },
+     "milestone": {
+      "type": "string",
+      "description": "The key of the milestone worked on (project runs)."
+     }
+    },
+    "required": [
+     "line"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "submit_result",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the result is, as the brief's \"What it makes\" names it; `nothing` when there is nothing worth sending."
+     },
+     "headline": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "One line the user reads first."
+     },
+     "body": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "object",
+        "additionalProperties": {}
+       }
+      ],
+      "description": "The result in the shape the brief asks for, or plain text."
+     },
+     "files": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "description": "Paths of files the result carries."
+     }
+    },
+    "required": [
+     "kind",
+     "headline",
+     "body"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "report_failure",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Why the run cannot be done, in one plain sentence."
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
   }
  ],
  "sets": [
@@ -2463,6 +2560,21 @@
     "current_location",
     "react",
     "no_reply"
+   ]
+  },
+  {
+   "kind": "run-lead",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [],
+   "names": [
+    "report_progress",
+    "submit_result",
+    "report_failure",
+    "ask_user",
+    "current_datetime",
+    "search_memory"
    ]
   }
  ]

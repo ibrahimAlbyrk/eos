@@ -4,5 +4,6 @@ mod bench;
 mod control;
 mod ports;
 mod routes;
+mod solo;
 mod start;
 mod supervisor;

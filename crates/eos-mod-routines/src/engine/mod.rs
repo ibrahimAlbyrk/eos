@@ -1,25 +1,37 @@
 //! The run engine: starting runs (`start`), the supervisor that takes them
-//! out of the queue (`supervisor`) and stopping them (`cancel`). Every move
-//! of a run is one write job that adds the move to the run's timeline and
-//! announces it on `run:change` from the job's outbox.
+//! out of the queue (`supervisor`), the brief station that starts a run's
+//! lead (`brief`), what the lead's tools do (`exec`), what happens when the
+//! lead goes quiet or its session dies (`idle`) and stopping runs
+//! (`cancel`). Every move of a run is one write job that adds the move to
+//! the run's timeline and announces it on `run:change` from the job's
+//! outbox.
 
+mod brief;
 mod cancel;
 mod control;
+mod exec;
+mod idle;
 mod ports;
 mod start;
 mod supervisor;
 
 pub(crate) use control::Control;
+pub(crate) use exec::Tools;
+pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use ports::{Directory, Intake, Lookup};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
-use eos_core::routine::RunCreated;
+use eos_core::agent::ScratchFolders;
+use eos_core::routine::{RunCreated, RunFolders};
 use eos_core::store::{Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
-use eos_domain::routine::run::RunState;
+use eos_domain::envelope::Envelope;
+use eos_domain::routine::run::{Reason, RunState};
+use eos_prompts::PromptService;
+use eos_sessions::{MessageInput, Sessions};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
@@ -41,6 +53,15 @@ pub(crate) struct Engine {
     /// Client request ids of the last ten minutes, with the runs they made.
     pub(crate) requests: Mutex<HashMap<String, (i64, Vec<RunCreated>)>>,
     pub(crate) supervisor: Mutex<Option<JoinHandle<()>>>,
+    /// Where run sessions are started and messaged.
+    pub(crate) sessions: Sessions,
+    /// The run brief and the other texts sessions are started with.
+    pub(crate) prompts: Arc<PromptService>,
+    /// The folder of an agent whose workspace is none.
+    pub(crate) scratch: Arc<dyn ScratchFolders>,
+    pub(crate) folders: Arc<dyn RunFolders>,
+    /// Each working run's latest progress line, never stored or logged.
+    pub(crate) progress: Mutex<HashMap<String, String>>,
 }
 
 impl Engine {
@@ -50,9 +71,11 @@ impl Engine {
 }
 
 /// Moves `run` and announces it. The move must be one
-/// `RunState::can_become` allows.
+/// `RunState::can_become` allows, or one to another station in the same
+/// state.
 pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: RunMove) -> Result<i64, Error> {
-    if !run.state.can_become(change.state) {
+    let station_move = run.state == change.state && !run.state.is_terminal();
+    if !station_move && !run.state.can_become(change.state) {
         return Err(Error::Conflict(format!(
             "a run that is {} cannot become {}",
             run.state.as_str(),
@@ -67,6 +90,65 @@ pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: R
         out.push(RUNS_ACTIVE.name(), &RunsActive { count: after.0, needs_user: after.1 });
     }
     Ok(event)
+}
+
+/// Ends a run that has not ended as failed, with `headline` as what the
+/// user reads first; a run that ended meanwhile stays as it is.
+pub(crate) async fn fail(engine: &Engine, run_id: &str, reason: Reason, headline: Option<String>) -> Result<(), Error> {
+    let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+    let failed = engine
+        .store
+        .write(move |tx, out| {
+            let Some(run) = tx.runs().find(&id)?.filter(|run| run.state.can_become(RunState::Failed)) else {
+                return Ok(false);
+            };
+            if let Some(headline) = &headline {
+                tx.runs().set_headline(&id, headline)?;
+            }
+            let failed = RunMove { state: RunState::Failed, station: run.station, reason: Some(reason), at: now };
+            move_run(tx, out, &run, failed).map(|_| true)
+        })
+        .await?;
+    if failed {
+        Engine::locked(&engine.progress).remove(run_id);
+        tracing::info!(run_id, reason = reason.as_str(), "a run failed");
+        // A slot is free.
+        engine.wake.notify_one();
+    }
+    Ok(())
+}
+
+/// Sends Eos's own words to one of a run's sessions, after its turn when it
+/// is busy; a session that ended comes back for it.
+pub(crate) async fn note(engine: &Engine, worker_id: &str, run_id: &str, text: &str) -> Result<(), Error> {
+    let message = MessageInput {
+        worker_id: worker_id.to_owned(),
+        text: text.to_owned(),
+        display_text: Some(text.to_owned()),
+        queue_when_busy: true,
+        origin: Some("routine".into()),
+        envelope: Some(Envelope::RoutineNote { run_id: run_id.to_owned() }),
+        ..MessageInput::default()
+    };
+    engine.sessions.dispatch(message).await.map(drop)
+}
+
+/// An item as a run's brief shows it: its fields one a line, inside 03's
+/// untrusted wrapper when it came from outside.
+pub(crate) fn item_text(item: &eos_contracts::ItemRef) -> String {
+    let mut lines = vec![format!("kind: {}", item.kind)];
+    let fields = [
+        ("key", &item.key),
+        ("title", &item.title),
+        ("url", &item.url),
+        ("path", &item.path),
+        ("date", &item.date),
+        ("version", &item.version),
+        ("text", &item.text),
+    ];
+    lines.extend(fields.iter().filter_map(|(name, value)| value.as_ref().map(|value| format!("{name}: {value}"))));
+    let text = lines.join("\n");
+    if item.untrusted { eos_domain::untrusted::wrap(item.key.as_deref().unwrap_or(&item.kind), &text) } else { text }
 }
 
 /// A run about to be queued.

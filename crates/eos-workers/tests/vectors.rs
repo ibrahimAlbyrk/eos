@@ -184,3 +184,19 @@ fn tiers_resolve_as_in_typescript() {
         }
     }
 }
+
+/// A file may not take a name Eos keeps for a routine's sessions: the run
+/// tools and prompts key on it.
+#[test]
+fn a_definition_file_with_a_reserved_name_is_ignored() {
+    use eos_contracts::WorkerDefinitionSource;
+    use eos_core::store::DefinitionFile;
+    let file = |name: &str| DefinitionFile {
+        source: WorkerDefinitionSource::Project,
+        frontmatter: json!({"name": name, "description": "d"}),
+        body: "b".into(),
+    };
+    let files = ["eos-run-solo", "eos-run-checker", "eos-architect", "eos-runner", "reviewer"].map(file);
+    let names: Vec<String> = eos_workers::definition::records_from(&files).into_iter().map(|r| r.name).collect();
+    assert_eq!(names, ["eos-runner", "reviewer"]);
+}

@@ -97,6 +97,8 @@ words! {
         Halted = "halted",
         /// Another Mac runs it.
         Moved = "moved",
+        /// Its lead said the run cannot be done; its headline says why.
+        Reported = "reported",
         Internal = "internal",
     }
 }
@@ -157,6 +159,7 @@ mod tests {
                 "user",
                 "halted",
                 "moved",
+                "reported",
                 "internal"
             ]
         );

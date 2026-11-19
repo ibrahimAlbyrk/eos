@@ -1,7 +1,8 @@
-//! A routines module over a fresh store, a fake clock and sleeper, and the
-//! routines a test seeds.
+//! A routines module over a fresh store, a fake clock and sleeper, the
+//! session service on a scripted runtime, and the routines a test seeds.
 
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::Duration;
 
 use eos_contracts::{ItemRef, ResultMode, RoutineKind, RoutineState, RunInput, VersionAuthor, VersionStatus};
@@ -12,8 +13,17 @@ use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::Trust;
 use eos_mod_routines::{RoutinesModule, RoutinesParts};
+use eos_prompts::tool_names::tool_name_vars;
+use eos_prompts::{PromptRegistry, PromptService};
+use eos_runtime::idle::IdleHooks;
 use eos_runtime::module::Module;
-use eos_testkit::{FakeClock, FakeSleeper, SeqIds, TempStore};
+use eos_sessions::{SessionDeps, SessionHooks, Sessions};
+use eos_store_files::prompts::LibraryPromptSource;
+use eos_store_files::run_folders::FsRunFolders;
+use eos_testkit::{
+    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSleeper, FakeWorktrees,
+    ScriptedRuntime, SeqIds, TempStore,
+};
 use serde_json::{Value, json};
 
 pub(crate) const HOUR: i64 = 60 * 60 * 1000;
@@ -25,12 +35,66 @@ pub(crate) struct Bench {
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) sleeper: Arc<FakeSleeper>,
     pub(crate) ids: SeqIds,
+    /// The agents the runs start.
+    pub(crate) agents: ScriptedRuntime,
+    pub(crate) sessions: Sessions,
+    pub(crate) hooks: Arc<Hooks>,
+    pub(crate) recents: Arc<FakeRecents>,
+}
+
+/// The app's hooks around sessions, as far as routines hear them: a
+/// session's exit, and its idle edge once a test turns that on.
+#[derive(Default)]
+pub(crate) struct Hooks {
+    module: OnceLock<Weak<RoutinesModule>>,
+    pub(crate) idle: AtomicBool,
+}
+
+impl Hooks {
+    fn module(&self) -> Option<Arc<RoutinesModule>> {
+        self.module.get().and_then(Weak::upgrade)
+    }
+}
+
+impl SessionHooks for Hooks {
+    fn exited(&self, worker_id: &str) {
+        if let Some(module) = self.module() {
+            module.on_session_exit(worker_id);
+        }
+    }
+
+    fn holds_worker(&self, worker_id: &str) -> bool {
+        self.module().is_some_and(|module| module.holds_worker(worker_id))
+    }
+
+    fn idle(&self, worker_id: &str) {
+        if let Some(module) = self.module().filter(|_| self.idle.load(Ordering::SeqCst)) {
+            let id = worker_id.to_owned();
+            tokio::spawn(async move { IdleHooks::new(module.idle_hooks()).run(&id).await });
+        }
+    }
 }
 
 impl Bench {
     pub(crate) fn new(autostart: bool) -> Self {
         let temp = TempStore::new();
         let (clock, sleeper) = (Arc::new(FakeClock::new()), Arc::new(FakeSleeper::default()));
+        let (agents, hooks, recents) =
+            (ScriptedRuntime::new(), Arc::new(Hooks::default()), Arc::new(FakeRecents::default()));
+        let sessions = Sessions::new(SessionDeps {
+            store: temp.port(),
+            runtime: agents.port(),
+            clock: clock.clone(),
+            ids: Arc::new(SeqIds::new()),
+            config: Arc::new(FakeConfig::default()),
+            models: Arc::new(FakeModelCatalog::default()),
+            prompts: Arc::new(FakePrompts::default()),
+            worktrees: Arc::new(FakeWorktrees::default()),
+            recents: recents.clone(),
+            hooks: hooks.clone(),
+            sleeper: Arc::new(FakeSleeper::default()),
+        });
+        let library = Arc::new(LibraryPromptSource::embedded());
         let module = Arc::new(RoutinesModule::new(RoutinesParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -38,9 +102,14 @@ impl Bench {
             ids: Arc::new(SeqIds::new()),
             device: "mac-1".into(),
             autostart,
+            sessions: sessions.clone(),
+            prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
+            scratch: Arc::new(FakeScratch::default()),
+            folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
         }));
+        let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
-        Self { module, runs, temp, clock, sleeper, ids: SeqIds::new() }
+        Self { module, runs, temp, clock, sleeper, ids: SeqIds::new(), agents, sessions, hooks, recents }
     }
 
     /// Starts the supervisor.
@@ -179,7 +248,7 @@ pub(crate) fn pull_request(number: u32) -> ItemRef {
 /// PR Review, taking several pull requests, `parallel` runs at once.
 pub(crate) fn blueprint(parallel: i64) -> Value {
     let agent = json!({"key": "editor", "name": "Editor", "lead": true, "brief": "Review.", "model": "sonnet",
-                       "effort": "medium", "tools": {}, "readsOutside": false, "workspace": "worktree"});
+                       "effort": "medium", "tools": {}, "readsOutside": false, "workspace": "none"});
     json!({
         "format": 1,
         "name": "PR Review",

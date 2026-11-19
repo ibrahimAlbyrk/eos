@@ -154,7 +154,7 @@ fn chat_row(
         Some(Envelope::ReportReminder) => (WorkerEventType::ReportReminder, Value::Object(base)),
         Some(Envelope::PermissionAsk { .. }) => (WorkerEventType::PermissionAsk, Value::Object(base)),
         // The operator's own message (and what has no row kind of its own).
-        Some(Envelope::ContextThreshold { .. }) | None => {
+        Some(Envelope::ContextThreshold { .. } | Envelope::RoutineNote { .. }) | None => {
             if let Some(ids) = client_ids.filter(|ids| !ids.is_empty()) {
                 base.insert("clientMsgIds".into(), json!(ids));
             }

@@ -123,6 +123,10 @@ pub trait RunRepo {
     fn move_to(&self, id: &str, change: &RunMove) -> Result<i64, Error>;
     /// The version the run runs from, bound when it leaves the queue.
     fn bind_version(&self, id: &str, version_id: &str) -> Result<(), Error>;
+    /// The worker that leads it.
+    fn set_lead(&self, id: &str, worker_id: &str) -> Result<(), Error>;
+    /// The line the user reads first: its result's, or why it failed.
+    fn set_headline(&self, id: &str, headline: &str) -> Result<(), Error>;
     /// Every queued run, the one to start first first: by priority, then
     /// age.
     fn queued(&self) -> Result<Vec<StoredRun>, Error>;

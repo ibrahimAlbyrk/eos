@@ -203,6 +203,14 @@ impl RunRepo for SqliteTx<'_> {
         self.exec("UPDATE runs SET version_id = ?1 WHERE id = ?2", params![version_id, id]).map(drop)
     }
 
+    fn set_lead(&self, id: &str, worker_id: &str) -> Result<(), Error> {
+        self.exec("UPDATE runs SET lead_id = ?1 WHERE id = ?2", params![worker_id, id]).map(drop)
+    }
+
+    fn set_headline(&self, id: &str, headline: &str) -> Result<(), Error> {
+        self.exec("UPDATE runs SET headline = ?1 WHERE id = ?2", params![headline, id]).map(drop)
+    }
+
     fn queued(&self) -> Result<Vec<StoredRun>, Error> {
         self.rows(
             &format!("SELECT {RUN_COLUMNS} FROM runs WHERE state = 'queued' ORDER BY priority, created_at, rowid"),

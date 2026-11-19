@@ -81,13 +81,23 @@ pub fn definition(record: WorkerDefinitionRecord) -> WorkerDefinition {
     }
 }
 
+/// Names Eos keeps for the sessions of routines (`eos-run-solo`, …,
+/// `eos-architect`): their tools and prompts key on the name, so a file
+/// of that name must never give a chat those.
+pub fn is_reserved_name(name: &str) -> bool {
+    name.starts_with("eos-run-") || name == "eos-architect"
+}
+
 /// The records of a list of files, in order. A later file of the same name
 /// replaces an earlier one and keeps its place; a file that is not a valid
-/// definition does not appear.
+/// definition, or takes a reserved name, does not appear.
 pub fn records_from(files: &[DefinitionFile]) -> Vec<WorkerDefinitionRecord> {
     let mut records: Vec<WorkerDefinitionRecord> = Vec::new();
     for file in files {
         let Some(definition) = definition_from(&file.frontmatter, &file.body) else { continue };
+        if is_reserved_name(&definition.name) {
+            continue;
+        }
         let next = record(definition, file.source);
         match records.iter_mut().find(|r| r.name == next.name) {
             Some(slot) => *slot = next,
