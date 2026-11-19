@@ -69,6 +69,7 @@ mod fakes;
 mod files;
 pub mod fixtures;
 mod genui;
+mod github;
 mod home;
 mod ids;
 mod inbox;
@@ -110,6 +111,7 @@ pub use fakes::{
 };
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use genui::{FakeGeocoder, FakeLocation, FakeMap, FakeMedia, FakePlaceSearch};
+pub use github::{FakeGitHub, GITHUB_DEVICE_CODE, GITHUB_TOKEN, GITHUB_USER_CODE, GitHubCall};
 pub use home::TempHome;
 pub use ids::SeqIds;
 pub use inbox::{FakeActionGate, FakeAskRouting, FakeResultEdits};

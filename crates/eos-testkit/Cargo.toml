@@ -14,6 +14,7 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-genui.workspace = true
+eos-github.workspace = true
 eos-kit-sqlite.workspace = true
 eos-platform.workspace = true
 eos-relay.workspace = true
@@ -28,6 +29,7 @@ sha2.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 tokio-tungstenite.workspace = true
+url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]

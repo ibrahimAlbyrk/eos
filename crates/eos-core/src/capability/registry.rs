@@ -11,7 +11,7 @@ use eos_domain::capability::manifest::Manifest;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
-use super::ActionError;
+use super::{ActionError, DeviceSignIn};
 use crate::{BoxFuture, Error};
 
 /// The most capabilities installed besides the built-ins.
@@ -105,6 +105,11 @@ pub trait BuiltinCapability: Send + Sync {
     ) -> BoxFuture<'a, Result<Value, ActionError>>;
     /// Its health check: what it found.
     fn health<'a>(&'a self, ctx: &'a ActionContext) -> BoxFuture<'a, Event>;
+    /// How the user signs in to it with a code on the service's own page;
+    /// `None` when it does not sign in that way.
+    fn device_sign_in(&self) -> Option<&dyn DeviceSignIn> {
+        None
+    }
 }
 
 /// An installed package's version, as its runner needs it.

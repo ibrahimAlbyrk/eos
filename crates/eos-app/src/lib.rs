@@ -60,6 +60,9 @@ pub enum Error {
     /// The clients that fetch for visual answers could not be set up.
     #[error("media: {0}")]
     Media(#[from] eos_genui_media::Error),
+    /// The client the GitHub capability talks through could not be set up.
+    #[error("github: {0}")]
+    GitHub(#[from] eos_github::Error),
     /// This computer's identity for its paired computers cannot be read.
     #[error("peering: {0}")]
     Peer(#[from] eos_peer::Error),

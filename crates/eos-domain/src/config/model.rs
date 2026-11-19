@@ -32,6 +32,7 @@ pub struct Config {
     pub anthropic: AnthropicConfig,
     pub browser: Browser,
     pub genui: GenuiConfig,
+    pub github: GitHub,
 }
 
 /// The `daemon` key of the file: where the data lives and how the stream breathes.
@@ -194,4 +195,12 @@ pub struct Browser {
     pub allowed_origins: Vec<String>,
     pub persist_profile: bool,
     pub per_session: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHub {
+    /// The OAuth App GitHub's sign-in asks for; empty, the sign-in cannot
+    /// start (`client_id_missing`).
+    pub client_id: String,
 }

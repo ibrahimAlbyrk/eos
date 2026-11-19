@@ -1369,6 +1369,7 @@ dependencies = [
  "eos-fs",
  "eos-genui-media",
  "eos-git",
+ "eos-github",
  "eos-kit-fs",
  "eos-kit-log",
  "eos-kit-net",
@@ -1663,6 +1664,24 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-github"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-net",
+ "eos-testkit",
+ "reqwest",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "zeroize",
 ]
 
 [[package]]
@@ -2604,6 +2623,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-genui",
+ "eos-github",
  "eos-kit-sqlite",
  "eos-platform",
  "eos-relay",
@@ -2618,6 +2638,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite 0.26.2",
+ "url",
  "zeroize",
 ]
 

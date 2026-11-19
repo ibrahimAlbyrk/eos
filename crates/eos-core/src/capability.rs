@@ -12,6 +12,7 @@ use crate::{BoxFuture, Error};
 
 mod call;
 mod registry;
+mod sign_in;
 
 pub use call::{
     ActionCall, ActionCaller, ActionDescription, ActionError, ActionResult, CapabilityCalls, CapabilityDescription,
@@ -21,6 +22,7 @@ pub use registry::{
     ActionContext, ActionRunner, AllInstalled, BuiltinCapability, Capability, CapabilityGrants, CapabilityRegistry,
     Grant, GrantedAction, INSTALLED_MAX, Package,
 };
+pub use sign_in::{DeviceCode, DeviceSignIn, SignInError};
 
 /// The largest package installed, in bytes.
 pub const PACKAGE_MAX_BYTES: u64 = 50 * 1024 * 1024;

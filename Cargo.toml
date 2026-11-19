@@ -26,6 +26,7 @@ eos-fs = { path = "crates/eos-fs" }
 eos-genui = { path = "crates/eos-genui" }
 eos-genui-media = { path = "crates/eos-genui-media" }
 eos-git = { path = "crates/eos-git" }
+eos-github = { path = "crates/eos-github" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-log = { path = "crates/eos-kit-log" }
 eos-kit-net = { path = "crates/eos-kit-net" }
