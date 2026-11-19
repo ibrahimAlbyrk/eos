@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
-use eos_app::{AgentOptions, App, Options};
+use eos_app::{AgentOptions, App, CapabilityOptions, Options};
 use eos_contracts::{AgentEvent, WorkflowRunProgress};
 use eos_core::BoxFuture;
 use eos_core::accounts::SessionCredential;
@@ -26,7 +26,13 @@ use serde_json::{Value, json};
 /// Builds the app on `home` with `agents` for every session and a one-shot
 /// model that always answers. Peers, the relay, launchd and the leftover sweep stay off.
 pub fn build(home: &Path, agents: &ScriptedRuntime) -> App {
+    build_with(home, agents, CapabilityOptions::default())
+}
+
+/// [`build`], with a test's own capability secrets, built-ins and GitHub.
+pub fn build_with(home: &Path, agents: &ScriptedRuntime, capabilities: CapabilityOptions) -> App {
     let options = Options {
+        capabilities,
         launchd: None,
         agents: AgentOptions {
             claude_home: Some(home.join("claude-home")),

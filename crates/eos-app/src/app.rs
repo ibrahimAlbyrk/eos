@@ -57,6 +57,7 @@ use crate::agent::{
 use crate::announce::BusAnnouncer;
 use crate::boot;
 use crate::callers::Callers;
+use crate::capabilities::CapabilityOptions;
 use crate::display::StripSenderTags;
 use crate::host::{self, HostLocalTime, HostStats, SystemBrowser};
 use crate::modules::{self, Context};
@@ -132,6 +133,8 @@ pub struct Options {
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
     /// Modules a run adds after the app's own (a test of the composed app).
     pub extra_modules: Vec<Arc<dyn eos_runtime::module::Module>>,
+    /// What a test hands the capability service in place of the app's own.
+    pub capabilities: CapabilityOptions,
     /// The folder's ui-token, read by the host before the app is built
     /// ([`Callers::open`], which also stops the previous Eos's daemon); read here when `None`.
     pub callers: Option<Callers>,
@@ -184,6 +187,7 @@ impl Options {
             relay: None,
             keep_awake: None,
             extra_modules: Vec::new(),
+            capabilities: CapabilityOptions::default(),
             callers: None,
         }
     }
@@ -230,7 +234,7 @@ pub struct App {
     /// The brief rows the dashboard's patches carry, by id.
     brief_worker_rows: Arc<dyn eos_core::workers::ListedWorkers>,
     /// Eos's agent tools: the engine holds them weakly, the app keeps them.
-    _tools: Arc<dyn eos_core::agent::ToolSets>,
+    tools: Arc<dyn eos_core::agent::ToolSets>,
     clock: Arc<dyn Clock>,
     sleeper: Arc<dyn Sleeper>,
     /// The database's vacuum, from start to shutdown.
@@ -272,6 +276,7 @@ impl App {
             relay,
             keep_awake,
             extra_modules,
+            capabilities: capability_options,
             callers,
         } = options;
         let reach = Reach::new(reaches_network);
@@ -365,6 +370,7 @@ impl App {
             ids: ids.clone(),
             sleeper: sleeper.clone(),
             github_client_id: current.github.client_id.clone(),
+            options: capability_options,
         })?;
         let policy = Arc::new(
             PolicyGateway::new(GatewayOptions {
@@ -662,7 +668,7 @@ impl App {
             remote,
             patches: std::sync::Mutex::new(None),
             brief_worker_rows: features.brief_worker_rows,
-            _tools: features.tools,
+            tools: features.tools,
             clock,
             sleeper,
             vacuum: crate::maintenance::Vacuum::default(),
@@ -773,6 +779,12 @@ impl App {
     /// What start-up did to the worker rows the last run left behind.
     pub fn reconciled(&self) -> Reconciled {
         self.reconciled
+    }
+
+    /// Eos's agent tools as sessions get them: a test calls one as the
+    /// engine would.
+    pub fn tools(&self) -> Arc<dyn eos_core::agent::ToolSets> {
+        self.tools.clone()
     }
 
     /// The plugin system, as the agent tools and session start ask it.

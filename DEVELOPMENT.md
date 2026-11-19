@@ -259,8 +259,8 @@ secret-looking values) and rotates the file by size: `core.log` at 4 MiB with th
 files kept, `shell.log` at 1 MiB with two, about 19 MiB at most together. A failure to write
 loses lines, never the app. A panic in any thread is logged with its place
 (`eos::panic`) before it unwinds. What may be written is `ARCHITECTURE.md`'s rule ("What may
-be logged"); `crates/eos-app/tests/logs.rs` plants secrets in a scripted session and fails
-when one reaches the file.
+be logged"); `crates/eos-app/tests/logs/`, one module per area, plants secrets in scripted
+steps and fails when one reaches the file.
 
 Help › Reveal Logs opens the folder in Finder; `eos logs` prints the folder and the last 40
 lines of both logs (`-n <lines>`), `eos logs --path` only the folder; `Eos --status` says

@@ -101,8 +101,8 @@ account's e-mail or label, a computer's or person's name. An error whose text ma
 any of these is logged by its kind (the engine's model errors), or its first line (a
 plugin's build). The file's writer scrubs every line once more (home folder, URL queries,
 e-mail addresses, secret-looking values and opaque tokens) as a safety net, not as the
-rule; `crates/eos-app/tests/logs.rs` plants secrets in a scripted session and fails when
-one reaches the file.
+rule; `crates/eos-app/tests/logs/` (one module per area: a chat, a capability's call and
+GitHub's sign-in) plants secrets in scripted steps and fails when one reaches the file.
 
 **Wire types.** `#[serde(rename_all = "camelCase")]` unless the recorded wire says otherwise;
 unknown fields are ignored on input (clients may be newer); optional fields are omitted exactly

@@ -61,6 +61,7 @@ struct State {
     scopes: String,
     token_valid: bool,
     device: VecDeque<Value>,
+    device_interval_s: u64,
     pulls: BTreeMap<(String, u64), Pull>,
     reviews: Vec<Review>,
     next_id: u64,
@@ -109,13 +110,14 @@ fn user(login: &str) -> Value {
 }
 
 impl FakeGitHub {
-    /// Signed in as `octo` with the `repo` scope; no pull requests yet.
+    /// Signed in as `monalisa-octo` with the `repo` scope; no pull requests yet.
     pub fn new() -> Self {
         Self(Mutex::new(State {
-            login: "octo".to_owned(),
+            login: "monalisa-octo".to_owned(),
             scopes: "repo, read:org".to_owned(),
             token_valid: true,
             device: VecDeque::new(),
+            device_interval_s: 5,
             pulls: BTreeMap::new(),
             reviews: Vec::new(),
             next_id: 80,
@@ -147,6 +149,11 @@ impl FakeGitHub {
     /// they are used up.
     pub fn device_answers(&self, answers: Vec<Value>) {
         locked(&self.0).device = answers.into();
+    }
+
+    /// GitHub asks for this long between token polls (5 s until then).
+    pub fn set_device_interval(&self, seconds: u64) {
+        locked(&self.0).device_interval_s = seconds;
     }
 
     /// The answer a token poll gives once the user entered the code.
@@ -295,7 +302,7 @@ impl State {
                     "user_code": GITHUB_USER_CODE,
                     "verification_uri": "https://github.com/login/device",
                     "expires_in": 900,
-                    "interval": 5,
+                    "interval": self.device_interval_s,
                 }),
             ),
             "/login/oauth/access_token" => {
