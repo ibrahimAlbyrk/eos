@@ -68,3 +68,26 @@ async fn a_package_whose_files_changed_breaks_and_its_code_does_not_run() {
     let check = rig.service.check("notes-db").await.expect("checks");
     assert_eq!(check.state, HealthState::Broken, "a check of the same files keeps it broken");
 }
+
+/// The early check is asked for only once the failure is kept: a check that
+/// ran sooner would be overwritten by the failure it was asked to look at.
+#[tokio::test]
+async fn an_early_check_is_asked_for_after_the_failure_is_kept() {
+    let github = Arc::new(
+        FakeBuiltin::new(GITHUB)
+            .answering("get_pull_request", Err(ActionError::Failed { kind: FailureKind::Unauthorized })),
+    );
+    let rig = github_rig(github).await;
+    let (service, announced) = (rig.service.clone(), rig.temp.announced.clone());
+    let waiter = tokio::spawn(async move {
+        let queued = service.early_checks().await;
+        (queued, announced.list().len())
+    });
+    tokio::task::yield_now().await;
+    let before = rig.temp.announced.list().len();
+    let failed = rig.service.call(agent_call("github", "get_pull_request", json!({ "number": 7 }))).await;
+    assert_eq!(failed, Err(ActionError::Failed { kind: FailureKind::Unauthorized }));
+    let (queued, seen) = waiter.await.expect("joins");
+    assert_eq!(queued, ["github"]);
+    assert!(seen > before, "the move to needs_sign_in was announced before the check was asked for");
+}
