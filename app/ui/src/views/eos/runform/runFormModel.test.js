@@ -54,7 +54,9 @@ describe("the run form's model", () => {
     const one = { usd: 0.55, ms: 300_000, basis: "history", n: 1 };
     expect(estimateLine(one, { form, inline, plan: false })).toBe("A deep run usually takes about five minutes and $0.55.");
     expect(estimateLine(one, { form, inline, plan: true })).toBe("A deep run usually takes about five minutes.");
-    expect(estimateLine({ ...one, usd: 1.65, n: 3 }, { form, inline, plan: false })).toBe("Three runs usually take about five minutes each and $1.65 in all.");
+    expect(estimateLine({ ...one, usd: 1.65 }, { form, inline, plan: false, count: 3 })).toBe("Three runs usually take about five minutes each and $1.65 in all.");
+    // The answer's n counts the past runs it was taken over, not the runs asked for.
+    expect(estimateLine({ ...one, n: 12 }, { form, inline, plan: false })).toBe("A deep run usually takes about five minutes and $0.55.");
     expect(estimateLine(one, { form, inline: [], plan: true })).toBe("A run usually takes about five minutes.");
     expect(estimateLine(null, { form, inline, plan: true })).toBeNull();
     expect([timeWords(20_000), timeWords(60_000), timeWords(3_700_000), timeWords(7_200_000)]).toEqual(["under a minute", "one minute", "an hour", "two hours"]);
@@ -69,7 +71,7 @@ describe("the run form's model", () => {
   it("takes the routine's usual cost only while the options are their defaults, and asks the core per option", () => {
     const routine = { ...PR, usual: { usd: 0.4, ms: 240_000 } };
     const form = initialForm(PR.options, null, NOW);
-    expect(usualEstimate(routine, PR.options, form, 2)).toEqual({ usd: 0.8, ms: 240_000, n: 2 });
+    expect(usualEstimate(routine, PR.options, form, 2)).toEqual({ usd: 0.8, ms: 240_000 });
     expect(usualEstimate(routine, PR.options, { ...form, options: { depth: "deep" } }, 1)).toBeNull();
     expect(estimateBody(routine, PR.options, { ...form, options: { depth: "deep" }, items: [ITEM, ITEM] })).toEqual({
       routineId: PR.id, input: { item: ITEM, options: { depth: "deep" }, result: "usual" }, count: 2,
