@@ -1,12 +1,16 @@
 //! `routines`, `routine_drafts`, `routine_versions`, `routine_sessions` and
 //! `routine_spend`.
 
+use std::path::PathBuf;
+
+use eos_contracts::{RoutineState, RunInput};
 use eos_core::Error;
+use eos_core::routine::RunRef;
 use eos_core::store::{
     RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, StoredDraft, StoredRoutine,
     StoredRoutineSession, StoredSpend, StoredVersion,
 };
-use eos_domain::run_scope::Trust;
+use eos_domain::run_scope::{RunRole, Trust};
 use eos_kit_sqlite::rusqlite::{self, params};
 
 use crate::tx::{SqliteTx, failed, known, wire_word, word};
@@ -157,6 +161,22 @@ impl RoutineRepo for SqliteTx<'_> {
     fn draft(&self, routine_id: &str) -> Result<Option<StoredDraft>, Error> {
         self.row(&format!("SELECT {DRAFT_COLUMNS} FROM routine_drafts WHERE routine_id = ?1"), [routine_id], draft)
     }
+
+    fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routines SET state = ?1, paused_reason = ?2, updated_at = ?3, changed_at = ?3 WHERE id = ?4",
+            params![word(&state)?, paused_reason, at, id],
+        )
+        .map(drop)
+    }
+
+    fn set_head(&self, id: &str, version_id: &str, at: i64) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routines SET head_version_id = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",
+            params![version_id, at, id],
+        )
+        .map(drop)
+    }
 }
 
 impl RoutineVersionRepo for SqliteTx<'_> {
@@ -239,6 +259,71 @@ impl RoutineSessionRepo for SqliteTx<'_> {
             [run_id],
             session,
         )
+    }
+
+    fn run_of(&self, worker_id: &str) -> Result<Option<RunRef>, Error> {
+        let row = self.row(
+            "SELECT s.role, s.agent_key, runs.id, runs.routine_id, runs.version_id, runs.kind, runs.origin, \
+             COALESCE(runs.started_at, runs.created_at), runs.input, v.trust \
+             FROM routine_sessions s JOIN runs ON runs.id = s.run_id \
+             LEFT JOIN routine_versions v ON v.id = runs.version_id WHERE s.worker_id = ?1",
+            [worker_id],
+            |r| {
+                type Row = (
+                    String,
+                    Option<String>,
+                    String,
+                    String,
+                    Option<String>,
+                    String,
+                    String,
+                    i64,
+                    String,
+                    Option<String>,
+                );
+                let read = || -> rusqlite::Result<Row> {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                        r.get(6)?,
+                        r.get(7)?,
+                        r.get(8)?,
+                        r.get(9)?,
+                    ))
+                };
+                read().map_err(failed)
+            },
+        )?;
+        let Some((role, agent_key, run_id, routine_id, version_id, kind, origin, started_at, input, trust)) = row
+        else {
+            return Ok(None);
+        };
+        let (Some(role), Some(version_id)) = (RunRole::of_routine_session(&role), version_id) else { return Ok(None) };
+        let input: Option<RunInput> = serde_json::from_str(&input).ok();
+        let outside =
+            input.is_some_and(|input| input.item.iter().chain(input.items.iter().flatten()).any(|item| item.untrusted));
+        let trust = if outside || trust.as_deref().and_then(Trust::parse) != Some(Trust::Trusted) {
+            Trust::Untrusted
+        } else {
+            Trust::Trusted
+        };
+        let output_dir = PathBuf::from("routines").join(&routine_id).join("runs").join(&run_id);
+        Ok(Some(RunRef {
+            run_id,
+            routine_id,
+            version_id,
+            kind,
+            role,
+            agent_key,
+            trust,
+            origin,
+            started_at,
+            output_dir,
+        }))
     }
 }
 

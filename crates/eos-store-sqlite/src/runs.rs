@@ -1,6 +1,7 @@
 //! `runs`, `run_events` and `run_results`.
 
 use eos_core::Error;
+use eos_core::routine::{FinishedRun, RoutineLoad};
 use eos_core::store::{
     RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
     StoredRunResult,
@@ -227,6 +228,63 @@ impl RunRepo for SqliteTx<'_> {
             ),
             params![routine_id, item_key],
             run,
+        )
+    }
+
+    fn active(&self) -> Result<(i64, i64), Error> {
+        let counts = self.row(
+            "SELECT COUNT(CASE WHEN state IN ('running','checking','delivering') THEN 1 END), \
+             COUNT(CASE WHEN state = 'waiting_for_user' THEN 1 END) FROM runs \
+             WHERE state IN ('running','checking','delivering','waiting_for_user')",
+            [],
+            |r| Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?)),
+        )?;
+        Ok(counts.unwrap_or_default())
+    }
+
+    fn queued_count(&self) -> Result<i64, Error> {
+        let count = self.row("SELECT COUNT(*) FROM runs WHERE state = 'queued'", [], |r| r.get(0).map_err(failed))?;
+        Ok(count.unwrap_or_default())
+    }
+
+    fn load(&self, routine_id: &str, since: i64) -> Result<RoutineLoad, Error> {
+        let load = self.row(
+            "SELECT COUNT(CASE WHEN state = 'queued' THEN 1 END), COUNT(CASE WHEN created_at >= ?2 THEN 1 END), \
+             COUNT(CASE WHEN state IN ('running','checking','waiting_for_user','delivering','paused') THEN 1 END) \
+             FROM runs WHERE routine_id = ?1",
+            params![routine_id, since],
+            |r| {
+                let read = || -> rusqlite::Result<RoutineLoad> {
+                    Ok(RoutineLoad { queued: r.get(0)?, started_since: r.get(1)?, active: r.get(2)? })
+                };
+                read().map_err(failed)
+            },
+        )?;
+        Ok(load.unwrap_or(RoutineLoad { queued: 0, started_since: 0, active: 0 }))
+    }
+
+    fn finished_after(&self, routine_id: &str, after_seq: i64, limit: i64) -> Result<Vec<FinishedRun>, Error> {
+        // A run ends once, so its end is its last state change.
+        self.rows(
+            "SELECT e.id, runs.id, runs.state, runs.reason, runs.outcome, COALESCE(runs.ended_at, e.at) \
+             FROM runs JOIN run_events e ON e.id = (SELECT MAX(id) FROM run_events \
+             WHERE run_id = runs.id AND kind = ?4) \
+             WHERE runs.routine_id = ?1 AND runs.state IN ('done','skipped','cancelled','failed') AND e.id > ?2 \
+             ORDER BY e.id LIMIT ?3",
+            params![routine_id, after_seq, limit, RUN_STATE_EVENT],
+            |r| {
+                let read = || -> rusqlite::Result<FinishedRun> {
+                    Ok(FinishedRun {
+                        seq: r.get(0)?,
+                        run_id: r.get(1)?,
+                        state: known(r, 2, RunState::parse)?,
+                        reason: known_or_null(r, 3, Reason::parse)?,
+                        outcome: known_or_null(r, 4, Outcome::parse)?,
+                        ended_at: r.get(5)?,
+                    })
+                };
+                read().map_err(failed)
+            },
         )
     }
 }

@@ -4,10 +4,12 @@
 
 use std::path::PathBuf;
 
-use eos_contracts::{Freedom, ItemRef, Recipient, RoutineState, RunInput, Rung};
+use eos_contracts::{Freedom, ItemRef, Recipient, RoutineKind, RoutineState, RunInput, Rung, When, Which};
+use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::run_scope::{RunRole, Trust};
 
+use crate::store::{Outbox, Tx};
 use crate::{BoxFuture, Error};
 
 /// Who asked for a run. Each origin is checked in one place, the start.
@@ -122,14 +124,99 @@ pub struct RunRef {
     /// `trial`, `replay` or `surface`.
     pub origin: String,
     pub started_at: i64,
-    /// Where the run keeps what it made.
+    /// Where the run keeps what it made, under Eos's data folder
+    /// (`routines/<routine>/runs/<run>`).
     pub output_dir: PathBuf,
 }
 
-/// Which run a worker belongs to.
+/// Which run a worker belongs to. Inside a write job the same read is
+/// `tx.routine_sessions().run_of(worker_id)`.
 pub trait RunLookup: Send + Sync {
     /// `None` for a worker of no run: a chat, a routine's architect.
     fn run_of<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Option<RunRef>>;
+}
+
+/// A run a signal starts, as the signals' router admits it inside its own
+/// write job.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Admission {
+    pub routine_id: String,
+    /// The signal's row id: one signal starts at most one run of a routine.
+    pub signal_id: i64,
+    pub input: RunInput,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AdmitOutcome {
+    Queued { run_id: String },
+    Refused { reason: AdmitRefusal },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmitRefusal {
+    /// The queue holds as many runs as it may.
+    QueueFull,
+    /// The routine is gone or does not take triggered runs now.
+    NotActive,
+}
+
+/// A routine's runs as the signals' limits count them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RoutineLoad {
+    /// Waiting in the queue.
+    pub queued: i64,
+    /// Made at or after the time asked about.
+    pub started_since: i64,
+    /// Out of the queue and not ended.
+    pub active: i64,
+}
+
+/// A run that ended, in the order runs ended.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinishedRun {
+    /// The `run_events` id of its last state change: later runs end higher.
+    pub seq: i64,
+    pub run_id: String,
+    pub state: RunState,
+    pub reason: Option<Reason>,
+    pub outcome: Option<Outcome>,
+    pub ended_at: i64,
+}
+
+/// Runs the signals' router starts and counts, inside its own write job, so a
+/// signal's decision and its run are saved together.
+pub trait RunIntake: Send + Sync {
+    fn admit(&self, tx: &dyn Tx, out: &mut Outbox, admission: &Admission) -> Result<AdmitOutcome, Error>;
+    /// Skips a queued run a newer signal of the same subject replaces; false
+    /// when it has left the queue.
+    fn supersede(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str) -> Result<bool, Error>;
+    fn load(&self, tx: &dyn Tx, routine_id: &str, since: i64) -> Result<RoutineLoad, Error>;
+    /// The routine's runs that ended after the one whose end is `after_seq`,
+    /// first ended first, at most `limit`.
+    fn finished_after(
+        &self,
+        tx: &dyn Tx,
+        routine_id: &str,
+        after_seq: i64,
+        limit: i64,
+    ) -> Result<Vec<FinishedRun>, Error>;
+}
+
+/// What starts a routine's runs, from its head version.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoutineTriggers {
+    pub id: String,
+    /// The head version's id.
+    pub version: String,
+    pub state: RoutineState,
+    pub kind: RoutineKind,
+    pub when: When,
+    pub which: Which,
+}
+
+pub trait RoutineDirectory: Send + Sync {
+    /// Every routine with a head this app runs, deleted ones left out.
+    fn triggers(&self) -> BoxFuture<'_, Result<Vec<RoutineTriggers>, Error>>;
 }
 
 /// What the user confirmed of a routine: the Freedom and Goes to of its
@@ -144,6 +231,8 @@ pub struct Confirmed {
 /// a new version of its blueprint.
 pub trait RoutineControl: Send + Sync {
     fn confirmed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<Confirmed, Error>>;
+    /// [`confirmed`](RoutineControl::confirmed) inside the caller's job.
+    fn confirmed_in(&self, tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, Error>;
     /// Gives the routine more freedom, in a version the user authored (an
     /// offer accepted).
     fn raise<'a>(&'a self, routine_id: &'a str, rung: Rung) -> BoxFuture<'a, Result<(), Error>>;
@@ -151,6 +240,8 @@ pub trait RoutineControl: Send + Sync {
     /// says why.
     fn step_down<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// [`pause`](RoutineControl::pause) inside the caller's job.
+    fn pause_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
     /// Resumes every routine paused for `reason`.
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The routines whose current version needs the capability.

@@ -4,6 +4,7 @@ use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
 
 use crate::Error;
+use crate::routine::{FinishedRun, RoutineLoad};
 
 /// A run keeps at most this many timeline events.
 pub const RUN_EVENTS_MAX: i64 = 500;
@@ -129,6 +130,16 @@ pub trait RunRepo {
     fn working(&self) -> Result<Vec<(String, i64)>, Error>;
     /// A routine's runs of one item, newest first.
     fn by_item(&self, routine_id: &str, item_key: &str) -> Result<Vec<StoredRun>, Error>;
+    /// Runs whose agents work (running, checking, delivering), and runs
+    /// that wait on the user (waiting for the user): what `runs:active`
+    /// says.
+    fn active(&self) -> Result<(i64, i64), Error>;
+    /// Every routine's queued runs.
+    fn queued_count(&self) -> Result<i64, Error>;
+    fn load(&self, routine_id: &str, since: i64) -> Result<RoutineLoad, Error>;
+    /// A routine's runs whose last state change, an end, has an event id
+    /// above `after_seq`, in that order.
+    fn finished_after(&self, routine_id: &str, after_seq: i64, limit: i64) -> Result<Vec<FinishedRun>, Error>;
 }
 
 pub trait RunResultRepo {
