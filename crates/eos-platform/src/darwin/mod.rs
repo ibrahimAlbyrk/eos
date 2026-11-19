@@ -1,6 +1,9 @@
-//! macOS, through the system's own command-line tools: nothing here links a
-//! system framework. The one exception is [`qos`], two pthread calls of libSystem.
+//! macOS, through the system's own command-line tools. Two parts link the
+//! system instead: [`qos`], two pthread calls of libSystem, and
+//! [`app_keychain`], the Security framework through `security-framework`'s
+//! safe API.
 
+mod app_keychain;
 mod bundle_check;
 mod desktop;
 mod keychain;
@@ -13,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+pub use app_keychain::AppKeychain;
 pub use desktop::open_in_argv;
 pub use keychain::SecurityKeychain;
 pub use screen_saver::{START_SCREEN_SAVER, screen_saver_settings_url};
@@ -20,8 +24,8 @@ pub use screen_saver::{START_SCREEN_SAVER, screen_saver_settings_url};
 use crate::error::Error;
 use crate::generic::owner_only;
 use crate::host::{
-    AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, ScreenSaver,
-    SpawnCommand, TerminalShell,
+    AppSecretStore, AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake,
+    ScreenSaver, SpawnCommand, TerminalShell,
 };
 use crate::power::PowerReading;
 use crate::process;
@@ -35,6 +39,7 @@ const OPEN_MAX: u64 = 10_240;
 pub(crate) struct Darwin {
     shell: PosixShell,
     keychain: SecurityKeychain,
+    app_keychain: AppKeychain,
     desktop: desktop::MacDesktop,
     updates: bundle_check::MacAppUpdates,
 }
@@ -42,6 +47,7 @@ pub(crate) struct Darwin {
 pub(crate) static DARWIN: Darwin = Darwin {
     shell: PosixShell::from_env(),
     keychain: SecurityKeychain::login(),
+    app_keychain: AppKeychain::login(),
     desktop: desktop::MacDesktop,
     updates: bundle_check::MacAppUpdates,
 };
@@ -131,6 +137,10 @@ impl HostPlatform for Darwin {
 
     fn credentials(&self) -> &dyn CredentialStore {
         &self.keychain
+    }
+
+    fn app_keychain(&self) -> Option<&dyn AppSecretStore> {
+        Some(&self.app_keychain)
     }
 
     fn trash(&self, path: &Path) -> Result<(), Error> {

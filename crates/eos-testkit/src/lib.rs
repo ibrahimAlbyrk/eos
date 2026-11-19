@@ -45,6 +45,8 @@
 //! [`FakeRunLookup`] and [`FakeRoutineControl`]; [`FakeChannels`] (sends answered as scripted),
 //! [`FakeAskRouting`], [`FakeActionGate`] and [`FakeResultEdits`].
 //!
+//! The capability ports: [`FakeCapabilitySecrets`] keeps secrets in memory.
+//!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
 //!
@@ -72,6 +74,7 @@ mod policy;
 mod profile;
 pub mod relay;
 mod routine;
+mod secrets;
 mod terminal;
 mod tools;
 mod trash;
@@ -108,6 +111,7 @@ pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
 pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
+pub use secrets::FakeCapabilitySecrets;
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };

@@ -1,8 +1,11 @@
 //! Capabilities: what Eos can reach for the user (GitHub, Mail, a package
-//! the Forge built). Here, where their packages live on disk; the rules over
-//! a package (its manifest, its hash) are `eos_domain::capability`.
+//! the Forge built). Here, where their packages live on disk and where their
+//! secrets are kept; the rules over a package (its manifest, its hash) are
+//! `eos_domain::capability`.
 
 use std::path::Path;
+
+use zeroize::Zeroizing;
 
 use crate::{BoxFuture, Error};
 
@@ -39,4 +42,33 @@ pub trait CapabilityFiles: Send + Sync {
     /// Moves every `.partial` folder an install left behind (Eos stopped in
     /// the middle of one) to the trash; answers how many. Run at start.
     fn sweep(&self) -> BoxFuture<'_, Result<usize, Error>>;
+}
+
+/// The longest secret value kept, in bytes.
+pub const SECRET_MAX_BYTES: usize = 8 * 1024;
+
+/// A capability's secrets (tokens, keys), each named by the capability and
+/// the secret's name in its manifest. Kept where only the app reads them
+/// without the user being asked; never synced to other computers. Values
+/// never reach a log or an error. A system without such a store keeps
+/// nothing: reads find nothing and writes fail.
+pub trait CapabilitySecrets: Send + Sync {
+    /// The secret's value, or `None` when it is not set.
+    fn read<'a>(
+        &'a self,
+        capability: &'a str,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<Option<Zeroizing<String>>, Error>>;
+    /// Sets the secret, replacing a value already there. A value of more than
+    /// [`SECRET_MAX_BYTES`] is refused.
+    fn write<'a>(
+        &'a self,
+        capability: &'a str,
+        name: &'a str,
+        value: Zeroizing<String>,
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// Removes the secret; one that is not set is not an error.
+    fn delete<'a>(&'a self, capability: &'a str, name: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// The secret is set.
+    fn has<'a>(&'a self, capability: &'a str, name: &'a str) -> BoxFuture<'a, Result<bool, Error>>;
 }

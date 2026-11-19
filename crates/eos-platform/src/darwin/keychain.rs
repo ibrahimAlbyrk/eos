@@ -129,14 +129,14 @@ impl CredentialStore for SecurityKeychain {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A keychain file of the test's own. The login keychain is never opened
     /// and the user's search list is left as it was.
-    struct Throwaway {
+    pub(crate) struct Throwaway {
         _dir: tempfile::TempDir,
-        path: PathBuf,
+        pub(crate) path: PathBuf,
         search_list: String,
     }
 
@@ -146,7 +146,7 @@ mod tests {
     }
 
     impl Throwaway {
-        fn create() -> Self {
+        pub(crate) fn create() -> Self {
             let dir = tempfile::tempdir().expect("dir");
             let path = dir.path().join("eos-test.keychain-db");
             let p = path.to_str().expect("utf-8 path").to_owned();

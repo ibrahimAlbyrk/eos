@@ -37,8 +37,8 @@ pub use backup::StartupBackup;
 pub use copy::{clone_copy, clone_copy_tree};
 pub use error::Error;
 pub use host::{
-    AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
-    ScreenSaver, SpawnCommand, TerminalShell, claude_store_service,
+    AppSecretStore, AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform,
+    KeepAwake, OpenTarget, ScreenSaver, SpawnCommand, TerminalShell, claude_store_service,
 };
 pub use location::{LOCATION_WAIT_SECONDS, LocationFailure, LocationReading, parse_location, read_location};
 pub use net::{net_error_code, network_addresses};
@@ -56,7 +56,8 @@ pub use zone::{zone_known, zone_offset_minutes};
 
 #[cfg(target_os = "macos")]
 pub use darwin::{
-    START_SCREEN_SAVER, SecurityKeychain, caffeinate_args, open_in_argv, screen_saver_settings_url, trash_argv,
+    AppKeychain, START_SCREEN_SAVER, SecurityKeychain, caffeinate_args, open_in_argv, screen_saver_settings_url,
+    trash_argv,
 };
 
 /// The system this build runs on.

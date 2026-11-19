@@ -16,6 +16,9 @@ pub enum Error {
     /// The staged app must not replace the installed one. The text is shown to the user.
     #[error("{0}")]
     RejectedBundle(String),
+    /// The Keychain said no; the Security framework's status code, never a value.
+    #[error("the Keychain refused (status {0})")]
+    Keychain(i32),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
