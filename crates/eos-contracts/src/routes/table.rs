@@ -302,6 +302,17 @@ pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get]).ad
 pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
 pub const ROUTINE_VERSION: Route =
     Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
+pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/routines/:id/candidates", &[Get]).added();
+pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
+pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
+pub const RUN: Route = Route::new("run", "/api/runs/:id", &[Get]).added();
+pub const RUN_RESULT: Route = Route::new("runResult", "/api/runs/:id/result", &[Get]).added();
+pub const RUN_EVENTS: Route = Route::new("runEvents", "/api/runs/:id/events", &[Get]).added();
+pub const RUN_MESSAGE: Route = Route::new("runMessage", "/api/runs/:id/message", &[Post]).added();
+pub const RUN_STOP: Route = Route::new("runStop", "/api/runs/:id/stop", &[Post]).added();
+pub const RUN_PAUSE: Route = Route::new("runPause", "/api/runs/:id/pause", &[Post]).added();
+pub const RUN_RESUME: Route = Route::new("runResume", "/api/runs/:id/resume", &[Post]).added();
+pub const RUN_AGENT: Route = Route::new("runAgent", "/api/run-agents/:workerId", &[Get]).added();
 pub const SIGNALS_ROUTINE: Route = Route::new("signalsRoutine", "/api/signals/routines/:routineId", &[Get]).added();
 pub const SIGNALS: Route = Route::new("signals", "/api/signals", &[Get]).added();
 pub const SIGNALS_SUMMARY: Route = Route::new("signalsSummary", "/api/signals/summary", &[Get]).added();
@@ -631,6 +642,17 @@ pub const ROUTES: &[Route] = &[
     ROUTINE,
     ROUTINE_VERSIONS,
     ROUTINE_VERSION,
+    ROUTINE_CANDIDATES,
+    RUNS,
+    RUNS_ESTIMATE,
+    RUN,
+    RUN_RESULT,
+    RUN_EVENTS,
+    RUN_MESSAGE,
+    RUN_STOP,
+    RUN_PAUSE,
+    RUN_RESUME,
+    RUN_AGENT,
     SIGNALS_ROUTINE,
     SIGNALS,
     SIGNALS_SUMMARY,

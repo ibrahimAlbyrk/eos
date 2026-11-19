@@ -197,6 +197,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         reads: cx.capabilities.clone(),
         // Results are only shown until Needs you composes its gate.
         gate: Arc::new(eos_mod_routines::ShowOnlyGate),
+        config: cx.config.clone(),
     }));
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);

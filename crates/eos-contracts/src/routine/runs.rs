@@ -3,7 +3,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ItemRef, RunInput};
+use serde_json::Value;
+
+use super::{ItemRef, RunInput, RunSummary, UsualCost};
+use crate::primitives::Num;
 use crate::validate::{Issues, Validate};
 
 /// `POST /api/runs`: one run, or one per item.
@@ -106,3 +109,160 @@ pub struct CheckOutcome {
 }
 
 impl Validate for CheckOutcome {}
+
+/// `POST /api/runs/estimate`: what `count` runs of `input` will likely cost.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EstimateRequest {
+    pub routine_id: String,
+    pub input: RunInput,
+    /// How many runs, one per item.
+    #[serde(default = "one")]
+    pub count: i64,
+}
+
+fn one() -> i64 {
+    1
+}
+
+impl Validate for EstimateRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("input", |cx| self.input.validate(cx));
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EstimateResponse {
+    /// For all of them together.
+    pub usd: Num,
+    /// For one run.
+    pub ms: i64,
+    /// `history` (the routine's own runs), `trials` or `table`.
+    pub basis: String,
+    /// How many runs it was taken over.
+    pub n: i64,
+}
+
+impl Validate for EstimateResponse {}
+
+/// `GET /api/runs`: a page of runs, newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunPage {
+    pub runs: Vec<RunSummary>,
+    /// `before` for the next page; none on the last.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_before: Option<i64>,
+}
+
+impl Validate for RunPage {}
+
+/// One session of a run, for the run view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunAgent {
+    pub worker_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// `solo`, `lead`, `script`, `specialist` or `checker`.
+    pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
+    /// The worker's state (`WORKING`, `IDLE`, …).
+    pub state: String,
+    pub cost_usd: Num,
+    pub started_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity: Option<String>,
+}
+
+impl Validate for RunAgent {}
+
+/// A run's timeline entry: ids, states and counts, never outside text.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunEvent {
+    pub id: i64,
+    pub at: i64,
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+impl Validate for RunEvent {}
+
+/// `GET /api/runs/:id`: the run view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunDetail {
+    pub run: RunSummary,
+    pub input: RunInput,
+    /// The check round, from 1.
+    pub attempt: i64,
+    pub agents: Vec<RunAgent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<CheckVerdict>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usual: Option<UsualCost>,
+    pub events: Vec<RunEvent>,
+}
+
+impl Validate for RunDetail {}
+
+/// `GET /api/runs/:id/result`: the result the run handed in last.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunResultBody {
+    pub run_id: String,
+    pub attempt: i64,
+    pub kind: String,
+    pub headline: String,
+    pub body: Value,
+    /// The files it carries: `{name, bytes}` each.
+    pub files: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<CheckVerdict>,
+    pub created_at: i64,
+}
+
+impl Validate for RunResultBody {}
+
+/// `POST /api/runs/:id/message`: the user's words to the team.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunMessageRequest {
+    pub text: String,
+}
+
+impl Validate for RunMessageRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("text", |cx| cx.str_min(self.text.trim(), 1));
+    }
+}
+
+/// `GET /api/run-agents/:workerId`: the run a worker works for.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunAgentLookup {
+    pub run_id: String,
+    pub routine_id: String,
+    pub role: String,
+}
+
+impl Validate for RunAgentLookup {}
+
+/// `GET /api/routines/:id/candidates`: items to run on, newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoutineCandidates {
+    pub items: Vec<ItemRef>,
+}
+
+impl Validate for RoutineCandidates {}

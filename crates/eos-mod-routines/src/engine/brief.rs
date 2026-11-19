@@ -131,7 +131,7 @@ async fn to_work(engine: &Engine, run_id: &str) -> Result<(), Error> {
 
 /// The agent's model and effort, after the options that switch them for the
 /// values this run was given (01 §4.3 `affects`).
-fn model_of(blueprint: &Blueprint, agent: &RoutineAgent, input: &RunInput) -> (String, String) {
+pub(crate) fn model_of(blueprint: &Blueprint, agent: &RoutineAgent, input: &RunInput) -> (String, String) {
     let mut model = agent.model.clone();
     let mut effort = word(&agent.effort);
     for option in &blueprint.options {

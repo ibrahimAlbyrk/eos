@@ -128,6 +128,23 @@ impl RunRepo for SqliteTx<'_> {
         )
     }
 
+    fn page(
+        &self,
+        routine_id: Option<&str>,
+        state: Option<RunState>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {RUN_COLUMNS} FROM runs WHERE (?1 IS NULL OR routine_id = ?1) AND (?2 IS NULL OR state = ?2) \
+                 AND (?3 IS NULL OR created_at < ?3) ORDER BY created_at DESC, rowid DESC LIMIT ?4"
+            ),
+            params![routine_id, state.map(RunState::as_str), before, limit],
+            run,
+        )
+    }
+
     fn counts(&self, routine_id: &str, since: i64) -> Result<RunCounts, Error> {
         // The states that have not ended, as `idx_runs_live` lists them.
         let counts = self.row(

@@ -1,5 +1,6 @@
 //! Stopping a run: any run that has not ended is cancelled, except one that
-//! is delivering, whose send cannot be stopped halfway.
+//! is delivering, whose send cannot be stopped halfway. Its sessions are
+//! interrupted and suspended.
 
 use std::sync::Arc;
 
@@ -23,6 +24,7 @@ pub(crate) async fn stop(engine: &Arc<Engine>, run_id: &str, why: Reason) -> Res
         })
         .await?;
     tracing::info!(run_id, reason = why.as_str(), "a run was stopped");
+    super::steer::quiet(engine, run_id).await;
     // A slot may be free now.
     engine.wake.notify_one();
     Ok(())

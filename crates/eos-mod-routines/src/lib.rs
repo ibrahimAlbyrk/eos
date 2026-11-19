@@ -24,9 +24,27 @@
 //! A run that leaves the queue starts its lead at the brief station: a
 //! focused session of a reserved definition (`eos-run-solo`) whose first
 //! message is the run brief. The lead works with the run tools
-//! ([`RoutineTools`]) and hands in its result, which waits at the check. A
-//! lead that ends its turn without a result is reminded once
-//! (`routine-lead-idle`); a lead whose session dies is resumed once.
+//! ([`RoutineTools`]) and hands in its result. A lead that ends its turn
+//! without a result is reminded once (`routine-lead-idle`); a lead whose
+//! session dies is resumed once. Every run session starts in `AcceptEdits`
+//! under 03's run scope, without the folder's MCP servers; one of a run that
+//! reads outside text works in an empty folder of the run's own with its
+//! workspace as a further root (`Module::shape_launch`, at every start and
+//! resume). It may call the `read` and `write_local` actions of what its
+//! version needs ([`RoutinesModule::grants`]).
+//!
+//! A handed-in result waits at the check while its lead is held: the rules,
+//! then a checker session (`eos-run-checker`) when the routine asks for one.
+//! A passed result goes to the gate ([`RunGate`], [`ShowOnlyGate`] until
+//! Needs you composes its own) in the run's own write; Needs you reports
+//! what became of it through [`RunOutcomes`].
+//!
+//! The run routes start runs by hand (`POST /api/runs`), estimate them
+//! (`POST /api/runs/estimate`), list and show them (`GET /api/runs`,
+//! `…/:id`, `…/:id/result`, `…/:id/events`), steer them (`…/:id/message`,
+//! `stop`, `pause`, `resume`), offer what a routine may run on
+//! (`GET /api/routines/:id/candidates`) and name the run a worker works for
+//! (`GET /api/run-agents/:workerId`).
 
 mod engine;
 mod routes;
@@ -40,7 +58,7 @@ use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::routine::{
     RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunStarter,
 };
-use eos_core::store::Store;
+use eos_core::store::{ConfigSource, Store};
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Topic, TopicDecl};
@@ -78,6 +96,8 @@ pub struct RoutinesParts {
     pub reads: Arc<dyn CapabilityReads>,
     /// Where a checked result goes ([`ShowOnlyGate`] until Needs you's).
     pub gate: Arc<dyn RunGate>,
+    /// Model prices, for what a run will likely cost.
+    pub config: Arc<dyn ConfigSource>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -87,8 +107,6 @@ impl std::fmt::Debug for RoutinesParts {
 }
 
 pub struct RoutinesModule {
-    store: Arc<dyn Store>,
-    clock: Arc<dyn Clock>,
     engine: Arc<Engine>,
     /// One for the module's life: the capability service holds it weakly.
     grants: Arc<dyn CapabilityGrants>,
@@ -115,10 +133,11 @@ impl RoutinesModule {
             folders,
             reads,
             gate,
+            config,
         } = parts;
         let engine = Arc::new(Engine {
-            store: store.clone(),
-            clock: clock.clone(),
+            store,
+            clock,
             sleeper,
             ids,
             device,
@@ -134,11 +153,12 @@ impl RoutinesModule {
             launches: Mutex::new(HashMap::new()),
             held: Mutex::new(std::collections::HashSet::new()),
             gate,
+            config,
             tasks: tokio::runtime::Handle::try_current().ok(),
             reads,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
-        Self { store, clock, engine, grants }
+        Self { engine, grants }
     }
 
     /// Starts and stops runs.
@@ -193,7 +213,7 @@ impl Module for RoutinesModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        routes::all(&self.store, &self.clock)
+        routes::all(&self.engine)
     }
 
     fn idle_hooks(&self) -> Vec<IdleHook> {

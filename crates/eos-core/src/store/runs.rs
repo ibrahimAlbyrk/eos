@@ -107,6 +107,15 @@ pub trait RunRepo {
     fn find(&self, id: &str) -> Result<Option<StoredRun>, Error>;
     /// A routine's newest `limit` runs, newest first.
     fn by_routine(&self, routine_id: &str, limit: i64) -> Result<Vec<StoredRun>, Error>;
+    /// Runs made before `before`, of one routine and in one state when
+    /// given, newest first, at most `limit`.
+    fn page(
+        &self,
+        routine_id: Option<&str>,
+        state: Option<RunState>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<Vec<StoredRun>, Error>;
     /// How many of a routine's runs were made at or after `since`, and how
     /// many have not ended.
     fn counts(&self, routine_id: &str, since: i64) -> Result<RunCounts, Error>;
