@@ -298,7 +298,10 @@ pub const BROWSER_DEVICE: Route = Route::new("browserDevice", "/browser/tabs/:ta
 pub const BROWSER_ELEMENTS: Route = Route::new("browserElements", "/browser/tabs/:tabId/elements", &[Post]);
 pub const BROWSER_MUTE: Route = Route::new("browserMute", "/browser/tabs/:tabId/mute", &[Post]);
 pub const ROUTINES: Route = Route::new("routines", "/api/routines", &[Get]).added();
-pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get]).added();
+pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get, Delete]).added();
+pub const ROUTINE_STATE: Route = Route::new("routineState", "/api/routines/:id/state", &[Put]).added();
+pub const ROUTINE_UNDELETE: Route = Route::new("routineUndelete", "/api/routines/:id/undelete", &[Post]).added();
+pub const ROUTINE_KEEP: Route = Route::new("routineKeep", "/api/routines/:id/keep", &[Post]).added();
 pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
 pub const ROUTINE_VERSION: Route =
     Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
@@ -643,6 +646,9 @@ pub const ROUTES: &[Route] = &[
     ROUTINE_VERSIONS,
     ROUTINE_VERSION,
     ROUTINE_CANDIDATES,
+    ROUTINE_STATE,
+    ROUTINE_UNDELETE,
+    ROUTINE_KEEP,
     RUNS,
     RUNS_ESTIMATE,
     RUN,

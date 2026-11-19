@@ -102,6 +102,9 @@ pub trait RoutineRepo {
     fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error>;
     /// Makes `version_id` the version the routine runs from.
     fn set_head(&self, id: &str, version_id: &str, at: i64) -> Result<(), Error>;
+    /// When it went to Recently deleted; `None` when it came back.
+    fn set_deleted_at(&self, id: &str, deleted_at: Option<i64>, at: i64) -> Result<(), Error>;
+    fn set_kind(&self, id: &str, kind: RoutineKind, at: i64) -> Result<(), Error>;
 }
 
 pub trait RoutineVersionRepo {

@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use eos_contracts::{RoutineState, RunInput};
+use eos_contracts::{RoutineKind, RoutineState, RunInput};
 use eos_core::Error;
 use eos_core::routine::RunRef;
 use eos_core::store::{
@@ -174,6 +174,22 @@ impl RoutineRepo for SqliteTx<'_> {
         self.exec(
             "UPDATE routines SET head_version_id = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",
             params![version_id, at, id],
+        )
+        .map(drop)
+    }
+
+    fn set_deleted_at(&self, id: &str, deleted_at: Option<i64>, at: i64) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routines SET deleted_at = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",
+            params![deleted_at, at, id],
+        )
+        .map(drop)
+    }
+
+    fn set_kind(&self, id: &str, kind: RoutineKind, at: i64) -> Result<(), Error> {
+        self.exec(
+            "UPDATE routines SET kind = ?1, updated_at = ?2, changed_at = ?2 WHERE id = ?3",
+            params![word(&kind)?, at, id],
         )
         .map(drop)
     }

@@ -38,7 +38,7 @@ fn routine(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error> {
     tx.routines().find(routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))
 }
 
-fn announce(
+pub(crate) fn announce(
     tx: &dyn Tx,
     out: &mut Outbox,
     routine_id: &str,

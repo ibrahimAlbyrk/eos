@@ -87,7 +87,7 @@ pub(crate) fn param(req: &Request, name: &str) -> String {
 }
 
 /// Gone for good: deleted longer ago than Recently deleted keeps it.
-fn gone(routine: &StoredRoutine, now: i64) -> bool {
+pub(crate) fn gone(routine: &StoredRoutine, now: i64) -> bool {
     routine.state == RoutineState::Deleted && routine.deleted_at.is_some_and(|at| now >= at + DELETED_KEPT_MS)
 }
 
