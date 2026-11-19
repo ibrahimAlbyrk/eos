@@ -14,7 +14,7 @@ use eos_core::store::{StoredRoutine, StoredRun, StoredVersion};
 use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::Trust;
-use eos_mod_routines::{RoutinesModule, RoutinesParts, ShowOnlyGate};
+use eos_mod_routines::{RoutinesModule, RoutinesParts};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::bus::{Bus, BusOptions};
@@ -166,11 +166,6 @@ impl Bench {
     pub(crate) fn with_reads(autostart: bool, reads: FakeCapabilityReads) -> Self {
         let gate = Arc::new(FakeRunGate::new());
         Self::with(autostart, reads, gate.clone(), gate)
-    }
-
-    /// With the gate that only shows results.
-    pub(crate) fn showing_only() -> Self {
-        Self::with(true, FakeCapabilityReads::new(), Arc::new(FakeRunGate::new()), Arc::new(ShowOnlyGate))
     }
 
     fn with(autostart: bool, reads: FakeCapabilityReads, gate: Arc<FakeRunGate>, gate_port: Arc<dyn RunGate>) -> Self {

@@ -35,7 +35,6 @@ pub(crate) use budget::watch_usage;
 pub(crate) use check::holds;
 pub(crate) use control::{Control, announce as announce_routine, confirmed_in};
 pub(crate) use exec::Tools;
-pub use gate::ShowOnlyGate;
 pub(crate) use grants::Grants;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};

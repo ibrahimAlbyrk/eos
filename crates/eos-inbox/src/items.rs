@@ -20,7 +20,7 @@ pub const TOO_MANY_WAITING: &str = "too_many_waiting";
 const PAYLOAD_MAX: usize = 256 * 1024;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 /// Routines act on a routine alert's answer.
-const ALERT_PRODUCER: &str = "routines";
+pub(crate) const ALERT_PRODUCER: &str = "routines";
 
 /// What a producer opens.
 #[derive(Debug, Clone, PartialEq)]

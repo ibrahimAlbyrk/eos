@@ -85,8 +85,8 @@ async fn a_result_with_nothing_to_send_skips_the_check_and_the_gate() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_show_only_gate_ends_the_run_shown_and_a_sending_gate_hands_it_to_delivery() {
-    let bench = Bench::showing_only();
+async fn a_shown_result_ends_the_run_and_a_sending_gate_hands_it_to_delivery() {
+    let bench = Bench::new(true);
     let (run, lead) = working(&bench, unchecked()).await;
     bench.module.tools().submit_result(&lead, review()).await.expect("handed in");
     bench.eventually(|| bench.state(&run) == RunState::Done).await;

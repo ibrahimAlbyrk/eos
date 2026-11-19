@@ -38,8 +38,8 @@
 //!
 //! A handed-in result waits at the check while its lead is held: the rules,
 //! then a checker session (`eos-run-checker`) when the routine asks for one.
-//! A passed result goes to the gate ([`RunGate`], [`ShowOnlyGate`] until
-//! Needs you composes its own) in the run's own write; Needs you reports
+//! A passed result goes to the gate ([`RunGate`], Needs you's) in the run's
+//! own write; Needs you reports
 //! what became of it through [`RunOutcomes`].
 //!
 //! What each of a run's agents is doing goes out on `run:activity`, one
@@ -82,7 +82,6 @@ use eos_sessions::Sessions;
 use tokio::sync::Notify;
 
 use crate::engine::Engine;
-pub use crate::engine::ShowOnlyGate;
 
 pub const ROUTINE_CHANGE: Topic<RoutineChange> = Topic::new("routine:change");
 pub const RUN_CHANGE: Topic<RunChange> = Topic::new("run:change");
@@ -109,7 +108,7 @@ pub struct RoutinesParts {
     pub folders: Arc<dyn RunFolders>,
     /// The capabilities there are: what a run session may call of them.
     pub reads: Arc<dyn CapabilityReads>,
-    /// Where a checked result goes ([`ShowOnlyGate`] until Needs you's).
+    /// Where a checked result goes: Needs you's gate.
     pub gate: Arc<dyn RunGate>,
     /// Model prices, for what a run will likely cost.
     pub config: Arc<dyn ConfigSource>,
@@ -141,6 +140,8 @@ pub struct RoutinesModule {
     engine: Arc<Engine>,
     /// One for the module's life: the capability service holds it weakly.
     grants: Arc<dyn CapabilityGrants>,
+    /// One for the module's life: the gate holds it weakly.
+    control: Arc<dyn RoutineControl>,
 }
 
 impl std::fmt::Debug for RoutinesModule {
@@ -213,7 +214,8 @@ impl RoutinesModule {
             intent_reads: Mutex::new(None),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
-        Self { engine, grants }
+        let control = Arc::new(engine::Control(engine.clone()));
+        Self { engine, grants, control }
     }
 
     /// Starts and stops runs.
@@ -238,7 +240,7 @@ impl RoutinesModule {
 
     /// What other areas change of a routine: its Freedom and its state.
     pub fn control(&self) -> Arc<dyn RoutineControl> {
-        Arc::new(engine::Control(self.engine.clone()))
+        self.control.clone()
     }
 
     /// What capability actions a run session may call; none of its own

@@ -16,11 +16,16 @@
 //! - A routine run's permission asks show in Needs you instead of on the
 //!   banner ([`RunAsks`], the gateway's routing).
 //!
+//! - A run's checked result passes the [`gate`]: shown, refused, held as a
+//!   `draft` item, or queued as deliveries ([`delivery`]).
+//!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
 //! and counts are logged.
 
 mod answer;
+pub mod delivery;
+pub mod gate;
 mod handoff;
 mod items;
 mod routing;
@@ -36,6 +41,8 @@ pub use routing::RunAsks;
 
 /// The topic every write of an item announces.
 pub const INBOX_CHANGE: &str = "inbox:change";
+/// The topic every move of a delivery announces.
+pub const INBOX_DELIVERY: &str = "inbox:delivery";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
