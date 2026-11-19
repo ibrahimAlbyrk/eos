@@ -43,6 +43,23 @@ async fn two_hundred_signals_in_a_minute_run_thirty_and_keep_the_rest_with_one_n
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_newer_signal_that_gets_no_run_leaves_the_waiting_run_of_its_subject() {
+    let bench = Bench::new(vec![routine("rt-a", RoutineState::Active, &EVENTS, None)]);
+    let intake = Arc::new(TableIntake::new(bench.clock.clone()));
+    let module = bench.module(bench.temp.store.clone(), intake.clone(), true);
+    module.ingest(SOURCE_ID, page(vec![pull(1, "v0", "updated", false, &[])], json!({}))).await.expect("kept");
+    bench.route(&module).await;
+    assert_eq!(bench.runs("rt-a"), [(RunState::Queued, 0)]);
+
+    intake.refusing.store(true, std::sync::atomic::Ordering::SeqCst);
+    module.ingest(SOURCE_ID, page(vec![pull(1, "v1", "updated", false, &[])], json!({}))).await.expect("kept");
+    bench.route(&module).await;
+    assert_eq!(bench.decided("refused"), 1);
+    assert_eq!(bench.runs("rt-a"), [(RunState::Queued, 0)], "the waiting run still runs");
+    module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn ingest_waits_while_too_many_signals_wait_to_be_routed_and_takes_pages_again_after() {
     let bench = Bench::new(vec![]);
     let module = bench.module(bench.temp.store.clone(), Arc::new(TableIntake::new(bench.clock.clone())), true);
