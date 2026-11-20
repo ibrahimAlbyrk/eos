@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use eos_bridge::dashboard_life::DASHBOARD_RELEASE_AFTER_MS;
 use eos_bridge::launch::{data_folder, logs_folder, reaches_network};
 use eos_bridge::splash::update_caption;
 use eos_bridge::{Bridge, Classify, Core, LateCore, NoCore, RouterCore};
@@ -83,7 +84,19 @@ fn options(core_home: Option<&Path>) -> Options {
         sign_in_provider: artifact_origin().and(sign_in_provider()),
         // The measuring probe drives the dashboard: a dev run only.
         probe: cfg!(feature = "dev-run") && env("EOS_SHELL_PROBE").is_some(),
+        dashboard_release_after: dashboard_release_after(),
     }
+}
+
+/// How long the window stays hidden before the dashboard's view is released. A test run may
+/// shorten it (`EOS_DEV_DASHBOARD_RELEASE_MS`).
+fn dashboard_release_after() -> Duration {
+    let shortened = if cfg!(feature = "dev-run") {
+        env("EOS_DEV_DASHBOARD_RELEASE_MS").and_then(|ms| ms.parse().ok())
+    } else {
+        None
+    };
+    Duration::from_millis(shortened.unwrap_or(DASHBOARD_RELEASE_AFTER_MS))
 }
 
 /// A page on this computer standing in for claude.ai in the artifact views, for a test run:

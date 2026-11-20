@@ -9,6 +9,7 @@ use eos_bridge::artifacts::ArtifactViews;
 use eos_bridge::artifacts::stills::StillStore;
 use eos_bridge::artifacts::urls::Viewer;
 use eos_bridge::chromium::{self, Tuning};
+use eos_bridge::dashboard_life::{DashboardLife, DashboardStep, Seen};
 use eos_bridge::hosts::{HostParts, HostViews, MachineItem, machine_items};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
@@ -151,6 +152,8 @@ struct Shell {
     launched_with: Request,
     /// The window's saved frame until its first showing, which also opens the dashboard.
     unshown: std::sync::Mutex<Option<WindowState>>,
+    /// When the dashboard's view is released and made again.
+    dashboard_life: std::sync::Mutex<DashboardLife>,
 }
 
 pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
@@ -219,6 +222,7 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         );
     }
     let Some(cef) = engine(&options, &system_proxy) else { return 1 };
+    let dashboard_life = DashboardLife::new(options.dashboard_release_after.as_millis() as u64);
     let shell = Arc::new(Shell {
         options,
         system_proxy,
@@ -238,6 +242,7 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         early_link: std::sync::Mutex::new(None),
         launched_with: request.clone(),
         unshown: std::sync::Mutex::new(None),
+        dashboard_life: std::sync::Mutex::new(dashboard_life),
     });
 
     let for_setup = shell.clone();
@@ -338,6 +343,10 @@ impl Shell {
                         None => shell.splash.close(),
                     }
                 })
+            },
+            hide_window: {
+                let window = window.clone();
+                Arc::new(move || drop(window.hide()))
             },
             probe: options.probe.then(|| crate::probe::Probe::start(app.clone(), views.clone())),
             sign_in: options.artifact_origin.is_some().then(|| SignInWindows(Arc::downgrade(self))),
@@ -504,11 +513,14 @@ impl Shell {
         let dashboard = self.dashboard_parts();
         let first = dashboard.as_ref().and_then(|_| self.unshown.lock().unwrap_or_else(|p| p.into_inner()).take());
         let opens = first.is_some();
+        if !opens {
+            self.dashboard_step(true);
+        }
         // A quiet run never takes the user's focus, whatever asks for the window.
         let quiet = self.options.quiet;
         self.on_main(move || {
             if let (Some(frame), Some(parts)) = (&first, dashboard) {
-                open_dashboard(&window, frame, parts);
+                open_dashboard(&window, (frame.width, frame.height), parts, true);
             }
             let _ = window.show();
             let _ = window.unminimize();
@@ -521,6 +533,36 @@ impl Shell {
             }
         });
         opens
+    }
+
+    /// One look at the window for the dashboard's release (`eos_bridge::dashboard_life`);
+    /// `showing`: the window is being shown. The view is closed or made again here.
+    fn dashboard_step(&self, showing: bool) -> DashboardStep {
+        let (Some(window), Some(views)) = (self.window.get(), self.views.get()) else { return DashboardStep::Keep };
+        let dashboard = views.dashboard();
+        let seen = Seen {
+            visible: showing || window.is_visible().unwrap_or(true),
+            loaded: dashboard.is_some(),
+            devtools_open: !showing && dashboard.as_ref().is_some_and(|d| d.webview.is_devtools_open()),
+        };
+        let step = self.dashboard_life.lock().unwrap_or_else(|p| p.into_inner()).step(now_ms(), seen);
+        match step {
+            DashboardStep::Release => {
+                log("shell", "the window stayed hidden: the dashboard view is released");
+                let views = views.clone();
+                self.on_main(move || views.release_dashboard());
+            }
+            DashboardStep::Recreate => {
+                let (window, Some(parts)) = (window.clone(), self.dashboard_parts()) else { return step };
+                self.on_main(move || {
+                    let scale = window.scale_factor().unwrap_or(1.0);
+                    let size = window.inner_size().map(|s| s.to_logical::<f64>(scale)).unwrap_or_default();
+                    open_dashboard(&window, (size.width, size.height), parts, false);
+                });
+            }
+            DashboardStep::Keep => {}
+        }
+        step
     }
 
     fn quit(&self) {
@@ -626,6 +668,9 @@ impl Shell {
             return;
         }
         let label = webview.label().to_owned();
+        if label == "main" && self.views.get().is_some_and(|v| v.dashboard().is_none()) {
+            return;
+        }
         let decision = self.recovery.lock().unwrap_or_else(|p| p.into_inner()).after_crash(&label, Instant::now());
         match decision {
             AfterCrash::Reload => {
@@ -796,6 +841,7 @@ impl Shell {
                 }).filter(|text| !text.is_empty()).collect::<Vec<_>>())
             }),
             "views": self.views.get().map(|v| v.status()),
+            "dashboard": if self.views.get().is_some_and(|v| v.dashboard().is_some()) { "loaded" } else { "released" },
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
@@ -829,6 +875,9 @@ impl Shell {
             loop {
                 std::thread::sleep(TICK);
                 tick = tick.wrapping_add(1);
+                // Also makes a released dashboard again when the window came back without
+                // the app's own showing (switching to the hidden app).
+                self.dashboard_step(false);
                 let woke = detector.tick(now_ms());
                 if let Some(away) = woke {
                     log("shell", &format!("awake after about {} s", away.as_secs()));
@@ -847,7 +896,9 @@ impl Shell {
 /// Opens the dashboard view, on the main thread. Its page loads off it: the handler must be
 /// on the view's request context before the first request for the app's origin leaves, and
 /// registering waits on the main thread.
-fn open_dashboard(window: &tauri::Window, frame: &WindowState, (views, bridge, hooks): DashboardParts) {
+/// `first`: the window's first showing, which tells the hooks the dashboard loaded; a view
+/// made again after a release does not.
+fn open_dashboard(window: &tauri::Window, size: (f64, f64), (views, bridge, hooks): DashboardParts, first: bool) {
     // The dashboard may only be the dashboard: any other place opens in the system browser,
     // and a page-opened window never opens here.
     let policy = create::Policy {
@@ -861,14 +912,16 @@ fn open_dashboard(window: &tauri::Window, frame: &WindowState, (views, bridge, h
         }),
         open_requested: Box::new(open_external),
     };
-    let builder = create::builder("main", (0.0, 0.0), (frame.width, frame.height), None, policy).auto_resize();
+    let builder = create::builder("main", (0.0, 0.0), size, None, policy).auto_resize();
     match window.add_child(builder) {
-        Ok(dashboard) => drop(std::thread::spawn(move || load_dashboard(&views, hooks.as_ref(), dashboard, bridge))),
+        Ok(dashboard) => {
+            drop(std::thread::spawn(move || load_dashboard(&views, first.then_some(hooks.as_ref()), dashboard, bridge)))
+        }
         Err(e) => log("shell", &format!("the dashboard view could not be made: {e}")),
     }
 }
 
-fn load_dashboard(views: &Views, hooks: &dyn Hooks, dashboard: tauri::Webview, bridge: Arc<Bridge>) {
+fn load_dashboard(views: &Views, hooks: Option<&dyn Hooks>, dashboard: tauri::Webview, bridge: Arc<Bridge>) {
     let service: Arc<dyn Service> = bridge.clone();
     let (tx, rx) = std::sync::mpsc::channel();
     let registering = dashboard.with_cef_webview(move |w| {
@@ -891,7 +944,9 @@ fn load_dashboard(views: &Views, hooks: &dyn Hooks, dashboard: tauri::Webview, b
         Ok(Ok(())) => log("shell", "dashboard loading"),
         other => log("shell", &format!("the dashboard did not load: {other:?}")),
     }
-    hooks.dashboard_loaded();
+    if let Some(hooks) = hooks {
+        hooks.dashboard_loaded();
+    }
 }
 
 /// Reads the native view of a browser once it exists, for the menu's focus routing.

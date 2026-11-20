@@ -14,7 +14,7 @@ mod sign_in;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use base64::Engine;
 use eos_bridge::lan_guard::{self, LocalPage, SystemProxy};
@@ -80,7 +80,8 @@ pub(crate) struct Views {
     system: Mutex<SystemProxy>,
     /// The profiles whose script currently lets the local network through.
     open_profiles: Mutex<std::collections::HashSet<String>>,
-    dashboard: OnceLock<Arc<View>>,
+    /// The dashboard's view; none before the first showing and while released.
+    dashboard: Mutex<Option<Arc<View>>>,
     views: Mutex<HashMap<String, Arc<View>>>,
     listeners: Listeners,
     counter: AtomicU64,
@@ -126,7 +127,7 @@ impl Views {
             rt,
             system: Mutex::new(system),
             open_profiles: Mutex::default(),
-            dashboard: OnceLock::new(),
+            dashboard: Mutex::default(),
             views: Mutex::default(),
             listeners: Arc::default(),
             counter: AtomicU64::new(0),
@@ -148,11 +149,21 @@ impl Views {
     }
 
     pub(crate) fn set_dashboard(&self, webview: tauri::Webview, cdp: Cdp) {
-        let _ = self.dashboard.set(View::new(webview, cdp, true, String::new()));
+        *self.dashboard.lock().unwrap_or_else(|p| p.into_inner()) = Some(View::new(webview, cdp, true, String::new()));
     }
 
     pub(crate) fn dashboard(&self) -> Option<Arc<View>> {
-        self.dashboard.get().cloned()
+        self.dashboard.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// Closes the dashboard's view and frees its renderer. The window's other child views
+    /// stay as they are. Main thread.
+    pub(crate) fn release_dashboard(&self) {
+        let Some(view) = self.dashboard.lock().unwrap_or_else(|p| p.into_inner()).take() else { return };
+        create::closed(view.webview.label());
+        if let Err(e) = view.webview.close() {
+            crate::log::log("views", &format!("the dashboard view could not be closed: {e}"));
+        }
     }
 
     /// Every child view, for the menu's focus routing.
