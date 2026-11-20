@@ -130,6 +130,9 @@ fn answered<T>(result: Result<T, eos_inbox::Error>, ok: impl FnOnce(T) -> Respon
             Ok(Response::json(409, &body))
         }
         Err(eos_inbox::Error::Changed { rev }) => Ok(Response::json(409, &json!({ "error": "changed", "rev": rev }))),
+        Err(eos_inbox::Error::Stale { reason }) => {
+            Ok(Response::json(409, &json!({ "error": "stale", "staleReason": reason })))
+        }
         Err(eos_inbox::Error::Core(e)) => Err(e.into()),
     }
 }
@@ -297,7 +300,8 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
                 return Ok(refused);
             }
             let body: SendRequest = req.parse()?;
-            answered(at.items.send(&id, body.rev, body.doc, answered_by(&req.caller)).await, queued)
+            let confirm_stale = body.confirm_stale.unwrap_or(false);
+            answered(at.items.send(&id, body.rev, body.doc, answered_by(&req.caller), confirm_stale).await, queued)
         }
     });
     let at = shared.clone();

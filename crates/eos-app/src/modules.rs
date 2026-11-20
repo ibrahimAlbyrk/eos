@@ -295,6 +295,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_inbox::InboxModule::new(eos_mod_inbox::InboxParts {
             store: cx.store.clone(),
             clock: cx.clock.clone(),
+            bus: cx.bus.clone(),
             questions: Arc::new(cx.questions.clone()),
             memories: profile.memory_reader(),
             waiters: cx.run_questions.waiters(),

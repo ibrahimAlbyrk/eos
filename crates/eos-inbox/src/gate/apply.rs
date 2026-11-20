@@ -175,6 +175,8 @@ fn hold_in(
             "targets": held.chosen.iter().map(|chosen| target_value(&chosen.target)).collect::<Vec<_>>(),
             "rung": held.rung,
             "untrusted": input.trust == Trust::Untrusted,
+            // A subject event that repeats this version does not make it stale.
+            "subjectVersion": input.item_facts["version"],
         }),
         by_hand: input.origin == "hand",
     };

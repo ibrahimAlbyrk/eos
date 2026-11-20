@@ -2001,6 +2001,7 @@ dependencies = [
  "indexmap",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

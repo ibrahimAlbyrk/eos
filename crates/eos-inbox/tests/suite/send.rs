@@ -102,7 +102,7 @@ impl Held {
 async fn a_send_on_a_rev_the_user_did_not_see_is_refused() {
     let held = Held::new().await;
     held.rig.items.save_draft(&held.item_id, 1, &commented()).await.expect("saved");
-    match held.rig.items.send(&held.item_id, 1, None, "phone").await {
+    match held.rig.items.send(&held.item_id, 1, None, "phone", false).await {
         Err(Error::Changed { rev }) => assert_eq!(rev, 2),
         other => panic!("{other:?}"),
     }
@@ -112,7 +112,7 @@ async fn a_send_on_a_rev_the_user_did_not_see_is_refused() {
 #[tokio::test]
 async fn an_unedited_send_queues_an_approved_delivery_and_finishes_sent_unedited() {
     let held = Held::new().await;
-    let rows = held.rig.items.send(&held.item_id, 1, None, "dashboard").await.expect("sent");
+    let rows = held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await.expect("sent");
     assert_eq!(rows.len(), 1);
     let row = &rows[0];
     let now = held.rig.clock.now_ms();
@@ -143,7 +143,7 @@ async fn a_removed_comment_is_an_edit_and_the_run_finishes_sent_edited() {
     let held = Held::new().await;
     let mut edited = commented();
     edited.parts.retain(|part| part.key != "c:2");
-    let rows = held.rig.items.send(&held.item_id, 1, Some(edited.clone()), "phone").await.expect("sent");
+    let rows = held.rig.items.send(&held.item_id, 1, Some(edited.clone()), "phone", false).await.expect("sent");
     let body: ResultDoc = serde_json::from_str(&rows[0].body).expect("json");
     assert_eq!(body, edited);
 
@@ -171,7 +171,7 @@ async fn a_removed_comment_is_an_edit_and_the_run_finishes_sent_edited() {
 async fn a_send_to_a_recipient_removed_from_the_routine_is_refused_by_name_and_writes_nothing() {
     let removed = Confirmed { goes_to: Vec::new(), ..pull_requests() };
     let held = Held::confirming(removed).await;
-    match held.rig.items.send(&held.item_id, 1, None, "dashboard").await {
+    match held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await {
         Err(Error::Core(eos_core::Error::Conflict(reason))) => assert_eq!(
             reason,
             "This recipient was removed from the routine: github:pr:acme/game#482. Nothing was sent."
@@ -202,13 +202,13 @@ async fn a_discarded_draft_ends_its_run_discarded() {
 #[tokio::test]
 async fn a_send_that_went_stale_and_was_sent_again_finishes_the_run() {
     let held = Held::new().await;
-    held.rig.items.send(&held.item_id, 1, None, "dashboard").await.expect("sent");
+    held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await.expect("sent");
     held.channels.stale("new commits");
     held.deliver().await;
     let waiting = held.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
     let again = waiting.into_iter().find(|item| item.kind == ItemKind::Draft).expect("held again");
 
-    held.rig.items.send(&again.id, again.rev, None, "dashboard").await.expect("sent again");
+    held.rig.items.send(&again.id, again.rev, None, "dashboard", false).await.expect("sent again");
     held.deliver().await;
     let finished = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::SentUnedited };
     assert_eq!(held.rig.outcomes.calls().last(), Some(&finished));
