@@ -1,15 +1,18 @@
 //! Stopping a send in its hold (03 G6): a row that has not gone out
 //! (`holding` or `queued`) is stopped. A send the user approved stops with
 //! every send of its draft that waits too, the draft opens again for the
-//! user one rev up, and the run waits for the user again; an automatic one
-//! goes back to the user as a new draft.
+//! user, and the run waits for the user again; an automatic one goes back
+//! to the user as a new draft. A draft of several targets, one of which
+//! went out already or is on its way, opens again for only the targets
+//! stopped, so sending it again repeats none.
 
 use eos_core::Error;
-use eos_core::store::StoredDelivery;
+use eos_core::store::{StoredDelivery, StoredItem, Tx};
 use eos_domain::routine::run::RunState;
+use serde_json::Value;
 
 use super::record::{Again, hold_again_in};
-use super::{HOLDING, QUEUED, STOPPED, announce};
+use super::{HOLDING, QUEUED, STOPPED, announce, target_of, target_value};
 use crate::{Items, Opening, announce as announce_item};
 
 fn not_out(row: &StoredDelivery) -> bool {
@@ -50,6 +53,7 @@ impl Items {
                 match &row.item_id {
                     Some(item_id) if tx.inbox_items().reopen(item_id, now)? => {
                         let item = tx.inbox_items().find(item_id)?.ok_or_else(|| Error::not_found("item", item_id))?;
+                        let item = only_stopped_in(tx, item, &row.run_id, &stopped, now)?;
                         announce_item(tx, out, &item)?;
                         let run = tx.runs().find(&row.run_id)?;
                         if run.is_some_and(|run| run.state == RunState::Delivering) {
@@ -65,4 +69,32 @@ impl Items {
             .await?;
         Ok(row)
     }
+}
+
+/// The reopened draft `item`, narrowed to the targets of the sends just
+/// `stopped` when another send of it is not among them.
+fn only_stopped_in(
+    tx: &dyn Tx,
+    mut item: StoredItem,
+    run_id: &str,
+    stopped: &[StoredDelivery],
+    now: i64,
+) -> Result<StoredItem, Error> {
+    let sends = tx.inbox_deliveries().of_run(run_id)?;
+    let mut sends = sends.iter().filter(|send| send.item_id.as_deref() == Some(item.id.as_str()));
+    if sends.all(|send| stopped.iter().any(|row| row.id == send.id)) {
+        return Ok(item);
+    }
+    let mut payload: Value = serde_json::from_str(&item.payload).unwrap_or_default();
+    let targets: Vec<Value> =
+        stopped.iter().filter_map(|row| target_of(&row.target)).map(|t| target_value(&t)).collect();
+    payload["targets"] = Value::Array(targets);
+    item.payload = payload.to_string();
+    let rev = item.rev;
+    item.rev += 1;
+    item.updated_at = now;
+    if !tx.inbox_items().retell(&item, rev)? {
+        return Err(Error::Conflict("The draft changed while its send was stopped.".into()));
+    }
+    Ok(item)
 }

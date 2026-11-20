@@ -52,6 +52,31 @@ async fn a_send_that_cannot_be_undone_waits_ten_seconds_and_stop_opens_the_draft
 }
 
 #[tokio::test]
+async fn stopping_one_target_while_another_went_out_opens_the_draft_for_the_stopped_one_only() {
+    let mut confirmed = pull_requests();
+    let other: eos_contracts::Recipient = serde_json::from_value(serde_json::json!({"id": "pr2",
+        "kind": "item_place", "channel": "github", "bound": {"fact": "repo", "in": ["acme/game"]}}))
+    .expect("a recipient");
+    confirmed.goes_to.push(other);
+    let held = Held::through(confirmed, mail_like()).await;
+    held.rig.temp.exec(&format!(
+        "UPDATE inbox_items SET payload = json_insert(payload, '$.targets[#]', \
+         json('{{\"recipientId\":\"pr2\",\"place\":{{\"item\":\"github:pr:acme/game#483@abc\"}}}}')) \
+         WHERE id = '{}'",
+        held.item_id
+    ));
+    let rows = held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await.expect("sent");
+    assert_eq!(rows.iter().map(|row| row.target_ref.as_str()).collect::<Vec<_>>(), ["pr", "pr2"]);
+    held.rig.temp.exec(&format!("UPDATE inbox_deliveries SET state = 'sent' WHERE id = '{}'", rows[1].id));
+
+    held.rig.items.stop_delivery(&rows[0].id).await.expect("stopped");
+    let item = held.rig.find(&held.item_id).await;
+    assert_eq!(item.state, ItemState::Open);
+    let again = held.rig.items.send(&held.item_id, item.rev, None, "dashboard", false).await.expect("sent again");
+    assert_eq!(again.iter().map(|row| row.target_ref.as_str()).collect::<Vec<_>>(), ["pr"], "pr2 went out already");
+}
+
+#[tokio::test]
 async fn a_send_its_channel_can_undo_goes_at_once_and_cannot_be_stopped_once_out() {
     let held = Held::new().await;
     let rows = held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await.expect("sent");
