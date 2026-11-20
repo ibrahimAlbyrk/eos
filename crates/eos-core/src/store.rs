@@ -88,7 +88,7 @@ pub use mem_journal::{
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
 pub use pages::PageStore;
-pub use pending::{NewPending, PendingRepo};
+pub use pending::{NewPending, PendingRepo, UserDenial};
 pub use profile::{AvatarThumbnails, UserAvatar, UserAvatarStore, UserProfileStore};
 pub use reactions::{ReactionRepo, StoredReaction};
 pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};

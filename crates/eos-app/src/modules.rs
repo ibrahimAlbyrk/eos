@@ -331,7 +331,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             phone: cx.reach.phone_notify(cx.remote.phone_notify()),
             badge: cx.dock_badge.clone(),
         })),
-        crate::memory::module(cx),
+        crate::memory::module(cx, routines.lookup()),
         pages,
         cx.peer.module(),
         profile,

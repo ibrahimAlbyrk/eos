@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use eos_core::experience::Embedder;
+use eos_core::routine::RunLookup;
 use eos_domain::config::Env;
 use eos_runtime::module::Module;
 
@@ -27,7 +28,7 @@ pub(crate) fn model_dir(resources: Option<&Path>, env: &Env) -> Option<PathBuf> 
     resources.map(|r| r.join(BUNDLED_MODEL)).filter(|dir| dir.is_dir())
 }
 
-pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
+pub(crate) fn module(cx: &Context, runs: Arc<dyn RunLookup>) -> Arc<dyn Module> {
     let embedder = cx.embed_model.clone().map(|dir| -> eos_mod_memory::LoadEmbedder {
         Box::new(move || {
             eos_embed::LocalEmbedder::load(&dir).map(|e| Arc::new(e) as Arc<dyn Embedder>).map_err(|e| e.to_string())
@@ -36,6 +37,9 @@ pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     Arc::new(eos_mod_memory::MemoryModule::new(eos_mod_memory::MemoryParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
+        sleeper: cx.sleeper.clone(),
+        ids: cx.ids.clone(),
+        runs: Some(runs),
         embedder,
         background_model_calls: cx.reach.background_model_calls(),
     }))

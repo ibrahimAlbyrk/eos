@@ -1,8 +1,8 @@
 //! `pending_permissions`.
 
 use eos_core::Error;
-use eos_core::store::{NewPending, PendingRepo};
-use eos_domain::pending::PendingPermission;
+use eos_core::store::{NewPending, PendingRepo, UserDenial};
+use eos_domain::pending::{PendingPermission, SWEPT_AT_START, SWEPT_ON_EXIT};
 use eos_kit_sqlite::rusqlite::{Row, params};
 
 use crate::tx::{SqliteTx, failed};
@@ -73,5 +73,20 @@ impl PendingRepo for SqliteTx<'_> {
 
     fn delete_by_worker(&self, worker_id: &str) -> Result<(), Error> {
         self.exec("DELETE FROM pending_permissions WHERE worker_id = ?1", [worker_id]).map(drop)
+    }
+
+    fn user_denials(&self, worker_id: &str, after: i64, limit: i64) -> Result<Vec<UserDenial>, Error> {
+        self.rows(
+            "SELECT rowid, tool_name FROM pending_permissions \
+             WHERE worker_id = ?1 AND rowid > ?2 AND decision = 'deny' AND COALESCE(reason, '') NOT IN (?3, ?4) \
+             ORDER BY rowid ASC LIMIT ?5",
+            params![worker_id, after, SWEPT_AT_START, SWEPT_ON_EXIT, limit],
+            |row| {
+                let read = || -> eos_kit_sqlite::rusqlite::Result<UserDenial> {
+                    Ok(UserDenial { row: row.get(0)?, tool: row.get(1)? })
+                };
+                read().map_err(failed)
+            },
+        )
     }
 }
