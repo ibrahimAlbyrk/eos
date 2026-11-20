@@ -1,6 +1,7 @@
 //! Answering a delivery problem settles the run: try again queues the send
 //! afresh and wakes the engine, "I sent it myself" finishes the run, "Don't
-//! send" fails its delivery for good.
+//! send" fails its delivery for good. A draft's send Eos quit on for over
+//! an hour follows the same rule.
 
 use std::time::Duration;
 
@@ -16,6 +17,7 @@ use eos_testkit::OutcomeCall;
 
 use crate::delivery::{Sender, failure};
 use crate::rig::pull_requests;
+use crate::send::Held;
 
 impl Sender {
     /// The one open `delivery_problem` item.
@@ -166,4 +168,38 @@ async fn try_again_to_a_recipient_removed_from_the_routine_is_refused_and_sends_
     assert_eq!(sender.rig.find(&item.id).await.state, ItemState::Open, "the problem still waits");
     sender.pass().await;
     assert_eq!(sender.sent(), ["dl-1"], "tried once, never again");
+}
+
+impl Held {
+    /// The draft sent, then Eos closed for two hours before it went out:
+    /// the send failed as an approval too old, and asks the user.
+    async fn sent_before_quit(&self) -> StoredItem {
+        self.rig.items.send(&self.item_id, 1, None, "dashboard", false).await.expect("sent");
+        self.rig.clock.advance(2 * 60 * 60 * 1000);
+        self.deliver().await;
+        let items = self.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+        let problem = items.into_iter().find(|item| item.kind == ItemKind::DeliveryProblem);
+        problem.expect("a problem")
+    }
+}
+
+#[tokio::test]
+async fn a_draft_sent_before_eos_quit_is_sent_now_and_settles_the_run_as_sent() {
+    let held = Held::new().await;
+    let problem = held.sent_before_quit().await;
+    let answer = InboxAnswer::DeliveryProblem { choice: ProblemChoice::Retry, doc: None };
+    held.rig.items.answer(&problem.id, problem.rev, &answer, "dashboard").await.expect("answered");
+    held.deliver().await;
+    let finished = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::SentUnedited };
+    assert_eq!(held.rig.outcomes.calls().last(), Some(&finished));
+}
+
+#[tokio::test]
+async fn dont_send_on_a_draft_sent_before_eos_quit_fails_the_runs_delivery() {
+    let held = Held::new().await;
+    let problem = held.sent_before_quit().await;
+    let answer = InboxAnswer::DeliveryProblem { choice: ProblemChoice::Discard, doc: None };
+    held.rig.items.answer(&problem.id, problem.rev, &answer, "dashboard").await.expect("answered");
+    let failed = OutcomeCall::DeliveryFailed { run_id: "rn-1".into(), reason: "approval_stale".into() };
+    assert_eq!(held.rig.outcomes.calls().last(), Some(&failed));
 }
