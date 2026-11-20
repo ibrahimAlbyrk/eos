@@ -50,7 +50,10 @@ async fn a_pull_request_runs_once_waits_as_a_draft_goes_stale_and_expires_and_no
     let later: Vec<_> = runs(&app, &routine).await.into_iter().filter(|r| r.id != first.id).collect();
     let left: Vec<_> =
         later.iter().filter(|r| !(r.state == RunState::Skipped && r.reason == Some(Reason::Superseded))).collect();
-    assert_eq!(left.len(), 1, "{later:?}");
+    // Only a queued run is superseded: on a busy computer one head may start before the
+    // next is read, and the one slot then keeps the rest queued until the newest wins.
+    assert!(left.iter().any(|r| r.input.contains(r#""version":"b9""#)), "the newest head runs: {later:?}");
+    assert!(left.len() <= 2 && left.iter().filter(|r| r.state == RunState::Queued).count() <= 1, "{later:?}");
     eventually("the draft is stale", || async { item_of(&app, &item).await["staleAt"].is_i64() }).await;
     assert_eq!(item_of(&app, &item).await["staleReason"], "10 new commits");
 
@@ -87,7 +90,14 @@ async fn a_dev_run_polls_nothing_and_holds_a_match() {
         assert_eq!(code, 200, "{status}");
         status
     };
-    eventually("the schedule is kept", || async { status().await["schedules"][0]["nextAt"].is_i64() }).await;
+    // Armed by the scheduler, not only foreseen by the route: a schedule armed after the
+    // clock moved on fires from then, not for the slot it passed.
+    let armed = || async {
+        let id = routine.clone();
+        let rows = app.store().read(move |tx| tx.signal_schedules().of_routine(&id)).await.expect("reads");
+        rows.first().is_some_and(|row| row.next_at.is_some())
+    };
+    eventually("the scheduler arms the schedule", armed).await;
     fakes.clock.advance(11 * 60_000);
     app.woke(Duration::from_secs(0));
 

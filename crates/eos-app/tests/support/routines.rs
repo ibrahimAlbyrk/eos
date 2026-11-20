@@ -14,6 +14,7 @@ use eos_core::agent::{ToolCaller, ToolReply};
 use eos_core::delivery::{ChannelTraits, Idempotency, Undo};
 use eos_core::signals::{PollPage, SignalDraft};
 use eos_core::store::StoredRun;
+use eos_domain::routine::run::{RunState, Station};
 use eos_runtime::http::Method;
 use eos_testkit::agent::Turn;
 use eos_testkit::{FakeChannels, FakeClock, FakeSignalSources, FakeSource, ScriptedRuntime};
@@ -170,9 +171,11 @@ pub async fn call_tool(app: &App, agents: &ScriptedRuntime, worker: &str, tool: 
 
 /// The lead of `run` once it works.
 pub async fn lead(app: &App, agents: &ScriptedRuntime, run_id: &str) -> String {
-    eventually("the lead's session starts", || async {
-        let lead = run(app, run_id).await.lead_id;
-        lead.is_some_and(|lead| agents.started().iter().any(|spec| spec.worker_id == lead))
+    // At work: the lead's session runs and the run left its brief, so a result is taken.
+    eventually("the lead's session starts and the run is at work", || async {
+        let run = run(app, run_id).await;
+        let working = run.state == RunState::Running && run.station == Some(Station::Work);
+        working && run.lead_id.is_some_and(|lead| agents.started().iter().any(|spec| spec.worker_id == lead))
     })
     .await;
     run(app, run_id).await.lead_id.expect("a lead")
