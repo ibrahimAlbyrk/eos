@@ -131,3 +131,40 @@ async fn the_user_s_denials_count_and_the_app_s_own_do_not() {
     assert_eq!(moments[0].cues, r#"[{"kind":"tool","key":"Bash"}]"#);
     assert!(capture.look("w-1", None).await.unwrap().stored.is_empty());
 }
+
+fn transcript_row(id: i64, kind: &str, payload: Value) -> eos_domain::EventRecord {
+    eos_domain::EventRecord {
+        id,
+        worker_id: String::new(),
+        ts: FakeClock::START_MS + id,
+        kind: kind.into(),
+        payload: Some(payload.to_string()),
+    }
+}
+
+#[tokio::test]
+async fn a_code_view_conversation_is_read_after_its_own_cursor() {
+    let temp = TempStore::new();
+    let capture = capture(&temp);
+    let mut rows = vec![
+        transcript_row(1, "user_message", json!({"text": "fix the build"})),
+        transcript_row(
+            2,
+            "agent_event",
+            json!({"type": "message", "role": "assistant", "blocks": [{"type": "text", "text": "Done."}]}),
+        ),
+        transcript_row(3, "user_message", json!({"text": format!("No, that's wrong: {SECRET_WORDS}")})),
+    ];
+    let moments = capture.look_code("c-1", rows.clone()).await.unwrap().stored;
+    assert_eq!(moments.len(), 1);
+    assert_eq!(
+        (moments[0].signal.as_str(), moments[0].source.as_str(), moments[0].worker_id.as_str()),
+        ("says_wrong", "code", "pty:c-1")
+    );
+    assert!(!format!("{moments:?}").contains("swordfish"));
+
+    rows.push(transcript_row(4, "user_message", json!({"text": "thanks"})));
+    assert!(capture.look_code("c-1", rows.clone()).await.unwrap().stored.is_empty(), "rows 1 to 3 are not read again");
+    let cursor = temp.port().read(|tx| tx.mem_cursors().get("pty:c-1")).await.unwrap();
+    assert_eq!(cursor, Some(4));
+}

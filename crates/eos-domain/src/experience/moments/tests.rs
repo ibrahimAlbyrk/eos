@@ -237,3 +237,20 @@ fn probes_and_test_runners_are_known() {
     assert!(!is_test_run("cargo build"));
     assert!((word_similarity("aa bb cc", "bb cc dd") - 0.5).abs() < 1e-9);
 }
+
+#[test]
+fn a_code_view_stop_and_refusal_read_from_the_transcripts_rows() {
+    let call = json!({"type": "message", "role": "assistant", "blocks": [{"type": "tool_call", "callId": "t1", "name": "Bash", "input": {"command": "git push --force"}}]});
+    let refused = json!({"type": "message", "role": "tool", "blocks": [{"type": "tool_result", "callId": "t1", "isError": true, "content": "The user doesn't want to proceed with this tool use. The tool use was rejected"}]});
+    let log = Log::new().user("ship it").at(500, "agent_event", call.clone()).at(500, "agent_event", refused);
+    let moments = scan(&log.rows, &[], &[]);
+    assert_eq!(moments.iter().map(|m| m.signal).collect::<Vec<_>>(), vec![Signal::Denies], "no command failure");
+    assert_eq!(moments[0].cues, vec![Cue { kind: HookKind::Tool, key: "Bash".into() }]);
+
+    let aborted = Log::new().user("go").at(500, "agent_event", call).at(
+        2_000,
+        "agent_event",
+        json!({"type": "turn", "phase": "aborted"}),
+    );
+    assert_eq!(aborted.signals(), vec![Signal::Stops], "a stop while the call runs");
+}

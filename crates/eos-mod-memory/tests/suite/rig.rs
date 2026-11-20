@@ -96,6 +96,7 @@ pub(crate) fn parts(temp: &TempStore, sleeper: Arc<FakeSleeper>, embedder: Optio
         project_keys: Arc::new(Keys),
         profile: Arc::new(Profile(Mutex::new(empty_user_profile()))),
         embedder,
+        code: None,
         background_model_calls: false,
     }
 }

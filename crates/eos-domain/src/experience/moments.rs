@@ -23,6 +23,9 @@ const REPEAT_WITHIN: usize = 3;
 const REPEAT_SIMILARITY: f64 = 0.5;
 /// Failures of one command before its success make a hard-won skill.
 const HARD_WON_FAILURES: usize = 2;
+/// How Claude Code answers a tool call the user refused in a Code-view pane:
+/// the denial is seen only as this text in the call's result.
+const CODE_DENIAL: &str = "The user doesn't want to proceed with this tool use";
 
 /// What the user or the work showed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -335,20 +338,38 @@ impl Walk {
                         }
                         Some("tool_result") => {
                             let is_error = block.get("isError").and_then(Value::as_bool).unwrap_or(false);
+                            let content = block.get("content").and_then(Value::as_str).unwrap_or("");
+                            if is_error && content.starts_with(CODE_DENIAL) {
+                                self.code_denied(row, call_id);
+                            }
                             self.tool_finished(row, call_id, is_error);
                         }
                         _ => {}
                     }
                 }
             }
+            // A Code-view pane's stop, as its transcript records it.
+            Some("turn") if payload.get("phase").and_then(Value::as_str) == Some("aborted") => self.stopped(row),
             _ => {}
         }
     }
 
+    /// The user refused a call in a Code-view pane: a denial, and its failed
+    /// result is no command failure.
+    fn code_denied(&mut self, row: &EventRecord, call_id: &str) {
+        let Some(call) = self.calls.get(call_id) else { return };
+        let (tool, subagent) = (call.tool.clone(), call.subagent);
+        self.denied_tool = Some(tool.clone());
+        self.push(Signal::Denies, row.id, row.id, vec![Cue { kind: HookKind::Tool, key: tool }], subagent);
+    }
+
     fn state(&mut self, row: &EventRecord, payload: &Value) {
-        if payload.get("reason").and_then(Value::as_str) != Some("interrupt") {
-            return;
+        if payload.get("reason").and_then(Value::as_str) == Some("interrupt") {
+            self.stopped(row);
         }
+    }
+
+    fn stopped(&mut self, row: &EventRecord) {
         let tool_running = !self.running.is_empty();
         let soon = self.last_output_at.is_some_and(|at| row.ts - at <= STOP_AFTER_OUTPUT_MS);
         self.running.clear();
