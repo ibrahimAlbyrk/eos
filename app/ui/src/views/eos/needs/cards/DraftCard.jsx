@@ -7,6 +7,7 @@ import { MailEditor } from "../editors/MailEditor.jsx";
 import { ReviewEditor } from "../editors/ReviewEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
 import { DocView, ResultView } from "../results/ResultView.jsx";
+import { SendState } from "../SendState.jsx";
 import { staleLine } from "../words.js";
 
 // How long typing pauses before the edits are kept in the core too.
@@ -68,6 +69,7 @@ export function DraftCard({ detail, values, setValue }) {
   const Editor = EDITORS[original?.kind] ?? TextEditor;
   return (
     <div className={carried ? "eos-draft eos-draft--beside" : "eos-draft"}>
+      <SendState detail={detail} />
       {isStale(detail) && WAITING.has(detail.item.state) && <p className="eos-needs-stale" role="status">{staleLine(detail.item.staleReason)}</p>}
       {edit ? <Editor original={original} doc={edit} onChange={change} /> : <ResultView detail={detail} />}
       {carried && (

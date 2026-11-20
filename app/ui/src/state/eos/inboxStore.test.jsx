@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./transport.js";
 import {
-  _resetInbox, applyInboxChange, byNeedsOrder, ensureInboxLoaded, loadInboxItem, refreshInbox, resyncInbox, useInbox,
+  _resetInbox, applyInboxChange, applyInboxDelivery, byNeedsOrder, ensureInboxLoaded, loadInboxItem, refreshInbox, resyncInbox, useInbox,
 } from "./inboxStore.js";
 import inbox from "../../views/eos/gallery/sample/inbox.json";
 
@@ -125,5 +125,30 @@ describe("resync", () => {
     setEosTransport(t);
     resyncInbox();
     expect(t.get.mock.calls).toEqual([[ROUTES.inbox], [ROUTES.inboxItem(draft.id)]]);
+  });
+});
+
+describe("inbox:delivery", () => {
+  it("moves the send of a draft on screen at once, and reads the draft again once it went out", async () => {
+    setEosTransport(fixtureTransport({ [ROUTES.inboxItem(draft.id)]: detailOf(draft, { deliveries: [{ id: "dl-1", state: "holding", sendAt: 10 }] }) }));
+    await loadInboxItem(draft.id);
+    const t = recording({ [ROUTES.inboxItem(draft.id)]: detailOf(draft, { deliveries: [{ id: "dl-1", state: "sent", undoUntil: 99 }] }) });
+    setEosTransport(t);
+    applyInboxDelivery({ id: "dl-1", itemId: draft.id, runId: "rn-1", state: "holding", sendAt: 20 });
+    applyInboxDelivery({ id: "dl-2", itemId: draft.id, runId: "rn-1", state: "holding", sendAt: 20 });
+    expect(current().details[draft.id].deliveries).toEqual([{ id: "dl-1", state: "holding", sendAt: 20 }, { id: "dl-2", state: "holding", sendAt: 20 }]);
+    expect(t.get).not.toHaveBeenCalled();
+    applyInboxDelivery({ id: "dl-1", itemId: draft.id, runId: "rn-1", state: "sent" });
+    await vi.waitFor(() => expect(current().details[draft.id].deliveries).toEqual([{ id: "dl-1", state: "sent", undoUntil: 99 }]));
+    expect(t.get.mock.calls).toEqual([[ROUTES.inboxItem(draft.id)]]);
+  });
+
+  it("leaves alone a send whose draft is not open here", () => {
+    const t = recording({});
+    setEosTransport(t);
+    applyInboxDelivery({ id: "dl-1", itemId: draft.id, runId: "rn-1", state: "sent" });
+    applyInboxDelivery({ id: "dl-9", runId: "rn-1", state: "sent" });
+    expect(current().details).toEqual({});
+    expect(t.get).not.toHaveBeenCalled();
   });
 });

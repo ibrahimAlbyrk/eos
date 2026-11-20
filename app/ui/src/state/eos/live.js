@@ -5,7 +5,7 @@
 
 import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blueprintStore.js";
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
-import { applyInboxChange, resyncInbox } from "./inboxStore.js";
+import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
 import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
@@ -23,7 +23,7 @@ const HANDLERS = {
   "run:activity": applyRunActivity,
   "signals:change": ignored,
   "inbox:change": applyInboxChange,
-  "inbox:delivery": ignored,
+  "inbox:delivery": applyInboxDelivery,
   "inbox:freedom": ignored,
   "inbox:halt": ignored,
   "memory:change": ignored,
