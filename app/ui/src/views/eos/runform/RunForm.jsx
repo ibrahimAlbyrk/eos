@@ -20,6 +20,13 @@ const OFFLINE_TEXT = "Eos isn't reachable. Try again in a moment.";
 
 const newRequestId = () => crypto.randomUUID();
 
+// Plain Enter in a text field would submit the form the browser's way: only
+// ⌘↵ and the Run button start a run (08, the run form's keys). The item
+// field takes Enter for its highlighted candidate before this sees it.
+export function holdsEnter(e) {
+  return e.key === "Enter" && !e.metaKey && !e.ctrlKey && e.target?.tagName === "INPUT";
+}
+
 // What came back from the last Run: a refusal in words, or the earlier run
 // of the same item with the choice to run again.
 function Outcome({ outcome, routine, details, now, runAgain }) {
@@ -109,6 +116,7 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, again
       className={`eos-runform eos-runform--${layout}`}
       aria-label={`Run ${routine.name}`}
       onSubmit={(e) => { e.preventDefault(); void run(); }}
+      onKeyDown={(e) => { if (holdsEnter(e)) e.preventDefault(); }}
     >
       {layout === "sheet" && (
         <div>
