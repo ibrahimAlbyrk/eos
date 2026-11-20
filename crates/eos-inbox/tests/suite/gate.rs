@@ -1,6 +1,6 @@
 //! The gate over the real store: show-only and trial write nothing, an
 //! unconfirmed target refuses and pauses, caps hold a result as a draft,
-//! Freedom queues deliveries, and a held result is taken back.
+//! automatic sending stays locked, and a held result is taken back.
 
 use std::sync::Arc;
 
@@ -10,10 +10,10 @@ use eos_core::delivery::{ChannelTraits, Idempotency, Undo};
 use eos_core::routine::{GateDecision, GateInput, GateMode, RoutineControl, RunGate};
 use eos_domain::run_scope::Trust;
 use eos_inbox::gate::Gate;
-use eos_testkit::{ControlCall, FakeChannels};
+use eos_testkit::{ControlCall, FakeChannels, TempStore};
 use serde_json::{Value, json};
 
-use crate::rig::Rig;
+use crate::rig::{Rig, pull_requests};
 
 pub(crate) fn review_traits(class: ActionClass) -> ChannelTraits {
     ChannelTraits { class, idempotency: Idempotency::Marker, undo: Undo::Partial, undo_window_ms: 0, max_bytes: 65_536 }
@@ -28,8 +28,8 @@ pub(crate) struct Gated {
 
 impl Gated {
     pub(crate) fn new() -> Self {
-        let rig = Rig::new();
         let channels = FakeChannels::new().with("github", review_traits(ActionClass::Speak));
+        let rig = Rig::with_channels(TempStore::new(), channels.clone(), pull_requests());
         let gate = Arc::new(Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone()));
         let control: Arc<dyn RoutineControl> = rig.control.clone();
         gate.attach(&control);
@@ -187,18 +187,21 @@ async fn a_held_mail_names_each_recipient_readably() {
 }
 
 #[tokio::test]
-async fn freedom_to_send_queues_one_delivery_per_target_and_a_held_draft_can_be_withdrawn() {
+async fn while_automatic_sending_is_locked_a_routine_on_its_own_is_held_as_a_draft() {
     let gated = Gated::new();
-    let decision = gated.apply(input("on_its_own")).await;
-    let GateDecision::Delivering { delivery_ids } = decision else { panic!("not delivering: {decision:?}") };
-    assert_eq!(delivery_ids.len(), 1);
-    let id = delivery_ids[0].clone();
-    let row = gated.rig.temp.port().read(move |tx| tx.inbox_deliveries().find(&id)).await.expect("reads");
-    let row = row.expect("a row");
-    assert_eq!((row.state.as_str(), row.mode.as_str(), row.target_ref.as_str()), ("queued", "auto", "pr"));
-    assert_eq!(row.send_at, Some(gated.rig.clock.now_ms()), "a review can be taken back: no hold");
-    assert!(row.target.contains("github:pr:acme/game#482"));
+    for rung in ["send_then_tell", "on_its_own"] {
+        let item_id = held(&gated.apply(input(rung)).await);
+        let item = gated.rig.find(&item_id).await;
+        let payload: Value = serde_json::from_str(&item.payload).expect("json");
+        assert_eq!((item.kind.as_str(), &payload["rung"]), ("draft", &json!("draft")), "{rung}");
+    }
+    assert_eq!(gated.rows(), 0, "nothing is queued");
+    assert!(gated.channels.sent().is_empty());
+}
 
+#[tokio::test]
+async fn a_held_draft_can_be_withdrawn() {
+    let gated = Gated::new();
     let item_id = held(&gated.apply(input("draft")).await);
     let gate = gated.gate.clone();
     gated.rig.temp.port().write(move |tx, out| gate.withdraw_in(tx, out, "rn-1")).await.expect("withdraws");

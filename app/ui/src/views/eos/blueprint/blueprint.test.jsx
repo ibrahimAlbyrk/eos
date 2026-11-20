@@ -13,6 +13,7 @@ import { applyEosEvent } from "../../../state/eos/live.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { BlueprintCard } from "./BlueprintCard.jsx";
+import { FreedomLadder } from "./FreedomLadder.jsx";
 import { shownVersion } from "./BlueprintEditor.jsx";
 import { HAND_BLUEPRINT } from "./words.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
@@ -279,5 +280,35 @@ describe("a hand edit", () => {
     expect(html).toContain("A newer version of Eos made this blueprint. It can be read here, not changed or run.");
     expect(html).not.toContain('class="eos-bp-value"');
     expect(html).not.toContain("eos-bp-actions");
+  });
+});
+
+describe("the Freedom ladder", () => {
+  const pr = { name: "PR Review", makes: { kind: "github.review" }, goesTo: [{ id: "pr", kind: "item_place", channel: "github" }] };
+  const ladder = (rung, onApply = () => {}) => renderToStaticMarkup(<FreedomLadder blueprint={{ ...pr, freedom: { rung } }} onApply={onApply} />);
+  const rungs = (html) => [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map((m) => ({ label: m[2], attrs: m[1] }));
+
+  it("keeps the two unattended rungs locked with the line that says until when", () => {
+    const html = ladder("draft");
+    const [ask, draft, sendThenTell, onItsOwn] = rungs(html);
+    for (const locked of [sendThenTell, onItsOwn]) {
+      expect(locked.attrs).toContain('aria-disabled="true"');
+      expect(locked.attrs).toContain('tabindex="-1"');
+      expect(locked.attrs).toMatch(/aria-describedby="[^"]+"/);
+    }
+    for (const open of [ask, draft]) {
+      expect(open.attrs).not.toContain("aria-disabled");
+      expect(open.attrs).not.toContain("tabindex");
+    }
+    const describedBy = sendThenTell.attrs.match(/aria-describedby="([^"]+)"/)[1];
+    expect(html).toContain(`<p id="${describedBy}" class="eos-note">After the safety suite passes</p>`);
+  });
+
+  it("shows Draft, I send as what applies to a routine set higher", () => {
+    for (const rung of ["send_then_tell", "on_its_own"]) {
+      const checked = rungs(ladder(rung)).filter((r) => r.attrs.includes('aria-checked="true"'));
+      expect(checked.map((r) => r.label)).toEqual(["Draft, I send"]);
+    }
+    expect(rungs(ladder("ask")).find((r) => r.attrs.includes('aria-checked="true"')).label).toBe("Ask each time");
   });
 });
