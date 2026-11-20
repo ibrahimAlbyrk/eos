@@ -249,3 +249,20 @@ pub trait SignalRunnerRepo {
     fn put(&self, runner: &StoredSignalRunner) -> Result<(), Error>;
     fn find(&self, routine_id: &str) -> Result<Option<StoredSignalRunner>, Error>;
 }
+
+/// Clearing old signals (02 §3 I.44). A signal a run that still exists
+/// took is kept whole.
+pub trait SignalRetentionRepo {
+    /// Clears the facts of up to `limit` signals received before `before`;
+    /// how many.
+    fn clear_facts(&self, before: i64, limit: i64) -> Result<usize, Error>;
+    /// Up to `limit` signals received before `before` that no run took,
+    /// oldest first.
+    fn unrun_before(&self, before: i64, limit: i64) -> Result<Vec<i64>, Error>;
+    /// Deletes these signals and their decisions; how many signals.
+    fn delete(&self, ids: &[i64]) -> Result<usize, Error>;
+    /// How many signals are kept.
+    fn count(&self) -> Result<i64, Error>;
+    /// Deletes up to `limit` sources stopped before `before`; how many.
+    fn delete_stopped_sources(&self, before: i64, limit: i64) -> Result<usize, Error>;
+}

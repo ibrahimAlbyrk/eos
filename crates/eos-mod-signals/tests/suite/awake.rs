@@ -17,7 +17,7 @@ use eos_runtime::module::Module;
 use eos_testkit::FakeWorkHold;
 use serde_json::json;
 
-use crate::rig::{Bench, SavedIntake, routine};
+use crate::rig::{Bench, SavedIntake};
 
 /// Monday 2026-01-05 14:00 UTC; the tests start five minutes later.
 const MONDAY_14: i64 = 1_767_621_600_000;
@@ -49,9 +49,10 @@ async fn started(bench: &Bench, intake: Arc<dyn RunIntake>) -> SignalsModule {
     module
 }
 
-/// Ends the scheduler's sleep and waits for its pass.
+/// Ends the scheduler's sleep, once a pass a poll started is over, and
+/// waits for its pass.
 async fn pass(bench: &Bench) {
-    assert!(bench.sleeper.wake(), "the scheduler sleeps");
+    bench.until(|| bench.sleeper.wake()).await;
     bench.until(|| bench.sleeper.pending().len() == 1).await;
 }
 
@@ -68,7 +69,8 @@ fn add_run(bench: &Bench, id: &str, state: &str) {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_working_runs_take_one_run_hold_dropped_once_both_ended() {
-    let bench = bench(vec![routine("rt-pr", RoutineState::Active, &["opened"], None)]);
+    // No routine reads a source here: a poll's end would start a pass of its own.
+    let bench = bench(vec![]);
     let module = started(&bench, Arc::new(SavedIntake::new(None))).await;
     assert_eq!(live(&bench), (0, 0), "nothing works and no schedule waits");
 

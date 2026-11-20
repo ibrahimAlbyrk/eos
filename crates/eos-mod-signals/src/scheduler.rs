@@ -19,6 +19,7 @@
 //! once. Every pass reads the wall clock again.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use eos_contracts::{RoutineState, Schedule, Trigger};
 use eos_core::os::ZoneRules;
@@ -35,6 +36,7 @@ use tokio::sync::Notify;
 use crate::after::follow_in;
 use crate::awake::{Awake, OFFER_LATE_MS};
 use crate::polls::Polls;
+use crate::retention::{self, SWEEP_EVERY_MS};
 use crate::router::{CLOCK, Router, Routing, error_kind, halted_in, run_in};
 use crate::sources::{SourceSpec, source_in};
 
@@ -57,6 +59,8 @@ pub(crate) struct Scheduler {
     pub(crate) router: Arc<Router>,
     pub(crate) polls: Arc<Polls>,
     pub(crate) awake: Arc<Awake>,
+    /// When old signals were last cleared.
+    pub(crate) swept_at: AtomicI64,
     /// Rings when a pass should run now.
     pub(crate) kick: Arc<Notify>,
 }
@@ -145,6 +149,11 @@ impl Scheduler {
             }
         }
         self.follow(&held).await;
+        let now = self.clock.now_ms();
+        if now - self.swept_at.load(Ordering::SeqCst) >= SWEEP_EVERY_MS {
+            self.swept_at.store(now, Ordering::SeqCst);
+            retention::sweep(&self.store, now).await;
+        }
         self.polls.ensure(&held).await?;
         Ok(earliest(next, self.polls.start_due().await?))
     }

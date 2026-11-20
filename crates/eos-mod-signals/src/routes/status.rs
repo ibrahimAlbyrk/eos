@@ -6,26 +6,21 @@
 use std::sync::Arc;
 
 use eos_contracts::{
-    OpenBatch, RoutineHolder, RoutineNext, RoutineTriggerStatus, Schedule, ScheduleStatus, SignalCounts, SourceStatus,
-    Trigger,
+    OpenBatch, RoutineHolder, RoutineNext, RoutineTriggerStatus, Schedule, ScheduleStatus, SourceStatus, Trigger,
 };
-use eos_core::os::{TimeZone, ZoneRules};
+use eos_core::os::ZoneRules;
 use eos_core::signals::{Holder, Runner};
-use eos_core::store::{SignalTally, StoredSignalSource, Tx};
-use eos_domain::routine::run::RunState;
-use eos_domain::signals::decision::Decision;
+use eos_core::store::StoredSignalSource;
 use eos_domain::signals::key::capability_scope;
 use eos_domain::signals::schedule::next_slot;
-use eos_domain::time::{instant_of, wall_clock};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
 
 use super::Routes;
-use crate::scheduler::LATE_MS;
+use crate::summary::{DAY_MS, counts_in, day_start};
 
 const MINUTE_MS: i64 = 60_000;
-const DAY_MS: i64 = 24 * 60 * MINUTE_MS;
 
 pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
     let routes = routes.clone();
@@ -83,8 +78,8 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
                         schedules,
                         sources,
                         batch,
-                        counts_today: counts(tx, &routine.id, today)?,
-                        counts7d: counts(tx, &routine.id, now - 7 * DAY_MS)?,
+                        counts_today: counts_in(tx, &routine.id, today)?,
+                        counts7d: counts_in(tx, &routine.id, now - 7 * DAY_MS)?,
                     })
                 })
                 .await?;
@@ -192,39 +187,4 @@ fn source_status(row: StoredSignalSource) -> SourceStatus {
         last_signal_at: row.last_signal_at,
         catch_up: row.catch_up_json.as_deref().and_then(|json| serde_json::from_str(json).ok()),
     }
-}
-
-/// When the user's day began.
-fn day_start(zone: &dyn TimeZone, now: i64) -> i64 {
-    let offset_at = |at: i64| zone.offset_minutes_at(at);
-    let wall = wall_clock(now, &offset_at);
-    instant_of(wall - wall.rem_euclid(DAY_MS), &offset_at)
-}
-
-/// The routine's signals decided since `since`, counted as 02 §3 I.45
-/// says, with the slots its schedules missed and fired late.
-fn counts(tx: &dyn Tx, routine_id: &str, since: i64) -> Result<SignalCounts, eos_core::Error> {
-    let slots = tx.signal_routes().slots(routine_id, since, LATE_MS)?;
-    let counts = SignalCounts { missed: slots.missed, late: slots.late, ..SignalCounts::default() };
-    Ok(tx.signal_routes().tally(routine_id, since)?.iter().fold(counts, add))
-}
-
-fn add(mut counts: SignalCounts, tally: &SignalTally) -> SignalCounts {
-    let n = tally.signals;
-    match tally.decision {
-        Decision::Unmatched => counts.ignored += n,
-        Decision::OverLimit | Decision::Undecided | Decision::Unsorted | Decision::Paused | Decision::HeldDev => {
-            counts.held_back += n
-        }
-        _ => match tally.run_state {
-            Some(RunState::WaitingForUser) => {
-                counts.handled += n;
-                counts.waiting += n;
-            }
-            Some(RunState::Delivering | RunState::Done) => counts.handled += n,
-            Some(RunState::Failed) => counts.failed += n,
-            _ => {}
-        },
-    }
-    counts
 }

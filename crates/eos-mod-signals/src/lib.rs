@@ -45,11 +45,13 @@ mod batch;
 mod ingest;
 mod limits;
 mod polls;
+mod retention;
 mod router;
 mod routes;
 mod runner;
 mod scheduler;
 mod sources;
+mod summary;
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -78,6 +80,7 @@ pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
     WAKE_GRACE_MS, WAKE_RETRY_MS,
 };
+pub use retention::{FACTS_KEPT_MS, ROWS_KEPT_MS, ROWS_MAX, SWEEP_EVERY_MS, SWEEP_ROWS};
 pub use runner::SoloRunner;
 pub use scheduler::SCHEDULER_MAX_SLEEP_MS;
 
@@ -202,6 +205,7 @@ impl SignalsModule {
             router: router.clone(),
             polls,
             awake,
+            swept_at: AtomicI64::new(i64::MIN / 2),
             kick,
         });
         Self { parts, router, scheduler, running: Mutex::new(None) }
