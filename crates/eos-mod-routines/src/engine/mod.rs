@@ -381,10 +381,11 @@ pub(crate) async fn stop_supervisor(engine: &Engine) {
     drop(Engine::locked(&engine.halt).take());
     drop(Engine::locked(&engine.handoffs).take());
     drop(Engine::locked(&engine.usage).take());
-    crate::retention::stop(engine).await;
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {
         task.abort();
         let _ = task.await;
     }
+    // After the supervisor: a turn of it still running could start a pass.
+    crate::retention::stop(engine).await;
 }
