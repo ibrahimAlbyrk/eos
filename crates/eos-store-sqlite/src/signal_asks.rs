@@ -9,14 +9,21 @@ use crate::signals::{ROUTE_COLUMNS, route};
 use crate::tx::{SqliteTx, failed};
 
 impl SignalAskRepo for SqliteTx<'_> {
-    fn waiting_asks(&self, reasons: &[&str], limit: i64) -> Result<Vec<StoredSignalRoute>, Error> {
-        let reasons = serde_json::to_string(reasons).map_err(|e| Error::Storage(e.to_string()))?;
+    fn waiting_asks(
+        &self,
+        routine_ids: &[&str],
+        reasons: &[&str],
+        limit: i64,
+    ) -> Result<Vec<StoredSignalRoute>, Error> {
+        let json = |list: &[&str]| serde_json::to_string(list).map_err(|e| Error::Storage(e.to_string()));
         self.rows(
             &format!(
                 "SELECT {ROUTE_COLUMNS} FROM signal_routes WHERE decision = 'undecided' \
-                 AND reason IN (SELECT value FROM json_each(?1)) ORDER BY decided_at, signal_id LIMIT ?2"
+                 AND routine_id IN (SELECT value FROM json_each(?1)) \
+                 AND reason IN (SELECT value FROM json_each(?2)) \
+                 ORDER BY (SELECT key FROM json_each(?2) WHERE value = reason), decided_at, signal_id LIMIT ?3"
             ),
-            params![reasons, limit],
+            params![json(routine_ids)?, json(reasons)?, limit],
             route,
         )
     }

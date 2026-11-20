@@ -269,9 +269,11 @@ pub trait SignalRetentionRepo {
 
 /// The decisions the model's stage of Which takes.
 pub trait SignalAskRepo {
-    /// Up to `limit` decisions `undecided` for one of `reasons`, first
+    /// Up to `limit` decisions of `routine_ids` `undecided` for one of
+    /// `reasons`: by the place of their reason in `reasons`, then first
     /// decided first.
-    fn waiting_asks(&self, reasons: &[&str], limit: i64) -> Result<Vec<StoredSignalRoute>, Error>;
+    fn waiting_asks(&self, routine_ids: &[&str], reasons: &[&str], limit: i64)
+    -> Result<Vec<StoredSignalRoute>, Error>;
     /// How many of the routine's signals went to the model at or after
     /// `since`.
     fn asked_since(&self, routine_id: &str, since: i64) -> Result<i64, Error>;

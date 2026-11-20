@@ -151,3 +151,38 @@ async fn outside_the_installed_app_the_model_is_never_asked() {
     assert!(bench.model.asked().is_empty());
     module.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_past_its_asks_for_the_day_does_not_keep_another_from_the_model() {
+    let mut other = passing();
+    other.id = "rt-b".into();
+    other.version = "rv-rt-b".into();
+    let bench = Bench::new(vec![passing(), other]);
+    bench.model.answer(says(true));
+    // rt-a used its asks today, and a pass's worth of its decisions wait from before.
+    bench.temp.exec(&format!(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < {ASKS_PER_DAY}) \
+         INSERT INTO signal_routes (signal_id, routine_id, routine_version, decision, model_asked, decided_at) \
+         SELECT 1000 + i, 'rt-a', 'rv-rt-a', 'unmatched', 1, 5000 FROM n"
+    ));
+    bench.temp.exec(&format!(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 100) \
+         INSERT INTO signals (id, source_id, key, subject, version, kind, occurred_at, received_at, item_json, state) \
+         SELECT 2000 + i, '{SOURCE_ID}', 'github:pr:acme/game#' || i || '@a', 'github:pr:acme/game#' || i, 'a', \
+         'opened', 1000, 5000, 'null', 'routed' FROM n"
+    ));
+    bench.temp.exec(
+        "INSERT INTO signal_routes (signal_id, routine_id, routine_version, decision, reason, model_asked, decided_at) \
+         SELECT id, 'rt-a', 'rv-rt-a', 'undecided', 'ask', 0, 5000 FROM signals WHERE id > 2000",
+    );
+    let module = started(&bench, true).await;
+    keep(&module, 900, "abc").await;
+    bench
+        .until(|| {
+            bench.sleeper.wake();
+            !bench.model.asked().is_empty()
+        })
+        .await;
+    assert!(bench.model.asked()[0].prompt.contains("github:pr:acme/game#900"), "rt-b's signal is asked about");
+    module.stop().await;
+}
