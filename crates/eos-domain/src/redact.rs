@@ -3,7 +3,13 @@
 //! an opaque run (an API key, a token, a cookie) with a piece of 20 or more
 //! letters and digits mixed, which names (`064_genui_views`, `w-0j0ya9qd`)
 //! and UUIDs never have. The log scrubber cuts them from every line, and the
-//! outbound check holds a result that carries one.
+//! outbound check holds a result that carries one. [`Scrubber`] cuts these
+//! and the rest of what names the user (the home folder, URL queries, e-mail
+//! addresses) from a line.
+
+mod line;
+
+pub use line::Scrubber;
 
 /// What a secret is replaced with.
 pub const REDACTED: &str = "<redacted>";

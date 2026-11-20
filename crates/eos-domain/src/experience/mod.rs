@@ -5,6 +5,7 @@
 //! arguments, and nothing here logs (note text is user data).
 
 pub mod budget;
+pub mod clean;
 pub mod note;
 pub mod rank;
 pub mod render;
