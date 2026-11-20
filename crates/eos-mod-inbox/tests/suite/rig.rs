@@ -6,10 +6,10 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::UserMemory;
 use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
-use eos_core::routine::Confirmed;
+use eos_core::routine::{Confirmed, RoutineControl};
 use eos_core::store::{NewPending, StoredItem};
 use eos_domain::inbox::ItemKind;
-use eos_inbox::{NewItem, Opening, open_in};
+use eos_inbox::{NewItem, Opening, RunQuestionParts, RunQuestions, open_in};
 use eos_mod_inbox::{InboxModule, InboxParts};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
@@ -18,7 +18,7 @@ use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_testkit::relay::FakePhoneNotify;
 use eos_testkit::{
     FakeChannels, FakeClock, FakeConfig, FakeDockBadge, FakeRoutineControl, FakeRunOutcomes, FakeSleeper, FakeTimeZone,
-    SeqIds, TempStore,
+    FakeUser, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -64,6 +64,8 @@ pub(crate) struct Rig {
     pub(crate) control: Arc<FakeRoutineControl>,
     /// The number on the Dock icon.
     pub(crate) badge: Arc<FakeDockBadge>,
+    /// How a run's sessions ask the user.
+    pub(crate) questions: RunQuestions,
     ids: Arc<SeqIds>,
 }
 
@@ -75,13 +77,22 @@ impl Rig {
         let temp = TempStore::on_bus(&kernel.bus);
         let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests()));
         let badge = Arc::new(FakeDockBadge::new());
+        let questions = RunQuestions::new(RunQuestionParts {
+            store: temp.port(),
+            clock: clock.clone(),
+            ids: Arc::new(SeqIds::new()),
+            zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
+            wrapped: Arc::new(FakeUser::default()),
+        });
+        let routines: Arc<dyn RoutineControl> = control.clone();
+        questions.attach(&routines);
         let module = Arc::new(InboxModule::new(InboxParts {
             store: temp.port(),
             clock: clock.clone(),
             bus: kernel.bus.clone(),
             questions: waiting.clone(),
             memories: waiting.clone(),
-            waiters: Arc::default(),
+            waiters: questions.waiters(),
             delivery: eos_inbox::delivery::DeliveryParts {
                 store: temp.port(),
                 clock: clock.clone(),
@@ -101,7 +112,7 @@ impl Rig {
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        Self { runtime, temp, clock, waiting, control, badge, ids: Arc::new(SeqIds::new()) }
+        Self { runtime, temp, clock, waiting, control, badge, questions, ids: Arc::new(SeqIds::new()) }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

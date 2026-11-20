@@ -117,3 +117,31 @@ async fn resume_on_an_alert_names_the_recipients_to_confirm_first_and_leaves_it_
     rig.control.refuse_resume("rt-1", None);
     assert_eq!(rig.ask(Method::Post, &path, Some(body)).await.0, 200);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_question_withdrawn_with_its_routine_wakes_its_asker() {
+    use eos_core::agent::UserQuestions;
+
+    let rig = Rig::new().await;
+    rig.run_worker("w-run");
+    let (questions, asked) = (
+        rig.questions.clone(),
+        json!({"question": "Which branch?", "header": "Branch", "multiSelect": false, "options": [{"label": "main"}]}),
+    );
+    let asked = vec![serde_json::from_value(asked).expect("a question")];
+    let asker = tokio::spawn(async move { questions.ask("w-run", None, asked).await });
+    let mut opened = Vec::new();
+    for _ in 0..200 {
+        opened = rig.temp.port().read(|tx| tx.inbox_items().waiting_of_routine("rt-1")).await.expect("reads");
+        if !opened.is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(opened.len(), 1, "the question waits in Needs you");
+
+    rig.temp.port().write(|tx, out| eos_inbox::withdraw_routine_in(tx, out, 2_000_000, "rt-1")).await.expect("writes");
+    let heard = tokio::time::timeout(std::time::Duration::from_secs(5), asker).await.expect("woken").expect("ends");
+    let heard = heard.expect("an answer");
+    assert_eq!(heard.get("Which branch?"), Some(&json!(eos_inbox::WITHDRAWN)));
+}

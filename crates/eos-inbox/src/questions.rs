@@ -6,13 +6,16 @@
 //! An asker that stops waiting (its turn was interrupted) takes its item
 //! back, except while the app shuts down: then the item stays open, and an
 //! answer given after the restart waits, unconsumed, for the routines to act
-//! on, since no asker is left to hear it.
+//! on, since no asker is left to hear it. An item that ends without an
+//! answer some other way (withdrawn with its routine, expired with its
+//! subject, replaced) wakes its asker with [`WITHDRAWN`] as the answer to
+//! each question ([`QuestionWaiters::closed`]).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use eos_contracts::{InboxAnswer, Question, UnknownRecord};
+use eos_contracts::{InboxAnswer, InboxChange, Question, UnknownRecord};
 use eos_core::agent::UserQuestions;
 use eos_core::os::TimeZone;
 use eos_core::routine::RoutineControl;
@@ -33,10 +36,21 @@ pub(crate) const QUESTION_PRODUCER: &str = "routines";
 /// question away.
 type Answers = Option<UnknownRecord>;
 
+/// What a parked asker hears.
+enum Heard {
+    Answered(Answers),
+    /// The item ended without an answer.
+    Withdrawn,
+}
+
+/// What an asker whose question was taken away hears as its answer.
+pub const WITHDRAWN: &str =
+    "This question was withdrawn before the user answered it. Go on without its answer, or stop if you cannot.";
+
 /// The askers waiting on their items, by item id. The answer and discard of
 /// an item wake its asker after their job committed.
 #[derive(Default)]
-pub struct QuestionWaiters(Mutex<HashMap<String, oneshot::Sender<Answers>>>);
+pub struct QuestionWaiters(Mutex<HashMap<String, oneshot::Sender<Heard>>>);
 
 impl std::fmt::Debug for QuestionWaiters {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -45,11 +59,11 @@ impl std::fmt::Debug for QuestionWaiters {
 }
 
 impl QuestionWaiters {
-    fn locked(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<Answers>>> {
+    fn locked(&self) -> MutexGuard<'_, HashMap<String, oneshot::Sender<Heard>>> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn park(&self, item_id: &str) -> oneshot::Receiver<Answers> {
+    fn park(&self, item_id: &str) -> oneshot::Receiver<Heard> {
         let (waiter, heard) = oneshot::channel();
         self.locked().insert(item_id.to_owned(), waiter);
         heard
@@ -71,7 +85,21 @@ impl QuestionWaiters {
             return;
         }
         if let Some(waiter) = self.locked().remove(&item.id) {
-            let _ = waiter.send(answers_of(item));
+            let _ = waiter.send(Heard::Answered(answers_of(item)));
+        }
+    }
+
+    /// Wakes the asker of a question item that ended without an answer, as
+    /// `inbox:change` announced it (`withdrawn`, `expired` or `replaced`).
+    /// An asker that took its own item back no longer waits.
+    pub fn closed(&self, change: &InboxChange) {
+        let ended = matches!(change.state.as_str(), "withdrawn" | "expired" | "replaced");
+        if change.kind != ItemKind::Question.as_str() || !ended {
+            return;
+        }
+        if let Some(waiter) = self.locked().remove(&change.id) {
+            tracing::info!(item_id = %change.id, state = %change.state, "a waiting asker's question ended unanswered");
+            let _ = waiter.send(Heard::Withdrawn);
         }
     }
 }
@@ -82,6 +110,11 @@ fn answers_of(item: &StoredItem) -> Answers {
     let answer = serde_json::from_str::<InboxAnswer>(item.answer.as_deref()?).ok()?;
     let InboxAnswer::Question { answers } = answer else { return None };
     Some(answers.into_iter().map(|(question, answer)| (question, Value::String(answer))).collect())
+}
+
+/// Each question answered with [`WITHDRAWN`].
+fn withdrawn(questions: &[Question]) -> UnknownRecord {
+    questions.iter().map(|q| (q.question.clone(), Value::String(WITHDRAWN.to_owned()))).collect()
 }
 
 /// What a question item carries: `{questions: [{question, options?: [{label}]}]}`.
@@ -193,11 +226,16 @@ impl RunQuestions {
             .await
     }
 
-    /// The item's answer if it came before its asker was parked.
-    async fn answered(&self, item_id: &str) -> Result<Option<Answers>, eos_core::Error> {
+    /// What the asker hears if the item was answered or ended before its
+    /// asker was parked.
+    async fn settled(&self, item_id: &str) -> Result<Option<Heard>, eos_core::Error> {
         let id = item_id.to_owned();
         let item = self.0.parts.store.read(move |tx| tx.inbox_items().find(&id)).await?;
-        Ok(item.filter(|item| item.state == ItemState::Answered).map(|item| answers_of(&item)))
+        Ok(item.and_then(|item| match item.state {
+            ItemState::Answered => Some(Heard::Answered(answers_of(&item))),
+            ItemState::Withdrawn | ItemState::Expired | ItemState::Replaced => Some(Heard::Withdrawn),
+            _ => None,
+        }))
     }
 
     /// The asker heard the answer: the routines need not act on it.
@@ -286,21 +324,27 @@ impl UserQuestions for RunQuestions {
             };
             let heard = self.0.waiters.park(&item_id);
             let mut guard = Withdraw { questions: self.clone(), item_id: item_id.clone(), armed: true };
-            let answers = match self.answered(&item_id).await {
-                Ok(Some(answers)) => {
+            let heard = match self.settled(&item_id).await {
+                Ok(Some(settled)) => {
                     self.0.waiters.forget(&item_id);
-                    answers
+                    Some(settled)
                 }
                 // No time limit: the user may answer days later.
-                Ok(None) => heard.await.ok().flatten(),
+                Ok(None) => heard.await.ok(),
                 Err(error) => {
                     tracing::warn!(item_id, %error, "a run's question could not be read");
-                    heard.await.ok().flatten()
+                    heard.await.ok()
                 }
             };
             guard.armed = false;
-            self.consume(&item_id).await;
-            answers
+            match heard {
+                Some(Heard::Answered(answers)) => {
+                    self.consume(&item_id).await;
+                    answers
+                }
+                Some(Heard::Withdrawn) => Some(withdrawn(parsed.as_deref().unwrap_or_default())),
+                None => None,
+            }
         })
     }
 }

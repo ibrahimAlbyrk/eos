@@ -1,11 +1,12 @@
 //! A run worker's questions wait in Needs you and their answer reaches the
 //! asker; a chat's take the path they always took; an interrupted asker
-//! takes its item back, except while the app shuts down.
+//! takes its item back, except while the app shuts down; one taken away by
+//! anything else wakes its asker.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use eos_contracts::{InboxAnswer, UnknownRecord};
+use eos_contracts::{InboxAnswer, InboxChange, UnknownRecord};
 use eos_core::agent::UserQuestions;
 use eos_core::routine::RoutineControl;
 use eos_core::store::StoredItem;
@@ -155,4 +156,28 @@ async fn at_shutdown_the_question_stays_and_its_later_answer_waits_for_the_routi
     asking.rig.items.answer(&item.id, item.rev, &choose("main"), "dashboard").await.expect("answers");
     let handed = asking.rig.items.unconsumed("routines").await.expect("reads");
     assert_eq!(handed.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(), [item.id.as_str()]);
+}
+
+#[tokio::test]
+async fn a_question_withdrawn_by_anything_but_its_asker_wakes_the_asker() {
+    let asking = Asking::new().with_run();
+    let asker = asking.ask("w-run");
+    let item = asking.item().await;
+    asking
+        .rig
+        .temp
+        .port()
+        .write(|tx, out| eos_inbox::withdraw_routine_in(tx, out, 2_000_000, "rt-1"))
+        .await
+        .expect("withdraws");
+    // What the module does with every `inbox:change` it hears.
+    let waiters = asking.questions.waiters();
+    for (topic, payload) in asking.rig.temp.announced.list() {
+        if topic == "inbox:change" {
+            waiters.closed(&serde_json::from_str::<InboxChange>(&payload).expect("a change"));
+        }
+    }
+    let heard = asker.await.expect("the asker ends").expect("an answer");
+    assert_eq!(heard.get("Which branch?"), Some(&Value::String(eos_inbox::WITHDRAWN.into())));
+    assert_eq!(asking.rig.find(&item.id).await.state, ItemState::Withdrawn, "not answered");
 }
