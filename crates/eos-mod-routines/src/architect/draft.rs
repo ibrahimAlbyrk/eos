@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use super::{NO_ARCHITECT, say, suspend};
 use crate::engine::{Engine, NEWER_FORMAT, announce_routine, blocks, check_in, live, row};
-use crate::routes::{readable, run_summary};
+use crate::routes::{readable, run_summaries};
 
 /// How many of a routine's runs are read for its draft's trial runs.
 const RECENT_RUNS: i64 = 50;
@@ -65,13 +65,13 @@ pub(crate) async fn view(engine: &Engine, routine_id: &str) -> Result<DraftView,
             let draft_json = stored_json(tx, &id, draft.draft_version_id.as_deref())?;
             let head_json = stored_json(tx, &id, head.as_deref())?;
             let trial_runs = match &draft.draft_version_id {
-                Some(version_id) => tx
-                    .runs()
-                    .by_routine(&id, RECENT_RUNS)?
-                    .iter()
-                    .filter(|run| run.kind == "trial" && run.version_id.as_ref() == Some(version_id))
-                    .map(run_summary)
-                    .collect(),
+                Some(version_id) => run_summaries(
+                    tx,
+                    tx.runs()
+                        .by_routine(&id, RECENT_RUNS)?
+                        .iter()
+                        .filter(|run| run.kind == "trial" && run.version_id.as_ref() == Some(version_id)),
+                )?,
                 None => Vec::new(),
             };
             let (question, choices) = match draft.question.as_deref().map(question_of) {

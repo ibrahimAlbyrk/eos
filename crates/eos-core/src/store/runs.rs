@@ -165,9 +165,12 @@ pub trait RunRepo {
     /// A routine's runs of one item, newest first.
     fn by_item(&self, routine_id: &str, item_key: &str) -> Result<Vec<StoredRun>, Error>;
     /// Runs whose agents work (running, checking, delivering), and runs
-    /// that wait on the user (waiting for the user): what `runs:active`
-    /// says.
+    /// that wait on the user (as [`RunRepo::waiting_on_user`]): what
+    /// `runs:active` says.
     fn active(&self) -> Result<(i64, i64), Error>;
+    /// The ids of runs that wait on the user: waiting for the user, or
+    /// queued on their open `run_start` item.
+    fn waiting_on_user(&self) -> Result<Vec<String>, Error>;
     /// Every routine's queued runs.
     fn queued_count(&self) -> Result<i64, Error>;
     /// What a routine's runs made at or after `since` cost.

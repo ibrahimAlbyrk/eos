@@ -13,7 +13,7 @@ use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use serde_json::json;
 
-use super::{newer_format, param, run_summary};
+use super::{newer_format, param, run_summaries};
 use crate::engine::{self, Engine};
 
 /// The largest start body: up to twenty items of 64 KiB text each.
@@ -105,9 +105,11 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
             };
             let before = number("before")?;
             let limit = number("limit")?.unwrap_or(PAGE_DEFAULT).clamp(1, PAGE_MAX);
-            let runs = store.read(move |tx| tx.runs().page(routine.as_deref(), state, before, limit)).await?;
+            let runs = store
+                .read(move |tx| run_summaries(tx, &tx.runs().page(routine.as_deref(), state, before, limit)?))
+                .await?;
             let next_before = (runs.len() as i64 == limit).then(|| runs.last().map(|run| run.created_at)).flatten();
-            Ok(Response::json(200, &RunPage { runs: runs.iter().map(run_summary).collect(), next_before }))
+            Ok(Response::json(200, &RunPage { runs, next_before }))
         }
     });
 

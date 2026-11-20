@@ -13,7 +13,7 @@ use eos_runtime::router::RouteDef;
 use serde_json::Value;
 
 use super::estimate::usual_of;
-use super::{param, readable, run_summary};
+use super::{param, readable, run_summaries};
 use crate::engine::Engine;
 
 pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
@@ -99,7 +99,8 @@ fn run_detail(tx: &dyn Tx, id: &str, last_activity: Option<String>) -> Result<Ru
         None => None,
     };
     let events = tx.runs().events(id)?.into_iter().map(event).collect();
-    Ok(RunDetail { run: run_summary(&run), input, attempt: run.attempt, agents, verdict, usual, events })
+    let summary = run_summaries(tx, [&run])?.remove(0);
+    Ok(RunDetail { run: summary, input, attempt: run.attempt, agents, verdict, usual, events })
 }
 
 fn verdict(result: &StoredRunResult) -> Option<CheckVerdict> {

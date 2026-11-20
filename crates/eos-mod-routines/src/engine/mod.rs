@@ -330,6 +330,23 @@ pub(crate) fn announce(out: &mut Outbox, run_id: &str, routine_id: &str, change:
     out.push(RUN_CHANGE.name(), &payload);
 }
 
+/// Announces that a run which did not move began or stopped waiting on the
+/// user, and what `runs:active` says after it.
+pub(crate) fn announce_waiting(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, needs_user: bool) -> Result<(), Error> {
+    let payload = RunChange {
+        run_id: run.id.clone(),
+        routine_id: run.routine_id.clone(),
+        state: run.state.as_str().to_owned(),
+        station: run.station.map(|station| station.as_str().to_owned()),
+        reason: run.reason.map(|reason| reason.as_str().to_owned()),
+        needs_user: Some(needs_user),
+    };
+    out.push(RUN_CHANGE.name(), &payload);
+    let (count, needs_user) = tx.runs().active()?;
+    out.push(RUNS_ACTIVE.name(), &RunsActive { count, needs_user });
+    Ok(())
+}
+
 /// The engine as the port the other areas start runs through.
 pub(crate) struct Runs(pub(crate) Arc<Engine>);
 
