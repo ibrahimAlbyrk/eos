@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use eos_core::Clock;
+use eos_core::routine::Confirmed;
 use eos_core::store::StoredItem;
 use eos_domain::inbox::ItemKind;
 use eos_inbox::{Items, ItemsParts, NewItem, Opening, QuestionWaiters, open_in};
@@ -27,25 +28,26 @@ impl Rig {
 
     /// Over a store that already exists: the app after a restart.
     pub(crate) fn on(temp: TempStore) -> Self {
-        Self::build(temp, FakeChannels::new(), Arc::default())
+        Self::build(temp, FakeChannels::new(), Arc::default(), pull_requests())
     }
 
-    /// Over `temp`, sending drafts through `channels`.
-    pub(crate) fn with_channels(temp: TempStore, channels: FakeChannels) -> Self {
-        Self::build(temp, channels, Arc::default())
+    /// Over `temp`, sending drafts through `channels`, to what the user
+    /// confirmed of `rt-1`.
+    pub(crate) fn with_channels(temp: TempStore, channels: FakeChannels, confirmed: Confirmed) -> Self {
+        Self::build(temp, channels, Arc::default(), confirmed)
     }
 
     /// Over `temp`, waking the run askers `waiters` holds.
     pub(crate) fn with_waiters(temp: TempStore, waiters: Arc<QuestionWaiters>) -> Self {
-        Self::build(temp, FakeChannels::new(), waiters)
+        Self::build(temp, FakeChannels::new(), waiters, pull_requests())
     }
 
-    fn build(temp: TempStore, channels: FakeChannels, waiters: Arc<QuestionWaiters>) -> Self {
+    fn build(temp: TempStore, channels: FakeChannels, waiters: Arc<QuestionWaiters>, confirmed: Confirmed) -> Self {
         let clock = Arc::new(FakeClock::at(1_000_000));
         let ids = Arc::new(SeqIds::new());
         let outcomes = Arc::new(FakeRunOutcomes::new());
         let wake = Arc::new(tokio::sync::Notify::new());
-        let control = Arc::new(FakeRoutineControl::new());
+        let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", confirmed));
         let items = Items::new(ItemsParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -87,6 +89,12 @@ impl Rig {
         let found = self.temp.port().read(move |tx| tx.inbox_items().find(&id)).await.expect("reads");
         found.expect("the item")
     }
+}
+
+/// What the user confirmed of routine `rt-1`: a review on its pull request.
+pub(crate) fn pull_requests() -> Confirmed {
+    let freedom = serde_json::from_value(json!({"rung": "draft"})).expect("a freedom");
+    Confirmed { freedom, goes_to: vec![crate::gate::pull_request()] }
 }
 
 /// An item of `kind` for routine `rt-1` about `subject`.

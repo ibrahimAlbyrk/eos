@@ -104,7 +104,7 @@ pub struct ItemsParts {
     pub channels: Arc<dyn Channels>,
     /// Hears what became of each run's result.
     pub outcomes: Arc<dyn RunOutcomes>,
-    /// Resumes a routine from its alert.
+    /// Resumes a routine from its alert, and tells where a draft may still go.
     pub control: Arc<dyn RoutineControl>,
     /// Poked once a send was queued ([`Gate::waker`](crate::gate::Gate::waker)).
     pub wake: Arc<Notify>,
@@ -127,7 +127,7 @@ pub struct Items {
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) channels: Arc<dyn Channels>,
     pub(crate) outcomes: Arc<dyn RunOutcomes>,
-    control: Arc<dyn RoutineControl>,
+    pub(crate) control: Arc<dyn RoutineControl>,
     pub(crate) wake: Arc<Notify>,
     waiters: Arc<QuestionWaiters>,
 }

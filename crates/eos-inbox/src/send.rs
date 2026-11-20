@@ -4,11 +4,13 @@
 //! is delivering. The delivery engine is poked once the job committed.
 //!
 //! The targets are the ones the gate checked when it held the result; for a
-//! mail, those whose recipient part the user kept.
+//! mail, those whose recipient part the user kept. Each must still be in the
+//! routine's confirmed Goes to when it is sent (03 G22).
 
-use eos_contracts::{ActionClass, ResultDoc};
-use eos_core::delivery::{ChannelTraits, Idempotency, Target, Undo};
-use eos_core::store::{ItemAnswer, StoredDelivery};
+use eos_contracts::{ActionClass, Recipient, RecipientKind, ResultDoc};
+use eos_core::delivery::{ChannelTraits, Idempotency, Place, Target, Undo};
+use eos_core::routine::RoutineControl;
+use eos_core::store::{ItemAnswer, StoredDelivery, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::result_doc::{MAIL, recipient_key};
 use eos_domain::routine::run::RunState;
@@ -47,6 +49,38 @@ fn targets(payload: &Value, doc: &ResultDoc) -> Vec<Target> {
     held.filter(kept).collect()
 }
 
+/// Whether `target` is still one of the recipients in `goes_to`, at the same place.
+fn still_goes_to(goes_to: &[Recipient], target: &Target) -> bool {
+    goes_to.iter().filter(|recipient| recipient.id == target.recipient_id).any(|recipient| {
+        match (&recipient.kind, &target.place) {
+            (RecipientKind::Me { .. }, Place::Me) | (RecipientKind::ItemPlace { .. }, Place::Item(_)) => true,
+            (RecipientKind::Fixed { address, .. }, Place::Address(to)) => address == to,
+            _ => false,
+        }
+    })
+}
+
+/// A target the routine's confirmed Goes to no longer has, refused by name.
+fn gone_in(
+    tx: &dyn Tx,
+    control: &dyn RoutineControl,
+    routine_id: &str,
+    targets: &[Target],
+) -> Result<(), eos_core::Error> {
+    let goes_to = match control.confirmed_in(tx, routine_id) {
+        Ok(confirmed) => confirmed.goes_to,
+        Err(eos_core::Error::NotFound { .. }) => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    let Some(gone) = targets.iter().find(|target| !still_goes_to(&goes_to, target)) else { return Ok(()) };
+    let name = match &gone.place {
+        Place::Me => "you",
+        Place::Address(address) => address.as_str(),
+        Place::Item(key) => key.as_str(),
+    };
+    Err(eos_core::Error::Conflict(format!("This recipient was removed from the routine: {name}. Nothing was sent.")))
+}
+
 impl Items {
     /// Sends the draft as it was at `rev`: as the user edited it in `doc`,
     /// else as last saved, else as held. `by` is who sent it. Answers one
@@ -60,8 +94,8 @@ impl Items {
     ) -> Result<Vec<StoredDelivery>, Error> {
         let now = self.clock.now_ms();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(SENT.to_owned()), at: now };
-        let (id, ids, channels, outcomes) =
-            (id.to_owned(), self.ids.clone(), self.channels.clone(), self.outcomes.clone());
+        let (id, ids, channels, outcomes, control) =
+            (id.to_owned(), self.ids.clone(), self.channels.clone(), self.outcomes.clone(), self.control.clone());
         let rows = self
             .store
             .write(move |tx, out| -> Result<Result<Vec<StoredDelivery>, Error>, eos_core::Error> {
@@ -85,6 +119,7 @@ impl Items {
                 if targets.is_empty() {
                     return Err(invalid("the draft goes to nobody"));
                 }
+                gone_in(tx, control.as_ref(), &routine_id, &targets)?;
                 let item = match answer_in(tx, out, &id, rev, &answer)? {
                     Ok(item) => item,
                     Err(refused) => return Ok(Err(refused)),

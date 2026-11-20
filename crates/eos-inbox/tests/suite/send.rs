@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use eos_contracts::{ActionClass, Part, ResultDoc};
 use eos_core::Clock;
-use eos_core::routine::{GateDecision, RoutineControl, RunGate};
+use eos_core::routine::{Confirmed, GateDecision, RoutineControl, RunGate};
 use eos_core::store::{StoredEdit, StoredOutcome};
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
@@ -17,7 +17,7 @@ use eos_testkit::{FakeChannels, FakeSleeper, OutcomeCall, TempStore};
 use serde_json::{Value, json};
 
 use crate::gate::{input, review_traits};
-use crate::rig::Rig;
+use crate::rig::{Rig, pull_requests};
 
 struct Held {
     rig: Rig,
@@ -42,8 +42,13 @@ fn commented() -> ResultDoc {
 impl Held {
     /// Run `rn-1`'s review, held as a draft at rung Draft; the run waits on it.
     async fn new() -> Self {
+        Self::confirming(pull_requests()).await
+    }
+
+    /// As [`Held::new`], what the user confirmed of `rt-1` by the time of the send `confirmed`.
+    async fn confirming(confirmed: Confirmed) -> Self {
         let channels = FakeChannels::new().with("github", review_traits(ActionClass::Speak));
-        let rig = Rig::with_channels(TempStore::new(), channels.clone());
+        let rig = Rig::with_channels(TempStore::new(), channels.clone(), confirmed);
         let gate = Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone());
         let control: Arc<dyn RoutineControl> = rig.control.clone();
         gate.attach(&control);
@@ -159,6 +164,27 @@ async fn a_removed_comment_is_an_edit_and_the_run_finishes_sent_edited() {
     use eos_core::inbox::ResultEdits;
     let read = eos_inbox::Edits::new(held.rig.temp.port()).list_since(0, 10).await.expect("reads");
     assert_eq!((read.len(), read[0].after.parts.len()), (1, 3));
+}
+
+#[tokio::test]
+async fn a_send_to_a_recipient_removed_from_the_routine_is_refused_by_name_and_writes_nothing() {
+    let removed = Confirmed { goes_to: Vec::new(), ..pull_requests() };
+    let held = Held::confirming(removed).await;
+    match held.rig.items.send(&held.item_id, 1, None, "dashboard").await {
+        Err(Error::Core(eos_core::Error::Conflict(reason))) => assert_eq!(
+            reason,
+            "This recipient was removed from the routine: github:pr:acme/game#482. Nothing was sent."
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(held.rig.temp.count("SELECT COUNT(*) FROM inbox_deliveries"), 0);
+    assert_eq!(held.rig.temp.count("SELECT COUNT(*) FROM inbox_edits"), 0);
+    let item = held.rig.find(&held.item_id).await;
+    assert_eq!((item.state, item.rev, item.consumed_at), (ItemState::Open, 1, None));
+    assert!(
+        held.rig.outcomes.calls().iter().all(|call| matches!(call, OutcomeCall::Held { .. })),
+        "the run hears nothing"
+    );
 }
 
 #[tokio::test]
