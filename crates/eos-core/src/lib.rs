@@ -36,6 +36,7 @@ pub mod capability;
 pub mod clock;
 pub mod delivery;
 pub mod error;
+pub mod experience;
 pub mod genui;
 pub mod git;
 pub mod ids;
