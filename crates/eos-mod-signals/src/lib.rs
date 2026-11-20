@@ -112,6 +112,7 @@ impl SignalsModule {
             ids: parts.ids.clone(),
             zone: parts.zone.clone(),
             control: parts.control.clone(),
+            failed: Mutex::default(),
         });
         Self { parts, router, routing: Mutex::new(None), backed_up: AtomicBool::new(false) }
     }

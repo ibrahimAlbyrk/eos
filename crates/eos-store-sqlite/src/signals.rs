@@ -264,10 +264,10 @@ impl SignalRepo for SqliteTx<'_> {
         self.row(&format!("SELECT {SIGNAL_COLUMNS} FROM signals WHERE id = ?1"), [id], signal)
     }
 
-    fn received(&self, limit: i64) -> Result<Vec<StoredSignal>, Error> {
+    fn received(&self, after: i64, limit: i64) -> Result<Vec<StoredSignal>, Error> {
         self.rows(
-            &format!("SELECT {SIGNAL_COLUMNS} FROM signals WHERE state = ?1 ORDER BY id LIMIT ?2"),
-            params![RECEIVED, limit],
+            &format!("SELECT {SIGNAL_COLUMNS} FROM signals WHERE state = ?1 AND id > ?2 ORDER BY id LIMIT ?3"),
+            params![RECEIVED, after, limit],
             signal,
         )
     }

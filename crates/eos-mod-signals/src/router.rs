@@ -15,7 +15,8 @@
 //! over-limit notice commit together. Each pass ends by closing the batches
 //! that came due.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{
     Facts, ItemRef, ResultMode, RoutineState, RunInput, RunTrigger, SignalChange, SignalChangeWhat, Trigger,
@@ -37,8 +38,28 @@ use crate::SIGNALS_CHANGE;
 use crate::batch;
 use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
 
+/// The kind of a schedule's slot, as signal and source.
+pub(crate) const CLOCK: &str = "clock";
+
 /// The signals one read takes to route.
 const BATCH: i64 = 100;
+/// A signal whose write failed is tried again at most this often.
+const RETRY_MS: i64 = 60_000;
+
+/// What kind of failure an error is, for the log: its text may name the
+/// user's things.
+fn error_kind(error: &Error) -> &'static str {
+    match error {
+        Error::NotFound { .. } => "not_found",
+        Error::Conflict(_) => "conflict",
+        Error::Validation(_) => "validation",
+        Error::PermissionDenied(_) => "permission_denied",
+        Error::LimitExceeded(_) => "limit_exceeded",
+        Error::Unreachable(_) => "unreachable",
+        Error::Rule(_) => "rule",
+        Error::Storage(_) => "storage",
+    }
+}
 
 /// Keeps a page inside a write job: its new signals as `received`, the
 /// source's cursor as the page gave it. Answers how many were new.
@@ -84,6 +105,17 @@ fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str) -> 
     })
 }
 
+/// What started a run of `signal`: a schedule's slot names the slot and how
+/// late it fired.
+fn trigger(signal: &StoredSignal) -> RunTrigger {
+    let slot = (signal.signal.kind == CLOCK).then_some(signal.signal.occurred_at);
+    RunTrigger {
+        signal_id: signal.id.to_string(),
+        slot_at: slot,
+        late_by_ms: slot.map(|slot| signal.signal.received_at - slot),
+    }
+}
+
 /// Admits one run of `routine` for `signal` when the routine's limits let
 /// it, then supersedes the subject's `stale` runs: the decision, with its
 /// reason and run. A refused admission leaves the waiting run to run.
@@ -102,7 +134,7 @@ pub(crate) fn run_in(
     let input = RunInput {
         item: serde_json::from_str::<ItemRef>(&signal.signal.item_json).ok(),
         items: None,
-        trigger: Some(RunTrigger { signal_id: signal.id.to_string(), slot_at: None, late_by_ms: None }),
+        trigger: Some(trigger(signal)),
         options: Default::default(),
         note: None,
         result: ResultMode::Usual,
@@ -137,10 +169,13 @@ pub(crate) struct Router {
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) zone: Arc<dyn TimeZone>,
     pub(crate) control: Arc<dyn RoutineControl>,
+    /// When each signal whose write failed last failed: a cache, so a
+    /// restart tries them all again at once.
+    pub(crate) failed: Mutex<HashMap<i64, i64>>,
 }
 
 /// What one signal's routing needs inside its write.
-struct Routing {
+pub(crate) struct Routing {
     runner: Arc<dyn Runner>,
     intake: Arc<dyn RunIntake>,
     autostart: bool,
@@ -195,67 +230,111 @@ impl Routing {
             .iter()
             .filter(|routine| source.as_ref().is_some_and(|source| takes(routine, source, &signal.signal.kind)))
             .filter(held);
-        let source_id = Some(signal.signal.source_id.clone());
         for routine in takers {
-            let (decision, reason, run_id) = self.decide(tx, out, routine, &signal, &facts)?;
-            tx.signal_routes().insert(&StoredSignalRoute {
-                signal_id: id,
-                routine_id: routine.id.clone(),
-                routine_version: routine.version.clone(),
-                decision,
-                reason,
-                run_id,
-                model_asked: false,
-                decided_at: self.now,
-            })?;
-            tracing::info!(signal_id = id, routine_id = %routine.id, decision = decision.as_str(), "a signal was decided");
-            match decision {
-                Decision::Batched => {
-                    batch::close_in(tx, out, self.intake.as_ref(), routine, self.now)?;
-                }
-                Decision::OverLimit => {
-                    let at = Opening {
-                        now: self.now,
-                        ids: self.ids.as_ref(),
-                        zone: self.zone.as_ref(),
-                        control: self.control.as_ref(),
-                    };
-                    notice_over_limit_in(tx, out, &at, &routine.id)?;
-                }
-                _ => {}
-            }
-            let change = SignalChange {
-                routine_id: Some(routine.id.clone()),
-                source_id: source_id.clone(),
-                what: SignalChangeWhat::Routed,
-            };
-            out.push(SIGNALS_CHANGE.name(), &change);
+            let decided = self.decide(tx, out, routine, &signal, &facts)?;
+            self.record_in(tx, out, routine, &signal, decided)?;
         }
         tx.signals().mark_routed(id)
+    }
+
+    /// Keeps the routine's decision on the signal, with what it brings: the
+    /// batch closed when full, the day's over-limit notice, and
+    /// `signals:change`.
+    pub(crate) fn record_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        routine: &RoutineTriggers,
+        signal: &StoredSignal,
+        (decision, reason, run_id): (Decision, Option<String>, Option<String>),
+    ) -> Result<(), Error> {
+        tx.signal_routes().insert(&StoredSignalRoute {
+            signal_id: signal.id,
+            routine_id: routine.id.clone(),
+            routine_version: routine.version.clone(),
+            decision,
+            reason,
+            run_id,
+            model_asked: false,
+            decided_at: self.now,
+        })?;
+        tracing::info!(signal_id = signal.id, routine_id = %routine.id, decision = decision.as_str(), "a signal was decided");
+        match decision {
+            Decision::Batched => {
+                batch::close_in(tx, out, self.intake.as_ref(), routine, self.now)?;
+            }
+            Decision::OverLimit => {
+                let at = Opening {
+                    now: self.now,
+                    ids: self.ids.as_ref(),
+                    zone: self.zone.as_ref(),
+                    control: self.control.as_ref(),
+                };
+                notice_over_limit_in(tx, out, &at, &routine.id)?;
+            }
+            _ => {}
+        }
+        let change = SignalChange {
+            routine_id: Some(routine.id.clone()),
+            source_id: Some(signal.signal.source_id.clone()),
+            what: SignalChangeWhat::Routed,
+        };
+        out.push(SIGNALS_CHANGE.name(), &change);
+        Ok(())
     }
 }
 
 impl Router {
-    /// Routes every `received` signal, oldest first; answers how many.
+    /// Routes every `received` signal, oldest first; answers how many. A
+    /// signal whose write fails is logged and left for a later pass, at most
+    /// once every [`RETRY_MS`], while the ones after it are routed.
     pub(crate) async fn pass(&self) -> Result<usize, Error> {
         let routines = Arc::new(self.directory.triggers().await?);
         let mut routed = 0;
+        let mut after = 0;
         loop {
-            let waiting = self.store.read(|tx| tx.signals().received(BATCH)).await?;
-            if waiting.is_empty() {
+            let waiting = self.store.read(move |tx| tx.signals().received(after, BATCH)).await?;
+            let Some(last) = waiting.last() else {
                 self.close_due_batches(&routines).await?;
                 return Ok(routed);
-            }
+            };
+            after = last.id;
             for signal in waiting {
+                if !self.due_again(signal.id) {
+                    continue;
+                }
                 let routing = self.routing();
                 let routines = routines.clone();
-                self.store.write(move |tx, out| routing.route_in(tx, out, signal.id, &routines)).await?;
-                routed += 1;
+                match self.store.write(move |tx, out| routing.route_in(tx, out, signal.id, &routines)).await {
+                    Ok(()) => {
+                        self.failed().remove(&signal.id);
+                        routed += 1;
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            signal_id = signal.id,
+                            error = error_kind(&error),
+                            "a signal could not be routed"
+                        );
+                        self.failed().insert(signal.id, self.clock.now_ms());
+                    }
+                }
             }
         }
     }
 
-    fn routing(&self) -> Routing {
+    /// Whether the signal never failed to route, or failed over
+    /// [`RETRY_MS`] ago.
+    fn due_again(&self, signal_id: i64) -> bool {
+        let now = self.clock.now_ms();
+        self.failed().get(&signal_id).is_none_or(|at| now - at >= RETRY_MS)
+    }
+
+    fn failed(&self) -> MutexGuard<'_, HashMap<i64, i64>> {
+        self.failed.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub(crate) fn routing(&self) -> Routing {
         Routing {
             runner: self.runner.clone(),
             intake: self.intake.clone(),

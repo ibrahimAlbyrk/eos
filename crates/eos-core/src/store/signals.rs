@@ -163,8 +163,9 @@ pub trait SignalRepo {
     /// run, so the two are saved together.
     fn insert_manual(&self, manual: &ManualSignal) -> Result<i64, Error>;
     fn find(&self, id: i64) -> Result<Option<StoredSignal>, Error>;
-    /// The oldest `limit` signals not routed yet, oldest first.
-    fn received(&self, limit: i64) -> Result<Vec<StoredSignal>, Error>;
+    /// The oldest `limit` signals not routed yet numbered after `after`,
+    /// oldest first.
+    fn received(&self, after: i64, limit: i64) -> Result<Vec<StoredSignal>, Error>;
     fn mark_routed(&self, id: i64) -> Result<(), Error>;
     /// How many signals wait to be routed.
     fn received_count(&self) -> Result<i64, Error>;
