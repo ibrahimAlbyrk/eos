@@ -5,10 +5,11 @@
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use eos_core::net::relay::PushResult;
 use eos_relay::control::{self, Control};
 use eos_relay::envelope::{Dir, Envelope, FrameType, Header, encode_envelope, parse_envelope};
 use eos_testkit::relay::registry::sha256_hex;
-use eos_testkit::relay::{FakeRelay, FakeRelayOptions};
+use eos_testkit::relay::{FakeRelay, FakeRelayOptions, PushVia};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
@@ -153,7 +154,7 @@ async fn the_owner_dropping_closes_its_devices_and_keeps_the_room() {
 }
 
 #[tokio::test]
-async fn only_the_owner_changes_the_admission_list_and_wake_requests_are_counted() {
+async fn only_the_owner_changes_the_admission_list_and_pushes() {
     let relay = FakeRelay::start().await;
     let (mut mac, mut dev, _) = mac_and_device(&relay).await;
     let add = format!(r#"{{"t":"allow-add","room":"{ROOM}","hash":"{}"}}"#, sha256_hex("second"));
@@ -168,9 +169,70 @@ async fn only_the_owner_changes_the_admission_list_and_wake_requests_are_counted
     let mut second = Peer::open(&relay).await;
     second.send(control::join(ROOM, "second").expect("encodes")).await;
     assert_eq!(second.next().await.1.kind(), Some("joined"));
+    assert_eq!(mac.next().await.1.kind(), Some("joined"), "the owner hears of it too");
 
-    mac.send(json(FrameType::RelayCtl, &format!(r#"{{"t":"pushIntent","room":"{ROOM}","reason":"x"}}"#))).await;
-    until("the wake request", || relay.push_intents() == 1).await;
+    let push = format!(r#"{{"t":"push","room":"{ROOM}","kind":"needs_you","count":2}}"#);
+    dev.send(json(FrameType::RelayCtl, &push)).await;
+    assert_eq!(dev.next().await.1.str("code"), Some("OWNER_MISMATCH"));
+    let odd = format!(r#"{{"t":"push","room":"{ROOM}","kind":"hello","count":2}}"#);
+    mac.send(json(FrameType::RelayCtl, &odd)).await;
+    assert_eq!(mac.next().await.1.str("code"), Some("BAD_REQUEST"), "an unknown kind");
+    let fraction = format!(r#"{{"t":"push","room":"{ROOM}","kind":"test","count":1.5}}"#);
+    mac.send(json(FrameType::RelayCtl, &fraction)).await;
+    assert_eq!(mac.next().await.1.str("code"), Some("BAD_REQUEST"), "a count that is not whole");
+
+    relay.set_push_tokens(2);
+    mac.send(json(FrameType::RelayCtl, &push)).await;
+    let (_, answer) = mac.next().await;
+    assert_eq!(answer.kind(), Some("push-result"));
+    assert_eq!(answer.push_result(), PushResult { sent: 2, ..PushResult::default() });
+    let pushed = relay.pushes();
+    assert_eq!(pushed.len(), 1, "refused pushes are not taken");
+    assert_eq!((pushed[0].kind.as_str(), pushed[0].count, pushed[0].via), ("needs_you", 2, PushVia::Socket));
+
+    relay.set_push_configured(false);
+    mac.send(json(FrameType::RelayCtl, &push)).await;
+    let not_configured = PushResult { failed: 2, reason: Some("not-configured".into()), ..PushResult::default() };
+    assert_eq!(mac.next().await.1.push_result(), not_configured, "every stored token failed");
+}
+
+/// One HTTP request to the relay, written by hand; its status and body.
+async fn post(relay: &FakeRelay, path: &str, bearer: Option<&str>, body: &str) -> (u16, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut tcp = TcpStream::connect(relay.addr()).await.expect("connects");
+    let auth = bearer.map(|b| format!("Authorization: Bearer {b}\r\n")).unwrap_or_default();
+    let request = format!(
+        "POST {path} HTTP/1.1\r\nHost: relay\r\n{auth}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    tcp.write_all(request.as_bytes()).await.expect("written");
+    let mut answer = String::new();
+    tcp.read_to_string(&mut answer).await.expect("read");
+    let status = answer.split(' ').nth(1).and_then(|s| s.parse().ok()).expect("a status");
+    let body = answer.split_once("\r\n\r\n").map(|(_, b)| b.to_owned()).unwrap_or_default();
+    (status, body)
+}
+
+#[tokio::test]
+async fn a_push_over_http_needs_the_owner_s_secret_and_a_known_room() {
+    let relay = FakeRelay::start().await;
+    let path = format!("/push/v1/{ROOM}");
+    let body = r#"{"kind":"needs_you","count":1}"#;
+    assert_eq!(post(&relay, &path, Some("owner"), body).await.0, 404, "a room never registered");
+    let (mac, _dev, _) = mac_and_device(&relay).await;
+    drop(mac);
+    relay.set_push_tokens(1);
+
+    assert_eq!(post(&relay, &path, None, body).await.0, 401);
+    assert_eq!(post(&relay, &path, Some("someone"), body).await.0, 401);
+    assert_eq!(post(&relay, &path, Some("owner"), r#"{"kind":"needs_you","count":-1}"#).await.0, 400);
+    let (status, sent) = post(&relay, &path, Some("owner"), body).await;
+    let sent: serde_json::Value = serde_json::from_str(&sent).expect("JSON");
+    assert_eq!((status, sent), (200, serde_json::json!({ "sent": 1, "failed": 0, "gone": 0 })));
+    relay.set_push_throttled(true);
+    assert_eq!(post(&relay, &path, Some("owner"), body).await, (429, r#"{"error":"throttled"}"#.to_owned()));
+    let pushed = relay.pushes();
+    assert_eq!(pushed.iter().map(|p| p.via).collect::<Vec<_>>(), [PushVia::Http, PushVia::Http]);
 }
 
 #[tokio::test]

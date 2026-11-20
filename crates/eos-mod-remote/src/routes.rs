@@ -5,7 +5,8 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{OFF_NETWORK, RemoteConfig, RemoteConfigRelay, Validate};
+use eos_contracts::{OFF_NETWORK, PushTestResponse, RemoteConfig, RemoteConfigRelay, Validate};
+use eos_core::net::relay::{PhoneNotify, PhonePush, PushKind, PushOutcome};
 use eos_runtime::access::Access;
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -68,6 +69,17 @@ const NO_RELAY: &str = "The phone link runs only in the installed Eos on your ow
 fn off_network(shared: &Shared, remote: &RemoteConfig) -> bool {
     let set = remote.enabled && remote.relay.as_ref().is_some_and(|relay| !relay.url.is_empty());
     set && shared.parts.relay.is_none()
+}
+
+fn push_test_response(outcome: PushOutcome) -> PushTestResponse {
+    let (sent, failed, reason) = match outcome {
+        PushOutcome::Sent { devices, failed } => (devices, failed, None),
+        PushOutcome::NoDevices => (0, 0, Some("no-devices")),
+        PushOutcome::LinkOff => (0, 0, Some("link-off")),
+        PushOutcome::Throttled => (0, 0, Some("throttled")),
+        PushOutcome::NotConfigured { failed } => (0, failed, Some("not-configured")),
+    };
+    PushTestResponse { sent, failed, reason: reason.map(str::to_owned) }
 }
 
 pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
@@ -134,5 +146,16 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
             }
         })
     };
-    [status, arm, pair, save].into_iter().map(|route| route.access(ACCESS)).collect()
+    // Settings › Remote's "Send a test notification".
+    let push_test = {
+        let shared = shared.clone();
+        RouteDef::post("/api/remote/push-test", move |_req: Request| {
+            let notify = crate::push::RemotePush(shared.clone());
+            async move {
+                let outcome = notify.push(PhonePush { kind: PushKind::Test, count: 1 }).await?;
+                Ok(Response::json(200, &push_test_response(outcome)))
+            }
+        })
+    };
+    [status, arm, pair, save, push_test].into_iter().map(|route| route.access(ACCESS)).collect()
 }

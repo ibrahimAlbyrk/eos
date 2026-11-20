@@ -8,8 +8,8 @@ use std::time::Duration;
 use bytes::Bytes;
 use eos_core::BoxFuture;
 use eos_core::net::relay::{
-    PipeListener, Relay, RelayClientId, RelayError, RelayJoinError, RelayPipe, RoomClaim, RoomEvent, RoomHosting,
-    RoomJoin,
+    PhonePush, PipeListener, PushResult, PushTarget, Relay, RelayClientId, RelayError, RelayJoinError, RelayPipe,
+    RoomClaim, RoomEvent, RoomHosting, RoomJoin,
 };
 use eos_relay::envelope::MAX_ENVELOPE_BYTES;
 use tokio::sync::{Notify, mpsc};
@@ -35,6 +35,14 @@ pub struct FakeRoom {
     /// Events pushed, and how often the host asked for the next one.
     pushed: AtomicUsize,
     asked: AtomicUsize,
+    /// Wake-up pushes asked for on the room's connection, and the relay's answer.
+    phone_pushes: Mutex<Vec<PhonePush>>,
+    push_answer: Mutex<Result<PushResult, RelayError>>,
+}
+
+/// A relay with one phone that has a push token, and a key to reach Apple.
+fn one_phone() -> PushResult {
+    PushResult { sent: 1, ..PushResult::default() }
 }
 
 impl std::fmt::Debug for FakeRoom {
@@ -57,6 +65,8 @@ impl Default for FakeRoom {
             refreshes: AtomicUsize::new(0),
             pushed: AtomicUsize::new(0),
             asked: AtomicUsize::new(0),
+            phone_pushes: Mutex::default(),
+            push_answer: Mutex::new(Ok(one_phone())),
         }
     }
 }
@@ -121,6 +131,16 @@ impl FakeRoom {
 
     pub fn set_online(&self, online: bool) {
         self.online.store(online, Ordering::SeqCst);
+    }
+
+    /// Wake-up pushes asked for on this room's connection, in order.
+    pub fn phone_pushes(&self) -> Vec<PhonePush> {
+        lock(&self.phone_pushes).clone()
+    }
+
+    /// How the relay answers a push from here on; one phone reached at first.
+    pub fn answer_pushes(&self, answer: Result<PushResult, RelayError>) {
+        *lock(&self.push_answer) = answer;
     }
 
     pub fn is_closed(&self) -> bool {
@@ -195,12 +215,25 @@ impl RoomHosting for FakeRoom {
         // Ends a reader that is waiting.
         self.push(RoomEvent::Offline);
     }
+
+    fn push(&self, push: PhonePush) -> BoxFuture<'_, Result<PushResult, RelayError>> {
+        Box::pin(async move {
+            if !self.online.load(Ordering::SeqCst) || self.closed.load(Ordering::SeqCst) {
+                return Err(RelayError::Offline);
+            }
+            lock(&self.phone_pushes).push(push);
+            lock(&self.push_answer).clone()
+        })
+    }
 }
 
 /// A relay that hands out [`FakeRoom`]s and remembers what was claimed.
 #[derive(Default)]
 pub struct FakeRelayPort {
     rooms: Mutex<Vec<(RoomClaim, Arc<FakeRoom>)>>,
+    /// Pushes asked for over HTTP, and the relay's answer; `None`: one phone reached.
+    http_pushes: Mutex<Vec<(PushTarget, PhonePush)>>,
+    http_answer: Mutex<Option<Result<PushResult, eos_core::Error>>>,
 }
 
 impl std::fmt::Debug for FakeRelayPort {
@@ -224,6 +257,16 @@ impl FakeRelayPort {
         lock(&self.rooms).last().map(|(_, room)| room.clone()).expect("no room was claimed")
     }
 
+    /// Pushes asked for over HTTP, in order.
+    pub fn http_pushes(&self) -> Vec<(PushTarget, PhonePush)> {
+        lock(&self.http_pushes).clone()
+    }
+
+    /// How the relay answers a push over HTTP from here on.
+    pub fn answer_http_pushes(&self, answer: Result<PushResult, eos_core::Error>) {
+        *lock(&self.http_answer) = Some(answer);
+    }
+
     /// Rooms claimed and not given up.
     pub fn open_rooms(&self) -> usize {
         lock(&self.rooms).iter().filter(|(_, room)| !room.is_closed()).count()
@@ -245,6 +288,13 @@ impl Relay for FakeRelayPort {
     fn dial(&self, _join: RoomJoin) -> BoxFuture<'_, Result<Box<dyn RelayPipe>, RelayJoinError>> {
         Box::pin(async {
             Err(RelayJoinError { code: "UNREACHABLE".into(), message: "FakeRelayPort has no relay behind it".into() })
+        })
+    }
+
+    fn push(&self, target: PushTarget, push: PhonePush) -> BoxFuture<'_, Result<PushResult, eos_core::Error>> {
+        Box::pin(async move {
+            lock(&self.http_pushes).push((target, push));
+            lock(&self.http_answer).clone().unwrap_or_else(|| Ok(one_phone()))
         })
     }
 }

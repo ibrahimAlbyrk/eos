@@ -22,13 +22,16 @@ pub mod control;
 pub mod envelope;
 mod hosting;
 mod pipe;
+mod push;
 mod socket;
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use eos_core::net::relay::{PipeListener, Relay, RelayJoinError, RelayPipe, RoomClaim, RoomHosting, RoomJoin};
-use eos_core::{BoxFuture, Clock};
+use eos_core::net::relay::{
+    PhonePush, PipeListener, PushResult, PushTarget, Relay, RelayJoinError, RelayPipe, RoomClaim, RoomHosting, RoomJoin,
+};
+use eos_core::{BoxFuture, Clock, Error};
 
 /// Timings and bounds. The defaults are today's; tests shorten them.
 #[derive(Debug, Clone, Copy)]
@@ -77,6 +80,8 @@ impl Default for RelayOptions {
 pub struct RelayClient {
     clock: Arc<dyn Clock>,
     options: RelayOptions,
+    /// For pushes while the room's connection is not held.
+    http: reqwest::Client,
 }
 
 impl std::fmt::Debug for RelayClient {
@@ -92,7 +97,10 @@ impl RelayClient {
     }
 
     pub fn with_options(clock: Arc<dyn Clock>, options: RelayOptions) -> Self {
-        Self { clock, options }
+        let http =
+            eos_kit_net::http_client(&eos_kit_net::ClientOptions::new(concat!("Eos/", env!("CARGO_PKG_VERSION"))))
+                .unwrap_or_default();
+        Self { clock, options, http }
     }
 }
 
@@ -107,5 +115,9 @@ impl Relay for RelayClient {
 
     fn dial(&self, join: RoomJoin) -> BoxFuture<'_, Result<Box<dyn RelayPipe>, RelayJoinError>> {
         Box::pin(pipe::dial(join, self.options))
+    }
+
+    fn push(&self, target: PushTarget, push: PhonePush) -> BoxFuture<'_, Result<PushResult, Error>> {
+        Box::pin(push::push(&self.http, target, push))
     }
 }

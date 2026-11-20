@@ -5,13 +5,17 @@
 //! [`FakeRelayPort`]). [`FakeRemoteStore`] and [`FakeKeepAwake`] stand in for
 //! the link's files and for keeping the computer awake.
 
+mod notify;
 mod phone;
+mod push;
 pub mod registry;
 mod room;
 mod server;
 mod store;
 
+pub use notify::FakePhoneNotify;
 pub use phone::{ControlAnswer, FakePhone, JoinFailure, PHONE_CAPS, Pairing, QrFailure, inner_json, read_qr};
+pub use push::{PushVia, Pushed};
 pub use room::{FakeRelayPort, FakeRoom};
 pub use server::{FakeRelay, FakeRelayOptions, Registration, free_port};
 pub use store::{FakeKeepAwake, FakeRemoteStore};

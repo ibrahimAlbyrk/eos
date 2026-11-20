@@ -103,6 +103,10 @@ pub trait RoomHosting: Send + Sync + 'static {
     fn refresh_allow(&self);
     /// Gives the room up: the connection closes, which takes its devices with it.
     fn close(&self);
+    /// Asks the relay, on the owner's own connection, to wake the room's
+    /// phones, and waits for its answer. [`RelayError::Offline`] when there is
+    /// no connection: nothing was sent.
+    fn push(&self, push: PhonePush) -> BoxFuture<'_, Result<PushResult, RelayError>>;
 }
 
 /// A byte pipe through the relay. Bytes arrive in order and whole; chunk
@@ -156,4 +160,99 @@ pub trait Relay: Send + Sync + 'static {
     fn listen(&self, claim: RoomClaim) -> Arc<dyn PipeListener>;
     /// Joins a room; resolves with the pipe once the relay admitted this device.
     fn dial(&self, join: RoomJoin) -> BoxFuture<'_, Result<Box<dyn RelayPipe>, RelayJoinError>>;
+    /// Asks the relay over HTTP to wake the room's phones, for when the room's
+    /// connection is not held. A room the relay never saw registered is
+    /// [`Error::NotFound`](crate::Error::NotFound).
+    fn push(&self, target: PushTarget, push: PhonePush) -> BoxFuture<'_, Result<PushResult, crate::Error>>;
+}
+
+/// What a wake-up push says: a closed kind and a count, never a title, a
+/// name or anything a person, an agent or an outside service wrote. The
+/// relay builds the phone's text from its own table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PhonePush {
+    pub kind: PushKind,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushKind {
+    NeedsYou,
+    RunFailed,
+    RoutinePaused,
+    Ready,
+    Test,
+}
+
+impl PushKind {
+    /// The word on the relay's wire.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::NeedsYou => "needs_you",
+            Self::RunFailed => "run_failed",
+            Self::RoutinePaused => "routine_paused",
+            Self::Ready => "ready",
+            Self::Test => "test",
+        }
+    }
+}
+
+/// Where a push goes over HTTP: the relay's URL (`wss://…`, as the room's),
+/// the room, and the owner's secret that proves the room is this computer's.
+#[derive(Clone)]
+pub struct PushTarget {
+    pub url: String,
+    pub room: String,
+    pub owner: String,
+}
+
+impl fmt::Debug for PushTarget {
+    // The room and the owner secret are credentials: never in a log.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PushTarget").field("url", &self.url).finish_non_exhaustive()
+    }
+}
+
+/// The relay's answer to a push: phones reached, phones not reached, phones
+/// Apple called gone, and why nothing was tried (`throttled`,
+/// `not-configured`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PushResult {
+    pub sent: u32,
+    pub failed: u32,
+    pub gone: u32,
+    pub reason: Option<String>,
+}
+
+/// How a push ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PushOutcome {
+    /// Apple took it for `devices` phones; `failed` were not reached.
+    Sent { devices: u32, failed: u32 },
+    /// The room has no phone that can be woken.
+    NoDevices,
+    /// No phone was ever paired with this computer, or this app reaches no relay.
+    LinkOff,
+    /// The room asked for too many pushes lately.
+    Throttled,
+    /// The relay holds no key to reach Apple with; `failed` phones were not reached.
+    NotConfigured { failed: u32 },
+}
+
+impl From<PushResult> for PushOutcome {
+    fn from(result: PushResult) -> Self {
+        match result.reason.as_deref() {
+            Some("throttled") => Self::Throttled,
+            Some("not-configured") => Self::NotConfigured { failed: result.failed },
+            _ if result.sent + result.failed + result.gone == 0 => Self::NoDevices,
+            _ => Self::Sent { devices: result.sent, failed: result.failed + result.gone },
+        }
+    }
+}
+
+/// Wakes the user's phone with a kind and a count.
+pub trait PhoneNotify: Send + Sync + 'static {
+    /// An error means the relay was not reached or refused this computer:
+    /// the caller falls back to what it shows on this computer.
+    fn push(&self, push: PhonePush) -> BoxFuture<'_, Result<PushOutcome, crate::Error>>;
 }

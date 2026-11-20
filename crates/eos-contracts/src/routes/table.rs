@@ -233,6 +233,7 @@ pub const REMOTE_PAIR: Route = Route::new("remotePair", "/api/remote/pair", &[Po
 pub const REMOTE_STATUS: Route = Route::new("remoteStatus", "/api/remote/status", &[Get]);
 pub const REMOTE_ARM: Route = Route::new("remoteArm", "/api/remote/arm", &[Post]);
 pub const REMOTE_CONFIG: Route = Route::new("remoteConfig", "/api/remote/config", &[Put]);
+pub const REMOTE_PUSH_TEST: Route = Route::new("remotePushTest", "/api/remote/push-test", &[Post]).added();
 pub const HOST_INFO: Route = Route::new("hostInfo", "/api/host", &[Get]);
 pub const PEER: Route = Route::new("peer", "/api/peer", &[Get, Put]);
 pub const PEER_INVITE: Route = Route::new("peerInvite", "/api/peer/invite", &[Post, Delete]);
@@ -600,6 +601,7 @@ pub const ROUTES: &[Route] = &[
     REMOTE_STATUS,
     REMOTE_ARM,
     REMOTE_CONFIG,
+    REMOTE_PUSH_TEST,
     HOST_INFO,
     PEER,
     PEER_INVITE,

@@ -6,7 +6,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
-use eos_core::net::relay::RelayClientId;
+use eos_core::net::relay::{PhonePush, PushResult, RelayClientId};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -50,6 +50,42 @@ struct Join<'a> {
 /// A device asks to be let into a room.
 pub fn join(room: &str, bearer: &str) -> Result<Bytes, EnvelopeError> {
     json_envelope(FrameType::Join, Dir::C2s, room, ZERO_CLIENT_ID, &Join { t: "join", room, bearer })
+}
+
+#[derive(Serialize)]
+struct Push<'a> {
+    t: &'static str,
+    room: &'a str,
+    kind: &'static str,
+    count: u32,
+}
+
+/// The owner asks the relay to wake the room's phones.
+pub fn push(room: &str, push: PhonePush) -> Result<Bytes, EnvelopeError> {
+    let json = Push { t: "push", room, kind: push.kind.as_str(), count: push.count };
+    json_envelope(FrameType::RelayCtl, Dir::S2c, room, ZERO_CLIENT_ID, &json)
+}
+
+#[derive(Serialize)]
+struct PushResultBody<'a> {
+    t: &'static str,
+    sent: u32,
+    failed: u32,
+    gone: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<&'a str>,
+}
+
+/// The relay's answer to a push.
+pub fn push_result(room: &str, result: &PushResult) -> Result<Bytes, EnvelopeError> {
+    let json = PushResultBody {
+        t: "push-result",
+        sent: result.sent,
+        failed: result.failed,
+        gone: result.gone,
+        reason: result.reason.as_deref(),
+    };
+    json_envelope(FrameType::RelayCtl, Dir::S2c, room, ZERO_CLIENT_ID, &json)
 }
 
 #[derive(Serialize)]
@@ -127,6 +163,21 @@ impl Control {
         }
     }
 
+    /// A whole number that fits 32 bits; anything else is not there.
+    pub fn count(&self, key: &str) -> Option<u32> {
+        u32::try_from(self.0.as_ref()?.get(key)?.as_u64()?).ok()
+    }
+
+    /// A `push-result`'s counts and reason, a missing count read as 0.
+    pub fn push_result(&self) -> PushResult {
+        PushResult {
+            sent: self.count("sent").unwrap_or(0),
+            failed: self.count("failed").unwrap_or(0),
+            gone: self.count("gone").unwrap_or(0),
+            reason: self.str("reason").map(str::to_owned),
+        }
+    }
+
     pub fn kind(&self) -> Option<&str> {
         self.str("t")
     }
@@ -146,6 +197,8 @@ impl Control {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eos_core::net::relay::PushKind;
+
     use crate::envelope::parse_envelope;
 
     #[test]
@@ -156,6 +209,22 @@ mod tests {
         assert_eq!((env.frame_type(), env.client_id), (Some(FrameType::RelayCtl), client));
         let notice = Control::parse(&env.payload);
         assert_eq!((notice.kind(), notice.client_id()), (Some("joined"), Some(client)));
+    }
+
+    #[test]
+    fn a_push_carries_a_kind_and_a_count_and_its_result_reads_back() {
+        let frame = push("room", PhonePush { kind: PushKind::NeedsYou, count: 3 }).expect("encodes");
+        let env = parse_envelope(&frame).expect("parses");
+        assert_eq!(env.frame_type(), Some(FrameType::RelayCtl));
+        assert_eq!(&env.payload[..], br#"{"t":"push","room":"room","kind":"needs_you","count":3}"#);
+
+        let result = PushResult { sent: 0, failed: 2, gone: 0, reason: Some("not-configured".into()) };
+        let env = parse_envelope(&push_result("room", &result).expect("encodes")).expect("parses");
+        assert_eq!(&env.payload[..], br#"{"t":"push-result","sent":0,"failed":2,"gone":0,"reason":"not-configured"}"#);
+        let read = Control::parse(&env.payload);
+        assert_eq!((read.kind(), read.push_result()), (Some("push-result"), result));
+        let plain = Control::parse(br#"{"t":"push-result","sent":1,"failed":-1,"gone":1.5}"#).push_result();
+        assert_eq!(plain, PushResult { sent: 1, failed: 0, gone: 0, reason: None }, "odd counts read as none");
     }
 
     #[test]

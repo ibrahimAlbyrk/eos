@@ -71,6 +71,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/remote/arm"),
     ("POST", "/api/remote/pair"),
     ("PUT", "/api/remote/config"),
+    // A test push reaches the relay, and through it the user's phone.
+    ("POST", "/api/remote/push-test"),
     // Other computers: hosting this one, pairing with one, dialling one, and everything
     // sent to one through the facade, reads included.
     ("PUT", "/api/peer"),

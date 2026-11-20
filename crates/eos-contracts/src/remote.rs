@@ -46,6 +46,18 @@ impl Validate for RemoteConfig {
     }
 }
 
+/// `POST /api/remote/push-test`: what the relay did with a test push.
+/// `reason`: `no-devices`, `link-off`, `throttled` or `not-configured`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct PushTestResponse {
+    pub sent: u32,
+    pub failed: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+impl Validate for PushTestResponse {}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RemoteConfigRelay {
     pub url: String,
