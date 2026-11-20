@@ -5,6 +5,7 @@
 
 import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blueprintStore.js";
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
+import { applyHalt, resyncHalt } from "./haltStore.js";
 import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
 import { applyRunActivity } from "./runLiveStore.js";
@@ -26,7 +27,7 @@ const HANDLERS = {
   "inbox:change": applyInboxChange,
   "inbox:delivery": applyInboxDelivery,
   "inbox:freedom": ignored,
-  "inbox:halt": ignored,
+  "inbox:halt": applyHalt,
   "memory:change": ignored,
   "memory:recalled": ignored,
   "surfaces:change": ignored,
@@ -55,4 +56,5 @@ export function resyncEos() {
   resyncInbox();
   resyncCapabilities();
   resyncSignals();
+  resyncHalt();
 }

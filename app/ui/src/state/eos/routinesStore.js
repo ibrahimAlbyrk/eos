@@ -8,13 +8,15 @@ import { ROUTES } from "../../api/routes.js";
 import { afterFirstPaint } from "../../lib/firstPaint.js";
 import { notify } from "../../lib/notify.js";
 import { putBounded, without } from "./bounded.js";
-import { isDevRunRefusal, transport } from "./transport.js";
+import { isDevRunRefusal, recipientsUnconfirmed, transport } from "./transport.js";
 
 const DETAILS_KEPT = 30;
 
 // list: null until loaded. details: id → RoutineDetail, the 30 opened last.
 // failed: id → "gone" (404) or "error", for a detail that could not be read.
-const EMPTY = { list: null, listFailed: false, details: {}, failed: {} };
+// unconfirmed: id → the 409 recipients_unconfirmed body of its last Resume,
+// until the routine leaves paused.
+const EMPTY = { list: null, listFailed: false, details: {}, failed: {}, unconfirmed: {} };
 let state = EMPTY;
 let started = false;
 const subs = new Set();
@@ -93,16 +95,17 @@ export function putRoutineRow(row) {
   set({
     list: withRow(state.list, row),
     details: detail ? { ...state.details, [row.id]: { ...detail, routine: row } } : state.details,
+    unconfirmed: row.state === "paused" ? state.unconfirmed : without(state.unconfirmed, row.id),
   });
 }
 
 // A write the routine page makes: its answer when the core took it. A dev
-// run's refusal is said on the screen (the transport notes it); any other
-// failure is a toast.
-async function routineWrite(method, path, body) {
+// run's refusal is said on the screen (the transport notes it), and so is a
+// refusal `shown` takes; any other failure is a toast.
+async function routineWrite(method, path, body, shown = () => false) {
   const r = await transport.send(method, path, body).catch(() => null);
   if (r?.ok) return r;
-  if (!isDevRunRefusal(r)) notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Routine" });
+  if (!isDevRunRefusal(r) && !shown(r)) notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Routine" });
   return null;
 }
 
@@ -113,11 +116,16 @@ export const routineRow = (id) => rowOf(id);
 
 // PUT state: active, paused or archived; the core answers the row. Pausing
 // shows at once and goes back when the core refuses it (08 §4.2); the other
-// states wait for the answer.
+// states wait for the answer. A Resume refused until recipients are
+// confirmed keeps the refusal for the paused band (D53).
 export async function setRoutineState(id, next) {
   const before = rowOf(id);
   if (next === "paused" && before) putRoutineRow({ ...before, state: "paused", pausedReason: "user" });
-  const r = await routineWrite("PUT", ROUTES.routineState(id), { state: next });
+  const r = await routineWrite("PUT", ROUTES.routineState(id), { state: next }, (refused) => {
+    const refusal = recipientsUnconfirmed(refused);
+    if (refusal) set({ unconfirmed: { ...state.unconfirmed, [id]: refusal } });
+    return Boolean(refusal);
+  });
   if (r?.body?.id === id) putRoutineRow(r.body);
   else if (!r && next === "paused" && before) putRoutineRow(before);
   return Boolean(r);
