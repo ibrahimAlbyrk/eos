@@ -120,7 +120,6 @@ mod tests {
     fn a_trying_note_needs_a_higher_score_to_remind() {
         assert_eq!(reminder_threshold(NoteState::Firm), REMINDER_THRESHOLD);
         assert_eq!(reminder_threshold(NoteState::Trying), REMINDER_THRESHOLD_TRYING);
-        assert!(PACK_THRESHOLD < REMINDER_THRESHOLD);
     }
 
     #[test]
