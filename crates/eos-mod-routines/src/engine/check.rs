@@ -135,14 +135,15 @@ pub(crate) fn doc_of(kind: &str, body: serde_json::Value) -> ResultDoc {
 /// on. The channel's own check runs once the result has its shape.
 async fn rules(engine: &Engine, checking: &Checking) -> Vec<String> {
     let (kind, makes) = (&checking.result.kind, &checking.blueprint.makes.kind);
-    let doc = result_doc(&checking.result);
-    let mut findings = shape::misfits(engine, kind, makes, &doc);
+    let body: serde_json::Value = serde_json::from_str(&checking.result.body).unwrap_or(serde_json::Value::Null);
+    let mut findings = shape::misfits(engine, kind, makes, &body);
     if checking.blueprint.goes_to.iter().any(|recipient| !checking.goes_to.contains(recipient)) {
         findings.push("The routine sends to someone the user has not confirmed.".to_owned());
     }
     if !findings.is_empty() {
         return findings;
     }
+    let doc = doc_of(kind, body);
     for item in checking.items() {
         if let Err(texts) = engine.reads.validate_result(makes, &doc, item).await {
             findings.extend(texts);

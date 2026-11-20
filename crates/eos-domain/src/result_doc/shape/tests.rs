@@ -117,3 +117,25 @@ fn each_misfit_names_the_part_what_is_wrong_and_what_is_expected() {
     let bare = ResultDoc { kind: "x.note".into(), channel: String::new(), action: String::new(), parts: vec![top] };
     assert_eq!(shape.check(&bare).len(), 1, "one line says the whole object is missing");
 }
+
+#[test]
+fn an_object_that_is_no_result_is_told_which_field_it_lacks() {
+    let fits = json!({"kind": "x.note", "channel": "x", "action": "post",
+                      "parts": [{"key": "top", "role": "summary", "text": "Fine."}]});
+    assert_eq!(body_misfits(&fits), Vec::<String>::new());
+    assert_eq!(body_misfits(&json!("plain words")), Vec::<String>::new(), "plain text is the shape check's to judge");
+    let lacking = json!({"channel": "x", "action": 3,
+                         "parts": [{"key": "top", "text": "Fine.", "meta": "no"}, {"role": "note", "text": "x"}, 4]});
+    assert_eq!(
+        body_misfits(&lacking),
+        [
+            "body: `kind` is missing; the body holds kind, channel, action and parts.",
+            "body: `action` must be text.",
+            "part `top`: `role` is missing or not text; every part has key, role and text.",
+            "part `top`: `meta` must be an object.",
+            "part 2: `key` is missing or not text; every part has key, role and text.",
+            "part 3: must be an object with key, role, text and meta.",
+        ]
+    );
+    assert_eq!(body_misfits(&json!({"kind": "x.note", "channel": "x", "action": "post"})).len(), 1);
+}

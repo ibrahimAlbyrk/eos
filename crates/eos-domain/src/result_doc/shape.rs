@@ -217,6 +217,44 @@ impl MetaShape {
     }
 }
 
+/// What keeps `body`, handed in as an object, from reading as a result:
+/// each field it lacks or holds as the wrong type, one line each; empty when
+/// it reads. Names fields and part keys only, never their text.
+pub fn body_misfits(body: &Value) -> Vec<String> {
+    let Some(fields) = body.as_object() else { return Vec::new() };
+    let mut found = Vec::new();
+    for name in ["kind", "channel", "action"] {
+        match fields.get(name) {
+            None => found.push(format!("body: `{name}` is missing; the body holds kind, channel, action and parts.")),
+            Some(value) if !value.is_string() => found.push(format!("body: `{name}` must be text.")),
+            Some(_) => {}
+        }
+    }
+    let Some(parts) = fields.get("parts").and_then(Value::as_array) else {
+        found.push("body: `parts` must be a list of `{key, role, text, meta}` objects.".to_owned());
+        return found;
+    };
+    for (at, part) in parts.iter().enumerate() {
+        let Some(part) = part.as_object() else {
+            found.push(format!("part {}: must be an object with key, role, text and meta.", at + 1));
+            continue;
+        };
+        let name = match part.get("key").and_then(Value::as_str) {
+            Some(key) => format!("part `{key}`"),
+            None => format!("part {}", at + 1),
+        };
+        for field in ["key", "role", "text"] {
+            if !part.get(field).is_some_and(Value::is_string) {
+                found.push(format!("{name}: `{field}` is missing or not text; every part has key, role and text."));
+            }
+        }
+        if part.get("meta").is_some_and(|meta| !meta.is_object()) {
+            found.push(format!("{name}: `meta` must be an object."));
+        }
+    }
+    found
+}
+
 /// `` `a` ``, or `` one of `a`, `b` ``.
 fn one_of(values: &[String]) -> String {
     let quoted: Vec<String> = values.iter().map(|value| format!("`{value}`")).collect();
