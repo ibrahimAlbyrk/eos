@@ -283,8 +283,12 @@ launcher gives the app the isolated `CLAUDE_CONFIG_DIR` either way.
 
 A dev run also carries what the test drivers drive the app with: the dev script
 (`eos/src/dev/script.rs`: steps on test views, browser routes, artifact calls), the measuring
-probe (`EOS_SHELL_PROBE`) and a local page standing in for claude.ai (`EOS_DEV_ARTIFACT_ORIGIN`).
-A release build has none of them.
+probe (`EOS_SHELL_PROBE`), a local page standing in for claude.ai (`EOS_DEV_ARTIFACT_ORIGIN`)
+and a shorter wait before a hidden window releases the dashboard's view
+(`EOS_DEV_DASHBOARD_RELEASE_MS`; ten minutes otherwise). A release build has none of them.
+Only a release build may be a login item (Start at login): a dev or test run reports it
+unavailable and never registers one, so what `SMAppService` answers is seen only in the
+installed app.
 
 The browser panel's routes are the Rust core's; its tabs are the shell's views.
 
@@ -432,6 +436,18 @@ local-network guard's proxy script, which Chromium runs in a process of its own 
 the Rust core inside the browser process (9 MB, in place of a 150 MB Node daemon). The GPU
 process and the renderer are the page's own cost, the same in both shells. The storage
 service process (6 MB) can only go with a patch to CEF.
+
+With the window hidden, the dashboard's view is released after ten minutes
+(`eos-bridge/src/dashboard_life.rs`) and made again when the window shows. Measured with
+`tests/memory.py --closed` on the test bundle (the release wait shortened to 5 s, three runs,
+40 s after the release, load 6–8), against the same bundle with the window open:
+
+| | Total | Processes | Browser | GPU | Renderer | Network | Storage | Proxy script |
+|---|---|---|---|---|---|---|---|---|
+| Window open | 337 (336–338) | 6 | 53 | 188 | 73 | 8 | 6 | 9 |
+| Window hidden, dashboard released | **126 (123–126)** | 5 | 48 | 54 | — | 8 | 6 | 9 |
+
+The renderer goes and the GPU process gives back most of the window's surfaces.
 
 ### Responsiveness
 
