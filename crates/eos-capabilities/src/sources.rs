@@ -54,6 +54,31 @@ fn signal_key(key: &str, version: Option<&str>, event: &str) -> String {
     signal
 }
 
+/// What a failed call of a source's action tells the poll. A capability
+/// that lost what the source reads says so before any call goes out.
+fn failed(error: &ActionError, now: i64) -> SourceError {
+    let signed_out = |code: &str| {
+        matches!(
+            StateCode::parse(code),
+            Some(StateCode::Http401 | StateCode::SecretMissing(_) | StateCode::ClientIdMissing)
+        )
+    };
+    match error {
+        ActionError::RateLimited { retry_after_s } => {
+            let wait_ms = i64::try_from(*retry_after_s).unwrap_or(i64::MAX / 2_000).saturating_mul(1000);
+            SourceError::RateLimited { retry_at: now.saturating_add(wait_ms) }
+        }
+        ActionError::Failed { kind: FailureKind::Unauthorized } => SourceError::Unauthorized,
+        ActionError::NotReady(code) if signed_out(code) => SourceError::Unauthorized,
+        ActionError::NotReady(code) if StateCode::parse(code) == Some(StateCode::SourceGone) => SourceError::Gone,
+        ActionError::Failed { kind: FailureKind::Gone } => SourceError::Gone,
+        ActionError::Invalid(_) => SourceError::Bad("scope"),
+        ActionError::NotFound => SourceError::Bad("source"),
+        ActionError::Failed { kind: FailureKind::Output } => SourceError::Bad("output"),
+        _ => SourceError::Unreachable,
+    }
+}
+
 impl Source {
     /// One item of the action's answer as a signal draft.
     fn draft(&self, item: &Value) -> Option<SignalDraft> {
@@ -86,28 +111,6 @@ impl Source {
         })
     }
 
-    fn failed(&self, error: &ActionError) -> SourceError {
-        let signed_out = |code: &str| {
-            matches!(
-                StateCode::parse(code),
-                Some(StateCode::Http401 | StateCode::SecretMissing(_) | StateCode::ClientIdMissing)
-            )
-        };
-        match error {
-            ActionError::RateLimited { retry_after_s } => {
-                let wait_ms = i64::try_from(*retry_after_s).unwrap_or(i64::MAX / 2_000).saturating_mul(1000);
-                SourceError::RateLimited { retry_at: self.service.ports.clock.now_ms().saturating_add(wait_ms) }
-            }
-            ActionError::Failed { kind: FailureKind::Unauthorized } => SourceError::Unauthorized,
-            ActionError::NotReady(code) if signed_out(code) => SourceError::Unauthorized,
-            ActionError::Failed { kind: FailureKind::Gone } => SourceError::Gone,
-            ActionError::Invalid(_) => SourceError::Bad("scope"),
-            ActionError::NotFound => SourceError::Bad("source"),
-            ActionError::Failed { kind: FailureKind::Output } => SourceError::Bad("output"),
-            _ => SourceError::Unreachable,
-        }
-    }
-
     async fn poll_once(&self, request: PollRequest) -> Result<PollPage, SourceError> {
         let mut input: Map<String, Value> =
             request.scope.iter().map(|(name, value)| (name.clone(), Value::String(value.clone()))).collect();
@@ -121,7 +124,8 @@ impl Source {
             caller: ActionCaller::Source,
             idempotency_key: None,
         };
-        let output = self.service.run_call(call).await.map_err(|e| self.failed(&e))?.output;
+        let output =
+            self.service.run_call(call).await.map_err(|e| failed(&e, self.service.ports.clock.now_ms()))?.output;
         let items = output["items"].as_array().into_iter().flatten().filter_map(|item| self.draft(item)).collect();
         Ok(PollPage {
             items,
@@ -163,5 +167,15 @@ mod tests {
         assert_eq!(signal_key("github:pr:acme/game#7", Some("abc"), "updated"), "github:pr:acme/game#7@abc");
         assert_eq!(signal_key("github:pr:acme/game#7", Some("abc"), "ready"), "github:pr:acme/game#7@abc:ready");
         assert_eq!(signal_key("github:pr:acme/game#7", None, "closed"), "github:pr:acme/game#7:closed");
+    }
+
+    #[test]
+    fn a_capability_that_lost_what_its_source_reads_says_the_source_is_gone() {
+        assert_eq!(failed(&ActionError::NotReady("source_gone".into()), 0), SourceError::Gone);
+        assert_eq!(failed(&ActionError::NotReady("http_401".into()), 0), SourceError::Unauthorized);
+        assert_eq!(
+            failed(&ActionError::RateLimited { retry_after_s: 2 }, 10),
+            SourceError::RateLimited { retry_at: 2_010 }
+        );
     }
 }
