@@ -1,18 +1,20 @@
 //! The user's answer to a `delivery_problem` item (03 G5), acted on in the
-//! answering job: try again queues the send afresh, as approved now; "I sent
+//! answering job: try again queues the send afresh, as approved now, to a
+//! target the routine still goes to; "I sent
 //! it myself" records it as sent and finishes the run once every send went
 //! out; "Don't send" stops it, and the run's delivery failed for good.
 
 use eos_contracts::{ProblemChoice, ResultDoc};
 use eos_core::Error;
-use eos_core::routine::RunOutcomes;
+use eos_core::routine::{RoutineControl, RunOutcomes};
 use eos_core::store::{Outbox, StoredItem, Tx};
 use eos_domain::routine::blueprint::hash;
 use serde_json::Value;
 
 use crate::consume_in;
 use crate::delivery::record::{all_sent, delivering, sent_in};
-use crate::delivery::{FAILED, QUEUED, SENT, STOPPED, UNCERTAIN, announce};
+use crate::delivery::{FAILED, QUEUED, SENT, STOPPED, UNCERTAIN, announce, target_of};
+use crate::send::gone_in;
 
 /// Why a send the user gave up on was stopped.
 const DISCARDED: &str = "discarded";
@@ -33,6 +35,7 @@ pub(crate) fn answered_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     outcomes: &dyn RunOutcomes,
+    control: &dyn RoutineControl,
     answered: Answered<'_>,
 ) -> Result<bool, Error> {
     let Answered { item, choice, doc, now } = answered;
@@ -49,6 +52,8 @@ pub(crate) fn answered_in(
     let reason = row.last_error_kind.take().unwrap_or_else(|| row.state.clone());
     match choice {
         ProblemChoice::Retry => {
+            // A retry is a send: its target must still be in the confirmed Goes to (03 G22).
+            gone_in(tx, control, &row.routine_id, &target_of(&row.target).into_iter().collect::<Vec<_>>())?;
             if let Some(doc) = doc {
                 let held: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
                 if (&doc.kind, &doc.channel, &doc.action) != (&held.kind, &held.channel, &held.action) {

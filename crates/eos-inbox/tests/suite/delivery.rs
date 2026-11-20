@@ -9,12 +9,12 @@ use std::time::Duration;
 use eos_contracts::ActionClass;
 use eos_core::Clock;
 use eos_core::delivery::{ChannelTraits, Idempotency, Receipt, SendError, SendErrorKind, Undo};
-use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate};
+use eos_core::routine::{Confirmed, GateDecision, GateInput, RoutineControl, RunGate};
 use eos_core::store::StoredDelivery;
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_inbox::gate::Gate;
-use eos_testkit::{FakeChannels, FakeRunOutcomes, FakeSleeper, OutcomeCall};
+use eos_testkit::{FakeChannels, FakeRunOutcomes, FakeSleeper, OutcomeCall, TempStore};
 use serde_json::{Value, json};
 
 use crate::gate::{Gated, input, review};
@@ -40,6 +40,11 @@ pub(crate) struct Sender {
 impl Sender {
     pub(crate) fn new() -> Self {
         Self::on(Rig::new())
+    }
+
+    /// Over a routine whose confirmed Goes to is `confirmed`.
+    pub(crate) fn confirming(confirmed: Confirmed) -> Self {
+        Self::on(Rig::with_channels(TempStore::new(), FakeChannels::new(), confirmed))
     }
 
     fn on(rig: Rig) -> Self {

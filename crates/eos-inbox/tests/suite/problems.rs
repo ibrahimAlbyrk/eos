@@ -7,12 +7,15 @@ use std::time::Duration;
 use eos_contracts::{InboxAnswer, ProblemChoice};
 use eos_core::Clock;
 use eos_core::delivery::SendErrorKind;
+use eos_core::routine::Confirmed;
 use eos_core::store::StoredItem;
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
+use eos_inbox::Error;
 use eos_testkit::OutcomeCall;
 
 use crate::delivery::{Sender, failure};
+use crate::rig::pull_requests;
 
 impl Sender {
     /// The one open `delivery_problem` item.
@@ -143,4 +146,24 @@ async fn a_send_refused_for_good_leaves_the_run_delivering_until_the_user_answer
     sender.answer(ProblemChoice::Discard).await;
     let failed = OutcomeCall::DeliveryFailed { run_id: "rn-1".into(), reason: "validation".into() };
     assert_eq!(sender.heard(), [failed]);
+}
+
+#[tokio::test]
+async fn try_again_to_a_recipient_removed_from_the_routine_is_refused_and_sends_nothing() {
+    let removed = Confirmed { goes_to: Vec::new(), ..pull_requests() };
+    let sender = Sender::confirming(removed);
+    sender.refused().await;
+    let item = sender.problem().await;
+    let answer = InboxAnswer::DeliveryProblem { choice: ProblemChoice::Retry, doc: None };
+    match sender.rig.items.answer(&item.id, item.rev, &answer, "dashboard").await {
+        Err(Error::Core(eos_core::Error::Conflict(reason))) => assert_eq!(
+            reason,
+            "This recipient was removed from the routine: github:pr:acme/game#482. Nothing was sent."
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(sender.row("dl-1").await.state, "failed");
+    assert_eq!(sender.rig.find(&item.id).await.state, ItemState::Open, "the problem still waits");
+    sender.pass().await;
+    assert_eq!(sender.sent(), ["dl-1"], "tried once, never again");
 }
