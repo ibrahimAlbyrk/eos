@@ -131,6 +131,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/signals/replay"),
     // Needs you: an answer lets a run start, a routine resume or a change be kept.
     ("POST", "/api/inbox/{id}/answer"),
+    // A send approves a delivery as the user.
+    ("POST", "/api/inbox/{id}/send"),
     // Runs: a start, a message to a run's team and a resume set agents working; the items a
     // routine may run on are read from the user's accounts.
     ("POST", "/api/runs"),

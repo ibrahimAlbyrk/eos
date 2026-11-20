@@ -12,13 +12,15 @@ async fn each_route_needs_the_user_and_the_phone_its_tier() {
     let rig = Rig::new().await;
     let item = rig.open(new_item(ItemKind::Notice, "rt-1")).await;
     let id = &item.id;
-    let routes: [(Method, String, Option<Value>, Tier); 6] = [
+    let routes: [(Method, String, Option<Value>, Tier); 8] = [
         (Method::Get, "/api/inbox".into(), None, Tier::Read),
         (Method::Get, format!("/api/inbox/{id}"), None, Tier::Read),
         (Method::Put, format!("/api/inbox/{id}/draft"), Some(json!({})), Tier::Low),
         (Method::Post, format!("/api/inbox/{id}/later"), Some(json!({})), Tier::Low),
         (Method::Post, format!("/api/inbox/{id}/discard"), Some(json!({})), Tier::Low),
         (Method::Post, format!("/api/inbox/{id}/answer"), Some(json!({})), Tier::High),
+        (Method::Post, format!("/api/inbox/{id}/send"), Some(json!({})), Tier::High),
+        (Method::Get, "/api/inbox/deliveries/dl-1".into(), None, Tier::Read),
     ];
     let allowed = |status: u16| status != 403;
     for (method, path, body, tier) in routes {

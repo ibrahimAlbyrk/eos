@@ -16,27 +16,39 @@
 //! - A routine run's permission asks show in Needs you instead of on the
 //!   banner ([`RunAsks`], the gateway's routing).
 //!
+//! - A run worker's questions wait as `question` items ([`RunQuestions`]);
+//!   every other worker asks as it always did.
 //! - A run's checked result passes the [`gate`]: shown, refused, held as a
 //!   `draft` item, or queued as deliveries ([`delivery`]).
+//! - The user sends a held draft ([`Items::send`]): its deliveries, what the
+//!   user changed ([`Edits`]) and what became of the result
+//!   (`inbox_outcomes`) are written in the answering job.
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
 //! and counts are logged.
 
 mod answer;
+mod control;
 pub mod delivery;
+mod edits;
 pub mod gate;
 mod handoff;
 mod items;
+mod outcomes;
+mod questions;
 mod routing;
+mod send;
 
 use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};
 use eos_domain::inbox::ItemState;
 
-pub use answer::Items;
+pub use answer::{Items, ItemsParts};
+pub use edits::Edits;
 pub use handoff::consume_in;
 pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in};
+pub use questions::{QuestionWaiters, RunQuestionParts, RunQuestions};
 pub use routing::RunAsks;
 
 /// The topic every write of an item announces.

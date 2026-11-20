@@ -14,7 +14,7 @@ mod targets;
 pub(crate) use apply::DRAFT_PRODUCER;
 pub use apply::TARGET_REFUSED;
 
-use std::sync::{Arc, OnceLock, Weak};
+use std::sync::Arc;
 
 use eos_core::delivery::Channels;
 use eos_core::os::TimeZone;
@@ -23,14 +23,14 @@ use eos_core::store::{Outbox, Tx};
 use eos_core::{Clock, Error, Ids};
 use tokio::sync::Notify;
 
+use crate::control::LateControl;
+
 /// Needs you's gate.
 pub struct Gate {
     channels: Arc<dyn Channels>,
     zone: Arc<dyn TimeZone>,
     clock: Arc<dyn Clock>,
-    /// The routines feature is built with this gate, so its control is
-    /// attached after; held weakly, as the feature holds the gate.
-    control: OnceLock<Weak<dyn RoutineControl>>,
+    control: LateControl,
     /// Pokes the delivery engine once a decision queued deliveries.
     wake: Arc<Notify>,
 }
@@ -43,13 +43,13 @@ impl std::fmt::Debug for Gate {
 
 impl Gate {
     pub fn new(channels: Arc<dyn Channels>, zone: Arc<dyn TimeZone>, clock: Arc<dyn Clock>) -> Self {
-        Self { channels, zone, clock, control: OnceLock::new(), wake: Arc::new(Notify::new()) }
+        Self { channels, zone, clock, control: LateControl::default(), wake: Arc::new(Notify::new()) }
     }
 
     /// The routines' control, which pauses a routine whose result was
     /// refused. The caller keeps it alive.
     pub fn attach(&self, control: &Arc<dyn RoutineControl>) {
-        let _ = self.control.set(Arc::downgrade(control));
+        self.control.attach(control);
     }
 
     /// What wakes the delivery engine when the gate queued deliveries.
@@ -58,7 +58,7 @@ impl Gate {
     }
 
     fn control(&self) -> Result<Arc<dyn RoutineControl>, Error> {
-        self.control.get().and_then(Weak::upgrade).ok_or_else(|| Error::storage("the gate has no routine control"))
+        self.control.get()
     }
 }
 

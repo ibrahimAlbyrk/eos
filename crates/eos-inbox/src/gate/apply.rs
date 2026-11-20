@@ -12,11 +12,12 @@ use eos_core::store::{Outbox, Tx};
 use eos_domain::freedom::{Caps, effective_rung};
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::outbound::{self, Flag, OutboundContext};
+use eos_domain::run_scope::Trust;
 use serde_json::{Map, Value, json};
 
 use super::Gate;
 use super::targets::{Chosen, Targets, choose, with_recipients};
-use crate::delivery::{NewDelivery, queue_in};
+use crate::delivery::{NewDelivery, queue_in, target_value};
 use crate::items::ALERT_PRODUCER;
 use crate::{NewItem, Opening, announce, open_in};
 
@@ -67,15 +68,22 @@ pub(crate) fn apply_in(
     let traits = match traits {
         Some(traits) if input.result_mode == GateMode::AsUsual && rung > Rung::Draft => traits,
         _ => {
-            let item_id = hold_in(tx, out, &at, input, &doc, &flags)?;
+            let item_id = hold_in(tx, out, &at, input, Held { doc: &doc, chosen: &chosen, flags: &flags, rung })?;
             tracing::info!(run_id = %input.run_id, item_id, rung = ?rung, flags = flags.len(), "a result was held");
             return Ok(GateDecision::Held { item_id });
         }
     };
     let mut delivery_ids = Vec::new();
     for target in &chosen {
-        let new = NewDelivery { input, doc: &doc, target: &target.target, traits: &traits, item_id: None };
-        delivery_ids.push(queue_in(tx, out, now, ids, new)?);
+        let new = NewDelivery {
+            run_id: &input.run_id,
+            routine_id: &input.routine_id,
+            doc: &doc,
+            target: &target.target,
+            traits: &traits,
+            item_id: None,
+        };
+        delivery_ids.push(queue_in(tx, out, now, ids, new)?.id);
     }
     tracing::info!(run_id = %input.run_id, deliveries = delivery_ids.len(), rung = ?rung, "a result goes out");
     gate.wake.notify_one();
@@ -126,15 +134,23 @@ fn refuse_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, input: &GateInput)
     open_in(tx, out, at, alert).map(drop)
 }
 
+/// A result the gate holds.
+struct Held<'a> {
+    doc: &'a ResultDoc,
+    chosen: &'a [Chosen],
+    flags: &'a [Flag],
+    rung: Rung,
+}
+
 /// The result as a `draft` item, with what the run cost and what its check
-/// said; its id.
+/// said, and what its send needs: the targets the gate checked, the rung it
+/// was held at and whether outside text made it; its id.
 fn hold_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     at: &Opening<'_>,
     input: &GateInput,
-    doc: &ResultDoc,
-    flags: &[Flag],
+    held: Held<'_>,
 ) -> Result<String, Error> {
     let run = tx.runs().find(&input.run_id)?.ok_or_else(|| Error::not_found("run", input.run_id.clone()))?;
     let verdict = tx.run_results().by_run(&run.id)?.into_iter().find(|result| result.attempt == run.attempt);
@@ -148,10 +164,13 @@ fn hold_in(
         title: run.headline.clone().unwrap_or_else(|| "A result to send".to_owned()),
         summary: "It waits for you to send it.".to_owned(),
         payload: json!({
-            "doc": doc,
-            "flags": flags.iter().map(|flag| flag.as_str()).collect::<Vec<_>>(),
+            "doc": held.doc,
+            "flags": held.flags.iter().map(|flag| flag.as_str()).collect::<Vec<_>>(),
             "costUsd": run.cost_usd,
             "verdict": verdict,
+            "targets": held.chosen.iter().map(|chosen| target_value(&chosen.target)).collect::<Vec<_>>(),
+            "rung": held.rung,
+            "untrusted": input.trust == Trust::Untrusted,
         }),
         by_hand: input.origin == "hand",
     };

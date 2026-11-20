@@ -4,6 +4,7 @@
 //! again as a draft when its subject moved on; or failed for good with a
 //! `delivery_problem` item. The run hears of it through [`RunOutcomes`].
 
+use eos_contracts::ResultDoc;
 use eos_core::Error;
 use eos_core::capability::FailureKind;
 use eos_core::delivery::{ChannelTraits, Receipt, SendError, SendErrorKind, Undo};
@@ -14,8 +15,11 @@ use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
-use super::{AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce};
+use super::{
+    AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, target_of, target_value,
+};
 use crate::gate::DRAFT_PRODUCER;
+use crate::outcomes::{Ended, ended_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
 
 /// Waits after the 1st to 5th failed attempt (03 G5); the 6th is the last.
@@ -183,11 +187,30 @@ pub(crate) fn record_in(
     } else if row.state == SENT && delivering(tx, &row.run_id)? {
         let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
         if rows.iter().all(|other| other.state == SENT) {
-            let outcome = if row.mode == AUTO { Outcome::AutoSent } else { Outcome::SentUnedited };
-            outcomes.finished(tx, out, &row.run_id, outcome)?;
+            sent_in(tx, out, at, outcomes, &row)?;
         }
     }
     Ok(())
+}
+
+/// The run's last delivery went out: one Freedom sent ends `auto_sent`; a
+/// draft the user sent ends `sent_unedited` or `sent_edited`, recorded.
+fn sent_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
+    row: &StoredDelivery,
+) -> Result<(), Error> {
+    let item = match &row.item_id {
+        Some(item_id) if row.mode != AUTO => tx.inbox_items().find(item_id)?,
+        _ => None,
+    };
+    let Some(item) = item else { return outcomes.finished(tx, out, &row.run_id, Outcome::AutoSent) };
+    let sent: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
+    let outcome = sent_outcome(&item, &sent);
+    let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: at.now };
+    ended_in(tx, out, outcomes, ended)
 }
 
 /// A send whose subject moved on goes back to the user as a draft (03 G1):
@@ -209,7 +232,7 @@ fn hold_again_in(
         subject_key: run.as_ref().and_then(|run| run.item_key.clone()),
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
         summary: "What it is about changed since it was made. Look at it again before you send it.".to_owned(),
-        payload: json!({ "doc": doc, "staleReason": reason }),
+        payload: json!({ "doc": doc, "staleReason": reason, "targets": target_of(&row.target).map(|t| vec![target_value(&t)]) }),
         by_hand: false,
     };
     open_in(tx, out, at, draft).map(drop)
