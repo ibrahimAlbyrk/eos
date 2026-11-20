@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 
 use eos_contracts::{
-    BlueprintIssue, CheckVerdict, Freedom, ItemRef, Recipient, ResultDoc, RoutineKind, RoutineState, RunInput, Rung,
-    When, Which,
+    BlueprintIssue, CheckVerdict, Freedom, ItemRef, Recipient, RecipientKind, RecipientsUnconfirmed, ResultDoc,
+    RoutineKind, RoutineState, RunInput, Rung, UnconfirmedRecipient, When, Which,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
@@ -105,6 +105,56 @@ pub enum StartError {
 impl From<Error> for StartError {
     fn from(error: Error) -> Self {
         StartError::Store(error)
+    }
+}
+
+/// Why a routine paused because a target was refused does not resume yet:
+/// the head's Goes to names recipients the user has not confirmed (D53).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResumeRefusal {
+    pub recipients: Vec<Recipient>,
+}
+
+impl ResumeRefusal {
+    /// The 409 body every route that resumes answers.
+    pub fn answer(&self) -> RecipientsUnconfirmed {
+        let recipients = self
+            .recipients
+            .iter()
+            .map(|recipient| UnconfirmedRecipient { id: recipient.id.clone(), label: label(recipient) });
+        RecipientsUnconfirmed {
+            error: "Confirm where this routine sends before it resumes.".to_owned(),
+            code: "recipients_unconfirmed".to_owned(),
+            recipients: recipients.collect(),
+        }
+    }
+}
+
+/// A recipient as the user reads it: the address (a GitHub login with its
+/// `@`), "you", or where the item came from.
+fn label(recipient: &Recipient) -> String {
+    match &recipient.kind {
+        RecipientKind::Me { .. } => "you".to_owned(),
+        RecipientKind::Fixed { channel, address, .. } if channel == "github" && !address.starts_with('@') => {
+            format!("@{address}")
+        }
+        RecipientKind::Fixed { address, .. } => address.clone(),
+        RecipientKind::ItemPlace { channel, .. } if channel == "github" => "the pull request".to_owned(),
+        RecipientKind::ItemPlace { .. } => "the item's sender".to_owned(),
+    }
+}
+
+/// Why a resume did not happen.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ResumeError {
+    /// 409: recipients to confirm first.
+    Unconfirmed(ResumeRefusal),
+    Store(Error),
+}
+
+impl From<Error> for ResumeError {
+    fn from(error: Error) -> Self {
+        ResumeError::Store(error)
     }
 }
 
@@ -255,11 +305,15 @@ pub trait RoutineControl: Send + Sync {
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// [`pause`](RoutineControl::pause) inside the caller's job.
     fn pause_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
-    /// Resumes every routine paused for `reason`.
+    /// Resumes every routine paused for `reason`; one paused because a
+    /// target was refused stays paused while its head names a recipient the
+    /// user has not confirmed.
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// Resumes the routine if it is paused for `reason`, inside the
-    /// caller's job (the user resumed it from its alert).
-    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
+    /// caller's job (the user resumed it from its alert); refused while a
+    /// routine paused because a target was refused names a recipient the
+    /// user has not confirmed. Writes nothing when refused.
+    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), ResumeError>;
     /// The routines whose current version needs the capability.
     fn using_capability<'a>(&'a self, capability_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>>;
 }
@@ -479,4 +533,29 @@ pub trait RunOutcomes: Send + Sync {
 pub trait PlanHeadroom: Send + Sync {
     /// The cached five-hour window is at or above `percent` of the limit.
     fn busy(&self, percent: i64) -> bool;
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn a_refusal_names_each_recipient_as_the_user_reads_it() {
+        let recipients = [
+            json!({"id": "me", "kind": "me", "channel": "push"}),
+            json!({"id": "boss", "kind": "fixed", "channel": "mail", "address": "boss@acme.dev"}),
+            json!({"id": "lead", "kind": "fixed", "channel": "github", "address": "octocat"}),
+            json!({"id": "pr", "kind": "item_place", "channel": "github"}),
+        ];
+        let recipients = recipients.into_iter().map(|r| serde_json::from_value(r).expect("a recipient")).collect();
+        let answer = serde_json::to_value(ResumeRefusal { recipients }.answer()).expect("json");
+        assert_eq!(answer["code"], "recipients_unconfirmed");
+        assert_eq!(
+            answer["recipients"],
+            json!([{"id": "me", "label": "you"}, {"id": "boss", "label": "boss@acme.dev"},
+                   {"id": "lead", "label": "@octocat"}, {"id": "pr", "label": "the pull request"}])
+        );
+    }
 }

@@ -58,6 +58,8 @@ pub(crate) struct Rig {
     pub(crate) temp: TempStore,
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) waiting: Arc<Waiting>,
+    /// What the routines' control answers.
+    pub(crate) control: Arc<FakeRoutineControl>,
     ids: Arc<SeqIds>,
 }
 
@@ -67,6 +69,7 @@ impl Rig {
         let waiting = Arc::new(Waiting::default());
         let kernel = Kernel::new(KernelOptions::default());
         let temp = TempStore::on_bus(&kernel.bus);
+        let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests()));
         let module = Arc::new(InboxModule::new(InboxParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -81,7 +84,7 @@ impl Rig {
                 ids: Arc::new(SeqIds::new()),
                 zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
                 channels: Arc::new(FakeChannels::new()),
-                control: Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests())),
+                control: control.clone(),
                 outcomes: Arc::new(FakeRunOutcomes::new()),
                 wake: Arc::new(tokio::sync::Notify::new()),
             },
@@ -90,7 +93,7 @@ impl Rig {
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        Self { runtime, temp, clock, waiting, ids: Arc::new(SeqIds::new()) }
+        Self { runtime, temp, clock, waiting, control, ids: Arc::new(SeqIds::new()) }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

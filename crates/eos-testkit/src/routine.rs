@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 
 use eos_contracts::Rung;
-use eos_core::routine::{Confirmed, RoutineControl, RunLookup, RunRef};
+use eos_core::routine::{Confirmed, ResumeError, ResumeRefusal, RoutineControl, RunLookup, RunRef};
 use eos_core::store::{Outbox, Tx};
 use eos_core::{BoxFuture, Error};
 
@@ -56,12 +56,13 @@ pub enum ControlCall {
 }
 
 /// Answers what the test gives: each routine's confirmed Freedom and Goes
-/// to, and the routines that use each capability. Changes nothing; records
-/// every call, in order.
+/// to, the routines that use each capability, and the resumes it refuses.
+/// Changes nothing; records every call that went through, in order.
 #[derive(Debug, Default)]
 pub struct FakeRoutineControl {
     confirmed: HashMap<String, Confirmed>,
     users: HashMap<String, Vec<String>>,
+    refusals: Mutex<HashMap<String, ResumeRefusal>>,
     calls: Mutex<Vec<ControlCall>>,
 }
 
@@ -81,6 +82,16 @@ impl FakeRoutineControl {
     pub fn using(mut self, capability_id: &str, routine_ids: &[&str]) -> Self {
         self.users.insert(capability_id.to_owned(), routine_ids.iter().map(|id| (*id).to_owned()).collect());
         self
+    }
+
+    /// From now on, resuming `routine_id` is refused with `refusal`; `None`
+    /// once the user confirmed every recipient.
+    pub fn refuse_resume(&self, routine_id: &str, refusal: Option<ResumeRefusal>) {
+        let mut refusals = locked(&self.refusals);
+        match refusal {
+            Some(refusal) => refusals.insert(routine_id.to_owned(), refusal),
+            None => refusals.remove(routine_id),
+        };
     }
 
     pub fn calls(&self) -> Vec<ControlCall> {
@@ -128,7 +139,10 @@ impl RoutineControl for FakeRoutineControl {
         self.done(ControlCall::ResumePaused(reason.to_owned()))
     }
 
-    fn resume_in(&self, _tx: &dyn Tx, _out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+    fn resume_in(&self, _tx: &dyn Tx, _out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), ResumeError> {
+        if let Some(refusal) = locked(&self.refusals).get(routine_id) {
+            return Err(ResumeError::Unconfirmed(refusal.clone()));
+        }
         locked(&self.calls).push(ControlCall::Resume { routine_id: routine_id.to_owned(), reason: reason.to_owned() });
         Ok(())
     }

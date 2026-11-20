@@ -1,13 +1,17 @@
 //! `RoutineControl`: what the user confirmed, Freedom changes as new
 //! versions, pauses and resumes, and the routines a capability serves.
 
-use eos_contracts::{RoutineState, Rung, VersionAuthor, VersionStatus};
+use eos_contracts::{Recipient, RoutineState, Rung, VersionAuthor, VersionStatus};
+use eos_core::routine::{ResumeError, ResumeRefusal};
 use eos_core::store::StoredVersion;
 use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::run_scope::Trust;
+use eos_runtime::access::Caller;
+use eos_runtime::http::Method;
 use serde_json::{Value, json};
 
 use crate::bench::{Bench, blueprint};
+use crate::run_routes::Routes;
 
 impl Bench {
     /// Adds a version to `routine` and makes it the head.
@@ -161,7 +165,11 @@ async fn an_alert_resumes_its_routine_only_while_it_is_paused_for_the_alerts_rea
         bench
             .temp
             .store
-            .write_blocking(move |tx, out| control.resume_in(tx, out, &id, "target_refused"))
+            .write_blocking(move |tx, out| {
+                control
+                    .resume_in(tx, out, &id, "target_refused")
+                    .map_err(|e| eos_core::Error::Conflict(format!("{e:?}")))
+            })
             .expect("acts");
     }
     let state = |id: &str| {
@@ -186,4 +194,55 @@ async fn the_routines_a_capability_serves_are_those_whose_head_needs_it() {
     assert_eq!(control.using_capability("github").await, Ok(vec![reviews.clone()]));
     assert_eq!(control.using_capability("mail").await, Ok(vec![reviews]));
     assert_eq!(control.using_capability("slack").await, Ok(vec![]));
+}
+
+fn going_to(recipients: Value) -> Value {
+    let mut blueprint = blueprint(1);
+    blueprint["goesTo"] = recipients;
+    blueprint
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_paused_for_a_refused_target_resumes_only_once_its_recipients_are_confirmed() {
+    let routes = Routes::new();
+    let bench = &routes.bench;
+    let pr = json!({"id": "pr", "kind": "item_place", "channel": "github"});
+    let boss = json!({"id": "boss", "kind": "fixed", "channel": "mail", "address": "boss@acme.dev"});
+    let routine = bench.routine(RoutineState::Active, going_to(json!([pr])));
+    // Eos's version names a recipient the user never confirmed.
+    bench.version(&routine, going_to(json!([pr, boss])), VersionAuthor::Eos, VersionStatus::Kept, 10);
+    let control = bench.module.control();
+    control.pause(&routine, "target_refused").await.expect("pauses");
+
+    let refused = {
+        let (control, id) = (control.clone(), routine.clone());
+        bench
+            .temp
+            .store
+            .write_blocking(move |tx, out| Ok(control.resume_in(tx, out, &id, "target_refused")))
+            .expect("reads")
+    };
+    let boss_recipient: Recipient = serde_json::from_value(boss.clone()).expect("a recipient");
+    assert_eq!(refused, Err(ResumeError::Unconfirmed(ResumeRefusal { recipients: vec![boss_recipient] })));
+    let path = format!("/api/routines/{routine}/state");
+    let (status, body) = routes.call(Method::Put, Caller::DASHBOARD, &path, Some(json!({"state": "active"}))).await;
+    assert_eq!(status, 409);
+    assert_eq!(
+        body,
+        json!({"error": "Confirm where this routine sends before it resumes.", "code": "recipients_unconfirmed",
+               "recipients": [{"id": "boss", "label": "boss@acme.dev"}]})
+    );
+    control.resume_paused("target_refused").await.expect("acts");
+    let state = || {
+        let id = routine.clone();
+        let found = bench.temp.store.read_blocking(move |tx| tx.routines().find(&id)).expect("reads");
+        found.map(|r| (r.state, r.paused_reason)).expect("a routine")
+    };
+    assert_eq!(state(), (RoutineState::Paused, Some("target_refused".into())), "nothing resumed it");
+
+    // The user keeps a version that names the recipient.
+    bench.version(&routine, going_to(json!([pr, boss])), VersionAuthor::User, VersionStatus::Kept, 20);
+    let (status, row) = routes.call(Method::Put, Caller::DASHBOARD, &path, Some(json!({"state": "active"}))).await;
+    assert_eq!((status, &row["state"]), (200, &json!("active")));
+    assert_eq!(state(), (RoutineState::Active, None));
 }

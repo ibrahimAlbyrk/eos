@@ -119,6 +119,27 @@ pub enum RecipientKind {
 
 impl Validate for RecipientKind {}
 
+/// 409 on a resume while the routine's head names recipients the user has
+/// not confirmed (D53): `{error, code: "recipients_unconfirmed", recipients}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct RecipientsUnconfirmed {
+    pub error: String,
+    pub code: String,
+    pub recipients: Vec<UnconfirmedRecipient>,
+}
+
+impl Validate for RecipientsUnconfirmed {}
+
+/// A recipient to confirm first, by its id and as the user reads it: the
+/// address, `@login` or "you".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct UnconfirmedRecipient {
+    pub id: String,
+    pub label: String,
+}
+
+impl Validate for UnconfirmedRecipient {}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

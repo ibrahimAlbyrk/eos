@@ -26,7 +26,8 @@
 //! - The user's answer to a `delivery_problem` sends again, records the send
 //!   as made or stops it, and settles the run, in the answering job.
 //! - Resume on a routine's alert resumes the routine through its control,
-//!   in the answering job; Keep paused leaves it paused.
+//!   in the answering job; Keep paused leaves it paused. A resume the
+//!   control refuses until recipients are confirmed rolls the answer back.
 //! - A subject that moved on flags its waiting drafts stale, and one that
 //!   closed expires its items ([`Items::subject`]); a stale draft is sent
 //!   only on the user's second confirm.
@@ -101,6 +102,10 @@ pub enum Error {
     /// its channel has no undo.
     #[error("cannot_undo")]
     CannotUndo,
+    /// Resume on a routine's alert, while its head names recipients the
+    /// user has not confirmed (D53); nothing was written.
+    #[error("recipients_unconfirmed")]
+    RecipientsUnconfirmed(eos_core::routine::ResumeRefusal),
     #[error(transparent)]
     Core(#[from] eos_core::Error),
 }

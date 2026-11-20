@@ -1,12 +1,12 @@
 //! What the user does with an item: answer it, put it aside, discard it or
 //! save edits of a draft. Each is one write job guarded by the item's rev.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use eos_contracts::{InboxAnswer, ResultDoc};
 use eos_core::delivery::Channels;
 use eos_core::os::TimeZone;
-use eos_core::routine::{RoutineControl, RunOutcomes};
+use eos_core::routine::{ResumeError, RoutineControl, RunOutcomes};
 use eos_core::store::{ItemAnswer, Outbox, Store, StoredItem, Tx};
 use eos_core::{Clock, Ids};
 use eos_domain::inbox::{ItemKind, ItemState};
@@ -160,7 +160,10 @@ impl Items {
         let typed = answer.clone();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
         let (id, run_outcomes, control) = (id.to_owned(), self.outcomes.clone(), self.control.clone());
-        let (item, changed) = self
+        // A refused resume rolls the whole answer back; it comes out here.
+        let refused = Arc::new(OnceLock::new());
+        let refusal = refused.clone();
+        let written = self
             .store
             .write(move |tx, out| {
                 let item = tx.inbox_items().find(&id)?.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
@@ -186,14 +189,24 @@ impl Items {
                         problems::answered_in(tx, out, run_outcomes.as_ref(), control.as_ref(), answered)?
                     }
                     InboxAnswer::RoutineAlert { choice } if alerts::acted_on(&item) => {
-                        alerts::answered_in(tx, out, control.as_ref(), &item, *choice, now)?;
-                        false
+                        match alerts::answered_in(tx, out, control.as_ref(), &item, *choice, now) {
+                            Ok(()) => false,
+                            Err(ResumeError::Store(error)) => return Err(error),
+                            Err(ResumeError::Unconfirmed(unconfirmed)) => {
+                                let _ = refusal.set(unconfirmed);
+                                return Err(eos_core::Error::Conflict("recipients to confirm first".into()));
+                            }
+                        }
                     }
                     _ => false,
                 };
                 Ok(Ok((item, changed)))
             })
-            .await??;
+            .await;
+        if let Some(unconfirmed) = refused.get() {
+            return Err(Error::RecipientsUnconfirmed(unconfirmed.clone()));
+        }
+        let (item, changed) = written??;
         if changed {
             self.wake.notify_one();
         }
