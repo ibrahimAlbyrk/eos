@@ -242,7 +242,8 @@ fn hold_again_in(
         producer: DRAFT_PRODUCER.to_owned(),
         routine_id: Some(row.routine_id.clone()),
         run_id: Some(row.run_id.clone()),
-        subject_key: run.as_ref().and_then(|run| run.item_key.clone()),
+        // One held-again draft per target: a second target's draft must not replace the first's.
+        subject_key: run.as_ref().and_then(|run| run.item_key.as_ref()).map(|key| format!("{key}|{}", row.target_ref)),
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
         summary: "What it is about changed since it was made. Look at it again before you send it.".to_owned(),
         payload: json!({ "doc": doc, "staleReason": reason, "targets": target_of(&row.target).map(|t| vec![target_value(&t)]) }),
