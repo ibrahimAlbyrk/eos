@@ -93,12 +93,19 @@ async fn the_lead_and_the_checker_are_told_the_kind_and_shape_the_channel_declar
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_result_of_another_shape_goes_back_with_what_to_change() {
+async fn a_result_of_another_shape_is_refused_at_once_with_what_to_change() {
     let bench = bench();
     let (run, lead) = working(&bench).await;
-    bench.module.tools().submit_result(&lead, handed(general_remark())).await.expect("handed in");
-    bench.eventually(|| bench.state(&run) == RunState::Running).await;
+    let refused = bench.module.tools().submit_result(&lead, handed(general_remark())).await.expect_err("refused");
+    let told = refused.to_string();
     let fix = "part `body`: a line comment needs meta.line; put general remarks in the summary part.";
-    bench.eventually(|| bench.agents.sent(&lead).iter().any(|text| text.contains(fix))).await;
+    assert!(told.contains(fix) && told.contains("call submit_result again"), "{told}");
+    let plain = bench.module.tools().submit_result(&lead, handed(json!("Overall fine."))).await.expect_err("refused");
+    let told = plain.to_string();
+    assert!(told.contains("hand in the whole result as one object with kind, channel, action and parts"), "{told}");
+    let at = bench.run(&run);
+    assert_eq!((at.state, at.station, at.attempt), (RunState::Running, Some(Station::Work), 1), "no round spent");
     assert_eq!(bench.agents.started().len(), 1, "no checker for a result of the wrong shape");
+    bench.module.tools().submit_result(&lead, handed(fitting())).await.expect("the right shape is taken");
+    bench.eventually(|| bench.state(&run) == RunState::Checking).await;
 }

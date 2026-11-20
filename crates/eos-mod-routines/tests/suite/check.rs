@@ -7,6 +7,8 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_runtime::module::Module;
 use serde_json::{Value, json};
 
+use eos_testkit::FakeCapabilityReads;
+
 use crate::bench::{Bench, blueprint, new_run, pull_request};
 
 /// PR Review with one check of its own.
@@ -139,22 +141,29 @@ async fn a_checker_that_dies_is_started_again_once_then_the_run_fails() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_result_the_rules_refuse_goes_back_without_a_checker() {
+async fn a_result_of_another_kind_is_refused_when_handed_in() {
     let bench = Bench::new(true);
     let (run, lead) = working(&bench, checked()).await;
     let wrong = SubmittedResult { kind: "mail".into(), ..review("R") };
-    bench.module.tools().submit_result(&lead, wrong).await.expect("handed in");
+    let refused = bench.module.tools().submit_result(&lead, wrong).await.expect_err("refused");
+    let told = refused.to_string();
+    assert!(told.contains("kind `mail`: this routine makes `github.review`; hand in kind `github.review`."), "{told}");
+    let at = bench.run(&run);
+    assert_eq!((at.state, at.station, at.attempt), (RunState::Running, Some(Station::Work), 1), "no round spent");
+    assert!(!bench.module.holds_worker(&lead));
+    bench.module.tools().submit_result(&lead, review("R")).await.expect("the right kind is taken");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_result_the_rules_refuse_goes_back_without_a_checker() {
+    let reads = FakeCapabilityReads::new().refusing("github.review", "part `c:1`: a line comment needs meta.line.");
+    let bench = Bench::with_reads(true, reads);
+    let (run, lead) = working(&bench, checked()).await;
+    bench.module.tools().submit_result(&lead, review("R")).await.expect("handed in");
     bench.eventually(|| bench.state(&run) == RunState::Running).await;
     assert_eq!(bench.run(&run).attempt, 2);
-    bench
-        .eventually(|| {
-            bench
-                .agents
-                .sent(&lead)
-                .iter()
-                .any(|t| t.contains("kind `mail`: this routine makes `github.review`; hand in kind `github.review`."))
-        })
-        .await;
+    let fix = "- part `c:1`: a line comment needs meta.line.";
+    bench.eventually(|| bench.agents.sent(&lead).iter().any(|text| text.contains(fix))).await;
     assert!(!bench.agents.started().iter().any(is_checker));
 }
 

@@ -13,7 +13,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use serde_json::json;
 
-use super::{Engine, check, fail, move_run, team};
+use super::{Engine, check, fail, move_run, shape, team};
 
 /// The largest result body kept, in bytes of its JSON.
 pub(crate) const RESULT_BODY_MAX_BYTES: usize = 512 * 1024;
@@ -69,6 +69,7 @@ impl RoutineTools for Tools {
             if body.len() > RESULT_BODY_MAX_BYTES {
                 return Err(Error::Validation(format!("body: at most {RESULT_BODY_MAX_BYTES} bytes")));
             }
+            shape::refuse_misfit(engine, &run.run_id, &result.kind, &result.body).await?;
             let kept = engine.folders.keep_files(&run.routine_id, &run.run_id, &result.files).await?;
             let files: Vec<_> = kept.iter().map(|file| json!({"name": file.name, "bytes": file.bytes})).collect();
             let (id, now) = (run.run_id.clone(), engine.clock.now_ms());
