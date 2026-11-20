@@ -34,7 +34,7 @@ use tokio::sync::Notify;
 
 use crate::after::follow_in;
 use crate::polls::Polls;
-use crate::router::{CLOCK, Router, Routing, run_in};
+use crate::router::{CLOCK, Router, Routing, error_kind, run_in};
 use crate::sources::{SourceSpec, source_in};
 
 /// The loop never sleeps longer: a sleep of the computer, a changed clock
@@ -110,11 +110,20 @@ impl Scheduler {
                     ids: self.ids.clone(),
                     routing: self.router.routing(),
                 };
-                let at = self.store.write(move |tx, out| job.fire_in(tx, out)).await?;
-                next = earliest(next, at);
+                // A schedule whose write fails is tried again next pass; the
+                // others, the chains and the polls go on.
+                match self.store.write(move |tx, out| job.fire_in(tx, out)).await {
+                    Ok(at) => next = earliest(next, at),
+                    Err(error) => tracing::warn!(
+                        routine_id = %routine.id,
+                        slot,
+                        error = error_kind(&error),
+                        "a schedule could not fire"
+                    ),
+                }
             }
         }
-        self.follow(&held).await?;
+        self.follow(&held).await;
         self.polls.ensure(&held).await?;
         Ok(earliest(next, self.polls.start_due().await?))
     }
@@ -122,8 +131,8 @@ impl Scheduler {
 
 impl Scheduler {
     /// Keeps the finished runs of every routine a held routine waits on, one
-    /// write each.
-    async fn follow(&self, held: &[Arc<RoutineTriggers>]) -> Result<(), Error> {
+    /// write each; one that fails is tried again next pass.
+    async fn follow(&self, held: &[Arc<RoutineTriggers>]) {
         let waiting =
             held.iter().filter(|routine| matches!(routine.state, RoutineState::Active | RoutineState::Paused));
         let mut upstreams: Vec<String> = waiting
@@ -137,9 +146,12 @@ impl Scheduler {
         upstreams.dedup();
         for upstream in upstreams {
             let (intake, ids, now) = (self.router.intake.clone(), self.ids.clone(), self.clock.now_ms());
-            self.store.write(move |tx, _| follow_in(tx, intake.as_ref(), ids.as_ref(), &upstream, now)).await?;
+            let routine_id = upstream.clone();
+            let followed = self.store.write(move |tx, _| follow_in(tx, intake.as_ref(), ids.as_ref(), &upstream, now));
+            if let Err(error) = followed.await {
+                tracing::warn!(%routine_id, error = error_kind(&error), "finished runs could not be kept");
+            }
         }
-        Ok(())
     }
 }
 
