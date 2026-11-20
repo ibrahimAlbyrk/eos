@@ -6,11 +6,12 @@ use serde::Serialize;
 
 use super::{
     CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
-    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
-    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo,
-    RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo,
-    SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo,
-    WorkerRepo, WorktreeRemovalQueue,
+    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MemBookRepo, MemCreditRepo,
+    MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo, MemVectorRepo,
+    MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
+    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo,
+    SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
+    SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -30,6 +31,16 @@ pub trait Tx {
     fn inbox_items(&self) -> &dyn InboxRepo;
     fn inbox_offers(&self) -> &dyn OfferRepo;
     fn inbox_outcomes(&self) -> &dyn OutcomeRepo;
+    fn mem_book(&self) -> &dyn MemBookRepo;
+    fn mem_credit(&self) -> &dyn MemCreditRepo;
+    fn mem_cursors(&self) -> &dyn MemCursorRepo;
+    fn mem_evidence(&self) -> &dyn MemEvidenceRepo;
+    fn mem_graph(&self) -> &dyn MemGraphRepo;
+    fn mem_moments(&self) -> &dyn MemMomentRepo;
+    fn mem_notes(&self) -> &dyn MemNoteRepo;
+    fn mem_uses(&self) -> &dyn MemUseRepo;
+    fn mem_vectors(&self) -> &dyn MemVectorRepo;
+    fn mem_versions(&self) -> &dyn MemVersionRepo;
     fn message_ids(&self) -> &dyn MessageIdRepo;
     fn message_queue(&self) -> &dyn MessageQueueRepo;
     fn pending(&self) -> &dyn PendingRepo;

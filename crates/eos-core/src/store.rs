@@ -44,6 +44,8 @@ mod documents;
 mod events;
 mod files;
 mod inbox;
+mod mem;
+mod mem_journal;
 mod memories;
 mod message_queue;
 mod pages;
@@ -73,6 +75,15 @@ pub use files::{ConfigSource, ProjectMemoryStore, ProjectStore, RecentFolders, U
 pub use inbox::{
     DeliveryRepo, EditRepo, HaltRepo, InboxRepo, ItemAnswer, ItemPlace, ItemQuery, NewEdit, NewOutcome, OfferRepo,
     OutcomeRepo, StoredDelivery, StoredEdit, StoredHalt, StoredItem, StoredOffer, StoredOutcome, WaitingCount,
+};
+pub use mem::{
+    MEM_EVIDENCE_PER_NOTE, MEM_NOTES_MAX, MemCreditRepo, MemEvidenceRepo, MemGraphRepo, MemNoteRepo, MemVectorRepo,
+    MemVersionRepo, NoteQuery, StoredCredit, StoredEvidence, StoredHook, StoredLink, StoredNote, StoredNoteVersion,
+    StoredVector, WordHit,
+};
+pub use mem_journal::{
+    DailyCall, DailyCalls, MEM_FORGOTTEN_KEPT_MS, MEM_MOMENTS_DONE_KEPT_MS, MEM_USES_KEPT_MS, MemBookRepo,
+    MemCursorRepo, MemMomentRepo, MemUseRepo, StoredForgotten, StoredMoment, StoredStated, StoredUse,
 };
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};

@@ -1,5 +1,5 @@
 //! The smaller tables: what the TypeScript repositories did, on the seeded rows;
-//! and this app's routine, run, signal, Needs-you and capability tables.
+//! and this app's routine, run, signal, Needs-you, capability and memory tables.
 
 use eos_contracts::WorkerDefinition;
 use eos_core::store::{NewPending, NewQueuedMessage, WorktreeRemoval};
@@ -12,6 +12,8 @@ use serde_json::json;
 mod capabilities;
 #[path = "other_tables/inbox.rs"]
 mod inbox;
+#[path = "other_tables/mem.rs"]
+mod mem;
 #[path = "other_tables/retention.rs"]
 mod retention;
 #[path = "other_tables/routines.rs"]
