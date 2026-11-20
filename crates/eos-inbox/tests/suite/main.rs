@@ -4,6 +4,7 @@ mod alerts;
 mod answer;
 mod delivery;
 mod gate;
+mod halt;
 mod handoff;
 mod hold;
 mod items;

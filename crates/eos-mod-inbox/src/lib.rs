@@ -11,7 +11,9 @@
 //!   kind; a run's question is answered to its waiting asker;
 //! - `POST /api/inbox/:id/send {rev, doc?, confirmStale?}`: sends a held
 //!   draft, one delivery per target (`{deliveries: [{id, state, sendAt}]}`);
-//! - `GET /api/inbox/deliveries/:id`: one delivery and where it stands.
+//! - `GET /api/inbox/deliveries/:id`: one delivery and where it stands;
+//! - `GET /api/eos/halt`, `POST /api/eos/halt`, `POST /api/eos/resume`:
+//!   "Stop everything" on this Mac, announced on `inbox:halt`.
 //!
 //! A routine run's permission asks (`perm:<pending id>`) and the memory
 //! suggestions about the user (`sugg:<memory id>`) are listed among the items
@@ -34,7 +36,7 @@ mod routes;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use eos_contracts::{DeliveryChange, InboxChange, SignalSubject};
+use eos_contracts::{DeliveryChange, HaltState, InboxChange, SignalSubject};
 use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
 use eos_core::store::Store;
@@ -47,6 +49,7 @@ use eos_runtime::router::RouteDef;
 
 pub const INBOX_CHANGE: Topic<InboxChange> = Topic::new(eos_inbox::INBOX_CHANGE);
 pub const INBOX_DELIVERY: Topic<DeliveryChange> = Topic::new(eos_inbox::INBOX_DELIVERY);
+pub const INBOX_HALT: Topic<HaltState> = Topic::new(eos_inbox::INBOX_HALT);
 /// The signals feature's: a new version of a subject came in, or it closed.
 const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
 /// The subject events that may wait to be acted on.
@@ -183,7 +186,7 @@ impl Module for InboxModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![INBOX_CHANGE.decl(), INBOX_DELIVERY.decl()]
+        vec![INBOX_CHANGE.decl(), INBOX_DELIVERY.decl(), INBOX_HALT.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {
