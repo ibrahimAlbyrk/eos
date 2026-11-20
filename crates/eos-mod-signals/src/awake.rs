@@ -11,18 +11,21 @@
 //!
 //! The first time a schedule fires over [`OFFER_LATE_MS`] late, one notice
 //! offers the setting; [`OFFERED`] remembers that it was, once per computer.
+//! Its action turns the setting on; dismissing it changes nothing. The
+//! answers to the signals' notices are acted on at start and on
+//! `inbox:change` ([`Awake::answered`]).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_contracts::{RoutineState, SettingValue, Trigger, UserSettings};
+use eos_contracts::{InboxAnswer, NoticeChoice, RoutineState, SettingValue, Trigger, UserSettings};
 use eos_core::Error;
 use eos_core::os::{AwakeHold, HoldReason, Power, WorkHold};
 use eos_core::routine::RoutineDirectory;
 use eos_core::signals::{Holder, Runner};
-use eos_core::store::{Store, UserSettingsStore};
+use eos_core::store::{Store, StoredItem, UserSettingsStore};
 use eos_domain::inbox::ItemKind;
-use eos_inbox::{NewItem, Opening, notice_in};
+use eos_inbox::{NewItem, Opening, consume_in, notice_in};
 use serde_json::json;
 
 use crate::router::{Router, halted_in};
@@ -35,6 +38,8 @@ pub(crate) const OFFERED: &str = "signals.keepAwakeOffered";
 pub const OFFER_LATE_MS: i64 = 30 * 60_000;
 /// The subject of the offer's notice.
 const OFFER_SUBJECT: &str = "keep-awake";
+/// Who makes the signals' notices, and acts on their answers.
+const PRODUCER: &str = "signals";
 const HOUR_MS: i64 = 60 * 60_000;
 
 /// Whether the flag `key` is on.
@@ -161,7 +166,7 @@ impl Awake {
                 let name = tx.routines().find(&routine_id)?.map_or_else(|| "A routine".to_owned(), |row| row.name);
                 let item = NewItem {
                     kind: ItemKind::Notice,
-                    producer: "signals".into(),
+                    producer: PRODUCER.into(),
                     routine_id: Some(routine_id.clone()),
                     run_id: None,
                     subject_key: Some(OFFER_SUBJECT.into()),
@@ -182,6 +187,46 @@ impl Awake {
         tracing::info!(late_by_ms, "keeping the computer awake for schedules was offered");
         Ok(())
     }
+}
+
+impl Awake {
+    /// Acts on the answered notices of the signals': the keep-awake offer's
+    /// action turns the setting on; every answer is then marked acted on.
+    /// One that cannot be acted on waits for the next time; the others go
+    /// on. True when the setting was turned on.
+    pub(crate) async fn answered(&self, now: i64) -> Result<bool, Error> {
+        let items = self.store.read(|tx| tx.inbox_items().unconsumed(PRODUCER)).await?;
+        let mut turned_on = false;
+        for item in items {
+            if takes_offer(&item) {
+                let settings = self.settings.clone();
+                let on = [(KEEP_AWAKE.to_owned(), SettingValue::Flag(true))].into_iter().collect();
+                let patched = tokio::task::spawn_blocking(move || settings.patch(on))
+                    .await
+                    .map_err(|error| Error::Storage(error.to_string()))
+                    .and_then(|patched| patched);
+                if let Err(error) = patched {
+                    tracing::warn!(item_id = %item.id, %error, "the keep-awake setting could not be turned on");
+                    continue;
+                }
+                tracing::info!(item_id = %item.id, "the user turned on keeping the computer awake for schedules");
+                turned_on = true;
+            }
+            let id = item.id.clone();
+            if let Err(error) = self.store.write(move |tx, _| consume_in(tx, &id, now)).await {
+                tracing::warn!(item_id = %item.id, %error, "an answered notice could not be marked");
+            }
+        }
+        Ok(turned_on)
+    }
+}
+
+/// Whether `item` is the keep-awake offer, answered with its action.
+fn takes_offer(item: &StoredItem) -> bool {
+    let answer = item.answer.as_deref().and_then(|text| serde_json::from_str::<InboxAnswer>(text).ok());
+    item.kind == ItemKind::Notice
+        && item.subject_key.as_deref() == Some(OFFER_SUBJECT)
+        && matches!(answer, Some(InboxAnswer::Notice { choice: NoticeChoice::Act }))
 }
 
 /// How late, in words: whole hours from an hour on, else minutes.

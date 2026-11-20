@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eos_contracts::{RoutineKind, RoutineState, SettingValue};
-use eos_core::Error;
+use eos_core::{Clock, Error};
 use eos_core::os::{HoldReason, PowerStatus};
 use eos_core::routine::{Admission, AdmitOutcome, RoutineLoad, RoutineTriggers, RunIntake};
 use eos_core::store::{Outbox, Tx};
@@ -181,5 +181,62 @@ async fn the_first_schedule_over_half_an_hour_late_offers_to_keep_the_mac_awake_
     pass(&bench).await;
     assert_eq!(bench.admitted().len(), 3);
     assert_eq!(offers(), 1, "once on this Mac");
+    module.stop().await;
+}
+
+/// The offer, opened by a schedule that fired 40 min late.
+async fn offered(bench: &Bench) -> (SignalsModule, eos_core::store::StoredItem) {
+    let module = started(bench, Arc::new(SavedIntake::new(None))).await;
+    bench.clock.set(MONDAY_14 + 2 * HOUR + 40 * MINUTE);
+    pass(bench).await;
+    let waiting = bench.temp.store.read_blocking(|tx| tx.inbox_items().waiting(10)).expect("reads");
+    (module, waiting.into_iter().next().expect("the offer"))
+}
+
+/// Answers the notice as Needs you does, and announces it.
+fn answer(bench: &Bench, item: &eos_core::store::StoredItem, choice: &str) {
+    let (id, rev) = (item.id.clone(), item.rev);
+    let answer = eos_core::store::ItemAnswer {
+        by: "dashboard".into(),
+        answer: Some(json!({"kind": "notice", "choice": choice}).to_string()),
+        at: bench.clock.now_ms(),
+    };
+    let done = bench.temp.store.write_blocking(move |tx, _| tx.inbox_items().answer(&id, rev, &answer));
+    assert!(done.expect("answers"));
+    let change = eos_contracts::InboxChange {
+        id: item.id.clone(),
+        kind: "notice".into(),
+        state: "answered".into(),
+        routine_id: item.routine_id.clone(),
+        rev: rev + 1,
+        open: 0,
+    };
+    bench.bus.publish(&eos_runtime::bus::Topic::new("inbox:change"), &change);
+}
+
+fn consumed(bench: &Bench, id: &str) -> bool {
+    let id = id.to_owned();
+    let item = bench.temp.store.read_blocking(move |tx| tx.inbox_items().find(&id)).expect("reads");
+    item.expect("the item").consumed_at.is_some()
+}
+
+fn keep_awake(bench: &Bench) -> Option<SettingValue> {
+    bench.settings.0.lock().expect("settings").get("signals.keepAwakeForSchedules").cloned()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn taking_the_offer_turns_keeping_awake_on_and_dismissing_it_changes_nothing() {
+    let bench = bench(vec![hourly("rt-hour")]);
+    let (module, offer) = offered(&bench).await;
+    answer(&bench, &offer, "act");
+    bench.until(|| consumed(&bench, &offer.id)).await;
+    assert_eq!(keep_awake(&bench), Some(SettingValue::Flag(true)));
+    module.stop().await;
+
+    let bench = self::bench(vec![hourly("rt-hour")]);
+    let (module, offer) = offered(&bench).await;
+    answer(&bench, &offer, "dismiss");
+    bench.until(|| consumed(&bench, &offer.id)).await;
+    assert_eq!(keep_awake(&bench), None);
     module.stop().await;
 }

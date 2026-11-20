@@ -31,7 +31,7 @@
 //!
 //! The app keeps working while routines run or wait for a slot, and with
 //! the user's setting the computer stays awake on mains power for schedules
-//! (`awake`).
+//! (`awake`); taking the notice that offers it turns the setting on.
 //!
 //! While Needs you's stop switch is on (`inbox:halt`) no source polls, no
 //! schedule fires and the router decides nothing: signals wait `received`.
@@ -61,7 +61,9 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::stream::topics::{FS_CHANGE, GIT_CHANGE, SYSTEM_WAKE};
-use eos_contracts::{FsChangeEvent, GitChangeEvent, GitChangeKind, HaltState, SignalChange, SignalSubject};
+use eos_contracts::{
+    FsChangeEvent, GitChangeEvent, GitChangeKind, HaltState, InboxChange, SignalChange, SignalSubject,
+};
 use eos_core::agent::OneShot;
 use eos_core::capability::CapabilityHealth;
 use eos_core::git::{GitInfo, GitWatcher};
@@ -265,6 +267,35 @@ impl SignalsModule {
     }
 }
 
+impl SignalsModule {
+    /// From now on, the answers to the signals' notices are acted on as
+    /// `inbox:change` announces them; and once now, for those given while
+    /// Eos was not listening. A setting turned on is applied by the next
+    /// scheduler pass.
+    fn hear_answers(&self) -> Subscription {
+        let (awake, kick, clock) =
+            (self.scheduler.awake.clone(), self.scheduler.kick.clone(), self.parts.clock.clone());
+        let act = move || {
+            let (awake, kick, now) = (awake.clone(), kick.clone(), clock.now_ms());
+            async move {
+                match awake.answered(now).await {
+                    Ok(true) => kick.notify_one(),
+                    Ok(false) => {}
+                    Err(error) => tracing::warn!(%error, "the answers to the signals' notices could not be read"),
+                }
+            }
+        };
+        tokio::spawn(act());
+        let tasks = tokio::runtime::Handle::current();
+        self.parts.bus.on(eos_inbox::INBOX_CHANGE, move |event| {
+            let answered = event.payload_as::<InboxChange>().is_ok_and(|change| change.state == "answered");
+            if answered {
+                tasks.spawn(act());
+            }
+        })
+    }
+}
+
 impl Module for SignalsModule {
     fn id(&self) -> &'static str {
         "signals"
@@ -324,10 +355,12 @@ impl Module for SignalsModule {
                 scheduler.kick.notify_one();
             }
         });
+        let answers = self.hear_answers();
         let running = Running {
             tasks: [tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())],
             _kicks: kicks,
             _local: [files, git],
+            _answers: answers,
         };
         if let Some(previous) = self.running().replace(running) {
             previous.tasks.iter().for_each(JoinHandle::abort);
@@ -357,4 +390,6 @@ struct Running {
     _kicks: [Subscription; 4],
     /// The watchers' changes to the folders and branches read here.
     _local: [Subscription; 2],
+    /// The user's answers to the signals' notices.
+    _answers: Subscription,
 }
