@@ -72,6 +72,7 @@ mod clock;
 mod confinement;
 mod db;
 mod delivery;
+mod embed;
 mod fakes;
 mod files;
 pub mod fixtures;
@@ -119,6 +120,7 @@ pub use clock::FakeClock;
 pub use confinement::FakeConfinement;
 pub use db::{Announced, TempStore};
 pub use delivery::FakeChannels;
+pub use embed::FakeEmbedder;
 pub use fakes::{
     EchoTool, FakeCredentials, FakeDesktop, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch,
     FakeSettings, FakeToolSets, FakeTries, FakeUser, FakeWorktrees, ScriptedOneShot,

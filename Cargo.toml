@@ -26,6 +26,7 @@ eos-fs = { path = "crates/eos-fs" }
 eos-genui = { path = "crates/eos-genui" }
 eos-genui-media = { path = "crates/eos-genui-media" }
 eos-git = { path = "crates/eos-git" }
+eos-embed = { path = "crates/eos-embed" }
 eos-github = { path = "crates/eos-github" }
 eos-inbox = { path = "crates/eos-inbox" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
@@ -132,6 +133,9 @@ indexmap = { version = "2", features = ["serde"] }
 # Named time zones from the system's own zone files: no zone database is bundled.
 jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-zoneinfo"] }
 libc = "0.2"
+# Memory's meaning vectors (eos-embed): a static model read from local files; no download
+# path (`hf-hub` off), and the pure-Rust regex for its tokenizer.
+model2vec-rs = { version = "0.4", default-features = false, features = ["fancy-regex"] }
 # FSEvents on macOS: one stream per watched tree, no descriptor per file.
 mimalloc = { version = "0.1", default-features = false }
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
