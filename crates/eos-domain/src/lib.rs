@@ -19,6 +19,7 @@ pub mod display;
 pub mod effort;
 pub mod envelope;
 pub mod event;
+pub mod experience;
 pub mod freedom;
 pub mod fs_ignore;
 pub mod git;
