@@ -191,17 +191,31 @@ export function answerInboxItem(id, answer) {
   return answerWith(id, "POST", ROUTES.inboxAnswer(id), { rev: revOf(id), answer });
 }
 
-// Sends a draft: as it is, or the whole edited ResultDoc `doc`. A 409
-// "replaced" is kept in `refused` and the item read again, which names the
-// newer draft; "changed" reads the item again.
-export function sendInboxDraft(id, doc) {
+// The draft saves in flight, by item id: each save and a send wait for the
+// one before, so each goes on the rev the last one left.
+const saving = new Map();
+
+// Sends a draft: as it is, or the whole edited ResultDoc `doc`, once a save
+// in flight has landed. A 409 "replaced" is kept in `refused` and the item
+// read again, which names the newer draft; "changed" reads the item again.
+export async function sendInboxDraft(id, doc) {
+  await saving.get(id);
   return answerWith(id, "POST", ROUTES.inboxSend(id), doc ? { rev: revOf(id), doc } : { rev: revOf(id) });
 }
 
 // PUT draft: keeps the user's edits of a draft in the core, so another
 // device sees them. The answer is the item's row with its new rev; a
 // refusal is handled as an answer's is.
-export async function saveInboxDraft(id, doc) {
+export function saveInboxDraft(id, doc) {
+  const saved = (saving.get(id) ?? Promise.resolve()).then(() => putDraft(id, doc));
+  saving.set(id, saved);
+  void saved.finally(() => {
+    if (saving.get(id) === saved) saving.delete(id);
+  });
+  return saved;
+}
+
+async function putDraft(id, doc) {
   const r = heard(await transport.send("PUT", ROUTES.inboxDraft(id), { rev: revOf(id), doc }).catch(() => null));
   if (r?.ok && r.body?.id === id) {
     const detail = state.details[id];
@@ -247,6 +261,7 @@ export function resyncInbox() {
 
 export function _resetInbox() {
   state = EMPTY;
+  saving.clear();
   started = false;
   asked.clear();
 }

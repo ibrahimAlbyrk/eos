@@ -8,7 +8,7 @@ import { _resetRuns } from "../../../../state/eos/runsStore.js";
 import { EosMain } from "../../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../../nav/eosNav.js";
 import { actionsOf } from "../cards/index.js";
-import { followReplacement } from "../cards/DraftCard.jsx";
+import { followReplacement, needsSave } from "../cards/DraftCard.jsx";
 import { _resetCarried, carriedEdits, dropEdit, EDIT_TTL_MS, readEdit, writeEdit } from "../editDrafts.js";
 import { docChanged, joinSuggestion, mailBody, sendLabel, splitSuggestion, withMailBody, withPart, withText } from "./editDoc.js";
 import inbox from "../../gallery/sample/inbox.json";
@@ -177,6 +177,39 @@ describe("sending and saving edits", () => {
     expect(await saveInboxDraft(REVIEW, edited)).toBe(true);
     expect(t.send.mock.calls).toEqual([["PUT", ROUTES.inboxDraft(REVIEW), { rev: 2, doc: edited }]]);
     expect(inboxState().details[REVIEW]).toMatchObject({ item: { rev: 3 }, working: edited });
+  });
+
+  it("keeps an edit in the core only when it differs from what the core holds", () => {
+    const detail = detailOf[REVIEW];
+    const original = docOf(REVIEW);
+    const edited = withText(original, "summary", "Mine.");
+    expect(needsSave(detail, undefined)).toBe(false);
+    expect(needsSave(detail, original)).toBe(false);
+    expect(needsSave(detail, edited)).toBe(true);
+    expect(needsSave({ ...detail, working: edited }, edited)).toBe(false);
+    expect(needsSave({ ...detail, working: edited }, original)).toBe(true);
+  });
+
+  it("sends after a save in flight lands, on the rev it left", async () => {
+    const edited = withText(docOf(REVIEW), "summary", "Mine.");
+    await screen(REVIEW);
+    const rev = inboxState().details[REVIEW].item.rev;
+    let land;
+    const t = recording((method) => (method === "PUT"
+      ? new Promise((resolve) => { land = () => resolve({ ok: true, status: 200, body: { ...detailOf[REVIEW].item, rev: rev + 1 } }); })
+      : Promise.resolve({ ok: true, status: 200, body: { deliveries: [] } })));
+    setEosTransport(t);
+    const saved = saveInboxDraft(REVIEW, edited);
+    const sent = sendInboxDraft(REVIEW, edited);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(t.send.mock.calls.map(([method]) => method)).toEqual(["PUT"]);
+    land();
+    expect(await saved).toBe(true);
+    expect(await sent).toBe(true);
+    expect(t.send.mock.calls).toEqual([
+      ["PUT", ROUTES.inboxDraft(REVIEW), { rev, doc: edited }],
+      ["POST", ROUTES.inboxSend(REVIEW), { rev: rev + 1, doc: edited }],
+    ]);
   });
 
   it("on 409 replaced opens the newer draft with the user's edits read-only beside it", async () => {

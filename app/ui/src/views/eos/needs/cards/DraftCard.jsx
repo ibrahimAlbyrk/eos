@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { saveInboxDraft } from "../../../../state/eos/inboxStore.js";
 import { openLocation } from "../../nav/eosNav.js";
 import { carriedEdits, carryEdits, readEdit, writeEdit } from "../editDrafts.js";
+import { docChanged } from "../editors/editDoc.js";
 import { MailEditor } from "../editors/MailEditor.jsx";
 import { ReviewEditor } from "../editors/ReviewEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
@@ -25,6 +26,13 @@ export function currentEdit(detail, values) {
   return readEdit(detail.item.id, Date.now())?.doc ?? detail.working ?? null;
 }
 
+// Whether the edit on screen is to be kept in the core: only when it
+// differs from what the core holds, so opening the editor writes nothing.
+export function needsSave(detail, edit) {
+  const kept = detail.working ?? originalDoc(detail);
+  return Boolean(edit && kept) && docChanged(edit, kept);
+}
+
 // The newer draft that replaced this one opens, the user's edits beside it.
 export function followReplacement(detail) {
   const edit = readEdit(detail.item.id, Date.now());
@@ -39,11 +47,12 @@ export function DraftCard({ detail, values, setValue }) {
   const original = originalDoc(detail);
   const edit = original ? currentEdit(detail, values) : null;
   const carried = carriedEdits(id);
+  const unsaved = needsSave(detail, values.edit);
   useEffect(() => {
-    if (!values.edit) return undefined;
+    if (!unsaved) return undefined;
     const timer = setTimeout(() => void saveInboxDraft(id, values.edit), SAVE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [id, values.edit]);
+  }, [id, values.edit, unsaved]);
 
   const change = (next) => {
     setValue("edit", next);
