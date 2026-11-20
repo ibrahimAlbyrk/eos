@@ -13,6 +13,7 @@ mod rig;
 
 mod capabilities;
 mod chats;
+mod inbox;
 
 use std::time::Duration;
 
@@ -46,7 +47,8 @@ async fn every_area_is_told_by_id_and_nothing_private_reaches_the_log() {
     let app = rig::build_with(home.path(), &agents, planted.options());
     app.start().await.expect("starts");
 
-    let areas = [chats::steps(&app).await, capabilities::steps(&app, &agents, &planted).await];
+    let areas =
+        [chats::steps(&app).await, capabilities::steps(&app, &agents, &planted).await, inbox::steps(&app).await];
 
     app.shutdown(Duration::from_secs(5)).await;
     assert!(eos_kit_log::flush(Duration::from_secs(5)));
