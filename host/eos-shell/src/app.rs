@@ -19,7 +19,7 @@ use eos_bridge::power::WakeDetector;
 use eos_bridge::recovery::{AfterCrash, Recovery};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::window_state::WindowState;
-use eos_bridge::{Bridge, EditCommand, Parts, Service, migrate};
+use eos_bridge::{Bridge, EditCommand, LoginItem, Parts, Service, ShellHost, migrate};
 use eos_platform::{SCREEN_SAVER_BUNDLE, ScreenSaver};
 use serde_json::{Value, json};
 use tauri::{Manager, RunEvent, WindowEvent};
@@ -370,6 +370,7 @@ impl Shell {
             rt: self.rt.handle().clone(),
             bridge: OnceLock::new(),
             quiet: options.quiet,
+            login_item: options.login_item,
         });
         let bridge = Bridge::new(Parts {
             assets: options.ui_dist.clone(),
@@ -403,8 +404,10 @@ impl Shell {
 
         self.hooks.bridge_ready(&bridge, &ports);
 
-        // The login item's state is not read here: the app never registers one itself.
-        let kind = LaunchKind::of(&self.launched_with, event.and_then(|(c, i, m)| launch::event_of(c, i, m)), false);
+        // The login item's state matters only when no launch event says how the app started.
+        let login_item_on = event.is_none() && host.login_item() == LoginItem::On;
+        let kind =
+            LaunchKind::of(&self.launched_with, event.and_then(|(c, i, m)| launch::event_of(c, i, m)), login_item_on);
         let plan = kind.plan();
         let shown = if plan.show_window { "shown" } else { "hidden" };
         log("launch", &format!("launch event {}, launch kind {kind:?}, window {shown}", launch::describe(event)));

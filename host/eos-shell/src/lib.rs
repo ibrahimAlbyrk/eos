@@ -73,6 +73,9 @@ pub struct Options {
     /// How long the window stays hidden before the dashboard's view is released
     /// (`eos_bridge::dashboard_life`). Shorter only in a test run.
     pub dashboard_release_after: Duration,
+    /// Whether this app may be a login item (Start at login): the installed app only. A
+    /// test or dev run has another identity and never registers one.
+    pub login_item: bool,
 }
 
 /// What the shell offers the core.
