@@ -50,28 +50,52 @@ function trialRunsOf(draft, page) {
   return page?.runs?.filter((run) => run.kind === "trial") ?? [];
 }
 
-function Actions({ id, kind, trials, routine, blueprint }) {
+// A routine being made whose shown version no trial went well on, while a
+// trial ran (on it, or on the architect's version an edit came after):
+// what the start would answer, so trying again comes first.
+function untriedLine(draft, rows, versionId, trials) {
+  if (!draft || trials.length === 0) return null;
+  const passed = trials.some((run) => run.state === "done");
+  if (draft.draftVersionId === versionId && passed) return null;
+  const shown = rows?.find((r) => r.id === versionId)?.number;
+  if (shown === undefined) return null;
+  if (draft.draftVersionId === versionId) return `No trial of version ${shown} went well yet.`;
+  const tried = passed ? rows.find((r) => r.id === draft.draftVersionId)?.number : undefined;
+  return tried === undefined ? `Version ${shown} has not been tried.` : `Version ${shown} has not been tried. The trial ran on version ${tried}.`;
+}
+
+function Actions({ id, kind, trials, routine, blueprint, untried }) {
   const tried = trials.length > 0;
   const cost = costLine(routine, blueprint);
-  const trial = <button type="button" className="eos-btn" onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
+  const trialClass = untried ? "eos-btn eos-btn--primary" : "eos-btn";
+  const trial = <button type="button" className={trialClass} onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
   return (
-    <div className="eos-bp-actions">
-      {kind === "newest" && (
-        <>
-          <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>
-          <button type="button" className="eos-btn" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
-          {trial}
-        </>
-      )}
-      {kind === "draft" && (
-        <>
-          <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Use this version</button>
-          <button type="button" className="eos-btn" onClick={() => void discardDraft(id)}>Discard</button>
-          {trial}
-        </>
-      )}
-      {cost && <span className="eos-bp-actions__cost">{cost}</span>}
-    </div>
+    <>
+      {untried && <p className="eos-note" role="status">{untried}</p>}
+      <div className="eos-bp-actions">
+        {kind === "newest" && untried && (
+          <>
+            {trial}
+            <button type="button" className="eos-btn" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
+          </>
+        )}
+        {kind === "newest" && !untried && (
+          <>
+            <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>
+            <button type="button" className="eos-btn" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
+            {trial}
+          </>
+        )}
+        {kind === "draft" && (
+          <>
+            <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Use this version</button>
+            <button type="button" className="eos-btn" onClick={() => void discardDraft(id)}>Discard</button>
+            {trial}
+          </>
+        )}
+        {cost && <span className="eos-bp-actions__cost">{cost}</span>}
+      </div>
+    </>
   );
 }
 
@@ -151,7 +175,16 @@ export function BlueprintEditor({ detail, versionNumber }) {
                 setComparing={setComparing}
               />
             )}
-            {!old && !newer && <Actions id={id} kind={view.kind} trials={trials} routine={detail.routine} blueprint={version.blueprint} />}
+            {!old && !newer && (
+              <Actions
+                id={id}
+                kind={view.kind}
+                trials={trials}
+                routine={detail.routine}
+                blueprint={version.blueprint}
+                untried={view.kind === "newest" ? untriedLine(draft, rows, view.versionId, trials) : null}
+              />
+            )}
           </BlueprintCard>
         )}
         {old && comparing && version && inUse && <VersionCompare version={version.blueprint} current={inUse.blueprint} routines={list} />}

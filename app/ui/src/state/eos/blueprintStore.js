@@ -186,8 +186,7 @@ export async function startRoutine(id, withoutTrial = false) {
   if (!r) return false;
   if (r.status === 400) return note(id, refused(r.body)), false;
   if (r.status === 409) {
-    const text = r.body?.code === "trial_needed" ? "Try it first, or start it without a trial." : r.body?.error ?? "Eos could not start it.";
-    return note(id, { kind: "start", text }), false;
+    return note(id, { kind: "start", text: r.body?.error ?? "Eos could not start it." }), false;
   }
   if (r.body?.id === id) putRoutineRow(r.body);
   note(id, null);
@@ -195,10 +194,14 @@ export async function startRoutine(id, withoutTrial = false) {
   return true;
 }
 
+// A trial the core refuses names what is missing (a project, a sign-in).
 export async function runTrial(id) {
-  const r = await write("POST", ROUTES.routineTrial(id), {});
-  if (r) await loadDraft(id);
-  return Boolean(r);
+  const r = await write("POST", ROUTES.routineTrial(id), {}, [409]);
+  if (!r) return false;
+  if (r.status === 409) return note(id, { kind: "start", text: r.body?.error ?? "Eos could not start the trial." }), false;
+  note(id, null);
+  await loadDraft(id);
+  return true;
 }
 
 // Discard: the draft is left, its architect stops.
