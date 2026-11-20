@@ -7,7 +7,7 @@
 mod claim;
 mod engine;
 mod reconcile;
-mod record;
+pub(crate) mod record;
 
 pub use engine::{Delivery, DeliveryParts};
 

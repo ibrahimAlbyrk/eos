@@ -120,7 +120,7 @@ pub(crate) fn problem_in(
     open_in(tx, out, at, item).map(drop)
 }
 
-fn delivering(tx: &dyn Tx, run_id: &str) -> Result<bool, Error> {
+pub(crate) fn delivering(tx: &dyn Tx, run_id: &str) -> Result<bool, Error> {
     Ok(tx.runs().find(run_id)?.is_some_and(|run| run.state == RunState::Delivering))
 }
 
@@ -188,7 +188,7 @@ pub(crate) fn record_in(
     } else if let Some(reason) = stale {
         hold_again_in(tx, out, at, &row, &reason)?;
     } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
-        sent_in(tx, out, at, outcomes, &row)?;
+        sent_in(tx, out, at.now, outcomes, &row)?;
     }
     Ok(())
 }
@@ -196,7 +196,7 @@ pub(crate) fn record_in(
 /// Whether every send of `row`'s run went out. A send stopped as stale was
 /// held again as a draft: the draft's own send replaces it, so the run is
 /// not done while that draft waits.
-fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error> {
+pub(crate) fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error> {
     let superseded = |other: &StoredDelivery| other.state == STOPPED && other.last_error_kind.as_deref() == Some(STALE);
     let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
     if !rows.iter().all(|other| other.state == SENT || superseded(other)) {
@@ -208,10 +208,10 @@ fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error> {
 
 /// The run's last delivery went out: one Freedom sent ends `auto_sent`; a
 /// draft the user sent ends `sent_unedited` or `sent_edited`, recorded.
-fn sent_in(
+pub(crate) fn sent_in(
     tx: &dyn Tx,
     out: &mut Outbox,
-    at: &Opening<'_>,
+    now: i64,
     outcomes: &dyn RunOutcomes,
     row: &StoredDelivery,
 ) -> Result<(), Error> {
@@ -222,7 +222,7 @@ fn sent_in(
     let Some(item) = item else { return outcomes.finished(tx, out, &row.run_id, Outcome::AutoSent) };
     let sent: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
     let outcome = sent_outcome(&item, &sent);
-    let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: at.now };
+    let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: now };
     ended_in(tx, out, outcomes, ended)
 }
 

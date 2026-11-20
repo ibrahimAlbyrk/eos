@@ -29,15 +29,15 @@ fn traits(idempotency: Idempotency) -> ChannelTraits {
     }
 }
 
-struct Sender {
-    rig: Rig,
-    channels: FakeChannels,
-    outcomes: Arc<FakeRunOutcomes>,
-    engine: Arc<Delivery>,
+pub(crate) struct Sender {
+    pub(crate) rig: Rig,
+    pub(crate) channels: FakeChannels,
+    pub(crate) outcomes: Arc<FakeRunOutcomes>,
+    pub(crate) engine: Arc<Delivery>,
 }
 
 impl Sender {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::on(Rig::new())
     }
 
@@ -71,7 +71,7 @@ impl Sender {
     }
 
     /// A row of run `rn-1` to `target` through `channel`, made `at`.
-    async fn queue(&self, id: &str, channel: &str, target: &str, state: &str, mode: &str, at: i64) {
+    pub(crate) async fn queue(&self, id: &str, channel: &str, target: &str, state: &str, mode: &str, at: i64) {
         let doc = serde_json::to_string(&review("Looks good.")).expect("json");
         let row = StoredDelivery {
             id: id.into(),
@@ -103,13 +103,13 @@ impl Sender {
         self.rig.temp.port().write(move |tx, _| tx.inbox_deliveries().insert(&row)).await.expect("queued");
     }
 
-    async fn row(&self, id: &str) -> StoredDelivery {
+    pub(crate) async fn row(&self, id: &str) -> StoredDelivery {
         let id = id.to_owned();
         let row = self.rig.temp.port().read(move |tx| tx.inbox_deliveries().find(&id)).await.expect("reads");
         row.expect("a row")
     }
 
-    async fn pass(&self) {
+    pub(crate) async fn pass(&self) {
         self.engine.pass().await.expect("a pass");
     }
 
@@ -123,12 +123,12 @@ impl Sender {
             .collect()
     }
 
-    fn sent(&self) -> Vec<String> {
+    pub(crate) fn sent(&self) -> Vec<String> {
         self.channels.sent().into_iter().map(|req| req.key).collect()
     }
 }
 
-fn failure(kind: SendErrorKind, detail: &str) -> SendError {
+pub(crate) fn failure(kind: SendErrorKind, detail: &str) -> SendError {
     SendError { kind, detail_kind: detail.into() }
 }
 
