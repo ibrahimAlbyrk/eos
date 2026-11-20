@@ -254,3 +254,10 @@ fn a_code_view_stop_and_refusal_read_from_the_transcripts_rows() {
     );
     assert_eq!(aborted.signals(), vec![Signal::Stops], "a stop while the call runs");
 }
+
+#[test]
+fn a_stated_rule_holds_everywhere_only_when_it_says_so() {
+    assert!(says_everywhere("Always use pnpm, everywhere"));
+    assert!(says_everywhere("Bundan sonra her yerde pnpm kullan"));
+    assert!(!says_everywhere("Always use pnpm here"));
+}

@@ -142,6 +142,16 @@ const CORRECTION_CUES: &[&str] =
 const CORRECTION_OPENERS: &[&str] = &["no", "nope", "hayır", "hayir"];
 const UNCLEAR_CUES: &[&str] = &["actually", "instead", "should", "rather", "aslında", "yerine", "olmalı"];
 
+/// Words that keep a stated rule for every project.
+const EVERYWHERE: &[&str] =
+    &["everywhere", "all projects", "every project", "in all repos", "her yerde", "tüm projelerde", "bütün projelerde"];
+
+/// A stated rule says it holds everywhere, not only in this project.
+pub fn says_everywhere(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    EVERYWHERE.iter().any(|p| has_phrase(&lower, p))
+}
+
 /// `phrase` stands as whole words in `text` (both lowercased).
 fn has_phrase(text: &str, phrase: &str) -> bool {
     text.match_indices(phrase).any(|(at, _)| {

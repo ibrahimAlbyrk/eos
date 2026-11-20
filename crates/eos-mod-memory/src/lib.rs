@@ -40,7 +40,7 @@ use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
 use eos_core::experience::{Embedder, ExperienceSearch, FoundNote};
 use eos_core::git::ProjectKeys;
 use eos_core::os::TimeZone;
-use eos_core::profile::UserProfileReader;
+use eos_core::profile::{UserMemoryKeeper, UserProfileReader};
 use eos_core::routine::RunLookup;
 use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
@@ -109,6 +109,8 @@ pub struct LearnParts {
     pub home: Option<PathBuf>,
     /// This Mac, as notes name the device that wrote them.
     pub device: String,
+    /// Where a rule the user states in a chat is kept (About you).
+    pub keeper: Arc<dyn UserMemoryKeeper>,
 }
 
 impl std::fmt::Debug for LearnParts {
@@ -210,6 +212,7 @@ impl MemoryModule {
                 recall: recall.clone(),
                 scrubber: Arc::new(Scrubber::new(learn.home.as_deref())),
                 device: learn.device,
+                keeper: learn.keeper,
             });
             Arc::new(Reflecting { reflector, recall: recall.clone(), wake: wake.clone() })
         });
