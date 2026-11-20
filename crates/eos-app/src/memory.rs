@@ -70,13 +70,13 @@ mod tests {
     #[test]
     fn the_variable_wins_and_a_bundle_without_the_model_has_none() {
         let tmp = std::env::temp_dir().join(format!("eos-embed-dir-{}", std::process::id()));
-        std::fs::create_dir_all(tmp.join(BUNDLED_MODEL)).unwrap();
+        std::fs::create_dir_all(tmp.join(BUNDLED_MODEL)).expect("a model folder");
         let none = Env::default();
         assert_eq!(model_dir(None, &none), None);
         assert_eq!(model_dir(Some(&tmp), &none), Some(tmp.join(BUNDLED_MODEL)));
         assert_eq!(model_dir(Some(&tmp.join("elsewhere")), &none), None);
         let named = Env::new([(MODEL_DIR_VAR.to_owned(), "/models/potion".to_owned())]);
         assert_eq!(model_dir(Some(&tmp), &named), Some(PathBuf::from("/models/potion")));
-        std::fs::remove_dir_all(&tmp).unwrap();
+        std::fs::remove_dir_all(&tmp).expect("removed");
     }
 }
