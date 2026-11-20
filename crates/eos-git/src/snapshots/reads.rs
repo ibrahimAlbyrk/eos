@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use eos_contracts::{ChangedFile, CommitDetail, FileDiffResponse, FsStashEntry, UnpushedCommit};
 use eos_core::BoxFuture;
-use eos_core::git::{ConflictEntry, DiffStat, GitDiffs, GitDirs, GitInfo, SyncStatus};
+use eos_core::git::{ConflictEntry, DiffStat, GitDiffs, GitDirs, GitInfo, RangeCommit, SyncStatus};
 use eos_domain::git::pull_plan::PullState;
 use eos_domain::git::push_plan::PushState;
 
@@ -188,6 +188,24 @@ impl GitInfo for Snapshots {
 
     fn log<'a>(&'a self, cwd: &'a Path, limit: u32, skip: u32) -> BoxFuture<'a, Vec<UnpushedCommit>> {
         self.git().log(cwd, limit, skip)
+    }
+
+    fn log_range<'a>(
+        &'a self,
+        cwd: &'a Path,
+        from: Option<&'a str>,
+        to: &'a str,
+        limit: u32,
+    ) -> BoxFuture<'a, Option<Vec<RangeCommit>>> {
+        self.git().log_range(cwd, from, to, limit)
+    }
+
+    fn branch_tip<'a>(&'a self, cwd: &'a Path, branch: &'a str) -> BoxFuture<'a, Option<String>> {
+        self.git().branch_tip(cwd, branch)
+    }
+
+    fn is_ancestor<'a>(&'a self, cwd: &'a Path, ancestor: &'a str, of: &'a str) -> BoxFuture<'a, bool> {
+        self.git().is_ancestor(cwd, ancestor, of)
     }
 
     fn rev_parse<'a>(&'a self, cwd: &'a Path, rev: &'a str) -> BoxFuture<'a, Option<String>> {

@@ -1,13 +1,17 @@
 //! Reading the record formats this adapter asks git to print.
 
 use eos_contracts::{FsStashEntry, Num, UnpushedCommit};
-use eos_core::git::DiffStat;
+use eos_core::git::{DiffStat, RangeCommit};
 
 use crate::run::{count, parse_int};
 
 /// `--format` for a list of commits: fields separated by the unit separator,
 /// records ended by the record separator, so a subject may hold anything.
 pub(crate) const LOG_FORMAT: &str = "--format=%h%x1f%an%x1f%ct%x1f%s%x1e";
+/// `--format` for a range read with `-z --name-only`: each record starts
+/// with the record separator; its NUL-ended fields are the commit, then the
+/// paths it changed.
+pub(crate) const RANGE_FORMAT: &str = "--format=%x1e%H%x1f%an";
 pub(crate) const STASH_FORMAT: &str = "--format=%h%x1f%ct%x1f%gs%x1e";
 
 /// A stash is a merge commit (the working tree over the index): shown against
@@ -37,6 +41,21 @@ pub(crate) fn parse_log_records(out: &str) -> Vec<UnpushedCommit> {
                 author: author.to_owned(),
                 ts,
                 subject: subject.to_owned(),
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn parse_range_records(out: &str) -> Vec<RangeCommit> {
+    out.split('\x1e')
+        .filter_map(|record| {
+            let mut fields = record.split('\0');
+            let (sha, author) = fields.next()?.split_once('\x1f')?;
+            let paths = fields.map(|path| path.trim_start_matches('\n')).filter(|path| !path.is_empty());
+            Some(RangeCommit {
+                sha: sha.to_owned(),
+                author: author.to_owned(),
+                paths: paths.map(str::to_owned).collect(),
             })
         })
         .collect()

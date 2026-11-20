@@ -31,6 +31,15 @@ pub struct GitDirs {
     pub common_dir: PathBuf,
 }
 
+/// One commit of a range, with the paths it changed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RangeCommit {
+    /// The full sha.
+    pub sha: String,
+    pub author: String,
+    pub paths: Vec<String>,
+}
+
 /// Where a working tree stands. `cwd` is any folder inside it.
 pub trait GitInfo: Send + Sync {
     /// True inside a working tree, including one with no commit yet (where
@@ -60,6 +69,20 @@ pub trait GitInfo: Send + Sync {
     /// HEAD's history, newest first. Returns up to `limit + 1` rows: the extra
     /// one only tells the caller there is more.
     fn log<'a>(&'a self, cwd: &'a Path, limit: u32, skip: u32) -> BoxFuture<'a, Vec<UnpushedCommit>>;
+    /// The commits `to` has and `from` lacks (all of `to`'s history without
+    /// `from`), newest first, at most `limit`. `None` when either does not
+    /// resolve.
+    fn log_range<'a>(
+        &'a self,
+        cwd: &'a Path,
+        from: Option<&'a str>,
+        to: &'a str,
+        limit: u32,
+    ) -> BoxFuture<'a, Option<Vec<RangeCommit>>>;
+    /// The full sha `refs/heads/<branch>` points at; `None` without that branch.
+    fn branch_tip<'a>(&'a self, cwd: &'a Path, branch: &'a str) -> BoxFuture<'a, Option<String>>;
+    /// Whether `ancestor` is `of` or in its history.
+    fn is_ancestor<'a>(&'a self, cwd: &'a Path, ancestor: &'a str, of: &'a str) -> BoxFuture<'a, bool>;
     /// The short sha `rev` resolves to.
     fn rev_parse<'a>(&'a self, cwd: &'a Path, rev: &'a str) -> BoxFuture<'a, Option<String>>;
     fn commit_detail<'a>(&'a self, cwd: &'a Path, sha: &'a str) -> BoxFuture<'a, Option<CommitDetail>>;

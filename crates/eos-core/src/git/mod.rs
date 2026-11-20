@@ -37,7 +37,7 @@ mod worktree;
 pub use branch::{BranchAdmin, BranchPush, PullExec, PushExec, RemoteSync, WorkingTree};
 pub use diffs::{DiffStat, GitDiffs};
 pub use files::CandidateFiles;
-pub use info::{ConflictEntry, GitDirs, GitInfo, SyncStatus};
+pub use info::{ConflictEntry, GitDirs, GitInfo, RangeCommit, SyncStatus};
 pub use merge::{BranchMerge, MergeAllResult, MergeWorkerResult};
 pub use project_keys::ProjectKeys;
 pub use resolve::{ConflictResolution, ConflictSide, WorkingTreeRestore};
