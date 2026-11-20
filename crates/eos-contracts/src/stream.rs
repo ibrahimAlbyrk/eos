@@ -16,7 +16,8 @@
 //! [`WorkflowRunProgress`](crate::WorkflowRunProgress), `transfer:change`
 //! [`TransferChangeEvent`](crate::TransferChangeEvent), `dream:change`
 //! [`DreamChangeEvent`](crate::DreamChangeEvent), `update:change`
-//! [`UpdateState`](crate::UpdateState), `update:apply` [`UpdateApply`](crate::UpdateApply).
+//! [`UpdateState`](crate::UpdateState), `update:apply` [`UpdateApply`](crate::UpdateApply),
+//! `system:wake` [`SystemWake`].
 //! The other topics carry shapes their publisher owns.
 
 use std::borrow::Cow;
@@ -47,6 +48,13 @@ pub struct StreamChange {
     /// Absent when the publisher sent none.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "de::some")]
     pub payload: Option<Value>,
+}
+
+/// The payload of `system:wake`: the computer woke after `awayMs` asleep.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemWake {
+    pub away_ms: i64,
 }
 
 /// What a subscriber reads of a `worker:change` payload, whose publishers
@@ -128,6 +136,7 @@ pub mod topics {
     pub const JOBS_CHANGE: &str = "jobs:change";
     pub const PLUGINS_CHANGE: &str = "plugins:change";
     pub const STATE_PATCH: &str = "state:patch";
+    pub const SYSTEM_WAKE: &str = "system:wake";
 }
 
 #[cfg(test)]

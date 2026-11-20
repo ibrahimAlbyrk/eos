@@ -85,3 +85,18 @@ async fn the_snapshot_is_guarded_as_strictly_as_its_strictest_part() {
         .expect("parts");
     assert_eq!(router.access_of(Method::Get, "/api/boot"), Some(strictest));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_wake_is_announced_once_with_how_long_the_computer_was_away() {
+    let home = TempHome::new();
+    let app = started(&home).await;
+    let mut heard = app.runtime().kernel.bus.subscribe("system:wake", 8);
+
+    app.woke(std::time::Duration::from_secs(90));
+
+    let event = heard.recv().await.expect("the wake is announced");
+    let payload: serde_json::Value = serde_json::from_slice(&event.payload).expect("JSON");
+    assert_eq!(payload, serde_json::json!({"awayMs": 90_000}));
+    let again = tokio::time::timeout(std::time::Duration::from_millis(200), heard.recv()).await;
+    assert!(again.is_err(), "announced once");
+}
