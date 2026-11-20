@@ -91,6 +91,7 @@ fn provider_config(endpoint: &ProviderEndpoint, auth: Arc<dyn TokenSource>) -> P
         auth,
         key_header: endpoint.key_header.map(str::to_owned),
         headers: Vec::new(),
+        session_header: endpoint.session_header.map(str::to_owned),
         compat: ChatCompat {
             max_tokens,
             efforts,

@@ -335,7 +335,7 @@ async fn a_providers_key_is_checked_saved_behind_a_backend_and_removed() {
         json!({"id": "openai", "label": "OpenAI", "kind": "openai",
         "baseUrl": "https://api.openai.com", "defaultModel": "gpt-5.5"})
     );
-    assert_eq!(presets["presets"].as_array().map(Vec::len), Some(7));
+    assert_eq!(presets["presets"].as_array().map(Vec::len), Some(8));
 
     // The check answers as recorded for what it cannot run.
     let refusal = |error: &str| (400, json!({"ok": false, "error": error}));

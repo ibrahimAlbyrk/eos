@@ -10,6 +10,7 @@ const MARKS = {
   moonshot: <path d="M16 4.5a8 8 0 1 0 4 12.5A7 7 0 0 1 16 4.5z" />,
   qwen: <path d="M12 3l9 9-9 9-9-9z" />,
   zhipu: <path d="M12 4.5l8 14.5H4z" />,
+  opencode: <path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5" />,
 };
 
 export function ProviderGlyph({ id, size = 36, tone = null, dim = false }) {

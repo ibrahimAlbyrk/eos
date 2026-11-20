@@ -75,6 +75,8 @@ pub struct ProviderEndpoint {
     pub efforts: &'static [ModelEffort],
     /// Sessions reach it on OpenAI's Responses API, at [`ProviderEndpoint::api_root`].
     pub responses: bool,
+    /// The header a session's id goes in (`None`: none is sent).
+    pub session_header: Option<&'static str>,
     /// A reply's reasoning goes back with it.
     pub replay_reasoning: bool,
     /// The reply's length is limited by `max_completion_tokens`.
@@ -139,6 +141,7 @@ fn endpoint(name: &str, profile: &BackendProfile) -> Option<ProviderEndpoint> {
             None => &[],
         },
         responses: preset.is_some_and(|p| p.responses),
+        session_header: preset.and_then(|p| p.session_header),
         replay_reasoning: capabilities.reasoning_round_trip == ProviderCapabilitiesReasoningRoundTrip::PreserveSigned,
         max_completion_tokens: capabilities.max_tokens_param == ProviderCapabilitiesMaxTokensParam::MaxCompletionTokens,
         context_window: capabilities.context_window,
@@ -234,6 +237,13 @@ mod tests {
         assert_eq!(levels("moonshot", "kimi-k2.6"), None, "K2 takes no effort");
         assert_eq!(levels("qwen", "qwen3.7-max"), Some(vec!["low", "medium", "high"]));
         assert_eq!(levels("xai", "grok-4.20-reasoning"), None);
+        let opencode = of("opencode");
+        assert_eq!(opencode.session_header, Some("x-opencode-session"));
+        assert_eq!(opencode.model_id("kimi-k3"), "opencode/kimi-k3");
+        assert_eq!(opencode.effort("deepseek-v4-pro").map(|e| e.levels()), Some(vec!["high", "max"]));
+        assert_eq!(opencode.effort("kimi-k3.1-pro").map(|e| e.levels()), Some(vec!["low", "high", "max"]));
+        assert_eq!(opencode.effort("minimax-m3"), None);
+        assert_eq!(of("deepseek").session_header, None);
         let all = [openai, gemini];
         assert_eq!(
             endpoint_of(&all, "gemini/gemini-3.1-pro-preview").map(|(e, m)| (e.id.as_str(), m)),

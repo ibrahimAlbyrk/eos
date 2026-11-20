@@ -686,7 +686,7 @@ async fn every_sign_in_is_listed_and_the_one_new_sessions_start_on_is_billed() {
     let list = t.accounts.status().list().await;
     assert_eq!(
         list.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(),
-        ["anthropic", "openai", "gemini", "xai", "qwen", "moonshot", "zhipu", "deepseek"]
+        ["anthropic", "openai", "gemini", "xai", "qwen", "moonshot", "zhipu", "deepseek", "opencode"]
     );
     assert_eq!(
         serde_json::to_value(&list[3]).expect("JSON"),

@@ -43,6 +43,8 @@ pub struct ProviderPreset {
     pub efforts: &'static [ModelEffort],
     /// Sessions reach it on OpenAI's Responses API instead.
     pub responses: bool,
+    /// The header a session's id goes in, when the server routes by conversation.
+    pub session_header: Option<&'static str>,
 }
 
 const fn preset(
@@ -68,6 +70,7 @@ const fn preset(
         drop_effort_with_tools: None,
         efforts: &[],
         responses: false,
+        session_header: None,
     }
 }
 
@@ -84,6 +87,7 @@ const fn no_effort(models: &'static str) -> ModelEffort {
 const LOW_HIGH_MAX: &[&str] = &["low", "high", "max"];
 const LOW_TO_HIGH: &[&str] = &["low", "medium", "high"];
 const LOW_TO_XHIGH: &[&str] = &["low", "medium", "high", "xhigh"];
+const LOW_TO_MAX: &[&str] = &["low", "medium", "high", "xhigh", "max"];
 
 // Each provider's effort levels, per model family (first match wins):
 // OpenAI: developers.openai.com/api/docs/guides/reasoning
@@ -128,6 +132,26 @@ const MOONSHOT_EFFORTS: &[ModelEffort] = &[levels("kimi-k3", LOW_HIGH_MAX)];
 const ZHIPU_EFFORTS: &[ModelEffort] = &[levels("glm-5.3", LOW_HIGH_MAX), levels("glm-5.2", &["high", "max"])];
 // DeepSeek: api-docs.deepseek.com/guides/thinking_mode
 const DEEPSEEK_EFFORTS: &[ModelEffort] = &[levels("deepseek-", LOW_HIGH_MAX)];
+// OpenCode Go: each model's `capabilities.reasoning.effort` in opencode.ai/inference/go/v1/models
+const OPENCODE_EFFORTS: &[ModelEffort] = &[
+    levels("deepseek-v4-pro", &["high", "max"]),
+    levels("deepseek-", LOW_HIGH_MAX),
+    levels("glm-5.3", LOW_HIGH_MAX),
+    levels("kimi-k3.1", LOW_HIGH_MAX),
+    levels("kimi-k3", &["max"]),
+    levels("qwen4-max", &["low", "high", "xhigh"]),
+    levels("qwen3.8", &["low", "medium", "xhigh"]),
+    levels("grok-4.7", LOW_TO_XHIGH),
+    levels("muse-spark", LOW_TO_XHIGH),
+    levels("gpt-", LOW_TO_MAX),
+    levels("claude-haiku", LOW_TO_MAX),
+    levels("minimax-m3.1", LOW_TO_MAX),
+    levels("beam", LOW_TO_MAX),
+    levels("gemini-4", LOW_TO_HIGH),
+    levels("step-5", LOW_TO_HIGH),
+    levels("hy3", &["low", "high"]),
+    levels("hy4", &["high"]),
+];
 
 /// The metered provider presets, in the order Settings lists them.
 pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
@@ -212,6 +236,21 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
             "deepseek-v4-flash",
             ("none", "drop"),
             (65_536, None),
+        )
+    },
+    // One key for many makers' models: the window and reply length are the
+    // smallest any of them has.
+    ProviderPreset {
+        efforts: OPENCODE_EFFORTS,
+        session_header: Some("x-opencode-session"),
+        ..preset(
+            "opencode",
+            "OpenCode Go",
+            "eos-opencode",
+            "https://opencode.ai/inference/go/openai",
+            "glm-5.3",
+            SENDS_REASONING,
+            (256_000, Some(64_000)),
         )
     },
 ];

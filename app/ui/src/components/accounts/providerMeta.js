@@ -11,6 +11,7 @@ export const PROVIDER_META = {
   moonshot: { name: "Moonshot Kimi" },
   qwen: { name: "Alibaba Qwen" },
   zhipu: { name: "Zhipu GLM" },
+  opencode: { name: "OpenCode Go" },
 };
 
 export function metaFor(account) {
