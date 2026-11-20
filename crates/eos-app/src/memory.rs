@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use eos_core::agent::WorkerSessions;
 use eos_core::experience::Embedder;
-use eos_core::profile::UserProfileReader;
+use eos_core::profile::{UserMemoryKeeper, UserProfileReader};
 use eos_core::routine::RunLookup;
 use eos_domain::config::Env;
 
@@ -43,6 +43,7 @@ pub(crate) fn module(
     cx: &Context,
     runs: Arc<dyn RunLookup>,
     profile: Arc<dyn UserProfileReader>,
+    keeper: Arc<dyn UserMemoryKeeper>,
 ) -> Arc<eos_mod_memory::MemoryModule> {
     let embedder = cx.embed_model.clone().map(|dir| -> eos_mod_memory::LoadEmbedder {
         Box::new(move || {
@@ -67,6 +68,7 @@ pub(crate) fn module(
             zone: Arc::new(crate::host::HostTimeZone),
             home: eos_platform::home_dir(),
             device: cx.peer.device_id(),
+            keeper,
         }),
         background_model_calls: cx.reach.background_model_calls(),
     }))

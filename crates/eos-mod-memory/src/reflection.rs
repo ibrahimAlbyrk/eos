@@ -70,7 +70,15 @@ impl MomentSource for Moments {
                     Some(code) => code.rows(claude_session_id).await,
                     None => None,
                 };
-                return Ok(rows.map(|rows| MomentContext { rows, anthropic: true, ..MomentContext::default() }));
+                let Some((rows, cwd)) = rows else { return Ok(None) };
+                let project = Some(self.project_keys.to_key(&cwd).await);
+                return Ok(Some(MomentContext {
+                    rows,
+                    anthropic: true,
+                    untrusted: false,
+                    place: Place { routine: None, project },
+                    project_path: Some(cwd),
+                }));
             }
             let (worker, row_to) = (moment.worker_id.clone(), moment.row_to);
             let found = self
@@ -105,6 +113,7 @@ impl MomentSource for Moments {
                 anthropic: caller.kind.as_deref().is_none_or(|kind| kind == CLAUDE),
                 untrusted: run.as_ref().is_some_and(|r| r.trust == Trust::Untrusted),
                 place: Place { routine: run.map(|r| r.routine_id), project },
+                project_path: caller.project,
             }))
         })
     }

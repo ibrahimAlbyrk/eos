@@ -3,7 +3,8 @@
 //! host lets it ask one ([`ModelGate`]) and the chat ran on Anthropic's
 //! models; otherwise the rules keep what they can (the user's own words, a
 //! hard-won command) and nothing else is learned. A stated rule never waits
-//! for a model. Every text passes `clean` before it is stored, and a lesson
+//! for a model: said in a chat it goes to About you at once ([`stated`]);
+//! said in a routine's run it becomes a firm note for that routine. Every text passes `clean` before it is stored, and a lesson
 //! that only repeats outside text is kept as a short-lived guess.
 
 use std::collections::HashSet;
@@ -11,22 +12,23 @@ use std::sync::Arc;
 
 use eos_core::agent::{OneShot, OneShotRequest};
 use eos_core::os::TimeZone;
+use eos_core::profile::UserMemoryKeeper;
 use eos_core::store::{DailyCall, Store, StoredMoment};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_domain::EventRecord;
-use eos_domain::experience::Trust;
 use eos_domain::experience::clean::{clean, clean_about_user};
 use eos_domain::experience::cues::Cue;
 use eos_domain::experience::merge::{MergePlan, apply};
 use eos_domain::experience::moments::Signal;
 use eos_domain::experience::reflect::{Answer, Draft, answer_schema, draft_of, template};
+use eos_domain::experience::{ScopeLevel, Trust};
 use eos_domain::redact::Scrubber;
 use eos_domain::time::{iso_from_ms, wall_clock};
 
 use crate::merge::{Place, merge_in};
 use crate::recall::{Cues, Recall, Situation};
-use crate::settings;
 use crate::transcript::render;
+use crate::{settings, stated};
 
 /// Reflections a Mac asks the model for in one local day.
 pub const REFLECTIONS_PER_DAY: i64 = 60;
@@ -68,6 +70,8 @@ pub struct MomentContext {
     /// An untrusted run: every output it read is outside text.
     pub untrusted: bool,
     pub place: Place,
+    /// The folder the chat worked in, as About you scopes a stated rule.
+    pub project_path: Option<String>,
 }
 
 /// Where a moment's conversation is read from: the event log, or a
@@ -105,6 +109,8 @@ pub struct ReflectParts {
     pub recall: Arc<Recall>,
     pub scrubber: Arc<Scrubber>,
     pub device: String,
+    /// Where a rule stated in a chat is kept (About you).
+    pub keeper: Arc<dyn UserMemoryKeeper>,
 }
 
 impl std::fmt::Debug for ReflectParts {
@@ -196,6 +202,20 @@ impl Reflector {
         };
         let shown = render(&context.rows, moment.row_from, moment.row_to, context.untrusted, &self.0.scrubber);
         let cues: Vec<Cue> = serde_json::from_str(&moment.cues).unwrap_or_default();
+        let in_run = moment.source == "run";
+        if signal == Signal::StatesRule
+            && !in_run
+            && let Some(said) = shown.user_in_moment.as_deref()
+        {
+            let Ok(said) = clean(&self.0.scrubber, said) else {
+                self.finish(moment, "skipped").await?;
+                return Ok(Outcome::Skipped);
+            };
+            let keeper = self.0.keeper.as_ref();
+            stated::keep(keeper, &self.0.store, self.0.clock.as_ref(), moment, &said, context.project_path.clone())
+                .await?;
+            return Ok(Outcome::Learned(true));
+        }
         let by_rules = signal == Signal::StatesRule || !context.anthropic;
         let use_model = !by_rules && {
             if gate.is_none() {
@@ -214,7 +234,13 @@ impl Reflector {
             }
         } else {
             match template(signal, shown.user_in_moment.as_deref(), &cues) {
-                Some(draft) => (draft, MergePlan::Insert { links: vec![], close: vec![] }),
+                Some(mut draft) => {
+                    // A rule stated inside a routine's run holds for that routine.
+                    if signal == Signal::StatesRule && in_run {
+                        draft.scope = ScopeLevel::Routine;
+                    }
+                    (draft, MergePlan::Insert { links: vec![], close: vec![] })
+                }
                 None => {
                     self.finish(moment, "skipped").await?;
                     return Ok(Outcome::Skipped);

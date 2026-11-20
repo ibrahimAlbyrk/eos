@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use eos_contracts::WorkerEventType;
 use eos_core::BoxFuture;
+use eos_core::profile::{KeepResult, StatedRule, UserMemoryKeeper};
+use eos_core::routine::RunRef;
 use eos_core::store::{NoteQuery, Store, StoredMoment};
 use eos_domain::EventRecord;
 use eos_domain::experience::{NoteState, Trust};
@@ -41,7 +43,7 @@ impl MomentSource for Rows {
     ) -> BoxFuture<'a, Result<Option<MomentContext>, eos_core::Error>> {
         let worker = moment.worker_id.clone();
         let store = self.store.clone();
-        let (anthropic, untrusted) = (self.anthropic, self.untrusted);
+        let (anthropic, untrusted, in_run) = (self.anthropic, self.untrusted, moment.source == "run");
         Box::pin(async move {
             let rows: Vec<EventRecord> =
                 store.read(move |tx| tx.events().scan(&worker, &["user_message", "agent_event"], 0, 100)).await?;
@@ -49,9 +51,21 @@ impl MomentSource for Rows {
                 rows,
                 anthropic,
                 untrusted,
-                place: Place { routine: None, project: Some("key:/repo".into()) },
+                place: Place { routine: Some("rt-1".into()).filter(|_| in_run), project: Some("key:/repo".into()) },
+                project_path: Some("/repo".into()),
             }))
         })
+    }
+}
+
+/// Keeps what it is handed, as About you would.
+#[derive(Default)]
+struct Keeper(Mutex<Vec<StatedRule>>);
+
+impl UserMemoryKeeper for Keeper {
+    fn keep_stated(&self, rule: StatedRule) -> Result<KeepResult, eos_core::Error> {
+        self.0.lock().unwrap().push(rule);
+        Ok(KeepResult { memory_id: "um-1".into(), duplicate: false })
     }
 }
 
@@ -66,6 +80,7 @@ impl ReflectPrompt for Prompt {
 struct Bench {
     temp: TempStore,
     model: Arc<ScriptedOneShot>,
+    keeper: Arc<Keeper>,
     reflector: Reflector,
 }
 
@@ -73,6 +88,7 @@ fn bench(gate: Gate, anthropic: bool, untrusted: bool) -> Bench {
     let temp = TempStore::new();
     let model = Arc::new(ScriptedOneShot::default());
     let clock = Arc::new(FakeClock::new());
+    let keeper = Arc::new(Keeper::default());
     let reflector = Reflector::new(ReflectParts {
         store: temp.port(),
         clock: clock.clone(),
@@ -85,8 +101,9 @@ fn bench(gate: Gate, anthropic: bool, untrusted: bool) -> Bench {
         recall: Arc::new(Recall::new(temp.port(), clock)),
         scrubber: Arc::new(Scrubber::new(None)),
         device: "mac-a".into(),
+        keeper: keeper.clone(),
     });
-    Bench { temp, model, reflector }
+    Bench { temp, model, keeper, reflector }
 }
 
 fn append(temp: &TempStore, kind: WorkerEventType, payload: Value) {
@@ -212,4 +229,52 @@ async fn a_failed_call_is_tried_three_times_and_a_secret_is_never_stored() {
     );
     assert_eq!(b.reflector.pass().await.unwrap().skipped, 1);
     assert_eq!(b.temp.count("SELECT COUNT(*) FROM mem_notes"), 0);
+}
+
+fn said(b: &Bench, text: &str) {
+    append(&b.temp, WorkerEventType::UserMessage, json!({"text": text}));
+}
+
+#[tokio::test]
+async fn a_rule_stated_in_a_chat_is_kept_in_about_you_at_once_without_a_model() {
+    for (text, project) in [("From now on use pnpm here", Some("/repo")), ("Always use pnpm, everywhere", None)] {
+        let b = bench(Gate::Wait, true, false);
+        said(&b, text);
+        let capture = Capture::new(b.temp.port(), Arc::new(FakeClock::new()), Arc::new(SeqIds::new()));
+        assert_eq!(capture.look("w-1", None).await.unwrap().stored.len(), 1);
+        assert_eq!(b.reflector.pass().await.unwrap().learned, 1, "even at the plan line");
+        let kept = b.keeper.0.lock().unwrap().clone();
+        assert_eq!(kept, vec![StatedRule { text: text.into(), project: project.map(str::to_owned) }]);
+        assert!(b.model.asked().is_empty());
+        assert_eq!(b.temp.count("SELECT COUNT(*) FROM mem_stated WHERE memory_id = 'um-1' AND worker_id = 'w-1'"), 1);
+        assert_eq!(b.temp.count("SELECT COUNT(*) FROM mem_notes"), 0, "About you, not the experience store");
+    }
+}
+
+#[tokio::test]
+async fn a_rule_stated_in_a_run_is_a_firm_note_for_its_routine() {
+    let b = bench(Gate::Model, true, false);
+    said(&b, "From now on keep the summary short");
+    let run = RunRef {
+        run_id: "rn-1".into(),
+        routine_id: "rt-1".into(),
+        version_id: "rv-1".into(),
+        kind: "standing".into(),
+        role: eos_domain::run_scope::RunRole::Solo,
+        agent_key: None,
+        trust: eos_domain::run_scope::Trust::Trusted,
+        origin: "trigger".into(),
+        started_at: FakeClock::START_MS,
+        output_dir: std::path::PathBuf::from("/tmp/run"),
+    };
+    let capture = Capture::new(b.temp.port(), Arc::new(FakeClock::new()), Arc::new(SeqIds::new()));
+    assert_eq!(capture.look("w-1", Some(run)).await.unwrap().stored.len(), 1);
+    b.reflector.pass().await.unwrap();
+    assert!(b.keeper.0.lock().unwrap().is_empty());
+    assert!(b.model.asked().is_empty());
+    let (text, trust, state, scope) = note_row(&b.temp).await;
+    assert_eq!(
+        (text.as_str(), trust.as_str(), state.as_str(), scope.as_str()),
+        ("From now on keep the summary short", "said", "firm", "routine:rt-1")
+    );
 }

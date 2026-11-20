@@ -9,11 +9,12 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use eos_contracts::{
     DreamProposalKind, Num, UserMemory, UserMemoryCategory, UserMemoryChangeEvent, UserMemoryChangeEventAction,
-    UserMemoryChangeEventBy, UserMemoryDomain, UserMemoryId, UserMemoryProposal, UserMemoryScope, UserMemorySource,
-    UserMemoryStatus, UserMemoryTier,
+    UserMemoryChangeEventBy, UserMemoryDomain, UserMemoryId, UserMemoryProposal, UserMemoryScope,
+    UserMemoryScopeProject, UserMemorySource, UserMemoryStatus, UserMemoryTier,
 };
 use eos_core::profile::{
-    UserMemoryReader, UserMemorySuggestResult, UserMemorySuggestion, UserMemorySuggestionSink, UserMemorySync,
+    KeepResult, StatedRule, UserMemoryKeeper, UserMemoryReader, UserMemorySuggestResult, UserMemorySuggestion,
+    UserMemorySuggestionSink, UserMemorySync,
 };
 use eos_core::store::UserMemoryStore;
 use eos_core::{Clock, Error as CoreError, Ids};
@@ -158,6 +159,31 @@ impl UserMemoryService {
         };
         let memory = self.insert(new, UserMemoryStatus::Suggested, source, input.proposal)?;
         Ok(UserMemorySuggestResult { memory, duplicate: false, declined: false })
+    }
+
+    /// A rule the user stated in a chat: kept at once, unless a kept memory
+    /// already says it.
+    pub fn keep_stated(&self, rule: StatedRule) -> Result<KeepResult, CoreError> {
+        let _changing = self.change();
+        let text = normalize_memory_text(&rule.text);
+        let scope = match rule.project {
+            Some(path) => UserMemoryScope::Project(UserMemoryScopeProject { path }),
+            None => UserMemoryScope::Global,
+        };
+        let kept: Vec<Arc<UserMemory>> =
+            self.store.list().into_iter().filter(|m| m.status == UserMemoryStatus::Active).collect();
+        if let Some(kept) = find_duplicate_memory(&text, &scope, &kept) {
+            return Ok(KeepResult { memory_id: kept.id.0.clone(), duplicate: true });
+        }
+        let input = MemoryInput {
+            text,
+            category: UserMemoryCategory::WorkStyle,
+            domain: None,
+            scope,
+            tier: UserMemoryTier::Always,
+        };
+        let memory = self.insert(input, UserMemoryStatus::Active, UserMemorySource::User, None)?;
+        Ok(KeepResult { memory_id: memory.id.0.clone(), duplicate: false })
     }
 
     /// The user writes one: kept at once.
@@ -339,6 +365,12 @@ impl UserMemoryReader for UserMemoryService {
 
     fn search(&self, query: &str, project: Option<&str>, limit: usize) -> Vec<Arc<UserMemory>> {
         UserMemoryService::search(self, query, project, limit)
+    }
+}
+
+impl UserMemoryKeeper for UserMemoryService {
+    fn keep_stated(&self, rule: StatedRule) -> Result<KeepResult, CoreError> {
+        UserMemoryService::keep_stated(self, rule)
     }
 }
 

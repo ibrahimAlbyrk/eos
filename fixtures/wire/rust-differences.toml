@@ -335,6 +335,18 @@ at = "/json/prompts/**"
 reason = "The prompt library holds no goal-loop prompts (`loop/*`, `tool/dynamic_loop`): the Rust app has no goal loops. Nor `accounts/continue`: a session moved to another sign-in carries its cut-off turn on with no new input (eos-engine `switch_account`), so nothing of Eos's enters the chat. Nor `compaction/summarizer-system`: a session summarizes inside its own conversation, before the request that would pass its threshold, and carries on (eos-engine `compaction.rs`), so `compaction/summarize` is the request appended to it (its variable is only `INSTRUCTIONS`) and `compaction/continuation` the message the turn goes on from (`SUMMARY`, `TRANSCRIPT_ARCHIVE`). The list is today's without those ten, the two compaction prompts in their own words. It also lists `tool/list_capabilities` and `tool/call_capability`, the prompts of two tools the TypeScript app did not have, and `reactions`, `tool/react`, `tool/no_reply` and `role/focused/06-models`, the prompts of reactions and of a focused chat's subagent models, which it did not have either."
 
 [[known]]
+scenario = "33-settings"
+step = "prompt-preview"
+at = "/json/text"
+reason = "The memory fragments (worker `10c`, orchestrator `12c`, focused `01`) say that Eos keeps a rule the user states by itself (eos-memory keeps it in About you at once) and ask for a suggestion only for a correction repeated across tasks; the rest of the preview is today's."
+
+[[known]]
+scenario = "90-gates"
+step = "post-api-prompts-preview"
+at = "/json/text"
+reason = "The memory fragments (worker `10c`, orchestrator `12c`, focused `01`) say that Eos keeps a rule the user states by itself (eos-memory keeps it in About you at once) and ask for a suggestion only for a correction repeated across tasks; the rest of the preview is today's."
+
+[[known]]
 scenario = "11-chats"
 step = "export"
 at = "/text"

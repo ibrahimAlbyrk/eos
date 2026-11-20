@@ -105,11 +105,13 @@ impl CodePanes {
     }
 
     /// A Claude session's conversation as rows, read again from its
-    /// transcript; `None` when the session was not seen by this run.
-    pub(crate) async fn rows(&self, claude_session_id: &str) -> Option<Vec<EventRecord>> {
+    /// transcript, and the folder it ran in; `None` when the session was not
+    /// seen by this run.
+    pub(crate) async fn rows(&self, claude_session_id: &str) -> Option<(Vec<EventRecord>, String)> {
         let cwd = lock(&self.inner.known).get(claude_session_id).cloned()?;
         let file: SharedFile = Arc::new(Mutex::new(self.inner.transcripts.open(&cwd, claude_session_id)));
-        tokio::task::spawn_blocking(move || rows_of(&file)).await.ok().filter(|rows| !rows.is_empty())
+        let rows = tokio::task::spawn_blocking(move || rows_of(&file)).await.ok().filter(|rows| !rows.is_empty())?;
+        Some((rows, cwd))
     }
 
     /// Looks at the panes every [`POLL_MS`], and at once when one exits.

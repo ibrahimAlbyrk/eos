@@ -20,8 +20,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use eos_contracts::stream::topics;
 use eos_contracts::{UserMemory, UserMemoryChangeEvent, UserMemoryChangeEventBy, UserProfile, UserProfileChangeEvent};
 use eos_core::profile::{
-    MemorySearch, MemorySuggestions, UserMemoryReader, UserMemorySuggestionSink, UserMemorySync, UserProfileReader,
-    UserProfileSync,
+    MemorySearch, MemorySuggestions, UserMemoryKeeper, UserMemoryReader, UserMemorySuggestionSink, UserMemorySync,
+    UserProfileReader, UserProfileSync,
 };
 use eos_core::store::{AvatarThumbnails, Store, UserAvatarStore, UserMemoryStore, UserProfileStore};
 use eos_core::{Clock, Ids};
@@ -120,6 +120,11 @@ impl ProfileModule {
     }
 
     pub fn memory_reader(&self) -> Arc<dyn UserMemoryReader> {
+        self.agents.memories.clone()
+    }
+
+    /// Where a rule the user stated in a chat is kept at once.
+    pub fn memory_keeper(&self) -> Arc<dyn UserMemoryKeeper> {
         self.agents.memories.clone()
     }
 

@@ -3,6 +3,7 @@
 //! - the prompt block that tells an agent who the user is ([`UserProfileBlocks`]);
 //! - memory for the agent tools ([`MemorySearch`], [`MemorySuggestions`]): what
 //!   the memory routes answer the same agent;
+//! - what the user stated in a chat, kept at once ([`UserMemoryKeeper`]);
 //! - memory for any producer of suggestions, such as a dream
 //!   ([`UserMemoryReader`], [`UserMemorySuggestionSink`], [`UserProfileReader`]);
 //! - the write paths sync applies another computer's data through
@@ -103,6 +104,28 @@ pub trait UserMemorySuggestionSink: Send + Sync + 'static {
     /// [`Error::LimitExceeded`] when the producer's suggestions already fill
     /// its share of the review queue.
     fn suggest(&self, input: UserMemorySuggestion, source: UserMemorySource) -> Result<UserMemorySuggestResult, Error>;
+}
+
+/// A rule the user stated in a chat ("from now on…", "always…").
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatedRule {
+    pub text: String,
+    /// The project folder the chat worked in; `None` keeps it for everywhere.
+    pub project: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeepResult {
+    /// The kept memory, or the one that already said it.
+    pub memory_id: String,
+    pub duplicate: bool,
+}
+
+/// Keeps what the user said at once, without review: kept, always on,
+/// sourced to the user. A rule matching a suggestion the user dismissed is
+/// kept anyway (said beats a declined guess).
+pub trait UserMemoryKeeper: Send + Sync + 'static {
+    fn keep_stated(&self, rule: StatedRule) -> Result<KeepResult, Error>;
 }
 
 /// `search_memory` for one agent: its own session's project, at most 20

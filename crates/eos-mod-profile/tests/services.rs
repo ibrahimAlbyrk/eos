@@ -12,7 +12,9 @@ use eos_contracts::{
     UserProfilePatch, UserProfilePatchDreaming, UserProfilePatchIdentity, UserProfilePatchSharing,
 };
 use eos_core::Error as CoreError;
-use eos_core::profile::{SyncedIdentity, SyncedProfileFields, UserMemorySuggestion, UserMemorySync, UserProfileSync};
+use eos_core::profile::{
+    StatedRule, SyncedIdentity, SyncedProfileFields, UserMemorySuggestion, UserMemorySync, UserProfileSync,
+};
 use eos_core::store::{UserAvatarStore, UserMemoryStore, UserProfileStore};
 use eos_mod_profile::{
     Error, MEMORY_NOTIFY_DELAY, MemoryInput, MemoryPatch, PROFILE_CHANGE, PendingCaps, PreviewContext, ProfileModule,
@@ -140,6 +142,27 @@ async fn pending_suggestions_are_capped_per_producer_and_all_dreams_share_one_ca
     assert!(matches!(m.service.suggest(ninth, dream("dr-other-mac")), Err(CoreError::LimitExceeded(_))));
     let waiting = m.store.list().iter().filter(|x| x.status == UserMemoryStatus::Suggested).count();
     assert_eq!(waiting, 3 + 4);
+}
+
+#[tokio::test]
+async fn a_stated_rule_is_kept_at_once_even_after_a_dismissed_suggestion_and_never_twice() {
+    let mut m = memories(PendingCaps::default());
+    let declined = m.service.suggest(idea("Use pnpm here."), agent("w-1", "a")).expect("suggested").memory;
+    m.service.dismiss(&declined.id.0).expect("dismissed");
+    let rule = StatedRule { text: "Use pnpm here.".into(), project: Some("/repo".into()) };
+    let kept = m.service.keep_stated(rule.clone()).expect("kept");
+    assert!(!kept.duplicate);
+    let memory = m.store.get(&kept.memory_id).expect("stored");
+    assert_eq!(
+        (memory.status, memory.tier, memory.source.clone(), memory.scope.clone()),
+        (UserMemoryStatus::Active, UserMemoryTier::Always, UserMemorySource::User, project("/repo"))
+    );
+    let again = m.service.keep_stated(rule).expect("answered");
+    assert_eq!((again.memory_id, again.duplicate), (kept.memory_id.clone(), true));
+    let global = m.service.keep_stated(StatedRule { text: "Never push to main.".into(), project: None }).expect("kept");
+    assert_eq!(m.store.get(&global.memory_id).expect("stored").scope, UserMemoryScope::Global);
+    let created = m.announced().await.into_iter().filter(|e| e.1 == Action::Created && e.3 == By::User).count();
+    assert_eq!(created, 2);
 }
 
 #[tokio::test]
