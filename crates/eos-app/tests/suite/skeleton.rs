@@ -5,10 +5,12 @@ use std::time::Duration;
 
 use eos_app::{App, Options};
 use eos_core::BoxFuture;
-use eos_core::os::HoldReason;
+use eos_core::os::{DockBadge, HoldReason, WorkHold};
 use eos_core::shell::FilePicker;
 use eos_runtime::http::{Method, Request};
-use eos_testkit::{FakeBrowser, FakeBrowserPanel, FakeBrowserViews, FakeClock, FakeWorkHold, SeqIds, TempHome};
+use eos_testkit::{
+    FakeBrowser, FakeBrowserPanel, FakeBrowserViews, FakeClock, FakeDockBadge, FakeWorkHold, SeqIds, TempHome,
+};
 
 fn options(home: &TempHome) -> Options {
     Options {
@@ -165,17 +167,22 @@ impl FilePicker for NoPicker {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn work_holds_come_from_the_window_shell_when_there_is_one() {
-    let home = TempHome::new();
-    let holds = Arc::new(FakeWorkHold::new());
-    let shell = eos_app::Shell {
+fn shell(work_hold: Arc<dyn WorkHold>, dock_badge: Arc<dyn DockBadge>) -> eos_app::Shell {
+    eos_app::Shell {
         views: FakeBrowserViews::new(),
         panel: FakeBrowserPanel::new(),
         picker: Arc::new(NoPicker),
         opener: Arc::new(FakeBrowser::default()),
-        work_hold: holds.clone(),
-    };
+        work_hold,
+        dock_badge,
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn work_holds_come_from_the_window_shell_when_there_is_one() {
+    let home = TempHome::new();
+    let holds = Arc::new(FakeWorkHold::new());
+    let shell = shell(holds.clone(), Arc::new(FakeDockBadge::new()));
     let app = App::build(Options { shell: Some(shell), ..options(&home) }).expect("builds");
 
     let hold = app.work_hold().begin(HoldReason::Run);
@@ -183,4 +190,23 @@ async fn work_holds_come_from_the_window_shell_when_there_is_one() {
     assert_eq!(holds.live(HoldReason::Run), 1, "the shell's own hold");
     drop(hold);
     assert_eq!(holds.live(HoldReason::Run), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_dock_badge_is_the_window_shells_when_there_is_one() {
+    let home = TempHome::new();
+    let badge = Arc::new(FakeDockBadge::new());
+    // A number left from before: the started app puts its own open count there.
+    badge.set(Some(7));
+    let shell = shell(Arc::new(FakeWorkHold::new()), badge.clone());
+    let app = App::build(Options { shell: Some(shell), ..options(&home) }).expect("builds");
+    app.start().await.expect("starts");
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while badge.shown().is_some() && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(badge.shown(), None, "nothing needs the user in a new data folder");
+
+    assert!(app.shutdown(Duration::from_secs(5)).await.clean());
 }

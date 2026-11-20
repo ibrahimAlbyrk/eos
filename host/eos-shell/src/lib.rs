@@ -24,7 +24,7 @@ use std::time::Duration;
 
 use eos_bridge::{Bridge, Core};
 use eos_core::accounts::Browser;
-use eos_core::os::WorkHold;
+use eos_core::os::{DockBadge, WorkHold};
 use eos_core::plugin::PluginPreviewer;
 use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
 
@@ -87,6 +87,8 @@ pub struct Ports {
     /// Keeps the app out of App Nap while routines run or wait: one system activity per
     /// reason while any hold of it lives.
     pub work_hold: Arc<dyn WorkHold>,
+    /// The number on the app's Dock icon.
+    pub dock_badge: Arc<dyn DockBadge>,
     /// The runtime the shell's own tasks run on.
     pub rt: tokio::runtime::Handle,
     /// Quits the app as its menu does: the shutdown hook runs, then the process exits.

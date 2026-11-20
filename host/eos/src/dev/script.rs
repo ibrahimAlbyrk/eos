@@ -25,6 +25,7 @@
 //! `{"hosts": {"verb": "list"}}`, `{"hosts": {"verb": "switchTo", "id": "…"}}`: the machine
 //! switcher as the dashboard sees it. `{"splash": "Updating · …"}` shows the update splash,
 //! `{"splash": null}` closes it.
+//! `{"badge": 3}` puts a number on the Dock icon as the core does (`null` clears it).
 //! The output file gets one result per step, in order.
 //!
 //! A responsiveness run (`tests/responsiveness.py`, with the shell's probe on) also has
@@ -240,6 +241,10 @@ impl Run {
                     (_, Some(file)) => probe.trace_stop(std::path::Path::new(file)).await,
                     _ => Err("trace: start or stop".into()),
                 }
+            }
+            "badge" => {
+                self.ports.dock_badge.set(arg.as_u64().map(|n| u32::try_from(n).unwrap_or(u32::MAX)));
+                Ok(Value::Null)
             }
             other => Err(format!("unknown step {other:?}")),
         }

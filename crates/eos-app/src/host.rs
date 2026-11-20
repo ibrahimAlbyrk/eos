@@ -120,7 +120,7 @@ impl TimeZone for HostTimeZone {
     }
 }
 
-/// The Dock icon until the shell hands in its own: shows nothing.
+/// The Dock icon without a window shell: shows nothing.
 pub(crate) struct NoDockBadge;
 
 impl eos_core::os::DockBadge for NoDockBadge {

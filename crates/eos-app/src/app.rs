@@ -18,7 +18,7 @@ use eos_core::capability::CapabilitySecrets;
 use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
-use eos_core::os::{KeepAwake, WorkHold};
+use eos_core::os::{DockBadge, KeepAwake, WorkHold};
 use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
@@ -165,6 +165,8 @@ pub struct Shell {
     /// Keeps the app out of App Nap while routines run or wait, which only
     /// the app's own process can do.
     pub work_hold: Arc<dyn WorkHold>,
+    /// The number on the app's Dock icon: what needs the user.
+    pub dock_badge: Arc<dyn DockBadge>,
 }
 
 impl std::fmt::Debug for Shell {
@@ -545,6 +547,8 @@ impl App {
         let work_hold = shell
             .as_ref()
             .map_or_else(|| Arc::new(host::HostWorkHold::default()) as Arc<dyn WorkHold>, |s| s.work_hold.clone());
+        let dock_badge =
+            shell.as_ref().map_or_else(|| Arc::new(host::NoDockBadge) as Arc<dyn DockBadge>, |s| s.dock_badge.clone());
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
@@ -599,6 +603,7 @@ impl App {
             pdfjs_root,
             settings: settings.clone(),
             work_hold: work_hold.clone(),
+            dock_badge,
             usage_cache,
             media,
             location,
