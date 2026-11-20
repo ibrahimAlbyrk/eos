@@ -9,7 +9,7 @@ use std::time::Duration;
 use eos_contracts::ActionClass;
 use eos_core::Clock;
 use eos_core::delivery::{ChannelTraits, Idempotency, Receipt, SendError, SendErrorKind, Undo};
-use eos_core::routine::RoutineControl;
+use eos_core::routine::{GateDecision, RoutineControl};
 use eos_core::store::StoredDelivery;
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
@@ -343,7 +343,7 @@ async fn each_target_whose_send_went_stale_is_held_again_as_a_draft_of_its_own()
 }
 
 #[tokio::test]
-async fn the_loop_sends_what_the_gate_queues_and_stops() {
+async fn the_loop_sends_what_the_user_sends_and_stops() {
     let gated = Gated::new();
     let channels = gated.channels.clone();
     let control: Arc<dyn RoutineControl> = gated.rig.control.clone();
@@ -356,16 +356,17 @@ async fn the_loop_sends_what_the_gate_queues_and_stops() {
         channels: Arc::new(channels.clone()),
         control,
         outcomes: Arc::new(FakeRunOutcomes::new()),
-        wake: gated.gate.waker(),
+        wake: gated.rig.wake.clone(),
     }));
     engine.start();
-    gated.apply(input("on_its_own")).await;
+    let GateDecision::Held { item_id } = gated.apply(input("draft")).await else { panic!("not held") };
+    gated.rig.items.send(&item_id, 1, None, "dashboard").await.expect("sent");
     let mut waited = 0;
     while channels.sent().is_empty() && waited < 200 {
         tokio::time::sleep(Duration::from_millis(10)).await;
         waited += 1;
     }
-    assert_eq!(channels.sent().len(), 1, "poked by the gate");
+    assert_eq!(channels.sent().len(), 1, "poked by the send");
     engine.stop().await;
 }
 
