@@ -153,7 +153,7 @@ struct Shell {
     /// The window's saved frame until its first showing, which also opens the dashboard.
     unshown: std::sync::Mutex<Option<WindowState>>,
     /// When the dashboard's view is released and made again.
-    dashboard_life: std::sync::Mutex<DashboardLife>,
+    dashboard_life: Arc<std::sync::Mutex<DashboardLife>>,
 }
 
 pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
@@ -242,7 +242,7 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         early_link: std::sync::Mutex::new(None),
         launched_with: request.clone(),
         unshown: std::sync::Mutex::new(None),
-        dashboard_life: std::sync::Mutex::new(dashboard_life),
+        dashboard_life: Arc::new(std::sync::Mutex::new(dashboard_life)),
     });
 
     let for_setup = shell.clone();
@@ -552,12 +552,23 @@ impl Shell {
         match step {
             DashboardStep::Release => {
                 log("shell", "the window stayed hidden: the dashboard view is released");
-                let views = views.clone();
-                self.on_main(move || views.release_dashboard());
+                // A showing handled on the main thread can run before this task: it made the
+                // view again (or found it still there), and the release no longer stands.
+                let (views, life) = (views.clone(), self.dashboard_life.clone());
+                self.on_main(move || {
+                    if life.lock().unwrap_or_else(|p| p.into_inner()).released() {
+                        views.release_dashboard();
+                    }
+                });
             }
             DashboardStep::Recreate => {
                 let (window, Some(parts)) = (window.clone(), self.dashboard_parts()) else { return step };
+                let views = views.clone();
                 self.on_main(move || {
+                    // The release this answers had not run yet: the view is still there.
+                    if views.dashboard().is_some() {
+                        return;
+                    }
                     let scale = window.scale_factor().unwrap_or(1.0);
                     let size = window.inner_size().map(|s| s.to_logical::<f64>(scale)).unwrap_or_default();
                     open_dashboard(&window, (size.width, size.height), parts, false);
