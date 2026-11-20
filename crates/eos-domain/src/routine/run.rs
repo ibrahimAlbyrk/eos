@@ -37,7 +37,8 @@ impl RunState {
     /// something), from the gate (revise) and from a delivered milestone of a
     /// project. A result that is shown only, or says there is nothing to
     /// send, is done at the check; a held one is done when the user discards
-    /// it or it expires or is replaced. Only a run that has not started is
+    /// it or it expires or is replaced. A send whose subject moved on is held
+    /// for the user again. Only a run that has not started is
     /// skipped; a delivery is never cancelled.
     pub fn can_become(self, next: RunState) -> bool {
         use RunState::*;
@@ -46,7 +47,7 @@ impl RunState {
             Running => matches!(next, Checking | Paused | Failed | Cancelled),
             Checking => matches!(next, WaitingForUser | Delivering | Done | Running | Paused | Failed | Cancelled),
             WaitingForUser => matches!(next, Delivering | Done | Running | Cancelled),
-            Delivering => matches!(next, Done | Running | Failed),
+            Delivering => matches!(next, WaitingForUser | Done | Running | Failed),
             Paused => matches!(next, Running | Cancelled),
             Done | Skipped | Cancelled | Failed => false,
         }
@@ -197,6 +198,7 @@ mod tests {
             (WaitingForUser, Done),
             (WaitingForUser, Running),
             (WaitingForUser, Cancelled),
+            (Delivering, WaitingForUser),
             (Delivering, Done),
             (Delivering, Running),
             (Delivering, Failed),
