@@ -7,9 +7,11 @@
 pub mod budget;
 pub mod clean;
 pub mod cues;
+pub mod merge;
 pub mod moments;
 pub mod note;
 pub mod rank;
+pub mod reflect;
 pub mod render;
 pub mod spread;
 pub mod state;

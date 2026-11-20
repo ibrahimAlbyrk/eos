@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use eos_core::Sleeper;
 use eos_core::routine::RunLookup;
 use eos_memory::Capture;
+use tokio::sync::Notify;
 
 /// How often a worker still working is looked at.
 pub(crate) const TICK_MS: i64 = 10 * 60 * 1000;
@@ -21,11 +22,13 @@ pub(crate) struct Capturer {
     runs: Option<Arc<dyn RunLookup>>,
     /// Workers that did something since the last tick.
     active: Mutex<HashSet<String>>,
+    /// Wakes reflection when a look stored moments.
+    reflect: Arc<Notify>,
 }
 
 impl Capturer {
-    pub(crate) fn new(capture: Capture, runs: Option<Arc<dyn RunLookup>>) -> Self {
-        Self { capture, runs, active: Mutex::new(HashSet::new()) }
+    pub(crate) fn new(capture: Capture, runs: Option<Arc<dyn RunLookup>>, reflect: Arc<Notify>) -> Self {
+        Self { capture, runs, active: Mutex::new(HashSet::new()), reflect }
     }
 
     pub(crate) fn saw(&self, worker_id: &str) {
@@ -47,8 +50,14 @@ impl Capturer {
         };
         for _ in 0..LOOKS_MAX {
             match self.capture.look(worker_id, run.clone()).await {
-                Ok(captured) if captured.more => {}
-                Ok(_) => return,
+                Ok(captured) => {
+                    if !captured.stored.is_empty() {
+                        self.reflect.notify_one();
+                    }
+                    if !captured.more {
+                        return;
+                    }
+                }
                 Err(e) => {
                     // The next edge or tick tries again; nothing waits in memory.
                     tracing::warn!(worker_id, error = %e, "memory: capture failed");

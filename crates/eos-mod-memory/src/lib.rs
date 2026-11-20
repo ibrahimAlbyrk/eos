@@ -16,6 +16,9 @@
 //! - Notes reach agents ([`reminders`]): a pack at the first turn of each
 //!   epoch of a chat, and reminders when a message, a tool call or an error
 //!   matches what was learned.
+//! - Moments become notes ([`reflection`]): the small model where the host
+//!   allows model calls, the user has a Claude plan and usage is under their
+//!   line; the rules elsewhere.
 //! - Model work nobody asked for (reflection, night tidying) runs only when
 //!   the host lets it ([`MemoryParts::background_model_calls`]).
 //!
@@ -24,26 +27,35 @@
 
 mod code;
 mod hooks;
+mod reflection;
 mod reminders;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::{AgentEvent, ExperienceChange, ExperienceRecalledEvent, ExperienceSettings};
-use eos_core::agent::{CompactionNotice, NoteTurn};
+use std::path::PathBuf;
+
+use eos_core::accounts::PlanAccess;
+use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
 use eos_core::experience::{Embedder, ExperienceSearch, FoundNote};
 use eos_core::git::ProjectKeys;
+use eos_core::os::TimeZone;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
-use eos_memory::{Capture, Recall};
+use eos_domain::redact::Scrubber;
+use eos_memory::{Capture, Recall, ReflectParts, Reflector};
+use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
+use tokio::sync::Notify;
 
 use crate::code::CodePanes;
 use crate::hooks::Capturer;
+use crate::reflection::{LibraryPrompt, Moments, PlanGate, Reflecting};
 pub use crate::reminders::NoteSink;
 use crate::reminders::Reminders;
 
@@ -85,6 +97,26 @@ impl std::fmt::Debug for CodeParts {
     }
 }
 
+/// What reflection asks the model with.
+pub struct LearnParts {
+    pub one_shot: Arc<dyn OneShot>,
+    /// The user's plan sign-ins and how much of the plan is spent.
+    pub plan: Arc<dyn PlanAccess>,
+    /// The prompt library, for the reflection prompt.
+    pub prompts: Arc<PromptService>,
+    pub zone: Arc<dyn TimeZone>,
+    /// The user's home folder, cut from what is stored.
+    pub home: Option<PathBuf>,
+    /// This Mac, as notes name the device that wrote them.
+    pub device: String,
+}
+
+impl std::fmt::Debug for LearnParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LearnParts").finish_non_exhaustive()
+    }
+}
+
 /// What the module is built from.
 pub struct MemoryParts {
     pub store: Arc<dyn Store>,
@@ -103,6 +135,8 @@ pub struct MemoryParts {
     pub embedder: Option<LoadEmbedder>,
     /// Code-view panes, when terminals are composed.
     pub code: Option<CodeParts>,
+    /// Reflection: without it, moments are captured and wait.
+    pub learn: Option<LearnParts>,
     /// Whether model calls nobody asked for may run: only in the installed
     /// app on the user's own data folder.
     pub background_model_calls: bool,
@@ -118,7 +152,8 @@ pub struct MemoryModule {
     store: Arc<dyn Store>,
     recall: Arc<Recall>,
     capturer: Arc<Capturer>,
-    code: Option<CodePanes>,
+    code: Option<Arc<CodePanes>>,
+    reflecting: Option<Arc<Reflecting>>,
     reminders: Arc<Reminders>,
     sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
@@ -147,18 +182,37 @@ impl MemoryModule {
             profile,
             embedder,
             code,
+            learn,
             background_model_calls,
         } = parts;
+        let wake = Arc::new(Notify::new());
         let code = code.map(|c| {
-            CodePanes::new(
-                &c.bus,
-                Capture::new(store.clone(), clock.clone(), ids.clone()),
-                c.transcripts,
-                clock.clone(),
-            )
+            let capture = Capture::new(store.clone(), clock.clone(), ids.clone());
+            Arc::new(CodePanes::new(&c.bus, capture, c.transcripts, clock.clone(), wake.clone()))
         });
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
         let recall = Arc::new(Recall::new(store.clone(), clock.clone()));
+        let reflecting = learn.map(|learn| {
+            let reflector = Reflector::new(ReflectParts {
+                store: store.clone(),
+                clock: clock.clone(),
+                ids: ids.clone(),
+                zone: learn.zone,
+                one_shot: learn.one_shot,
+                gate: Arc::new(PlanGate { background_model_calls, plan: learn.plan, profile: profile.clone() }),
+                source: Arc::new(Moments {
+                    store: store.clone(),
+                    project_keys: project_keys.clone(),
+                    runs: runs.clone(),
+                    code: code.clone(),
+                }),
+                prompt: Arc::new(LibraryPrompt(learn.prompts)),
+                recall: recall.clone(),
+                scrubber: Arc::new(Scrubber::new(learn.home.as_deref())),
+                device: learn.device,
+            });
+            Arc::new(Reflecting { reflector, recall: recall.clone(), wake: wake.clone() })
+        });
         let reminders = Reminders::new(
             recall.clone(),
             store.clone(),
@@ -172,8 +226,9 @@ impl MemoryModule {
         Self {
             recall,
             reminders: Arc::new(reminders),
-            capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs)),
+            capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs, wake)),
             code,
+            reflecting,
             sleeper,
             store,
             embedder: Mutex::new(embedder),
@@ -287,6 +342,9 @@ impl Module for MemoryModule {
         tasks.push(tokio::spawn(self.capturer.clone().tick(self.sleeper.clone())));
         if let Some(code) = &self.code {
             tasks.push(tokio::spawn(code.poll(self.sleeper.clone())));
+        }
+        if let Some(reflecting) = &self.reflecting {
+            tasks.push(tokio::spawn(reflecting.clone().run(self.sleeper.clone())));
         }
         drop(tasks);
         Box::pin(std::future::ready(Ok(())))

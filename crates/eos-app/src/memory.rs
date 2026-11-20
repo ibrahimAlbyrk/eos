@@ -60,6 +60,14 @@ pub(crate) fn module(
         profile,
         embedder,
         code: Some(eos_mod_memory::CodeParts { bus: cx.bus.clone(), transcripts: cx.terminals.transcripts.clone() }),
+        learn: Some(eos_mod_memory::LearnParts {
+            one_shot: cx.one_shot.clone(),
+            plan: cx.accounts.clone(),
+            prompts: cx.prompts.clone(),
+            zone: Arc::new(crate::host::HostTimeZone),
+            home: eos_platform::home_dir(),
+            device: cx.peer.device_id(),
+        }),
         background_model_calls: cx.reach.background_model_calls(),
     }))
 }

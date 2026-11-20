@@ -65,6 +65,26 @@ impl Signal {
         }
     }
 
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|s| s.as_str() == name)
+    }
+
+    pub const ALL: [Signal; 13] = [
+        Signal::SaysWrong,
+        Signal::StatesRule,
+        Signal::Stops,
+        Signal::Undoes,
+        Signal::Denies,
+        Signal::ThumbsDown,
+        Signal::Edits,
+        Signal::Repeats,
+        Signal::CommandFails,
+        Signal::TestFails,
+        Signal::CheckerDisagrees,
+        Signal::HardWon,
+        Signal::Accepted,
+    ];
+
     /// Where the knowledge comes from.
     pub fn trust(self) -> Trust {
         match self {
