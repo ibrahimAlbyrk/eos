@@ -6,6 +6,8 @@
 
 pub mod budget;
 pub mod clean;
+pub mod cues;
+pub mod moments;
 pub mod note;
 pub mod rank;
 pub mod render;
