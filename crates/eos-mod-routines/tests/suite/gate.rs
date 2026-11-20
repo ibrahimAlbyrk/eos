@@ -2,7 +2,7 @@
 //! decisions, a result with nothing to send, the show-only gate, and what
 //! Needs you reports afterwards.
 
-use eos_contracts::{CheckVerdict, RoutineState};
+use eos_contracts::{CheckVerdict, RoutineState, RunChange};
 use eos_core::routine::{GateDecision, GateMode, RunOrigin, SubmittedResult};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
@@ -169,14 +169,15 @@ async fn a_result_taken_back_after_its_run_ended_changes_the_runs_outcome() {
     bench.module.tools().submit_result(&lead, review()).await.expect("handed in");
     bench.eventually(|| bench.state(&run) == RunState::Delivering).await;
     let (id, outcomes) = (run.clone(), bench.module.outcomes());
-    bench
-        .temp
-        .store
-        .write_blocking(move |tx, out| {
-            outcomes.finished(tx, out, &id, Outcome::AutoSent)?;
-            outcomes.finished(tx, out, &id, Outcome::Undone)
-        })
-        .expect("writes");
+    bench.temp.store.write_blocking(move |tx, out| outcomes.finished(tx, out, &id, Outcome::AutoSent)).expect("writes");
+    bench.bus.flush().await;
+    let mut changes = bench.bus.subscribe("run:change", 16);
+    let (id, outcomes) = (run.clone(), bench.module.outcomes());
+    bench.temp.store.write_blocking(move |tx, out| outcomes.finished(tx, out, &id, Outcome::Undone)).expect("writes");
     let undone = bench.run(&run);
     assert_eq!((undone.state, undone.outcome), (RunState::Done, Some(Outcome::Undone)));
+    bench.bus.flush().await;
+    let change = tokio::time::timeout(std::time::Duration::from_secs(2), changes.recv()).await;
+    let change = change.expect("announced").expect("an event").payload_as::<RunChange>().expect("a change");
+    assert_eq!((change.run_id.as_str(), change.state.as_str()), (run.as_str(), "done"), "watchers read it again");
 }
