@@ -6,8 +6,8 @@
 //! unknown keys inside a section are dropped.
 
 use eos_contracts::{
-    AnthropicConfig, BackendProfile, GenuiConfig, Issues, McpServerDef, MemorySource, Num, RemoteConfigRateLimit,
-    RemoteConfigRelay, Validate,
+    AnthropicConfig, BackendProfile, GenuiConfig, Interrupts, Issues, McpServerDef, MemorySource, Num,
+    RemoteConfigRateLimit, RemoteConfigRelay, Validate,
 };
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -73,6 +73,13 @@ partial!(PeerOverride {
     relay_url: String,
 });
 partial!(GitHubOverride { client_id: String });
+partial!(AttentionOverride {
+    quiet_on: bool,
+    quiet_from: String,
+    quiet_to: String,
+    digests: Vec<String>,
+    interrupts: Interrupts,
+});
 partial!(BrowserOverride {
     enabled: bool,
     chrome_path: String,
@@ -151,6 +158,7 @@ partial!(
         browser: BrowserOverride,
         genui: GenuiConfig,
         github: GitHubOverride,
+        attention: AttentionOverride,
     }
 );
 

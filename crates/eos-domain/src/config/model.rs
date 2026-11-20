@@ -1,7 +1,8 @@
 //! The shape of the resolved configuration.
 
 use eos_contracts::{
-    AnthropicConfig, BackendProfile, GenuiConfig, McpServerDef, MemorySource, ModelPricing, PeerConfig, RemoteConfig,
+    AnthropicConfig, AttentionSettings, BackendProfile, GenuiConfig, McpServerDef, MemorySource, ModelPricing,
+    PeerConfig, RemoteConfig,
 };
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,8 @@ pub struct Config {
     pub browser: Browser,
     pub genui: GenuiConfig,
     pub github: GitHub,
+    /// When Needs you may interrupt (`PUT /api/settings/attention` writes it).
+    pub attention: AttentionSettings,
 }
 
 /// The `daemon` key of the file: where the data lives and how the stream breathes.

@@ -15,8 +15,10 @@ use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
+use eos_testkit::relay::FakePhoneNotify;
 use eos_testkit::{
-    FakeChannels, FakeClock, FakeRoutineControl, FakeRunOutcomes, FakeSleeper, FakeTimeZone, SeqIds, TempStore,
+    FakeChannels, FakeClock, FakeConfig, FakeDockBadge, FakeRoutineControl, FakeRunOutcomes, FakeSleeper, FakeTimeZone,
+    SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -60,6 +62,8 @@ pub(crate) struct Rig {
     pub(crate) waiting: Arc<Waiting>,
     /// What the routines' control answers.
     pub(crate) control: Arc<FakeRoutineControl>,
+    /// The number on the Dock icon.
+    pub(crate) badge: Arc<FakeDockBadge>,
     ids: Arc<SeqIds>,
 }
 
@@ -70,6 +74,7 @@ impl Rig {
         let kernel = Kernel::new(KernelOptions::default());
         let temp = TempStore::on_bus(&kernel.bus);
         let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests()));
+        let badge = Arc::new(FakeDockBadge::new());
         let module = Arc::new(InboxModule::new(InboxParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -88,12 +93,15 @@ impl Rig {
                 outcomes: Arc::new(FakeRunOutcomes::new()),
                 wake: Arc::new(tokio::sync::Notify::new()),
             },
+            config: Arc::new(FakeConfig::new(json!({}))),
+            phone: Arc::new(FakePhoneNotify::new()),
+            badge: badge.clone(),
         }));
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        Self { runtime, temp, clock, waiting, control, ids: Arc::new(SeqIds::new()) }
+        Self { runtime, temp, clock, waiting, control, badge, ids: Arc::new(SeqIds::new()) }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

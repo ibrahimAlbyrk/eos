@@ -241,6 +241,30 @@ impl InboxRepo for SqliteTx<'_> {
         Ok(changed > 0)
     }
 
+    fn unnotified(&self, created_from: i64) -> Result<Vec<StoredItem>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {ITEM_COLUMNS} FROM inbox_items WHERE state = 'open' AND attention = 'interrupt' \
+                 AND notified_at IS NULL AND created_at >= ?1 ORDER BY created_at, rowid"
+            ),
+            [created_from],
+            item,
+        )
+    }
+
+    fn notified_since(&self, since: i64) -> Result<i64, Error> {
+        let count = self.row("SELECT COUNT(*) FROM inbox_items WHERE notified_at >= ?1", [since], |r| {
+            r.get::<_, i64>(0).map_err(failed)
+        })?;
+        Ok(count.unwrap_or(0))
+    }
+
+    fn set_notified(&self, id: &str, at: i64) -> Result<bool, Error> {
+        let changed = self
+            .exec("UPDATE inbox_items SET notified_at = ?2 WHERE id = ?1 AND notified_at IS NULL", params![id, at])?;
+        Ok(changed > 0)
+    }
+
     fn delete_ended_before(&self, before: i64, limit: i64) -> Result<usize, Error> {
         self.exec(
             "DELETE FROM inbox_items WHERE rowid IN (SELECT rowid FROM inbox_items \

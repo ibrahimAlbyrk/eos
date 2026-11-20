@@ -30,17 +30,27 @@
 //! that closed expires its items. It never depends on the signals feature:
 //! it reads the topic by name. A sweeper expires items whose time ran out,
 //! brings back the ones put off and deletes those that ended 90 days ago.
+//!
+//! Attention (`GET`/`PUT /api/settings/attention`): on every `inbox:change`
+//! the Dock badge shows the open count and what may interrupt does
+//! ([`Notifier`](eos_inbox::attention::Notifier)); the same task wakes at
+//! each digest time.
 
 mod project;
 mod routes;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
+use tokio::sync::Notify;
+
 use eos_contracts::{DeliveryChange, HaltState, InboxChange, SignalSubject};
 use eos_core::agent::OpenQuestions;
+use eos_core::net::relay::PhoneNotify;
+use eos_core::os::DockBadge;
 use eos_core::profile::UserMemoryReader;
-use eos_core::store::Store;
+use eos_core::store::{ConfigSource, Store};
 use eos_core::{BoxFuture, Clock, Sleeper};
+use eos_inbox::attention::{Notifier, NotifierParts};
 use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_inbox::{Items, ItemsParts, QuestionWaiters};
 use eos_runtime::bus::{Bus, RecvError, Topic, TopicDecl};
@@ -54,6 +64,9 @@ pub const INBOX_HALT: Topic<HaltState> = Topic::new(eos_inbox::INBOX_HALT);
 const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
 /// The subject events that may wait to be acted on.
 const SUBJECTS_QUEUED: usize = 256;
+/// The changes that may wait to be acted on by attention; a missed one is
+/// caught up by the next.
+const CHANGES_QUEUED: usize = 256;
 /// The longest the sweeper sleeps: its retention pass runs at least hourly.
 const SWEEP_EVERY_MS: i64 = 60 * 60 * 1000;
 
@@ -72,6 +85,12 @@ pub struct InboxParts {
     pub waiters: Arc<QuestionWaiters>,
     /// What the delivery engine sends with, and a sent draft is queued with.
     pub delivery: DeliveryParts,
+    /// `config.json`, for its `attention` section.
+    pub config: Arc<dyn ConfigSource>,
+    /// Wakes the user's phone when an item interrupts.
+    pub phone: Arc<dyn PhoneNotify>,
+    /// The number on the Dock icon.
+    pub badge: Arc<dyn DockBadge>,
 }
 
 impl std::fmt::Debug for InboxParts {
@@ -83,6 +102,7 @@ impl std::fmt::Debug for InboxParts {
 pub struct InboxModule {
     parts: Arc<Shared>,
     delivery: Arc<Delivery>,
+    notifier: Notifier,
     bus: Bus,
     clock: Arc<dyn Clock>,
     sleeper: Arc<dyn Sleeper>,
@@ -98,6 +118,9 @@ pub(crate) struct Shared {
     pub(crate) items: Items,
     pub(crate) questions: Arc<dyn OpenQuestions>,
     pub(crate) memories: Arc<dyn UserMemoryReader>,
+    pub(crate) config: Arc<dyn ConfigSource>,
+    /// Poked when the attention settings changed.
+    pub(crate) attention_changed: Arc<Notify>,
 }
 
 impl std::fmt::Debug for InboxModule {
@@ -108,8 +131,16 @@ impl std::fmt::Debug for InboxModule {
 
 impl InboxModule {
     pub fn new(parts: InboxParts) -> Self {
-        let InboxParts { store, clock, bus, questions, memories, waiters, delivery } = parts;
+        let InboxParts { store, clock, bus, questions, memories, waiters, delivery, config, phone, badge } = parts;
         let sleeper = delivery.sleeper.clone();
+        let notifier = Notifier::new(NotifierParts {
+            store: store.clone(),
+            clock: clock.clone(),
+            zone: delivery.zone.clone(),
+            config: config.clone(),
+            phone,
+            badge,
+        });
         let items = Items::new(ItemsParts {
             store: store.clone(),
             clock: clock.clone(),
@@ -122,8 +153,16 @@ impl InboxModule {
             waiters,
         });
         Self {
-            parts: Arc::new(Shared { store, items, questions, memories }),
+            parts: Arc::new(Shared {
+                store,
+                items,
+                questions,
+                memories,
+                config,
+                attention_changed: Arc::new(Notify::new()),
+            }),
             delivery: Arc::new(Delivery::new(delivery)),
+            notifier,
             bus,
             clock,
             sleeper,
@@ -150,6 +189,45 @@ impl InboxModule {
                 };
                 let wait = next.map_or(SWEEP_EVERY_MS, |at| (at - clock.now_ms()).clamp(0, SWEEP_EVERY_MS));
                 sleeper.sleep(wait).await;
+            }
+        }));
+    }
+
+    /// From now on, the badge follows the open count, items interrupt as the
+    /// settings let them, and digests come at their times. One task, so two
+    /// passes never run at once.
+    fn attend(&self) {
+        let mut changes = self.bus.subscribe(&INBOX_CHANGE, CHANGES_QUEUED);
+        let (notifier, store) = (self.notifier.clone(), self.parts.store.clone());
+        let (settings, clock, sleeper) =
+            (self.parts.attention_changed.clone(), self.clock.clone(), self.sleeper.clone());
+        self.keep(tokio::spawn(async move {
+            match store.read(|tx| tx.inbox_items().open_count()).await {
+                Ok(open) => notifier.badge(open),
+                Err(error) => tracing::warn!(%error, "the open count could not be read"),
+            }
+            loop {
+                let next = match notifier.pass().await {
+                    Ok(next) => next,
+                    Err(error) => {
+                        tracing::warn!(%error, "an attention pass failed");
+                        clock.now_ms() + SWEEP_EVERY_MS
+                    }
+                };
+                let wait = (next - clock.now_ms()).clamp(0, SWEEP_EVERY_MS);
+                tokio::select! {
+                    () = sleeper.sleep(wait) => {}
+                    () = settings.notified() => notifier.settings_changed(),
+                    change = changes.recv() => match change {
+                        Ok(event) => {
+                            if let Ok(change) = event.payload_as::<InboxChange>() {
+                                notifier.badge(change.open);
+                            }
+                        }
+                        Err(RecvError::Lagged(missed)) => tracing::debug!(missed, "inbox changes were missed"),
+                        Err(RecvError::Closed) => return,
+                    },
+                }
             }
         }));
     }
@@ -197,6 +275,7 @@ impl Module for InboxModule {
         self.delivery.start();
         self.hear_subjects();
         self.sweep();
+        self.attend();
         Box::pin(std::future::ready(Ok(())))
     }
 
