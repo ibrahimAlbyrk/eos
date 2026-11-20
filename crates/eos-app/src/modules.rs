@@ -83,6 +83,10 @@ pub(crate) struct Context {
     pub(crate) policy: Arc<PolicyGateway>,
     /// What Eos can reach for the user: the agent tools, the gateway and its feature share it.
     pub(crate) capabilities: Arc<eos_capabilities::CapabilityService>,
+    /// The sources routines read: the built-ins', or a test's.
+    pub(crate) signal_sources: Arc<dyn eos_core::signals::SignalSources>,
+    /// The channels results go out through: the built-ins', or a test's.
+    pub(crate) channels: Arc<dyn eos_core::delivery::Channels>,
     /// Where the routines feature's grant to run sessions is attached.
     pub(crate) grants: Arc<crate::capabilities::LateGrants>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
@@ -191,7 +195,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         place_search: cx.media.places.clone(),
         location: cx.location.clone(),
     }));
-    let channels = cx.reach.channels(cx.capabilities.channels());
+    let channels = cx.reach.channels(cx.channels.clone());
     let gate =
         Arc::new(eos_inbox::gate::Gate::new(channels.clone(), Arc::new(crate::host::HostTimeZone), cx.clock.clone()));
     let power: Arc<dyn eos_core::os::Power> =
@@ -340,7 +344,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             sleeper: cx.sleeper.clone(),
             ids: cx.ids.clone(),
             zones: Arc::new(crate::host::HostZoneRules),
-            sources: cx.reach.signal_sources(cx.capabilities.signal_sources()),
+            sources: cx.reach.signal_sources(cx.signal_sources.clone()),
             health: cx.capabilities.clone(),
             runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
             intake: routines.intake(),

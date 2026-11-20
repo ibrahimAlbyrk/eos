@@ -60,6 +60,7 @@ impl Planted {
             secrets: Some(self.secrets.clone()),
             builtins: vec![self.echo.clone()],
             github: Some(self.github.clone()),
+            ..CapabilityOptions::default()
         }
     }
 

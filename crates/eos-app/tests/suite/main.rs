@@ -6,6 +6,8 @@
 mod planted;
 #[path = "../support/rig.rs"]
 mod rig;
+#[path = "../support/routines.rs"]
+mod routines_rig;
 
 mod agent_smoke;
 mod boot;
@@ -20,4 +22,5 @@ mod phone;
 mod plan_switch;
 mod reach;
 mod read_path;
+mod routines;
 mod skeleton;

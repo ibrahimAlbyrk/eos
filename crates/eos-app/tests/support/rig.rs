@@ -31,7 +31,12 @@ pub fn build(home: &Path, agents: &ScriptedRuntime) -> App {
 
 /// [`build`], with a test's own capability secrets, built-ins and GitHub.
 pub fn build_with(home: &Path, agents: &ScriptedRuntime, capabilities: CapabilityOptions) -> App {
-    let options = Options {
+    App::build(options(home, agents, capabilities)).expect("the app builds")
+}
+
+/// What [`build_with`] builds the app from.
+pub fn options(home: &Path, agents: &ScriptedRuntime, capabilities: CapabilityOptions) -> Options {
+    Options {
         capabilities,
         launchd: None,
         agents: AgentOptions {
@@ -43,8 +48,7 @@ pub fn build_with(home: &Path, agents: &ScriptedRuntime, capabilities: Capabilit
             ..AgentOptions::default()
         },
         ..Options::new(home)
-    };
-    App::build(options).expect("the app builds")
+    }
 }
 
 /// The dashboard: the caller that holds the ui-token.
