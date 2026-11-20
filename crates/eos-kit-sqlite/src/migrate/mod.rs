@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn this_apps_own_migrations_only_add_tables_and_indexes() {
+    fn this_apps_own_migrations_only_add_tables_indexes_and_triggers_on_their_tables() {
         let conn = mem();
         run(&conn, &EMBEDDED[..TYPESCRIPT_MIGRATIONS], 1).expect("typescript's");
         let before = schema(&conn);
@@ -198,8 +198,20 @@ mod tests {
         }
         let added: Vec<_> = after.iter().filter(|o| !before.contains(o)).collect();
         assert!(!added.is_empty());
+        let added_tables: Vec<&str> = added.iter().filter(|o| o.0 == "table").map(|o| o.1.as_str()).collect();
+        let table_of = |trigger: &str| -> String {
+            conn.query_row("SELECT tbl_name FROM sqlite_master WHERE type = 'trigger' AND name = ?1", [trigger], |r| {
+                r.get(0)
+            })
+            .expect("trigger's table")
+        };
         for (kind, name, _) in added {
-            assert!(kind == "table" || kind == "index", "{kind} {name}");
+            match kind.as_str() {
+                "table" | "index" => {}
+                // The previous app never writes a table it does not know, so it never fires one.
+                "trigger" => assert!(added_tables.contains(&table_of(name).as_str()), "trigger {name}"),
+                _ => panic!("{kind} {name}"),
+            }
         }
     }
 

@@ -114,8 +114,18 @@ format and has cross-implementation vectors.
 of the 0.1.x app are embedded verbatim under their ids; other ids found in the table are ignored
 (a real file records 67 rows: two migrations older builds ran, and the vacuum marker). This app's
 own migrations follow them (`eos-kit-sqlite/src/migrate/own.rs`, from 065) and add tables or
-indexes, never columns to existing ones, so the previous app version can still open the file.
-Snapshot before the first open with a clone copy.
+indexes, never columns to existing ones, so the previous app version can still open the file. A
+trigger is added only on a table this app added, which the previous version never writes: the
+search index of memory notes (`mem_notes_fts`, an FTS5 table over `mem_notes`) is kept by such
+triggers. Snapshot before the first open with a clone copy.
+
+**Only SQLite opens the database files.** `state.db` and its companions (`-wal`, `-shm`,
+`-journal`) are opened by the store's SQLite connections and by nothing else in the process:
+SQLite's locks are POSIX locks held by the process, and closing any other handle on one of the
+files drops them, so another program can rebuild the shared-memory index under the app's mapped
+copy and crash it. The file routes, transfers and the agents' file tools ask
+`DataPaths::is_database_file` first; walks from a folder above them skip them through the data
+folder's `.ignore` (`eos-platform/src/database.rs`).
 
 **Proven choices** (from the phase-0 spikes; do not re-decide without evidence): `rusqlite`
 bundled; `regress` for user-supplied JavaScript regexes, matching over UTF-16 code units;
