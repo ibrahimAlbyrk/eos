@@ -19,6 +19,10 @@ use crate::diff::{self, DiffLines};
 
 /// What a withdrawn review says.
 const WITHDRAWN: &str = "Withdrawn.";
+/// The most reviews GitHub lists on one page.
+const REVIEW_PAGE: usize = 100;
+/// How many pages of reviews are read at most: 10,000 reviews.
+const REVIEW_PAGES_MAX: usize = 100;
 
 /// The end of a review Eos sent for the delivery with `key`.
 pub(crate) fn marker(key: &str) -> String {
@@ -138,14 +142,22 @@ impl GitHub {
         Ok(None)
     }
 
-    /// The signed-in user's reviews on the pull request, drafts included.
+    /// The signed-in user's reviews on the pull request, drafts included,
+    /// from every page of the list.
     async fn my_reviews(&self, token: &str, repo: &Repo, number: u64) -> Result<Vec<Value>, ActionError> {
         let me = self.get(token, "/user").await?;
         let me = text(&me, "login");
-        let path = format!("/repos/{}/pulls/{number}/reviews?per_page=100", repo.0);
-        let reviews = self.get(token, &path).await?;
-        let reviews = reviews.as_array().ok_or_else(service_failed)?;
-        Ok(reviews.iter().filter(|review| text(&review["user"], "login") == me).cloned().collect())
+        let mut mine = Vec::new();
+        for page in 1..=REVIEW_PAGES_MAX {
+            let path = format!("/repos/{}/pulls/{number}/reviews?per_page={REVIEW_PAGE}&page={page}", repo.0);
+            let reviews = self.get(token, &path).await?;
+            let reviews = reviews.as_array().ok_or_else(service_failed)?;
+            mine.extend(reviews.iter().filter(|review| text(&review["user"], "login") == me).cloned());
+            if reviews.len() < REVIEW_PAGE {
+                break;
+            }
+        }
+        Ok(mine)
     }
 
     /// The user's review that carries the marker of the delivery `key`,

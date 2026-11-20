@@ -100,7 +100,14 @@ impl State {
         self.reviews.iter().position(|review| review.repo == repo && review.number == number && review.json["id"] == id)
     }
 
-    pub(super) fn review_route(&mut self, method: Method, repo: &str, rest: &[&str], body: &Value) -> HttpResponse {
+    pub(super) fn review_route(
+        &mut self,
+        method: Method,
+        repo: &str,
+        rest: &[&str],
+        query: &str,
+        body: &Value,
+    ) -> HttpResponse {
         if let (Method::Delete, ["comments", id]) = (method, rest) {
             let id: u64 = id.parse().unwrap_or_default();
             for review in self.reviews.iter_mut().filter(|review| review.repo == repo) {
@@ -122,7 +129,14 @@ impl State {
                         && review.number == number
                         && (review.json["state"] != "PENDING" || review.json["user"]["login"] == login.as_str())
                 });
-                answer(200, &json!(visible.map(|review| review.json.clone()).collect::<Vec<_>>()))
+                // One page, as GitHub lists them: `per_page` (30 unless given) from `page` (from 1).
+                let param = |name: &str, default: usize| {
+                    let found = query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('='));
+                    found.and_then(|value| value.parse().ok()).unwrap_or(default)
+                };
+                let (per_page, page) = (param("per_page", 30), param("page", 1).max(1));
+                let shown = visible.skip(per_page * (page - 1)).take(per_page);
+                answer(200, &json!(shown.map(|review| review.json.clone()).collect::<Vec<_>>()))
             }
             (Method::Post, ["reviews"]) => self.create(repo, number, &author, body),
             (Method::Post, ["reviews", id, "events"]) => match at(self, id) {
