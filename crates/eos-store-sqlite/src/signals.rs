@@ -76,9 +76,10 @@ fn signal(r: &rusqlite::Row<'_>) -> Result<StoredSignal, Error> {
     read().map_err(failed)
 }
 
-const ROUTE_COLUMNS: &str = "signal_id, routine_id, routine_version, decision, reason, run_id, model_asked, decided_at";
+pub(crate) const ROUTE_COLUMNS: &str =
+    "signal_id, routine_id, routine_version, decision, reason, run_id, model_asked, decided_at";
 
-fn route(r: &rusqlite::Row<'_>) -> Result<StoredSignalRoute, Error> {
+pub(crate) fn route(r: &rusqlite::Row<'_>) -> Result<StoredSignalRoute, Error> {
     let read = || -> rusqlite::Result<StoredSignalRoute> {
         Ok(StoredSignalRoute {
             signal_id: r.get(0)?,

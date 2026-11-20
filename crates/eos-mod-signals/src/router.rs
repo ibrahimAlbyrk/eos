@@ -38,7 +38,7 @@ use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
 use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
-use crate::{after, batch};
+use crate::{after, ask, batch};
 
 /// The kind of a schedule's slot, as signal and source.
 pub(crate) const CLOCK: &str = "clock";
@@ -157,6 +157,8 @@ pub(crate) struct Router {
     pub(crate) failed: Mutex<HashMap<i64, i64>>,
     /// More signals wait to be routed than ingest takes more of.
     pub(crate) backed_up: AtomicBool,
+    /// The model's stage of Which.
+    pub(crate) asks: ask::Asks,
 }
 
 /// What one signal's routing needs inside its write.
@@ -192,10 +194,29 @@ impl Routing {
         match verdict {
             Verdict::Fail(index) => return Ok((Decision::Unmatched, Some(index.to_string()), None)),
             Verdict::Missing(_) => return Ok((Decision::Undecided, Some("missing".into()), None)),
-            // The model's stage of Which decides it; it is not asked yet.
-            Verdict::Pass if routine.which.ask.is_some() => return Ok((Decision::Undecided, Some("ask".into()), None)),
+            // Outside the installed app the model is never asked.
+            Verdict::Pass if routine.which.ask.is_some() && !self.autostart => {
+                return Ok((Decision::Undecided, Some(ask::DEV_RUN.into()), None));
+            }
+            // The model's stage of Which decides it (`ask`).
+            Verdict::Pass if routine.which.ask.is_some() => {
+                return Ok((Decision::Undecided, Some(ask::ASK.into()), None));
+            }
             Verdict::Pass => {}
         }
+        self.admit_in(tx, out, routine, signal)
+    }
+
+    /// The decision of a signal that matched: held outside the installed
+    /// app, else the subject's waiting runs superseded and the run admitted,
+    /// or batched.
+    pub(crate) fn admit_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        routine: &RoutineTriggers,
+        signal: &StoredSignal,
+    ) -> Result<(Decision, Option<String>, Option<String>), Error> {
         if !self.autostart {
             return Ok((Decision::HeldDev, None, None));
         }
@@ -251,7 +272,7 @@ impl Routing {
         signal: &StoredSignal,
         (decision, reason, run_id): (Decision, Option<String>, Option<String>),
     ) -> Result<(), Error> {
-        tx.signal_routes().insert(&StoredSignalRoute {
+        let route = StoredSignalRoute {
             signal_id: signal.id,
             routine_id: routine.id.clone(),
             routine_version: routine.version.clone(),
@@ -260,7 +281,27 @@ impl Routing {
             run_id,
             model_asked: false,
             decided_at: self.now,
-        })?;
+        };
+        self.keep_in(tx, out, routine, signal, route, true)
+    }
+
+    /// Keeps `route`, a new decision when `first` (else one in place of the
+    /// undecided one before), with what it brings.
+    pub(crate) fn keep_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        routine: &RoutineTriggers,
+        signal: &StoredSignal,
+        route: StoredSignalRoute,
+        first: bool,
+    ) -> Result<(), Error> {
+        let decision = route.decision;
+        if first {
+            tx.signal_routes().insert(&route)?;
+        } else {
+            tx.signal_routes().put(&route)?;
+        }
         tracing::info!(signal_id = signal.id, routine_id = %routine.id, decision = decision.as_str(), "a signal was decided");
         match decision {
             Decision::Batched => {
@@ -375,6 +416,9 @@ impl Router {
                 Ok(0) => {}
                 Ok(routed) => tracing::info!(routed, "signals were routed"),
                 Err(error) => tracing::warn!(%error, "signals could not be routed"),
+            }
+            if let Err(error) = self.ask_pass().await {
+                tracing::warn!(error = error_kind(&error), "questions for the model could not be read");
             }
             self.kick.notified().await;
         }

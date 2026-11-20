@@ -13,10 +13,14 @@ use eos_core::{BoxFuture, Error};
 use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::signals::key::capability_scope;
 use eos_mod_signals::{SignalsModule, SignalsParts, SoloRunner};
+use eos_prompts::tool_names::tool_name_vars;
+use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::module::Module;
+use eos_store_files::prompts::LibraryPromptSource;
 use eos_testkit::{
-    FakeCapabilityHealth, FakeClock, FakePower, FakeRoutineControl, FakeRoutineDirectory, FakeSettings,
-    FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWorkHold, FakeZoneRules, SeqIds, TempStore,
+    FakeCapabilityHealth, FakeClock, FakeConfig, FakePower, FakeRoutineControl, FakeRoutineDirectory, FakeSettings,
+    FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWorkHold, FakeZoneRules, ScriptedOneShot, SeqIds,
+    TempStore,
 };
 use serde_json::{Value, json};
 
@@ -191,6 +195,8 @@ pub(crate) struct Bench {
     pub(crate) holds: Arc<FakeWorkHold>,
     pub(crate) power: Arc<FakePower>,
     pub(crate) settings: Arc<FakeSettings>,
+    /// The model the stage of Which asks.
+    pub(crate) model: Arc<ScriptedOneShot>,
 }
 
 impl Bench {
@@ -211,6 +217,7 @@ impl Bench {
             holds: Arc::new(FakeWorkHold::new()),
             power: Arc::new(FakePower::default()),
             settings: Arc::new(FakeSettings::default()),
+            model: Arc::new(ScriptedOneShot::default()),
         }
     }
 
@@ -233,6 +240,12 @@ impl Bench {
             hold: self.holds.clone(),
             power: self.power.clone(),
             settings: self.settings.clone(),
+            one_shot: self.model.clone(),
+            prompts: Arc::new(PromptService::new(
+                Arc::new(PromptRegistry::new(Arc::new(LibraryPromptSource::embedded()))),
+                tool_name_vars(),
+            )),
+            config: Arc::new(FakeConfig::new(json!({ "prices": { "haiku": { "in": 1, "out": 5 } } }))),
             autostart,
         })
     }

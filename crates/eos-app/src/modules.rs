@@ -345,6 +345,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             hold: cx.work_hold.clone(),
             power,
             settings: cx.settings.clone(),
+            one_shot: cx.one_shot.clone(),
+            prompts: cx.prompts.clone(),
+            config: cx.config.clone(),
             autostart: cx.reach.autostart(),
         })),
         Arc::new(eos_mod_system::SystemModule::new(
