@@ -99,10 +99,17 @@ impl PermissionGate for EosGate {
                 Ok(ExternalDecision::Allow(allow)) => {
                     match allow.updated_input.and_then(|i| serde_json::to_string(&i).ok()) {
                         // The input a rewrite rule or the user changed; the same input runs as it is.
-                        Some(json) if json != call.input.get() => match RawValue::from_string(json) {
-                            Ok(input) => Permission::AllowWith(Arc::from(input)),
-                            Err(_) => Permission::Allow,
-                        },
+                        Some(json) if json != call.input.get() => {
+                            let refused = self
+                                .data
+                                .as_ref()
+                                .and_then(|data| database_guard::refusal_of(data, call.name, &json, call.workspace));
+                            match (refused, RawValue::from_string(json)) {
+                                (Some(refusal), _) => Permission::Deny(refusal),
+                                (None, Ok(input)) => Permission::AllowWith(Arc::from(input)),
+                                (None, Err(_)) => Permission::Allow,
+                            }
+                        }
                         _ => Permission::Allow,
                     }
                 }

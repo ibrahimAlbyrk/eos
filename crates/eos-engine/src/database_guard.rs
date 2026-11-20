@@ -7,7 +7,9 @@
 //! NotebookEdit, Grep and Glob name theirs differently, and Eos's own tools
 //! and the artifact tools name files too. A Grep that walks a folder above
 //! the data folder skips the files through the data folder's `.ignore`,
-//! unless a `glob` of its own lets them back in: that walk is refused.
+//! unless a `glob` of its own lets them back in: that walk is refused. An
+//! input the policy rewrote (a rewrite rule, or the user editing an ask) is
+//! checked again before it runs.
 
 use std::path::{Path, PathBuf};
 
@@ -20,21 +22,25 @@ const PATH_MAX: usize = 4096;
 
 /// Why the call may not run, or `None` when it names no database file.
 pub(crate) fn refusal(data: &DataPaths, call: &ToolCall<'_>) -> Option<String> {
-    let input: Value = serde_json::from_str(call.input.get()).ok()?;
+    refusal_of(data, call.name, call.input.get(), call.workspace)
+}
+
+/// Why the tool `name` may not run with `input` (JSON), or `None`.
+pub(crate) fn refusal_of(data: &DataPaths, name: &str, input: &str, workspace: Option<&Workspace>) -> Option<String> {
+    let input: Value = serde_json::from_str(input).ok()?;
     let mut texts = Vec::new();
     strings(&input, &mut texts);
-    if let Some(file) = texts.iter().filter_map(|text| as_path(text, call.workspace)).find(|p| data.is_database_file(p))
-    {
+    if let Some(file) = texts.iter().filter_map(|text| as_path(text, workspace)).find(|p| data.is_database_file(p)) {
         return Some(format!(
             "{} is one of Eos's database files. Tools never open it: that would break the running app's hold on \
              its database. Read Eos's state through Eos's own tools instead.",
             file.display()
         ));
     }
-    if call.name == "Grep" && input.get("glob").and_then(Value::as_str).is_some_and(|glob| !glob.trim().is_empty()) {
+    if name == "Grep" && input.get("glob").and_then(Value::as_str).is_some_and(|glob| !glob.trim().is_empty()) {
         let root = match input.get("path").and_then(Value::as_str) {
-            Some(path) => as_path(path, call.workspace)?,
-            None => call.workspace?.cwd(),
+            Some(path) => as_path(path, workspace)?,
+            None => workspace?.cwd(),
         };
         if data.walk_reaches_database(&root) {
             return Some(format!(

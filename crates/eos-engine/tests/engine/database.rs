@@ -55,3 +55,29 @@ async fn no_file_tool_opens_the_database_and_the_app_keeps_its_locks() {
     busy.another_program_opens();
     busy.finish();
 }
+
+/// A rewrite rule or the user editing an ask can change a call's input after
+/// the gate looked at it: the input that would run is checked again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_input_the_policy_rewrote_to_a_database_file_is_refused() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let data = dir.path().canonicalize().expect("the data folder");
+    let busy = BusyDatabase::open(&data);
+    std::fs::write(data.join("notes.txt"), "a note").expect("a note");
+    let asked = json!({"file_path": data.join("notes.txt")}).to_string();
+    let bench = Bench::in_dir(dir, [Reply::tool_use("t1", "Read", &asked), Reply::text("done")]).await;
+    let shm = json!({"file_path": data.join("state.db-shm")});
+    let shm = serde_json::from_value(shm).expect("a record");
+    bench.policy.rewrite.lock().expect("rewrite").push(("Read".into(), shm));
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("go".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+
+    let result = events.iter().find(|e| e["role"] == "tool").map(|e| &e["blocks"][0]).expect("the Read's result");
+    let said = result["content"].as_str().unwrap_or_default();
+    assert_eq!(result["isError"], true, "{said}");
+    assert!(said.contains("Eos's database files"), "{said}");
+
+    busy.another_program_opens();
+    busy.finish();
+}
