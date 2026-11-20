@@ -50,7 +50,7 @@ const RETRY_MS: i64 = 60_000;
 
 /// What kind of failure an error is, for the log: its text may name the
 /// user's things.
-fn error_kind(error: &Error) -> &'static str {
+pub(crate) fn error_kind(error: &Error) -> &'static str {
     match error {
         Error::NotFound { .. } => "not_found",
         Error::Conflict(_) => "conflict",

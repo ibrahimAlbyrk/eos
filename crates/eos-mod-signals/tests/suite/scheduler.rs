@@ -202,3 +202,21 @@ async fn a_wake_fires_a_due_slot_without_waiting_for_the_sleep_to_end() {
     bench.until(|| bench.admitted().len() == 1).await;
     module.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_schedule_that_cannot_fire_holds_up_none_of_the_others_and_fires_on_a_later_pass() {
+    let bench = bench(vec![hourly("rt-a", RoutineState::Active), hourly("rt-b", RoutineState::Active)]);
+    // The first admission fails: rt-a's slot is undone, rt-b's goes on.
+    let module = bench.module(bench.temp.port(), Arc::new(SavedIntake::new(Some(0))), true);
+    module.after_ready().await.expect("ready");
+    bench.until(|| bench.sleeper.pending().len() == 1).await;
+    bench.clock.advance(HOUR);
+    pass(&bench).await;
+    let admitted: Vec<String> = bench.admitted().into_iter().map(|(routine, _)| routine).collect();
+    assert_eq!(admitted, ["rt-b"]);
+
+    pass(&bench).await;
+    assert_eq!(runs_of(&bench, "rt-a"), 1, "tried again");
+    assert_eq!(runs_of(&bench, "rt-b"), 1);
+    module.stop().await;
+}
