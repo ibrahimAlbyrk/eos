@@ -93,6 +93,7 @@ impl InboxModule {
             ids: delivery.ids.clone(),
             channels: delivery.channels.clone(),
             outcomes: delivery.outcomes.clone(),
+            control: delivery.control.clone(),
             wake: delivery.wake.clone(),
             waiters,
         });

@@ -1,7 +1,7 @@
 //! An answer waits for its producer until the producer marks it, across a
 //! restart.
 
-use eos_contracts::{AlertChoice, InboxAnswer};
+use eos_contracts::{ConfirmChoice, InboxAnswer};
 use eos_domain::inbox::ItemKind;
 use eos_inbox::consume_in;
 use eos_testkit::TempStore;
@@ -11,11 +11,11 @@ use crate::rig::{Rig, new_item};
 #[tokio::test]
 async fn an_answered_item_is_handed_to_its_producer_until_it_is_consumed_even_after_a_restart() {
     let rig = Rig::new();
-    let item = rig.open(new_item(ItemKind::RoutineAlert, None)).await;
+    let item = rig.open(new_item(ItemKind::ConfirmChange, None)).await;
     let mut other = new_item(ItemKind::Notice, None);
     other.producer = "signals".into();
     let other = rig.open(other).await;
-    let answer = InboxAnswer::RoutineAlert { choice: AlertChoice::Resume };
+    let answer = InboxAnswer::ConfirmChange { choice: ConfirmChoice::Confirm };
     rig.items.answer(&item.id, 1, &answer, "phone").await.expect("answers");
     rig.items.discard(&other.id, 1, "dashboard").await.expect("discards");
 

@@ -255,6 +255,9 @@ pub trait RoutineControl: Send + Sync {
     fn pause_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
     /// Resumes every routine paused for `reason`.
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// Resumes the routine if it is paused for `reason`, inside the
+    /// caller's job (the user resumed it from its alert).
+    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
     /// The routines whose current version needs the capability.
     fn using_capability<'a>(&'a self, capability_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>>;
 }

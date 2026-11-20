@@ -5,13 +5,14 @@ use std::sync::Arc;
 
 use eos_contracts::{InboxAnswer, ResultDoc};
 use eos_core::delivery::Channels;
-use eos_core::routine::RunOutcomes;
+use eos_core::routine::{RoutineControl, RunOutcomes};
 use eos_core::store::{ItemAnswer, Outbox, Store, StoredItem, Tx};
 use eos_core::{Clock, Ids};
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use tokio::sync::Notify;
 
+use crate::alerts;
 use crate::outcomes::{self, Ended};
 use crate::problems::{self, Answered};
 use crate::questions::QuestionWaiters;
@@ -103,6 +104,8 @@ pub struct ItemsParts {
     pub channels: Arc<dyn Channels>,
     /// Hears what became of each run's result.
     pub outcomes: Arc<dyn RunOutcomes>,
+    /// Resumes a routine from its alert.
+    pub control: Arc<dyn RoutineControl>,
     /// Poked once a send was queued ([`Gate::waker`](crate::gate::Gate::waker)).
     pub wake: Arc<Notify>,
     /// The run askers waiting on their questions
@@ -124,6 +127,7 @@ pub struct Items {
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) channels: Arc<dyn Channels>,
     pub(crate) outcomes: Arc<dyn RunOutcomes>,
+    control: Arc<dyn RoutineControl>,
     pub(crate) wake: Arc<Notify>,
     waiters: Arc<QuestionWaiters>,
 }
@@ -136,21 +140,21 @@ impl std::fmt::Debug for Items {
 
 impl Items {
     pub fn new(parts: ItemsParts) -> Self {
-        let ItemsParts { store, clock, ids, channels, outcomes, wake, waiters } = parts;
-        Self { store, clock, ids, channels, outcomes, wake, waiters }
+        let ItemsParts { store, clock, ids, channels, outcomes, control, wake, waiters } = parts;
+        Self { store, clock, ids, channels, outcomes, control, wake, waiters }
     }
 
     /// Answers the item as it was at `rev`. `by` is who answered:
     /// `dashboard`, `phone`, `peer` or `system`. The answer must be of the
-    /// item's kind, and of a kind answered here. A delivery problem's answer
-    /// is acted on in the same job.
+    /// item's kind, and of a kind answered here. A delivery problem's and a
+    /// routine alert's answer are acted on in the same job.
     pub async fn answer(&self, id: &str, rev: i64, answer: &InboxAnswer, by: &str) -> Result<StoredItem, Error> {
         let text = serde_json::to_value(answer).map_err(|e| eos_core::Error::Validation(e.to_string()))?;
         let kind = text["kind"].as_str().and_then(ItemKind::parse);
         let now = self.clock.now_ms();
         let typed = answer.clone();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
-        let (id, run_outcomes) = (id.to_owned(), self.outcomes.clone());
+        let (id, run_outcomes, control) = (id.to_owned(), self.outcomes.clone(), self.control.clone());
         let (item, requeued) = self
             .store
             .write(move |tx, out| {
@@ -175,6 +179,10 @@ impl Items {
                     InboxAnswer::DeliveryProblem { choice, doc } => {
                         let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
                         problems::answered_in(tx, out, run_outcomes.as_ref(), answered)?
+                    }
+                    InboxAnswer::RoutineAlert { choice } if alerts::acted_on(&item) => {
+                        alerts::answered_in(tx, out, control.as_ref(), &item, *choice, now)?;
+                        false
                     }
                     _ => false,
                 };

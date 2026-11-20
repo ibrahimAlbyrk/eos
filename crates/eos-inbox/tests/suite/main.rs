@@ -1,5 +1,6 @@
 //! The Needs-you service on the real store, a fake clock and fake ports.
 
+mod alerts;
 mod answer;
 mod delivery;
 mod gate;

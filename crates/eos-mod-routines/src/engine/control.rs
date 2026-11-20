@@ -182,6 +182,21 @@ impl RoutineControl for Control {
         })
     }
 
+    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+        let routine = routine(tx, routine_id)?;
+        if routine.state != RoutineState::Paused || routine.paused_reason.as_deref() != Some(reason) {
+            return Ok(());
+        }
+        let now = self.0.clock.now_ms();
+        tx.routines().set_state(routine_id, RoutineState::Active, None, now)?;
+        tracing::info!(routine_id, reason, "a routine was resumed");
+        announce(tx, out, routine_id, RoutineChangeReason::State, now, &self.0.patterns)?;
+        // Triggered runs it holds may leave the queue: the supervisor's next
+        // pass is a write job, so it reads this one's commit.
+        self.0.wake.notify_one();
+        Ok(())
+    }
+
     fn using_capability<'a>(&'a self, capability_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>> {
         let id = capability_id.to_owned();
         Box::pin(self.0.store.read(move |tx| {

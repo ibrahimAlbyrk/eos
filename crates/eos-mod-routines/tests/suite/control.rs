@@ -149,6 +149,32 @@ async fn a_pause_and_its_resume_by_reason() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn an_alert_resumes_its_routine_only_while_it_is_paused_for_the_alerts_reason() {
+    let bench = Bench::new(true);
+    let refused = bench.routine(RoutineState::Active, blueprint(1));
+    let by_user = bench.routine(RoutineState::Active, blueprint(1));
+    let control = bench.module.control();
+    control.pause(&refused, "target_refused").await.expect("pauses");
+    control.pause(&by_user, "user").await.expect("pauses");
+    for id in [&refused, &by_user] {
+        let (control, id) = (control.clone(), id.clone());
+        bench
+            .temp
+            .store
+            .write_blocking(move |tx, out| control.resume_in(tx, out, &id, "target_refused"))
+            .expect("acts");
+    }
+    let state = |id: &str| {
+        let id = id.to_owned();
+        let routine = bench.temp.store.read_blocking(move |tx| tx.routines().find(&id)).expect("reads");
+        routine.map(|r| (r.state, r.paused_reason)).expect("a routine")
+    };
+    assert_eq!(state(&refused), (RoutineState::Active, None));
+    assert_eq!(state(&by_user), (RoutineState::Paused, Some("user".into())), "paused for another reason");
+    assert_eq!(bench.routine_changes().last().expect("announced")["row"]["state"], "active");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn the_routines_a_capability_serves_are_those_whose_head_needs_it() {
     let bench = Bench::new(true);
     let mut needs = blueprint(1);

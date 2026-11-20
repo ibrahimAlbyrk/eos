@@ -25,11 +25,14 @@
 //!   (`inbox_outcomes`) are written in the answering job.
 //! - The user's answer to a `delivery_problem` sends again, records the send
 //!   as made or stops it, and settles the run, in the answering job.
+//! - Resume on a routine's alert resumes the routine through its control,
+//!   in the answering job; Keep paused leaves it paused.
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
 //! and counts are logged.
 
+mod alerts;
 mod answer;
 mod control;
 pub mod delivery;
