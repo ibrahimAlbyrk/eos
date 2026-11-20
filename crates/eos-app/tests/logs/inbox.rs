@@ -3,9 +3,10 @@
 //! edit by id and counts; no draft text, edit, recipient or receipt reaches it.
 
 use eos_app::App;
-use eos_contracts::ActionClass;
-use eos_core::store::StoredDelivery;
+use eos_contracts::{ActionClass, RoutineKind, RoutineState, VersionAuthor, VersionStatus};
+use eos_core::store::{StoredDelivery, StoredRoutine, StoredVersion};
 use eos_domain::inbox::ItemKind;
+use eos_domain::run_scope::Trust;
 use eos_inbox::{NewItem, Opening, open_in};
 use eos_runtime::http::Method;
 use eos_testkit::{FakeRoutineControl, FakeTimeZone, SeqIds};
@@ -26,8 +27,71 @@ fn mail(paragraph: &str) -> Value {
     ]})
 }
 
+/// Routine `rt-log`, paused, whose Goes to the user confirmed: the digest to the planted
+/// recipient.
+async fn routine(app: &App) {
+    let agent = json!({"key": "editor", "name": "Editor", "lead": true, "brief": "Write.", "model": "sonnet",
+                       "effort": "medium", "tools": {}, "readsOutside": false, "workspace": "none"});
+    let blueprint = json!({
+        "format": 1, "name": "Weekly digest", "summary": "Writes the weekly digest.", "icon": "mail",
+        "kind": "standing",
+        "takes": {"kind": "github.pull_request", "label": "pull request", "placeholder": "#470",
+                  "empty": "required", "many": true},
+        "options": [],
+        "when": {"on": [{"source": "github.pulls", "scope": {"repo": "acme/game"}, "events": ["opened"]}]},
+        "which": {},
+        "who": {"depth": "solo", "agents": [agent], "checker": {"model": "sonnet", "effort": "high"}},
+        "how": {"checks": [], "format": "mail", "checkAgent": true},
+        "makes": {"kind": "mail", "description": "A mail."},
+        "goesTo": [{"id": "boss", "kind": "fixed", "channel": "mail", "address": RECIPIENT}],
+        "freedom": {"rung": "draft"},
+        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+    });
+    let version = StoredVersion {
+        id: "rv-log".into(),
+        routine_id: "rt-log".into(),
+        parent_id: None,
+        status: VersionStatus::Kept,
+        author: VersionAuthor::User,
+        note: None,
+        format: 1,
+        hash: "h".into(),
+        blueprint: blueprint.to_string(),
+        no_trial: false,
+        trust: Trust::Trusted,
+        device: None,
+        created_at: 1,
+    };
+    let routine = StoredRoutine {
+        id: "rt-log".into(),
+        slug: "weekly-digest".into(),
+        name: "Weekly digest".into(),
+        kind: RoutineKind::Standing,
+        state: RoutineState::Paused,
+        paused_reason: Some("user".into()),
+        head_version_id: Some("rv-log".into()),
+        origin: "hand".into(),
+        task_key: None,
+        agents_may_start: false,
+        failure_streak: 0,
+        created_at: 1,
+        updated_at: 1,
+        changed_at: 1,
+        started_at: None,
+        deleted_at: None,
+    };
+    app.store()
+        .write(move |tx, _| {
+            tx.routines().insert(&routine)?;
+            tx.routine_versions().insert(&version)
+        })
+        .await
+        .expect("written");
+}
+
 /// The draft the gate would hold for routine `rt-log`'s run.
 async fn hold(app: &App) -> String {
+    routine(app).await;
     let draft = NewItem {
         kind: ItemKind::Draft,
         producer: "inbox".into(),

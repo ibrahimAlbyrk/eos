@@ -60,7 +60,7 @@ impl Gated {
     }
 }
 
-fn pull_request() -> Recipient {
+pub(crate) fn pull_request() -> Recipient {
     serde_json::from_value(json!({"id": "pr", "kind": "item_place", "channel": "github",
                                   "bound": {"fact": "repo", "in": ["acme/game"]}}))
     .expect("a recipient")

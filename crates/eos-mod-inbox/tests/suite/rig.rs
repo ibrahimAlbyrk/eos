@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::UserMemory;
 use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
+use eos_core::routine::Confirmed;
 use eos_core::store::{NewPending, StoredItem};
 use eos_domain::inbox::ItemKind;
 use eos_inbox::{NewItem, Opening, open_in};
@@ -45,6 +46,13 @@ impl UserMemoryReader for Waiting {
     }
 }
 
+/// What the user confirmed of routine `rt-1`: a review on its pull request.
+fn pull_requests() -> Confirmed {
+    let goes_to = serde_json::from_value(json!([{"id": "pr", "kind": "item_place", "channel": "github"}]));
+    let freedom = serde_json::from_value(json!({"rung": "draft"}));
+    Confirmed { freedom: freedom.expect("a freedom"), goes_to: goes_to.expect("recipients") }
+}
+
 pub(crate) struct Rig {
     pub(crate) runtime: Runtime,
     pub(crate) temp: TempStore,
@@ -71,7 +79,7 @@ impl Rig {
                 ids: Arc::new(SeqIds::new()),
                 zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
                 channels: Arc::new(FakeChannels::new()),
-                control: Arc::new(FakeRoutineControl::new()),
+                control: Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests())),
                 outcomes: Arc::new(FakeRunOutcomes::new()),
                 wake: Arc::new(tokio::sync::Notify::new()),
             },
