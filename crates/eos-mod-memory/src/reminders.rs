@@ -59,7 +59,7 @@ const SEARCH_LIMIT_MAX: usize = 10;
 enum Located {
     Unknown,
     Withheld,
-    Here(Place),
+    Here(Box<Place>),
 }
 
 /// Where a session works, as recall needs it.
@@ -145,7 +145,7 @@ impl Reminders {
             return None;
         }
         match self.locate(worker_id).await {
-            Ok(Located::Here(place)) => Some(place),
+            Ok(Located::Here(place)) => Some(*place),
             Ok(_) => None,
             Err(e) => {
                 tracing::warn!(worker_id, error = %e, "memory: the session's place was not read");
@@ -172,7 +172,7 @@ impl Reminders {
             None => None,
         };
         let situation = Situation { routine: run.as_ref().map(|r| r.routine_id.clone()), project, work_kind: None };
-        Ok(Located::Here(Place { situation, root: caller.project, run }))
+        Ok(Located::Here(Box::new(Place { situation, root: caller.project, run })))
     }
 
     /// What `recall_experience` answers an agent.
@@ -271,10 +271,10 @@ impl Reminders {
     }
 
     async fn deliver(&self, worker_id: &str, place: &Place, how: How, note_ids: &[String]) {
-        if how == How::Pack {
-            if let Some(chat) = self.chats().get_mut(worker_id) {
-                chat.delivered.extend(note_ids.iter().cloned());
-            }
+        if how == How::Pack
+            && let Some(chat) = self.chats().get_mut(worker_id)
+        {
+            chat.delivered.extend(note_ids.iter().cloned());
         }
         let epoch = self.chats().get(worker_id).map_or(0, |c| c.epoch);
         let to =
