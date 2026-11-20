@@ -7,6 +7,7 @@ mod preview;
 mod replay;
 mod settings;
 mod status;
+mod summary;
 
 use std::sync::Arc;
 
@@ -62,6 +63,7 @@ pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
         preview::schedule(&routes),
         preview::which(&routes),
         settings::route(&routes),
+        summary::route(&routes),
     ]
 }
 

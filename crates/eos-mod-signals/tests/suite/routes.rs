@@ -79,10 +79,11 @@ fn schedule() -> Value {
 async fn each_route_needs_the_user_and_the_phone_its_tier() {
     let rig = Rig::new(active(), true).await;
     let which = json!({ "which": { "rule": { "fact": "draft", "is": false } }, "limit": 10 });
-    let routes: [(Method, &str, Option<Value>, Option<Tier>); 7] = [
+    let routes: [(Method, &str, Option<Value>, Option<Tier>); 8] = [
         (Method::Get, "/api/signals/routines", None, Some(Tier::Read)),
         (Method::Get, "/api/signals/routines/rt-a", None, Some(Tier::Read)),
         (Method::Get, "/api/signals", None, Some(Tier::Read)),
+        (Method::Get, "/api/signals/summary", None, Some(Tier::Read)),
         (Method::Post, "/api/signals/replay", Some(json!({ "routineId": "rt-a", "signalIds": [] })), Some(Tier::High)),
         (
             Method::Post,
@@ -248,4 +249,55 @@ async fn keeping_the_mac_awake_for_schedules_is_set_through_its_own_route() {
     assert_eq!(rig.ask(Method::Put, "/api/signals/settings", Some(json!({}))).await.0, 400);
     let protected = rig.runtime.protected_settings.iter().flat_map(|p| p.keys.iter()).collect::<Vec<_>>();
     assert_eq!(protected, [&"signals.keepAwakeForSchedules"], "the flat settings route refuses it");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_summary_counts_each_kind_since_a_time_for_every_routine_and_each() {
+    let mut routines = active();
+    routines[0].when = serde_json::from_value(json!({
+        "on": [{ "source": "github.pulls", "scope": { "repo": "acme/game" }, "events": ["opened"] }],
+        "limits": { "perHour": 2, "queued": 25 },
+    }))
+    .expect("a When");
+    routines.push(routine("rt-b", RoutineState::Active, &["opened"], None));
+    let rig = Rig::new(routines, true).await;
+    let drafts = vec![pull(1, "v0", "opened", true, &[])];
+    rig.module.ingest(SOURCE_ID, page(drafts, json!({}))).await.expect("kept");
+    rig.pulls(0).await;
+    // rt-a ignores the draft, runs two of the others and holds two back; rt-b runs every one.
+    let more = (2..=5).map(|n| pull(n, "v0", "opened", false, &[])).collect();
+    rig.module.ingest(SOURCE_ID, page(more, json!({}))).await.expect("kept");
+    rig.pulls(0).await;
+    rig.bench.temp.exec("UPDATE runs SET state = 'waiting_for_user' WHERE id = 'rn-2'");
+    rig.bench.temp.exec("UPDATE runs SET state = 'failed' WHERE id = 'rn-3'");
+    rig.bench.temp.exec("UPDATE runs SET state = 'done' WHERE id IN ('rn-1', 'rn-4')");
+    // A slot of rt-b that ran for three others, ten minutes late.
+    rig.bench.temp.exec(
+        "INSERT INTO signals (source_id, key, subject, kind, occurred_at, received_at, facts_json, item_json, \
+         depth, state) VALUES ('src-clock', 'clock:rt-b:1', 'clock:rt-b:1', 'clock', -595000, 5000, \
+         '{\"missed\":3}', 'null', 0, 'routed')",
+    );
+    rig.bench.temp.exec(
+        "INSERT INTO signal_routes (signal_id, routine_id, routine_version, decision, decided_at) \
+         SELECT id, 'rt-b', 'rv-rt-b', 'run', 5000 FROM signals WHERE kind = 'clock'",
+    );
+
+    let (status, summary) = rig.ask(Method::Get, "/api/signals/summary?since=0", None).await;
+    assert_eq!(status, 200, "{summary}");
+    let by_routine = &summary["byRoutine"];
+    assert_eq!(rig.bench.runs("rt-a").len(), 2);
+    assert_eq!(summary["since"], 0);
+    let total =
+        |field: &str| by_routine["rt-a"][field].as_i64().unwrap_or(0) + by_routine["rt-b"][field].as_i64().unwrap_or(0);
+    for field in ["handled", "waiting", "ignored", "heldBack", "failed", "missed", "late"] {
+        assert_eq!(summary["counts"][field].as_i64(), Some(total(field)), "{field}");
+    }
+    assert_eq!(by_routine["rt-a"]["ignored"], 1);
+    assert_eq!(by_routine["rt-a"]["heldBack"], 2);
+    assert_eq!((by_routine["rt-b"]["missed"].clone(), by_routine["rt-b"]["late"].clone()), (json!(3), json!(1)));
+    let all = summary["counts"].clone();
+    assert_eq!((all["handled"].clone(), all["waiting"].clone(), all["failed"].clone()), (json!(3), json!(1), json!(1)));
+    assert_eq!(rig.ask(Method::Get, "/api/signals/summary?since=soon", None).await.0, 400);
+    let (_, later) = rig.ask(Method::Get, "/api/signals/summary?since=999999999", None).await;
+    assert_eq!(later["counts"]["ignored"], 0, "nothing since then");
 }

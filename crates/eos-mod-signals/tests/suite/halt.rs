@@ -40,9 +40,10 @@ fn switch(bench: &Bench, on: bool) {
     bench.temp.store.write_blocking(move |tx, _| tx.inbox_halt().put(&halt)).expect("the switch");
 }
 
-/// Ends the scheduler's sleep and waits for its pass.
+/// Ends the scheduler's sleep, once a pass a poll started is over, and
+/// waits for its pass.
 async fn pass(bench: &Bench) {
-    assert!(bench.sleeper.wake(), "the scheduler sleeps");
+    bench.until(|| bench.sleeper.wake()).await;
     bench.until(|| bench.sleeper.pending().len() == 1).await;
 }
 
