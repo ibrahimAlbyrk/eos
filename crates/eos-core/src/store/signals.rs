@@ -266,3 +266,13 @@ pub trait SignalRetentionRepo {
     /// Deletes up to `limit` sources stopped before `before`; how many.
     fn delete_stopped_sources(&self, before: i64, limit: i64) -> Result<usize, Error>;
 }
+
+/// The decisions the model's stage of Which takes.
+pub trait SignalAskRepo {
+    /// Up to `limit` decisions `undecided` for one of `reasons`, first
+    /// decided first.
+    fn waiting_asks(&self, reasons: &[&str], limit: i64) -> Result<Vec<StoredSignalRoute>, Error>;
+    /// How many of the routine's signals went to the model at or after
+    /// `since`.
+    fn asked_since(&self, routine_id: &str, since: i64) -> Result<i64, Error>;
+}

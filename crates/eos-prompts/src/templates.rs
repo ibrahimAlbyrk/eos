@@ -97,4 +97,10 @@ pub mod micro_task {
     ) -> Result<String, Error> {
         request(prompts, "micro-tasks/auto-name", override_template, &[("USER_INPUT", user_input)])
     }
+
+    /// Whether an item fits a routine's question: `item` is already inside
+    /// its untrusted block.
+    pub fn signal_match(prompts: &PromptService, question: &str, item: &str) -> Result<String, Error> {
+        request(prompts, "micro-tasks/signal-match", None, &[("QUESTION", question), ("ITEM", item)])
+    }
 }

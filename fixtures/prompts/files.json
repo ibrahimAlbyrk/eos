@@ -19,6 +19,7 @@
   "lane/in-process.prompt.md": "973dcc06853eae58bf4c2fe08cb8551786dc010301a83999a11a49b58ef61940",
   "message-ids.prompt.md": "dac45912d9ffb88e6a446f4ba8d8f3b14d274ce5df9950536ec34478f637a72c",
   "micro-tasks/auto-name.prompt.md": "d4ac0ff03646a8fda806a244997f3afc9cbf512548e595535c13fe1a2c470a51",
+  "micro-tasks/signal-match.prompt.md": "b006acd4b826b98a8307dd3023d0c9b80d5234d7cffc7c1218e01f0068298aa6",
   "reactions.prompt.md": "02ced7bc8039bf11a0408f56019d7b6641e5b2ce850cc151307b8a2c5228db28",
   "rebase.prompt.md": "f4f40fc6270f12fa6fcd2cfc50f3290b54bf88454dd3bde1e1e786e2225f66b3",
   "review.prompt.md": "b9883c92c17fd42f4f7f3b148df3f8562367d6fb8d99ddd84bc0d27e699769c2",

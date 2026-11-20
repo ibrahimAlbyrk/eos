@@ -8,8 +8,9 @@ use super::{
     CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
     DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
     OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo,
-    RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RoutineVersionRepo, RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo,
+    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
+    WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -39,6 +40,7 @@ pub trait Tx {
     fn routines(&self) -> &dyn RoutineRepo;
     fn run_results(&self) -> &dyn RunResultRepo;
     fn runs(&self) -> &dyn RunRepo;
+    fn signal_asks(&self) -> &dyn SignalAskRepo;
     fn signal_retention(&self) -> &dyn SignalRetentionRepo;
     fn signal_routes(&self) -> &dyn SignalRouteRepo;
     fn signal_runners(&self) -> &dyn SignalRunnerRepo;

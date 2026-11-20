@@ -5,6 +5,7 @@ mod after;
 mod awake;
 mod batch;
 mod halt;
+mod matching;
 mod polls;
 mod retention;
 mod rig;

@@ -11,7 +11,7 @@
 //! admitted in the same write that keeps the decision, so a signal starts at
 //! most one run of a routine whatever crashes between. A rule that fails
 //! keeps its index; a question for the model leaves the signal undecided
-//! for now. Outside the installed app a match starts nothing: it is
+//! until the model's stage (`ask`) settles it. Outside the installed app a match starts nothing: it is
 //! `held-dev`. The router starts once the app is ready, routing what a
 //! crash left undecided, and wakes on each ingest.
 //!
@@ -40,6 +40,7 @@
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
 
 mod after;
+mod ask;
 mod awake;
 mod batch;
 mod ingest;
@@ -58,11 +59,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::stream::topics::SYSTEM_WAKE;
 use eos_contracts::{HaltState, SignalChange, SignalSubject};
+use eos_core::agent::OneShot;
 use eos_core::capability::CapabilityHealth;
 use eos_core::os::{Power, TimeZone, WorkHold, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
-use eos_core::store::{Store, UserSettingsStore};
+use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError, ProtectedSettings};
@@ -75,6 +77,7 @@ use crate::polls::Polls;
 use crate::router::Router;
 use crate::scheduler::Scheduler;
 
+pub use ask::{ASK_CACHE_MS, ASK_TIMEOUT_MS, ASKS_AT_ONCE, ASKS_PER_DAY, FACTS_TEXT_MAX, UNSORTED_AFTER_MS};
 pub use awake::OFFER_LATE_MS;
 pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
@@ -125,6 +128,11 @@ pub struct SignalsParts {
     pub power: Arc<dyn Power>,
     /// The user's settings: keeping the computer awake for schedules.
     pub settings: Arc<dyn UserSettingsStore>,
+    /// The model the stage of Which asks whether an item fits a routine.
+    pub one_shot: Arc<dyn OneShot>,
+    pub prompts: Arc<eos_prompts::PromptService>,
+    /// The model prices, for what an ask cost.
+    pub config: Arc<dyn ConfigSource>,
     /// Whether a matched signal starts its run by itself: true only in the
     /// installed app.
     pub autostart: bool,
@@ -170,6 +178,7 @@ impl SignalsModule {
             control: parts.control.clone(),
             failed: Mutex::default(),
             backed_up: AtomicBool::new(false),
+            asks: ask::Asks::new(parts.one_shot.clone(), parts.prompts.clone(), parts.config.clone()),
         });
         let kick = Arc::new(Notify::new());
         let polls = Arc::new(Polls {
