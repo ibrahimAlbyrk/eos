@@ -2,7 +2,7 @@ use std::path::Path;
 
 use eos_contracts::{CommitDetail, CommitFile, CommitFileStatus, FsStashEntry, Num, UnpushedCommit};
 use eos_core::BoxFuture;
-use eos_core::git::{ConflictEntry, GitDirs, GitInfo, SyncStatus};
+use eos_core::git::{ConflictEntry, GitDirs, GitInfo, RangeCommit, SyncStatus};
 use eos_domain::git::changes::{parse_name_status_z, parse_numstat_z, parse_porcelain_z};
 use eos_domain::git::conflict::is_unmerged_code;
 use eos_domain::git::pull_plan::PullState;
@@ -11,8 +11,8 @@ use eos_kit_fs::path::normalize;
 
 use crate::Git;
 use crate::records::{
-    FIRST_PARENT_DIFF, IGNORE_DIRTY_SUBMODULES, LOG_FORMAT, STASH_FORMAT, parse_log_records, parse_recent_checkouts,
-    parse_stash_records, web_url,
+    FIRST_PARENT_DIFF, IGNORE_DIRTY_SUBMODULES, LOG_FORMAT, RANGE_FORMAT, STASH_FORMAT, parse_log_records,
+    parse_range_records, parse_recent_checkouts, parse_stash_records, web_url,
 };
 use crate::run::parse_int;
 
@@ -234,6 +234,33 @@ impl GitInfo for Git {
                 .map(|out| parse_log_records(&out))
                 .unwrap_or_default()
         })
+    }
+
+    fn log_range<'a>(
+        &'a self,
+        cwd: &'a Path,
+        from: Option<&'a str>,
+        to: &'a str,
+        limit: u32,
+    ) -> BoxFuture<'a, Option<Vec<RangeCommit>>> {
+        Box::pin(async move {
+            let range = from.map_or_else(|| to.to_owned(), |from| format!("{from}..{to}"));
+            let count = limit.to_string();
+            let args =
+                ["log", "-z", "--no-renames", RANGE_FORMAT, "--name-only", "-n", &count, "--end-of-options", &range];
+            self.text(cwd, &args).await.map(|out| parse_range_records(&out))
+        })
+    }
+
+    fn branch_tip<'a>(&'a self, cwd: &'a Path, branch: &'a str) -> BoxFuture<'a, Option<String>> {
+        Box::pin(async move {
+            let commit = format!("refs/heads/{branch}^{{commit}}");
+            self.line(cwd, &["rev-parse", "--verify", "--quiet", &commit]).await
+        })
+    }
+
+    fn is_ancestor<'a>(&'a self, cwd: &'a Path, ancestor: &'a str, of: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(async move { self.run(cwd, &["merge-base", "--is-ancestor", ancestor, of]).await.is_ok() })
     }
 
     fn rev_parse<'a>(&'a self, cwd: &'a Path, rev: &'a str) -> BoxFuture<'a, Option<String>> {

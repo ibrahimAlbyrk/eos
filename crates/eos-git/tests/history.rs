@@ -23,6 +23,32 @@ async fn log_pages_through_history_and_rev_parse_resolves() {
     assert_eq!(git.rev_parse(&repo.path, "deadbeefdeadbeef").await, None);
 }
 
+#[tokio::test]
+async fn a_range_names_its_commits_authors_and_paths_and_a_rewrite_is_no_ancestor() {
+    let (repo, git) = (init_repo("eos-range-"), adapter());
+    commit_file(&repo.path, "a.txt", "a\n", "c1");
+    let first = head(&repo.path);
+    commit_file(&repo.path, "dir/b c.txt", "b\n", "c2");
+    git_ok(&repo.path, &["-c", "user.name=Other", "commit", "-q", "--allow-empty", "-m", "c3"]);
+    let tip = git.branch_tip(&repo.path, "main").await.expect("the tip");
+    assert_eq!(tip, head(&repo.path), "the full sha");
+    assert_eq!(git.branch_tip(&repo.path, "nope").await, None);
+
+    let range = git.log_range(&repo.path, Some(&first), &tip, 100).await.expect("a range");
+    let shape: Vec<(&str, Vec<&str>)> =
+        range.iter().map(|c| (c.author.as_str(), c.paths.iter().map(String::as_str).collect())).collect();
+    assert_eq!(shape, [("Other", vec![]), ("tester", vec!["dir/b c.txt"])], "newest first");
+    assert_eq!(range[0].sha, tip);
+    assert_eq!(git.log_range(&repo.path, None, &tip, 2).await.expect("capped").len(), 2);
+    assert_eq!(git.log_range(&repo.path, Some("deadbeefdeadbeef"), &tip, 10).await, None);
+
+    assert!(git.is_ancestor(&repo.path, &first, &tip).await);
+    git_ok(&repo.path, &["reset", "-q", "--hard", &first]);
+    commit_file(&repo.path, "a.txt", "rewritten\n", "c2'");
+    let rewritten = git.branch_tip(&repo.path, "main").await.expect("the tip");
+    assert!(!git.is_ancestor(&repo.path, &tip, &rewritten).await, "a force-push");
+}
+
 fn file(path: &str) -> ChangedFile {
     ChangedFile {
         path: path.into(),
