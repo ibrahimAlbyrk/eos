@@ -1,10 +1,11 @@
 //! The signal routes (02 §6): when each routine runs next and what starts
 //! one routine's runs (`status`), the signal list, replay (`replay`) and
-//! the two previews (`preview`). Every one needs the user; the phone reads
+//! the two previews (`preview`), and the keep-awake setting (`settings`). Every one needs the user; the phone reads
 //! at `Read` and replays at `High`, and never tries a Which.
 
 mod preview;
 mod replay;
+mod settings;
 mod status;
 
 use std::sync::Arc;
@@ -13,12 +14,13 @@ use eos_contracts::{ItemRef, SignalDecision, SignalRow};
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RoutineDirectory, RoutineTriggers, RunIntake};
 use eos_core::signals::Runner;
-use eos_core::store::{Store, StoredSignal, StoredSignalRoute, Tx};
+use eos_core::store::{Store, StoredSignal, StoredSignalRoute, Tx, UserSettingsStore};
 use eos_core::{Clock, Error};
 use eos_domain::signals::decision::Decision;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
+use tokio::sync::Notify;
 
 /// Signals one page of the list holds unless asked for fewer…
 const PAGE_DEFAULT: i64 = 50;
@@ -34,6 +36,9 @@ pub(crate) struct Routes {
     pub(crate) runner: Arc<dyn Runner>,
     pub(crate) intake: Arc<dyn RunIntake>,
     pub(crate) directory: Arc<dyn RoutineDirectory>,
+    pub(crate) settings: Arc<dyn UserSettingsStore>,
+    /// Starts a scheduler pass, which counts the work holds again.
+    pub(crate) kick: Arc<Notify>,
 }
 
 impl Routes {
@@ -56,6 +61,7 @@ pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
         replay::route(&routes),
         preview::schedule(&routes),
         preview::which(&routes),
+        settings::route(&routes),
     ]
 }
 

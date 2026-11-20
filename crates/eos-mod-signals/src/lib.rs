@@ -27,6 +27,10 @@
 //! signals, replay some through the run intake and preview a schedule or a
 //! Which.
 //!
+//! The app keeps working while routines run or wait for a slot, and with
+//! the user's setting the computer stays awake on mains power for schedules
+//! (`awake`).
+//!
 //! While Needs you's stop switch is on (`inbox:halt`) no source polls, no
 //! schedule fires and the router decides nothing: signals wait `received`.
 //! Switched off, the next pass catches up as after a wake.
@@ -36,6 +40,7 @@
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
 
 mod after;
+mod awake;
 mod batch;
 mod ingest;
 mod limits;
@@ -46,27 +51,29 @@ mod runner;
 mod scheduler;
 mod sources;
 
-use std::sync::atomic::{AtomicBool, AtomicI64};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::stream::topics::SYSTEM_WAKE;
 use eos_contracts::{HaltState, SignalChange, SignalSubject};
 use eos_core::capability::CapabilityHealth;
-use eos_core::os::{TimeZone, ZoneRules};
+use eos_core::os::{Power, TimeZone, WorkHold, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
-use eos_core::store::Store;
+use eos_core::store::{Store, UserSettingsStore};
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
-use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::module::{Module, ModuleError, ProtectedSettings};
 use eos_runtime::router::RouteDef;
 use tokio::sync::{Notify, Semaphore};
 use tokio::task::JoinHandle;
 
+use crate::awake::{Awake, AwakeParts, KEEP_AWAKE};
 use crate::polls::Polls;
 use crate::router::Router;
 use crate::scheduler::Scheduler;
 
+pub use awake::OFFER_LATE_MS;
 pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
     WAKE_GRACE_MS, WAKE_RETRY_MS,
@@ -109,6 +116,12 @@ pub struct SignalsParts {
     /// The user's clock: one over-limit notice a local day.
     pub zone: Arc<dyn TimeZone>,
     pub bus: Bus,
+    /// Keeps the app working while routines run or wait.
+    pub hold: Arc<dyn WorkHold>,
+    /// Whether the computer draws mains power, for keeping it awake.
+    pub power: Arc<dyn Power>,
+    /// The user's settings: keeping the computer awake for schedules.
+    pub settings: Arc<dyn UserSettingsStore>,
     /// Whether a matched signal starts its run by itself: true only in the
     /// installed app.
     pub autostart: bool,
@@ -171,6 +184,14 @@ impl SignalsModule {
             tasks: Mutex::default(),
             woke_at: AtomicI64::new(i64::MIN / 2),
         });
+        let awake = Arc::new(Awake::new(AwakeParts {
+            hold: parts.hold.clone(),
+            power: parts.power.clone(),
+            settings: parts.settings.clone(),
+            store: parts.store.clone(),
+            runner: parts.runner.clone(),
+            directory: parts.directory.clone(),
+        }));
         let scheduler = Arc::new(Scheduler {
             store: parts.store.clone(),
             clock: parts.clock.clone(),
@@ -180,6 +201,7 @@ impl SignalsModule {
             runner: parts.runner.clone(),
             router: router.clone(),
             polls,
+            awake,
             kick,
         });
         Self { parts, router, scheduler, running: Mutex::new(None) }
@@ -218,7 +240,13 @@ impl Module for SignalsModule {
             runner: parts.runner.clone(),
             intake: parts.intake.clone(),
             directory: parts.directory.clone(),
+            settings: parts.settings.clone(),
+            kick: self.scheduler.kick.clone(),
         })
+    }
+
+    fn protected_settings(&self) -> Option<ProtectedSettings> {
+        Some(ProtectedSettings { keys: vec![KEEP_AWAKE], via: "PUT /api/signals/settings" })
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
@@ -229,6 +257,7 @@ impl Module for SignalsModule {
                 let resumed = topic == INBOX_HALT && event.payload_as::<HaltState>().is_ok_and(|halt| !halt.on);
                 if topic == SYSTEM_WAKE || resumed {
                     scheduler.polls.woke();
+                    scheduler.awake.woke.store(true, Ordering::SeqCst);
                 }
                 scheduler.kick.notify_one();
             })
@@ -253,6 +282,7 @@ impl Module for SignalsModule {
                 }
             }
             self.scheduler.polls.stop().await;
+            self.scheduler.awake.release();
         })
     }
 }

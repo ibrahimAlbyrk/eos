@@ -71,6 +71,9 @@ pub(crate) struct Context {
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
     pub(crate) settings: Arc<dyn UserSettingsStore>,
+    /// Keeps the app working while routines run or wait: the window shell's, else the
+    /// system's own way.
+    pub(crate) work_hold: Arc<dyn eos_core::os::WorkHold>,
     /// The plan usage the accounts feature last fetched.
     pub(crate) usage_cache: Arc<dyn eos_core::accounts::UsageSnapshotStore>,
     /// What visual answers fetch: images, the map, geocoding, place search.
@@ -190,6 +193,8 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     let channels = cx.reach.channels(cx.capabilities.channels());
     let gate =
         Arc::new(eos_inbox::gate::Gate::new(channels.clone(), Arc::new(crate::host::HostTimeZone), cx.clock.clone()));
+    let power: Arc<dyn eos_core::os::Power> =
+        Arc::new(crate::host::HostPower { cache: eos_platform::PowerCache::new(), clock: cx.clock.clone() });
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -212,7 +217,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         settings: cx.settings.clone(),
         headroom: Arc::new(crate::headroom::CachedHeadroom { cache: cx.usage_cache.clone(), clock: cx.clock.clone() }),
         one_shot: cx.one_shot.clone(),
-        power: Arc::new(crate::host::HostPower { cache: eos_platform::PowerCache::new(), clock: cx.clock.clone() }),
+        power: power.clone(),
     }));
     cx.grants.attach(&routines.grants());
     // The delivery engine keeps the outcomes alive for the gate.
@@ -337,6 +342,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             control: routines.control(),
             zone: Arc::new(crate::host::HostTimeZone),
             bus: cx.bus.clone(),
+            hold: cx.work_hold.clone(),
+            power,
+            settings: cx.settings.clone(),
             autostart: cx.reach.autostart(),
         })),
         Arc::new(eos_mod_system::SystemModule::new(

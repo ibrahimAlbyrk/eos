@@ -33,6 +33,7 @@ use eos_domain::signals::schedule::{ScheduleState, clock_reset, due, next_slot};
 use tokio::sync::Notify;
 
 use crate::after::follow_in;
+use crate::awake::{Awake, OFFER_LATE_MS};
 use crate::polls::Polls;
 use crate::router::{CLOCK, Router, Routing, error_kind, halted_in, run_in};
 use crate::sources::{SourceSpec, source_in};
@@ -55,6 +56,7 @@ pub(crate) struct Scheduler {
     pub(crate) runner: Arc<dyn Runner>,
     pub(crate) router: Arc<Router>,
     pub(crate) polls: Arc<Polls>,
+    pub(crate) awake: Arc<Awake>,
     /// Rings when a pass should run now.
     pub(crate) kick: Arc<Notify>,
 }
@@ -79,6 +81,9 @@ impl Scheduler {
                 }
             };
             self.router.kick.notify_one();
+            if let Err(error) = self.awake.refresh().await {
+                tracing::warn!(error = error_kind(&error), "what keeps the computer working could not be counted");
+            }
             let wait =
                 next.map_or(SCHEDULER_MAX_SLEEP_MS, |at| (at - self.clock.now_ms()).clamp(0, SCHEDULER_MAX_SLEEP_MS));
             tokio::select! {
@@ -101,6 +106,8 @@ impl Scheduler {
             .map(Arc::new)
             .collect();
         let mut next: Option<i64> = None;
+        let mut late: Option<(String, i64)> = None;
+        let catch_up = self.awake.catch_up();
         for routine in &held {
             for (slot, trigger) in routine.when.on.iter().enumerate() {
                 let Trigger::Schedule { schedule, .. } = trigger else { continue };
@@ -116,7 +123,12 @@ impl Scheduler {
                 // A schedule whose write fails is tried again next pass; the
                 // others, the chains and the polls go on.
                 match self.store.write(move |tx, out| job.fire_in(tx, out)).await {
-                    Ok(at) => next = earliest(next, at),
+                    Ok((at, late_by)) => {
+                        next = earliest(next, at);
+                        if late_by.is_some_and(|late_by| late_by > OFFER_LATE_MS) {
+                            late = late.or(late_by.map(|late_by| (routine.id.clone(), late_by)));
+                        }
+                    }
                     Err(error) => tracing::warn!(
                         routine_id = %routine.id,
                         slot,
@@ -124,6 +136,12 @@ impl Scheduler {
                         "a schedule could not fire"
                     ),
                 }
+            }
+        }
+        drop(catch_up);
+        if let Some((routine_id, late_by)) = late {
+            if let Err(error) = self.awake.offer(&self.router, &routine_id, late_by).await {
+                tracing::warn!(error = error_kind(&error), "keeping the computer awake could not be offered");
             }
         }
         self.follow(&held).await;
@@ -171,11 +189,12 @@ struct Slot {
 
 impl Slot {
     /// Arms the schedule when it is new, changed or resumed and fires its
-    /// due slot, inside one write; answers its next slot.
-    fn fire_in(self, tx: &dyn Tx, out: &mut Outbox) -> Result<Option<i64>, Error> {
+    /// due slot, inside one write; answers its next slot, and how late the
+    /// slot it fired was.
+    fn fire_in(self, tx: &dyn Tx, out: &mut Outbox) -> Result<(Option<i64>, Option<i64>), Error> {
         let routine_id = self.routine.id.as_str();
         if halted_in(tx)? {
-            return Ok(None);
+            return Ok((None, None));
         }
         let stored = tx.signal_schedules().of_routine(routine_id)?.into_iter().find(|row| row.slot == self.slot);
         if self.routine.state != RoutineState::Active {
@@ -184,10 +203,10 @@ impl Slot {
                     StoredSignalSchedule { spec_hash: NOT_ARMED.into(), next_at: None, updated_at: self.now, ..row };
                 tx.signal_schedules().put(&row)?;
             }
-            return Ok(None);
+            return Ok((None, None));
         }
         if !self.zones.known(&self.schedule.zone) {
-            return Ok(None);
+            return Ok((None, None));
         }
         let spec_hash = hash(&serde_json::to_string(&self.schedule).unwrap_or_default());
         let armed = stored.as_ref().is_some_and(|row| row.spec_hash == spec_hash);
@@ -225,7 +244,9 @@ impl Slot {
             );
             row.last_slot_at = Some(self.now);
         }
+        let mut late_by = None;
         if let Some(due) = due(&state, self.now, &offset_at) {
+            late_by = Some(due.late_by);
             self.slot_in(tx, out, due.slot, due.missed)?;
             row.last_slot_at = Some(due.slot);
             row.missed = due.missed;
@@ -245,7 +266,7 @@ impl Slot {
             row.updated_at = self.now;
             tx.signal_schedules().put(&row)?;
         }
-        Ok(row.next_at)
+        Ok((row.next_at, late_by))
     }
 
     /// The slot's clock signal, decided and its run admitted. Its facts
