@@ -74,7 +74,7 @@ pub(crate) fn announce(
     Ok(())
 }
 
-fn pause_in(
+pub(crate) fn pause_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     routine_id: &str,

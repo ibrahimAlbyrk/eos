@@ -180,6 +180,10 @@ impl RoutineRepo for SqliteTx<'_> {
         .map(drop)
     }
 
+    fn set_failure_streak(&self, id: &str, streak: i64) -> Result<(), Error> {
+        self.exec("UPDATE routines SET failure_streak = ?1 WHERE id = ?2", params![streak, id]).map(drop)
+    }
+
     fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error> {
         self.exec(
             "UPDATE routines SET state = ?1, paused_reason = ?2, updated_at = ?3, changed_at = ?3 WHERE id = ?4",

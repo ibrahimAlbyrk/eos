@@ -54,7 +54,7 @@ impl RunOutcomes for Outcomes {
             announce(out, &run.id, &run.routine_id, &as_it_is);
             return Ok(());
         }
-        done(tx, out, &run, outcome, self.now())
+        done(&self.0, tx, out, &run, outcome, self.now())
     }
 
     fn delivery_failed(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, reason: &str) -> Result<(), Error> {
@@ -66,7 +66,8 @@ impl RunOutcomes for Outcomes {
             reason: Some(Reason::Delivery),
             at: now,
         };
-        move_run(tx, out, &run, failed).map(drop)
+        move_run(tx, out, &run, failed)?;
+        super::failures::ended_in(&self.0, tx, out, run_id, now)
     }
 
     fn revise(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, text: &str) -> Result<(), Error> {

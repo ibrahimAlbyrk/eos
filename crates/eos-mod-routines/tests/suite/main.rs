@@ -7,6 +7,7 @@ mod blueprint;
 mod budget;
 mod check;
 mod control;
+mod failures;
 mod gate;
 mod halt;
 mod intent;
