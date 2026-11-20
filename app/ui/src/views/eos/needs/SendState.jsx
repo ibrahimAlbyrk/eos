@@ -13,7 +13,8 @@ function useTick(ticking) {
 }
 
 // A draft's sends after the user's Send (03 G6): in its hold, "Sending…
-// Undo" with the seconds left and Stop; once out, Undo while its channel can
+// Undo" with the seconds left and Stop; waiting its turn, a plain line and
+// Stop; on its way, a plain line; once out, Undo while its channel can
 // take it back, and "That was wrong" sent or undone. Drawn by Eos, outside
 // any surface frame.
 export function SendState({ detail }) {
@@ -22,9 +23,11 @@ export function SendState({ detail }) {
   const deliveries = detail.deliveries ?? [];
   const holding = deliveries.find((d) => d.state === "holding");
   const undoable = (d) => d.state === "sent" && d.undoUntil > now && sendNotes[d.id] !== "cannot_undo";
+  const queued = deliveries.find((d) => d.state === "queued");
+  const sending = deliveries.some((d) => d.state === "sending");
   const out = deliveries.filter((d) => d.state === "sent" || d.state === "undone");
   useTick(Boolean(holding) || deliveries.some(undoable));
-  if (!holding && out.length === 0) return null;
+  if (!holding && !queued && !sending && out.length === 0) return null;
   const itemId = detail.item.id;
   return (
     <div className="eos-send-state">
@@ -35,6 +38,13 @@ export function SendState({ detail }) {
           <button type="button" className="eos-btn" disabled={offline} onClick={() => void stopDelivery(itemId, holding.id)}>Stop</button>
         </p>
       )}
+      {queued && (
+        <p className="eos-send-state__line" role="status">
+          <span>{SEND_NOTES.queued}</span>
+          <button type="button" className="eos-btn" disabled={offline} onClick={() => void stopDelivery(itemId, queued.id)}>Stop</button>
+        </p>
+      )}
+      {sending && <p className="eos-send-state__line" role="status">{SEND_NOTES.sending}</p>}
       {out.map((d) => (
         <p key={d.id} className="eos-send-state__line">
           {SEND_NOTES[sendNotes[d.id] ?? d.state] && <span role="status">{SEND_NOTES[sendNotes[d.id] ?? d.state]}</span>}

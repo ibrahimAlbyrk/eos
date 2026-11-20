@@ -288,6 +288,23 @@ describe("a send in its hold, and after it went out", () => {
     expect(html).not.toContain("That was wrong");
   });
 
+  it("says a send waits its turn, with Stop, or is on its way", async () => {
+    const waiting = sentDraft([{ id: "dl-3", state: "queued" }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting });
+    await loadInboxItem(DRAFT);
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-send-state__line" role="status"><span>Waiting to send.</span><button type="button" class="eos-btn">Stop</button></p>');
+    const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting }, async () => ({ ok: true, status: 200, body: { id: "dl-3", state: "stopped" } }));
+    setEosTransport(t);
+    expect(await stopDelivery(DRAFT, "dl-3")).toBe(true);
+    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.inboxDeliveryStop("dl-3"), {});
+
+    applyEosEvent("inbox:delivery", { id: "dl-3", itemId: DRAFT, runId: "rn-x", state: "sending" });
+    const html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<p class="eos-send-state__line" role="status">Sending now.</p>');
+    expect(html).not.toContain("Waiting to send.");
+    expect(html).not.toContain(">Stop<");
+  });
+
   it("offers Undo while its channel can take it back, and says so when it no longer can (409)", async () => {
     const sent = sentDraft([{ id: "dl-2", state: "sent", undoUntil: T + 60_000 }]);
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
