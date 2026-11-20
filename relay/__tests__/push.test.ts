@@ -172,3 +172,20 @@ test("an unknown kind or a count that is not a whole number is refused before se
     });
   });
 });
+
+test("a connection dropped before Apple answers is failed as unreachable", async () => {
+  await withKey(async (keyPath) => {
+    const server = http2.createServer();
+    server.on("stream", (stream) => stream.session?.destroy());
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    try {
+      const apns = sender(keyPath, origin, () => 1_800_000_000_000);
+      const results = await apns.send(ROOM, "test", 1, [{ token: TOKEN, env: "production" }]);
+      apns.close();
+      assert.deepEqual(results, [{ result: "failed", reason: "unreachable" }]);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});

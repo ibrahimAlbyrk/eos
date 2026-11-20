@@ -114,7 +114,8 @@ export class ApnsSender {
       request.on("response", (answer) => (status = Number(answer[":status"])));
       request.setEncoding("utf8");
       request.on("data", (chunk: string) => (body += chunk));
-      request.on("end", () => resolve({ status, body }));
+      // A stream that ends without an answer means the connection went away under it.
+      request.on("end", () => (status ? resolve({ status, body }) : reject(new Error("no answer"))));
       request.on("error", reject);
       request.end(payload);
     });
