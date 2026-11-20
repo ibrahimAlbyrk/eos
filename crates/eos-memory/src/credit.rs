@@ -163,7 +163,7 @@ impl Credit {
                 if tx.mem_notes().find(&note_id)?.is_none_or(|n| n.forgotten_at.is_some()) {
                     return Ok(None);
                 }
-                let state = hurt_in(tx, &[note_id.clone()], &device, now)?;
+                let state = hurt_in(tx, std::slice::from_ref(&note_id), &device, now)?;
                 announce(out, vec![note_id]);
                 Ok(state.into_iter().next())
             })
