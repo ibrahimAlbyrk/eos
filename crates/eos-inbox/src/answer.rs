@@ -178,7 +178,7 @@ impl Items {
                 let changed = match &typed {
                     InboxAnswer::DeliveryProblem { choice, doc } => {
                         let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
-                        problems::answered_in(tx, out, run_outcomes.as_ref(), answered)?
+                        problems::answered_in(tx, out, run_outcomes.as_ref(), control.as_ref(), answered)?
                     }
                     InboxAnswer::RoutineAlert { choice } if alerts::acted_on(&item) => {
                         alerts::answered_in(tx, out, control.as_ref(), &item, *choice, now)?;

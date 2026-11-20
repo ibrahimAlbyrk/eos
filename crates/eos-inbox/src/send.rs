@@ -61,7 +61,7 @@ fn still_goes_to(goes_to: &[Recipient], target: &Target) -> bool {
 }
 
 /// A target the routine's confirmed Goes to no longer has, refused by name.
-fn gone_in(
+pub(crate) fn gone_in(
     tx: &dyn Tx,
     control: &dyn RoutineControl,
     routine_id: &str,
