@@ -2,7 +2,8 @@
 //! what it offers the rest of the app is plain data, the core's view ports and the bridge.
 //!
 //! The binary calls [`run`] with its [`Options`] and [`Hooks`]; the shell owns the process
-//! from there: single instance, the window and its menu, the dashboard view with the
+//! from there: single instance, the window (shown or kept hidden as the launch decides,
+//! `eos_bridge::launch`) and its menu, the dashboard view with the
 //! in-process handler of the app's own origin, child views for the core, and quitting.
 
 mod app;
@@ -110,10 +111,15 @@ pub trait Hooks: Send + Sync + 'static {
     /// Builds the core's router from the shell's ports. Called once, before the first page.
     fn core(&self, ports: &Ports) -> Arc<dyn Core>;
 
-    /// The dashboard is loading: the bridge exists and requests are being answered.
-    fn started(&self, _bridge: &Arc<Bridge>, _ports: &Ports) {}
+    /// The bridge exists and answers requests, whether or not the window shows. Called once.
+    fn bridge_ready(&self, _bridge: &Arc<Bridge>, _ports: &Ports) {}
 
-    /// The window was brought back: a click on the Dock icon, a later launch, a link.
+    /// The dashboard is loading: the window was shown. A hidden start (at login,
+    /// `--background`) calls this only when the window is first shown.
+    fn dashboard_loaded(&self) {}
+
+    /// The window was brought back: a click on the Dock icon, a later launch, a link. Not for
+    /// the showing that loads the dashboard: [`Hooks::dashboard_loaded`] stands for it.
     fn window_shown(&self) {}
 
     /// The Mac slept for about this long and is awake again.

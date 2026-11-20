@@ -3,8 +3,9 @@
 # try.sh and the test drivers. A bundle without the dev guard (bundle.sh release) is refused:
 # on a copy of real data it could start agents.
 #
-#   usage: launch.sh <path to Eos.app> [--quiet]
+#   usage: launch.sh <path to Eos.app> [--quiet] [app arguments…]
 #   --quiet   no focus, no Dock icon, audio muted: for automated runs.
+#   app arguments are handed to the app (`--background`: start with the window hidden).
 #
 #   Which data folder: see dev-env.sh. A missing copy is made from $EOS_DEV_DATA/home.
 #   EOS_HOME              the Rust core's data folder (default: $EOS_DEV_HOME); set it empty
@@ -16,7 +17,9 @@
 #   EOS_ELECTRON_PROFILE  an Electron profile COPY to carry localStorage over from, or `none`
 #   EOS_DEV_SCRIPT[_OUT]  steps to run on test views (see eos/src/dev/script.rs)
 set -euo pipefail
-APP="$1"; QUIET="${2:-}"
+APP="$1"; shift
+QUIET=""; if [ "${1:-}" = "--quiet" ]; then QUIET="--quiet"; shift; fi
+ARGS=(); [ $# -gt 0 ] && ARGS=(--args "$@")
 source "$(dirname "$0")/dev-env.sh"
 grep -q "refused in a dev run" "$APP/Contents/MacOS/Eos" \
   || { echo "$APP has no dev guard: build it with bundle.sh test (or debug)" >&2; exit 1; }
@@ -53,7 +56,7 @@ ENVS=(--env "EOS_SHELL_DATA=$SHELL_DATA"
 if [ "$QUIET" = "--quiet" ]; then
   ENVS+=(--env "EOS_SHELL_QUIET=1" --env "TAURI_CEF_NO_ACTIVATE=1")
   # -g: do not bring the app forward. -n: this bundle, even if another copy is registered.
-  open -g -n "$APP" --stdout "$OUT/app.out" --stderr "$OUT/app.err" "${ENVS[@]}"
+  open -g -n "$APP" --stdout "$OUT/app.out" --stderr "$OUT/app.err" "${ENVS[@]}" ${ARGS[@]+"${ARGS[@]}"}
 else
-  open -n "$APP" --stdout "$OUT/app.out" --stderr "$OUT/app.err" "${ENVS[@]}"
+  open -n "$APP" --stdout "$OUT/app.out" --stderr "$OUT/app.err" "${ENVS[@]}" ${ARGS[@]+"${ARGS[@]}"}
 fi

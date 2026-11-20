@@ -3,7 +3,9 @@
 again and again.
 
 What it checks:
-  1. the app starts once, the dashboard reaches "ready", the storage carry-over ran;
+  0. a `--background` start keeps the window hidden and the dashboard unloaded, until a
+     plain launch shows it;
+  1. the app starts once, shown, the dashboard reaches "ready", the storage carry-over ran;
   2. the dashboard's own browser panel puts a child Chromium view on screen;
   3. DevTools round trips work: on a test view through the shell's ports (hidden view
      included), and through the core's browser route for the panel's tab;
@@ -177,11 +179,38 @@ def screen_saver(saver):
     check("the screen saver is signed", signed.returncode == 0, signed.stderr.strip()[-200:])
 
 
+def hidden_start(run):
+    """0. A `--background` start, on a shell data folder thrown away afterwards."""
+    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_SHELL_DATA=SHELL_DATA)
+    subprocess.run([os.path.join(HOST, "scripts", "launch.sh"), APP, "--quiet", "--background"], check=True, env=env)
+    st = wait_for("bridge", lambda: (lambda s: s if s.get("bridge") else None)(ctl("--status")), 40)
+    if not check("a --background start comes up", st, "" if st else "not within 40 s"):
+        return
+    time.sleep(3)
+    log = lambda: open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+    st = ctl("--status")
+    check("a --background start keeps the window hidden", st["window"]["visible"] is False, st["window"])
+    check("... and loads no dashboard", "dashboard view opened" not in log() and not bridge_of(st).get("ready"))
+    check("... and knows why", "launch kind Background, window hidden" in log())
+    again = ctl("--background")
+    time.sleep(1)
+    check("a later --background launch answers and shows nothing", again.get("ok") is True and ctl("--status")["window"]["visible"] is False, again)
+    shown = ctl()
+    st = wait_for("ready", lambda: (lambda s: s if bridge_of(s).get("ready") else None)(ctl("--status")), 40)
+    check("a plain launch then shows the window and loads the dashboard",
+          shown.get("ok") is True and st and st["window"]["visible"] is True and "dashboard view opened" in log(),
+          st["window"] if st else "not ready within 40 s")
+    check("--quit stops the hidden start", run.stop_app())
+
+
 def checks(run):
     bundle_contents()
+    subprocess.run(["rm", "-rf", OUT], check=True)
+    os.makedirs(SHELL_DATA)
+    hidden_start(run)
     # ---- a fresh shell profile, and an "Electron profile" holding the layout to restore:
     # one chat selected with the Browser tab open in its side panel.
-    subprocess.run(["rm", "-rf", OUT], check=True)
+    subprocess.run(["rm", "-rf", SHELL_DATA], check=True)
     os.makedirs(SHELL_DATA)
     roots = chats()
     if not check("the data copy holds chats", roots, f"{len(roots)} top-level"):
@@ -244,6 +273,7 @@ def checks(run):
     b = st["bridge"]
     check("ready soon after the first page", b["readyInPageMs"] < 15000, f"{b['readyInPageMs']} ms in the page")
     check("one event stream from the dashboard", b["eventStreams"] == 1, b["eventStreams"])
+    check("a plain start shows the window", st["window"]["visible"] is True, st["window"])
     check("the window did not take the focus", st["window"]["focused"] is False, st["window"])
     check("the app menu is installed", st.get("menus") == ["Eos", "Edit", "View", "Machines", "Window", "Help"], st.get("menus"))
     check("the Help menu reveals the logs", "Reveal Logs" in (st.get("helpMenu") or []), st.get("helpMenu"))

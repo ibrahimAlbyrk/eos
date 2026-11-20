@@ -35,7 +35,7 @@ pub(crate) fn state_file(data_dir: &Path) -> PathBuf {
     data_dir.join("window.json")
 }
 
-/// Creates the window. `quiet` opens it without taking the focus (automated runs).
+/// Creates the window, hidden. `quiet`: it never takes the focus (automated runs).
 pub(crate) fn create(
     app: &tauri::AppHandle,
     data_dir: &Path,
@@ -63,14 +63,21 @@ pub(crate) fn create(
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
         .traffic_light_position(LogicalPosition::new(TRAFFIC_LIGHTS.0, TRAFFIC_LIGHTS.1))
+        // Hidden until the launch decides to show it ([`restore`] on its first showing).
+        .visible(false)
         .build()?;
+    Ok((window, state))
+}
+
+/// The saved maximized or fullscreen state, put back when the window is first shown: either
+/// would bring a hidden window on screen.
+pub(crate) fn restore(window: &tauri::Window, state: &WindowState, quiet: bool) {
     if state.maximized {
         let _ = window.maximize();
     }
     if state.fullscreen && !quiet {
         let _ = window.set_fullscreen(true);
     }
-    Ok((window, state))
 }
 
 /// Keeps the window's frame on disk, written at most twice a second while it moves.

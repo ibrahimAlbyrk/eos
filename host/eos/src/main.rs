@@ -158,10 +158,13 @@ struct CoreState {
     started: Mutex<Started>,
 }
 
-/// What `started` was handed before the core was up, and whether it is up (or failed).
+/// What the shell's hooks announced before the core was up, and whether it is up (or failed).
 #[derive(Default)]
 struct Started {
-    waiting: Option<(Arc<Bridge>, Ports)>,
+    /// What `bridge_ready` was handed.
+    bridge: Option<(Arc<Bridge>, Ports)>,
+    /// Whether `dashboard_loaded` came.
+    dashboard: bool,
     settled: bool,
 }
 
@@ -170,27 +173,42 @@ impl CoreState {
         self.started.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// The core is up or did not start: what `started` was handed meanwhile, to run now.
-    fn settled(&self) -> Option<(Arc<Bridge>, Ports)> {
-        let mut started = self.started();
-        started.settled = true;
-        started.waiting.take()
+    /// The core is up or did not start: runs what the hooks announced meanwhile.
+    fn settle(&self) {
+        let (bridge, dashboard) = {
+            let mut started = self.started();
+            started.settled = true;
+            (started.bridge.take(), std::mem::take(&mut started.dashboard))
+        };
+        if let Some((bridge, ports)) = bridge {
+            self.on_bridge_ready(&bridge, &ports);
+        }
+        if dashboard {
+            self.on_dashboard_loaded();
+        }
     }
 
-    /// The dashboard is loading and the core is up (or will never be).
-    fn on_started(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
+    /// The bridge answers and the core is up (or will never be), whether or not the window
+    /// shows.
+    fn on_bridge_ready(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
         if let Some((app, rt)) = self.app.get() {
             follow::events(&app.runtime().kernel.bus, bridge, rt);
             // The panel's "pick an element" mode is the browser feature's.
             bridge.set_element_picker(app.element_picker());
+        }
+        #[cfg(feature = "dev-run")]
+        dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
+    }
+
+    /// The dashboard is loading and the core is up (or will never be).
+    fn on_dashboard_loaded(&self) {
+        if let Some((app, _)) = self.app.get() {
             // After an update the applier waits for this, and puts the previous version
-            // back without it.
+            // back without it. It opens the app with a plain launch, which loads the dashboard.
             app.mark_update_booted();
             app.update_signals().window_shown();
         }
         tracing::info!(target: "eos", "the window is up");
-        #[cfg(feature = "dev-run")]
-        dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
     }
 }
 
@@ -292,7 +310,7 @@ impl Hooks for Eos {
     fn core(&self, ports: &Ports) -> Arc<dyn Core> {
         let Some(home) = self.home.clone() else {
             tracing::warn!(target: "eos", "EOS_HOME is not set (a development build has no default): running without the Rust core");
-            self.core.settled();
+            self.core.settle();
             return Arc::new(NoCore::default());
         };
         // The token first: the dashboard's document carries it while the core still starts.
@@ -325,22 +343,31 @@ impl Hooks for Eos {
                     std::process::abort();
                 }
             }
-            if let Some((bridge, ports)) = state.settled() {
-                state.on_started(&bridge, &ports);
-            }
+            state.settle();
         }));
         late
     }
 
-    fn started(&self, bridge: &Arc<Bridge>, ports: &Ports) {
+    fn bridge_ready(&self, bridge: &Arc<Bridge>, ports: &Ports) {
         {
             let mut started = self.core.started();
             if !started.settled {
-                started.waiting = Some((bridge.clone(), ports.clone()));
+                started.bridge = Some((bridge.clone(), ports.clone()));
                 return;
             }
         }
-        self.core.on_started(bridge, ports);
+        self.core.on_bridge_ready(bridge, ports);
+    }
+
+    fn dashboard_loaded(&self) {
+        {
+            let mut started = self.core.started();
+            if !started.settled {
+                started.dashboard = true;
+                return;
+            }
+        }
+        self.core.on_dashboard_loaded();
     }
 
     fn window_shown(&self) {
