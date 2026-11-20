@@ -18,9 +18,12 @@ const ATTENTION_ORDER = { interrupt: 0, digest: 1, silent: 2 };
 // refused: id → { answeredBy?, state? }, an answer another device gave first.
 // devRun: an answer was refused because this is a dev run. lastAnswered:
 // the item answered last, null when none, undefined until asked. offline:
-// the core gave no answer at all to the last request (G35).
+// the core gave no answer at all to the last request (G35). sendNotes:
+// delivery id → what the user did to a send here and how it ended:
+// "wrong", "undone", "partial" or "cannot_undo". A draft's deliveries are
+// its detail's `deliveries`, kept current from inbox:delivery.
 const EMPTY = {
-  list: null, listFailed: false, details: {}, failed: {}, refused: {}, devRun: false, lastAnswered: undefined, offline: false,
+  list: null, listFailed: false, details: {}, failed: {}, refused: {}, devRun: false, lastAnswered: undefined, offline: false, sendNotes: {},
 };
 let state = EMPTY;
 let started = false;
@@ -171,9 +174,12 @@ function conflicted(id, r) {
 // first (the item is read again to show who) or that the item changed since it
 // was read (it is read again); a dev run's refusal is said on the screen; any
 // other failure is a toast.
-async function answerWith(id, method, path, body) {
+async function answerWith(id, method, path, body, took = () => {}) {
   const r = heard(await transport.send(method, path, body).catch(() => null));
-  if (r?.ok) return true;
+  if (r?.ok) {
+    took(r.body);
+    return true;
+  }
   if (r === null) return false;
   if (r?.status === 409) {
     conflicted(id, r);
@@ -203,7 +209,73 @@ const saving = new Map();
 export async function sendInboxDraft(id, doc, anyway = false) {
   await saving.get(id);
   const body = { rev: revOf(id), ...(doc ? { doc } : {}), ...(anyway ? { confirmStale: true } : {}) };
-  return answerWith(id, "POST", ROUTES.inboxSend(id), body);
+  return answerWith(id, "POST", ROUTES.inboxSend(id), body, (answer) => {
+    const detail = state.details[id];
+    if (!detail || !Array.isArray(answer?.deliveries)) return;
+    set({ details: { ...state.details, [id]: { ...detail, deliveries: answer.deliveries } } });
+    // The draft still reads open here until the core's change arrives.
+    if (isHolding(id)) void loadInboxItem(id);
+  });
+}
+
+// Whether a send of the draft `id` waits out its hold, so it can be stopped.
+export function isHolding(id) {
+  return Boolean(state.details[id]?.deliveries?.some((d) => d.state === "holding"));
+}
+
+// SSE inbox:delivery { id, itemId?, runId, state, sendAt? }: the send of a
+// draft on screen moves at once; one that went out is read again for how
+// long it can be taken back.
+export function applyInboxDelivery(payload) {
+  const detail = state.details[payload?.itemId];
+  if (!detail || typeof payload.id !== "string") return;
+  const moved = { id: payload.id, state: payload.state, ...(payload.sendAt != null ? { sendAt: payload.sendAt } : {}) };
+  const known = detail.deliveries ?? [];
+  const deliveries = known.some((d) => d.id === payload.id)
+    ? known.map((d) => (d.id === payload.id ? { ...d, ...moved } : d))
+    : [...known, moved];
+  set({ details: { ...state.details, [payload.itemId]: { ...detail, deliveries } } });
+  if (payload.state === "sent") void loadInboxItem(payload.itemId);
+}
+
+const noted = (deliveryId, note) => set({ sendNotes: note ? { ...state.sendNotes, [deliveryId]: note } : without(state.sendNotes, deliveryId) });
+
+// One write about a send of the draft `itemId`; the draft is read again
+// after it, as the core left it. The answer's body, or null when it did not
+// land: a 409 cannot_undo is noted beside the send, a dev run's refusal is
+// said on the screen, any other refusal is a toast.
+async function deliveryWrite(itemId, deliveryId, path) {
+  const r = heard(await transport.send("POST", path, {}).catch(() => null));
+  if (r !== null) void loadInboxItem(itemId);
+  if (r?.ok) return r.body ?? {};
+  if (r === null) return null;
+  if (r.body?.error === "cannot_undo") noted(deliveryId, "cannot_undo");
+  else if (isDevRunRefusal(r)) set({ devRun: true });
+  else notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
+  return null;
+}
+
+// Stops a send in its hold; the draft opens again for the user.
+export async function stopDelivery(itemId, deliveryId) {
+  return (await deliveryWrite(itemId, deliveryId, ROUTES.inboxDeliveryStop(deliveryId))) !== null;
+}
+
+// Takes back a send inside its channel's window.
+export async function undoDelivery(itemId, deliveryId) {
+  const answer = await deliveryWrite(itemId, deliveryId, ROUTES.inboxDeliveryUndo(deliveryId));
+  if (answer) noted(deliveryId, answer.partial ? "partial" : "undone");
+  return answer !== null;
+}
+
+// Says a send was wrong, once: it is noted before it goes, so a second
+// press sends nothing, and the note goes when the core refused it.
+export async function flagDeliveryWrong(itemId, deliveryId) {
+  if (state.sendNotes[deliveryId] === "wrong") return false;
+  const before = state.sendNotes[deliveryId];
+  noted(deliveryId, "wrong");
+  const done = (await deliveryWrite(itemId, deliveryId, ROUTES.inboxDeliveryWrong(deliveryId))) !== null;
+  if (!done) noted(deliveryId, before);
+  return done;
 }
 
 // PUT draft: keeps the user's edits of a draft in the core, so another

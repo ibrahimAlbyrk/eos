@@ -52,3 +52,17 @@ export function closedLine({ state, answeredBy }) {
 export function staleLine(reason) {
   return reason ? `${reason} since this draft. Check it before you send it.` : "Its subject moved on since this draft. Check it before you send it.";
 }
+
+// The seconds a send in its hold still waits.
+export function secondsLeft(sendAt, now) {
+  return `${Math.max(0, Math.ceil((sendAt - now) / 1000))} s left`;
+}
+
+// What became of a send, by its state or by what the user did to it here.
+export const SEND_NOTES = {
+  sent: "Sent.",
+  undone: "Taken back.",
+  partial: "Taken back. Some of it stays where it went.",
+  cannot_undo: "Sent. It can no longer be taken back.",
+  wrong: "Noted: that was wrong.",
+};

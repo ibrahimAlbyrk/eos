@@ -3,7 +3,7 @@
 // core and is held back while the core is unreachable. A kind with no card
 // shows its title and summary with Open.
 
-import { answerInboxItem, decideRunAsk, decideSuggestion, sendInboxDraft } from "../../../../state/eos/inboxStore.js";
+import { answerInboxItem, decideRunAsk, decideSuggestion, isHolding, sendInboxDraft } from "../../../../state/eos/inboxStore.js";
 import { openLocation } from "../../nav/eosNav.js";
 import { dropEdit } from "../editDrafts.js";
 import { docChanged, sendLabel } from "../editors/editDoc.js";
@@ -43,7 +43,8 @@ const KINDS = {
           const doc = docChanged(edit, originalDoc(detail)) ? edit : undefined;
           const sent = await sendInboxDraft(detail.item.id, doc, isStale(detail));
           if (sent) dropEdit(detail.item.id);
-          return sent;
+          // A send in its hold keeps its draft on screen, where it can be stopped.
+          return sent && !isHolding(detail.item.id);
         },
       },
       {

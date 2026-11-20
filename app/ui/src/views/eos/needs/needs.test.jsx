@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetInbox, loadInboxItem, refreshInbox, sendInboxDraft, applyInboxChange } from "../../../state/eos/inboxStore.js";
+import {
+  _resetInbox, applyInboxChange, flagDeliveryWrong, loadInboxItem, refreshInbox, sendInboxDraft, stopDelivery, undoDelivery,
+} from "../../../state/eos/inboxStore.js";
+import { applyEosEvent } from "../../../state/eos/live.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRuns, loadRun } from "../../../state/eos/runsStore.js";
 import { notify } from "../../../lib/notify.js";
@@ -243,6 +246,107 @@ describe("a draft whose pull request moved", () => {
     await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("3 new commits since this draft."));
     expect(at(`eos:/needs/${DRAFT}`)).toContain(">Send anyway<");
     expect(toast).not.toHaveBeenCalled();
+    toast.mockRestore();
+  });
+});
+
+describe("a send in its hold, and after it went out", () => {
+  const T = 1763460000000;
+  const sentDraft = (deliveries, extra = {}) => ({ ...detailOf[DRAFT], item: { ...detailOf[DRAFT].item, state: "answered", rev: 3 }, answeredBy: "dashboard", deliveries, ...extra });
+  let clock;
+  beforeEach(() => { clock = vi.spyOn(Date, "now").mockReturnValue(T); });
+  afterEach(() => clock.mockRestore());
+
+  it("stays on the draft after Send, counts the hold down live, and Stop opens the draft again", async () => {
+    await loaded();
+    await loadInboxItem(DRAFT);
+    const holding = [{ id: "dl-1", state: "holding", sendAt: T + 10_000 }];
+    let item = sentDraft(holding);
+    const t = recording({}, async (method, path) => (path === ROUTES.inboxSend(DRAFT)
+      ? { ok: true, status: 200, body: { deliveries: holding } }
+      : { ok: true, status: 200, body: { id: "dl-1", state: "stopped" } }));
+    t.get = vi.fn(async (path) => (path === ROUTES.inboxItem(DRAFT) ? { ok: true, status: 200, body: item } : { ok: false, status: 404, body: {} }));
+    setEosTransport(t);
+    at(`eos:/needs/${DRAFT}`);
+    press("Enter", { metaKey: true });
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("Answered on this Mac."));
+    expect(eosLocation()).toBe(`eos:/needs/${DRAFT}`);
+    let html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<span>Sending… Undo</span><span class="eos-send-state__left">10 s left</span><button type="button" class="eos-btn">Stop</button>');
+    expect(html).not.toContain(">Send<");
+
+    applyEosEvent("inbox:delivery", { id: "dl-1", itemId: DRAFT, runId: "rn-x", state: "holding", sendAt: T + 4_000 });
+    clock.mockReturnValue(T + 1_500);
+    expect(at(`eos:/needs/${DRAFT}`)).toContain("3 s left");
+
+    item = { ...detailOf[DRAFT], item: { ...detailOf[DRAFT].item, rev: 4 }, deliveries: [{ id: "dl-1", state: "stopped" }] };
+    expect(await stopDelivery(DRAFT, "dl-1")).toBe(true);
+    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.inboxDeliveryStop("dl-1"), {});
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain(">Send<"));
+    html = at(`eos:/needs/${DRAFT}`);
+    expect(html).not.toContain("Sending…");
+    expect(html).not.toContain("That was wrong");
+  });
+
+  it("offers Undo while its channel can take it back, and says so when it no longer can (409)", async () => {
+    const sent = sentDraft([{ id: "dl-2", state: "sent", undoUntil: T + 60_000 }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    let html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<span role="status">Sent.</span><button type="button" class="eos-btn">Undo</button><button type="button" class="eos-btn">That was wrong</button>');
+
+    const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent }, async () => ({ ok: false, status: 409, body: { error: "cannot_undo" } }));
+    setEosTransport(t);
+    expect(await undoDelivery(DRAFT, "dl-2")).toBe(false);
+    expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxDeliveryUndo("dl-2"), {}]]);
+    html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain("Sent. It can no longer be taken back.");
+    expect(html).not.toContain(">Undo<");
+
+    clock.mockReturnValue(T + 61_000);
+    _resetInbox();
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    expect(at(`eos:/needs/${DRAFT}`)).not.toContain(">Undo<");
+  });
+
+  it("takes a send back inside its window, saying when some of it stays", async () => {
+    const sent = sentDraft([{ id: "dl-2", state: "sent", undoUntil: T + 60_000 }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    const undone = sentDraft([{ id: "dl-2", state: "undone" }]);
+    setEosTransport(recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: undone }, async () => ({ ok: true, status: 200, body: { state: "undone", partial: true } })));
+    expect(await undoDelivery(DRAFT, "dl-2")).toBe(true);
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("Taken back. Some of it stays where it went."));
+    const html = at(`eos:/needs/${DRAFT}`);
+    expect(html).not.toContain(">Undo<");
+    expect(html).toContain(">That was wrong<");
+  });
+
+  it("says That was wrong once, however often it is pressed", async () => {
+    const sent = sentDraft([{ id: "dl-2", state: "undone" }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent }, async () => ({ ok: true, status: 200, body: { id: "dl-2", state: "undone" } }));
+    setEosTransport(t);
+    const twice = await Promise.all([flagDeliveryWrong(DRAFT, "dl-2"), flagDeliveryWrong(DRAFT, "dl-2")]);
+    expect(twice).toEqual([true, false]);
+    expect(await flagDeliveryWrong(DRAFT, "dl-2")).toBe(false);
+    expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxDeliveryWrong("dl-2"), {}]]);
+    const html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
+    expect(html).toContain('<button type="button" class="eos-btn" disabled="">That was wrong</button>');
+  });
+
+  it("lets That was wrong be pressed again when the core refused it", async () => {
+    const sent = sentDraft([{ id: "dl-2", state: "sent" }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    const toast = vi.spyOn(notify, "error").mockImplementation(() => {});
+    setEosTransport(recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent }, async () => ({ ok: false, status: 409, body: { error: "Only a send that went out can be wrong." } })));
+    expect(await flagDeliveryWrong(DRAFT, "dl-2")).toBe(false);
+    expect(toast).toHaveBeenCalledWith("Only a send that went out can be wrong.", { title: "Needs you" });
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<button type="button" class="eos-btn">That was wrong</button>');
     toast.mockRestore();
   });
 });
