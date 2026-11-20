@@ -2,11 +2,12 @@
 //! passed for a routine that asks a question waits `undecided` (reason
 //! [`ASK`]) until the small model answers `{"matches": boolean}` about it.
 //!
-//! After each routing pass the stage takes those decisions, first decided
-//! first, [`ASKS_AT_ONCE`] at a time. The question and the source's text
-//! facts, cut to [`FACTS_TEXT_MAX`] characters and inside the untrusted
-//! block, go to the model off the writer thread; its answer is one write: the
-//! run admitted as the router admits, or `unmatched` (reason [`ASK`]), with
+//! After each routing pass the stage takes those decisions of routines
+//! that still ask, the ones waiting for the model before the ones past the
+//! day's asks, first decided first, [`ASKS_AT_ONCE`] at a time. The
+//! question and the source's text facts, cut to [`FACTS_TEXT_MAX`]
+//! characters and inside the untrusted block, go to the model off the
+//! writer thread; its answer is one write: the run admitted as the router admits, or `unmatched` (reason [`ASK`]), with
 //! the call's spend booked as `match`. An answer is kept for the same
 //! routine version and subject for [`ASK_CACHE_MS`], in memory. Past
 //! [`ASKS_PER_DAY`] asks of a routine in the user's day (reason [`CAP`]),
@@ -104,11 +105,21 @@ impl Router {
         if !self.autostart || self.store.read(halted_in).await? {
             return Ok(());
         }
-        let waiting = self.store.read(|tx| tx.signal_asks().waiting_asks(&[ASK, CAP], PASS_MAX)).await?;
-        if waiting.is_empty() {
+        let routines = self.directory.triggers().await?;
+        // A routine past its asks for the day, or one that no longer asks,
+        // must not keep the others' decisions from the model.
+        let asking: Vec<String> =
+            routines.iter().filter(|routine| routine.which.ask.is_some()).map(|routine| routine.id.clone()).collect();
+        if asking.is_empty() {
             return Ok(());
         }
-        let routines = self.directory.triggers().await?;
+        let waiting = self
+            .store
+            .read(move |tx| {
+                let asking: Vec<&str> = asking.iter().map(String::as_str).collect();
+                tx.signal_asks().waiting_asks(&asking, &[ASK, CAP], PASS_MAX)
+            })
+            .await?;
         for pair in waiting.chunks(ASKS_AT_ONCE) {
             let one = |route: &StoredSignalRoute| self.ask_one(route.clone(), &routines);
             match pair {
