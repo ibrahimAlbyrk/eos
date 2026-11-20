@@ -211,3 +211,17 @@ async fn an_answer_whose_asker_is_gone_reaches_the_lead_as_a_note() {
     assert_eq!(notes.len(), 1, "{sent:?}");
     assert!(notes[0].starts_with(&format!("<system_message kind=\"routine_note\" run-id=\"{run}\"")));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_waiting_start_is_withdrawn_when_its_run_leaves_the_queue_without_it() {
+    let bench = Bench::new(true);
+    let routine = bench.routine_with(RoutineState::Active, asking(), true);
+    let waiting = bench.triggered(&routine, 7).await;
+    bench.supervise().await;
+    bench.eventually(|| bench.items_of(&routine, ItemKind::RunStart).len() == 1).await;
+    let ask = bench.items_of(&routine, ItemKind::RunStart).remove(0);
+
+    bench.module.control().pause(&routine, "user").await.expect("paused");
+    assert_eq!(bench.state(&waiting), RunState::Skipped);
+    assert_eq!(bench.item(&ask.id).state, eos_domain::inbox::ItemState::Withdrawn, "no answer can act on it");
+}
