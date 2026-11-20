@@ -94,6 +94,11 @@ impl FakeKeys {
     pub(crate) fn clone_at(&self, key: &str, path: &str) {
         self.0.lock().expect("keys").insert(key.into(), path.into());
     }
+
+    /// The clone is no project any more.
+    pub(crate) fn forget(&self, key: &str) {
+        self.0.lock().expect("keys").remove(key);
+    }
 }
 
 impl ProjectKeys for FakeKeys {

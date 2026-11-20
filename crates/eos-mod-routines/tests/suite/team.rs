@@ -7,7 +7,7 @@ use std::process::Command;
 
 use eos_contracts::{CheckOutcome, CheckVerdict, RoutineState, ToolScope};
 use eos_core::capability::Checkout;
-use eos_core::routine::{GateDecision, RunOrigin, SubmittedResult};
+use eos_core::routine::{GateDecision, RunOrigin, StartError, SubmittedResult, Unready};
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_testkit::FakeCapabilityReads;
 use serde_json::{Value, json};
@@ -194,12 +194,26 @@ async fn checker(bench: &Bench, n: usize) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_run_whose_repository_has_no_local_clone_fails_as_invalid() {
+async fn a_start_whose_repository_has_no_local_clone_is_refused_before_any_run() {
     let repo = repo();
     let bench = Bench::with_reads(true, reads(&repo));
     let routine = bench.routine(RoutineState::Active, team_blueprint());
+    let refused = bench.start(new_run(&routine, RunOrigin::Hand, Some(pull_request(1)))).await;
+    assert_eq!(refused, Err(StartError::Unready(Unready::NoLocalClone { repo: Some("github.com/acme/game".into()) })));
+    let id = routine.clone();
+    let runs = bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
+    assert!(runs.is_empty(), "nothing was queued");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_whose_clone_went_after_its_start_fails_as_invalid() {
+    let repo = repo();
+    let bench = Bench::with_reads(true, reads(&repo));
+    let routine = bench.routine(RoutineState::Active, team_blueprint());
+    bench.keys.clone_at("git:github.com/acme/game", repo.clone.to_str().expect("utf-8"));
     let run =
         bench.start(new_run(&routine, RunOrigin::Hand, Some(pull_request(1)))).await.expect("starts").remove(0).id;
+    bench.keys.forget("git:github.com/acme/game");
     bench.supervise().await;
     bench.eventually(|| bench.state(&run) == RunState::Failed).await;
     let failed = bench.run(&run);

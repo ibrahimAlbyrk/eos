@@ -115,6 +115,9 @@ async fn start_trial(engine: &Arc<Engine>, worker_id: &str) -> Result<Vec<String
         Err(StartError::RoutineState(_)) => Err(Error::Conflict("the routine does not take a trial now".into())),
         Err(StartError::SameItem { .. }) => Err(Error::Conflict("the routine works on that item now".into())),
         Err(StartError::Invalid(text)) => Err(Error::Validation(text)),
+        Err(StartError::Unready(unready)) => {
+            Err(Error::Conflict(format!("No trial run was started. Tell the user: {}", unready.message())))
+        }
     }
 }
 
