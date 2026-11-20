@@ -11,7 +11,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use eos_contracts::{AgentEvent, WorkflowRunProgress};
-use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, LaunchSpec, ToolInputDelta};
+use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, LaunchSpec, NoteTurn, ToolInputDelta};
 
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
@@ -189,6 +189,12 @@ pub trait Module: Send + Sync + 'static {
     /// The last word on the text of a worker's report before its parent
     /// reads it (outside text marked as data). Must not block.
     fn shape_report(&self, _worker_id: &str, _text: &mut String) {}
+
+    /// Notes for the model to read with a turn that is about to start. The
+    /// session waits for them only briefly: what comes later is not sent.
+    fn turn_notes(&self, _turn: &NoteTurn) -> BoxFuture<'_, Vec<String>> {
+        done(Vec::new())
+    }
 
     /// The app is built (routes registered): start timers and watchers.
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
@@ -406,6 +412,18 @@ impl Modules {
         for module in self.running() {
             Self::guarded(module.as_ref(), "shape_report", || module.shape_report(worker_id, text));
         }
+    }
+
+    /// Every running module's notes for a turn, in composition order.
+    pub fn turn_notes(&self, turn: NoteTurn) -> BoxFuture<'static, Vec<String>> {
+        let modules: Vec<Arc<dyn Module>> = self.running().cloned().collect();
+        Box::pin(async move {
+            let mut notes = Vec::new();
+            for module in modules {
+                notes.extend(module.turn_notes(&turn).await);
+            }
+            notes
+        })
     }
 
     /// Tells every module a worker's session process is over.

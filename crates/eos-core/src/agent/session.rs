@@ -63,6 +63,18 @@ pub struct LaunchSpec {
     pub folder_mcp: bool,
 }
 
+/// A turn about to start, for the notes features put in front of the model
+/// with it ([`LaunchSpec::notes`] at a start, [`AgentSession::note`] before a
+/// message).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteTurn {
+    pub worker_id: String,
+    /// What the user (or the parent agent) says; never logged.
+    pub message: Option<String>,
+    /// The session starts with this turn.
+    pub start: bool,
+}
+
 impl LaunchSpec {
     /// A top-level worker in `cwd` with nothing else set.
     pub fn new(worker_id: impl Into<String>, cwd: impl Into<String>, model: impl Into<String>) -> Self {

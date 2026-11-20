@@ -11,7 +11,7 @@ use std::sync::Arc;
 use eos_contracts::stream::topics::{WORKER_CHANGE, WORKER_SPAWN};
 use eos_contracts::{FOCUSED_ROLE, NameSource, SessionFactsRole, WorkerEventType, WorkerState};
 use eos_core::Error;
-use eos_core::agent::{LaunchSpec, PromptAssembler, SpawnFacts};
+use eos_core::agent::{LaunchSpec, NoteTurn, PromptAssembler, SpawnFacts};
 use eos_core::git::{WorktreeCreate, WorktreeCreated};
 use eos_core::store::{NewWorker, WorktreeRemoval};
 use eos_domain::Worker;
@@ -404,6 +404,12 @@ impl Sessions {
         let system_prompt = system_prompt(&deps.prompts, &facts).await;
         let mut launch = launch_of(&facts, cwd, system_prompt, self.fit_of(&facts.model));
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
+        let turn = NoteTurn {
+            worker_id: id.clone(),
+            message: Some(request.prompt.clone()).filter(|p| !p.trim().is_empty()),
+            start: true,
+        };
+        launch.notes = self.notes_in_time(turn).await;
         deps.hooks.shape_launch(&mut launch);
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
             tracing::warn!(worker_id = %id, error = %e, "a worker's session did not start");

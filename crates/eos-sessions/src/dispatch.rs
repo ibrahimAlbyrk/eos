@@ -8,7 +8,7 @@
 use eos_contracts::ViewAction;
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_contracts::{WorkerEventType, WorkerState};
-use eos_core::agent::{UserMessage, UserMessages};
+use eos_core::agent::{NoteTurn, UserMessage, UserMessages};
 use eos_core::store::{NewQueuedMessage, Outbox, Tx};
 use eos_core::{BoxFuture, Error};
 use eos_domain::Worker;
@@ -388,7 +388,15 @@ impl Sessions {
             Plan::Send { outgoing, claim, telling } => (outgoing, claim, telling),
         };
         let sent = match session {
-            Some(session) => session.send(outgoing).await.map_err(|e| e.to_string()),
+            Some(session) => {
+                let turn = NoteTurn { worker_id: id.clone(), message: Some(input.text.clone()), start: false };
+                for note in self.notes_in_time(turn).await {
+                    if let Err(e) = session.note(note) {
+                        tracing::warn!(worker_id = %id, error = %e, "a note for the model was not taken");
+                    }
+                }
+                session.send(outgoing).await.map_err(|e| e.to_string())
+            }
             None => Err("no live session".to_owned()),
         };
         drop(place);

@@ -29,7 +29,7 @@ pub use host::{
 pub use oneshot::{OneShot, OneShotAnswer, OneShotError, OneShotRequest};
 pub use session::{
     AgentRuntime, AgentSession, BackgroundTaskKind, BackgroundTaskUpdate, CompactionNotice, CompactionWords,
-    LaunchSpec, ModelSwitch, Rewound, SessionError, SessionSink, TaskOutcome,
+    LaunchSpec, ModelSwitch, NoteTurn, Rewound, SessionError, SessionSink, TaskOutcome,
 };
 
 use std::path::Path;

@@ -43,6 +43,7 @@ mod compaction;
 mod control;
 mod dispatch;
 mod features;
+mod notes;
 mod peers;
 mod reactions;
 mod report;
@@ -61,6 +62,6 @@ pub use control::{KILL_GRACE_MS, ModeSet, ModelOutcome, ModelSet, Recalled, Remo
 pub use dispatch::{Dispatched, MessageInput};
 pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
 pub use report::Reported;
-pub use service::{NoHooks, SessionDeps, SessionHooks, Sessions};
+pub use service::{NOTES_WAIT_MS, NoHooks, SessionDeps, SessionHooks, Sessions};
 pub use spawn::{SpawnRequest, Spawned};
 pub use transition::{Transition, transition_state};
