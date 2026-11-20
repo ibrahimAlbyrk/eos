@@ -97,6 +97,8 @@ pub enum StartError {
     /// 409: everything routines may spend today is spent; the user may
     /// raise today's cap.
     DayCap,
+    /// 409: the user stopped everything on this Mac (03 G10).
+    Halted,
     Store(Error),
 }
 

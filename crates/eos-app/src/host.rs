@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::UiConfigResponseFeatures;
 use eos_core::accounts::Browser;
-use eos_core::os::{HoldReason, LocalTime, ProcessStats, TimeZone, WorkHold, ZoneRules};
+use eos_core::os::{HoldReason, LocalTime, Power, PowerStatus, ProcessStats, TimeZone, WorkHold, ZoneRules};
 use eos_core::shell::{Location, PositionError, PositionFix};
 use eos_core::{BoxFuture, Clock};
 use eos_platform::{Argv, LocationFailure};
@@ -135,6 +135,24 @@ impl ZoneRules for HostZoneRules {
 
     fn local_name(&self) -> String {
         HostTimeZone.name()
+    }
+}
+
+/// The power source and Low Power Mode, asked of the system at most once a
+/// minute on the app's clock.
+pub(crate) struct HostPower {
+    pub(crate) cache: eos_platform::PowerCache,
+    pub(crate) clock: Arc<dyn Clock>,
+}
+
+impl Power for HostPower {
+    fn status(&self) -> PowerStatus {
+        let reading = self.cache.status(self.clock.now_ms());
+        PowerStatus {
+            on_battery: reading.on_battery,
+            battery_percent: reading.battery_percent,
+            low_power: reading.low_power,
+        }
     }
 }
 

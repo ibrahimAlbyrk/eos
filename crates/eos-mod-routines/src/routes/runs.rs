@@ -180,6 +180,7 @@ pub(crate) fn start_refused(refused: StartError) -> Result<Response, ApiError> {
         )),
         StartError::NewerFormat => Err(newer_format()),
         StartError::DayCap => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
+        StartError::Halted => Err(ApiError::coded(409, "Eos is stopped", "halted")),
         StartError::UnknownRoutine(id) => Err(Error::not_found("routine", id).into()),
         StartError::Invalid(text) => Err(ApiError::Validation(format!("invalid request: {text}"))),
         StartError::Store(error) => Err(error.into()),

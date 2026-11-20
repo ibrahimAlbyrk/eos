@@ -1,8 +1,9 @@
 //! The run engine: starting runs (`start`), the supervisor that takes them
 //! out of the queue (`supervisor`), the brief station that starts a run's
 //! lead (`brief`), what the lead's tools do (`exec`), what happens when the
-//! lead goes quiet or its session dies (`idle`) and stopping runs
-//! (`cancel`). Every move of a run is one write job that adds the move to
+//! lead goes quiet or its session dies (`idle`), stopping runs
+//! (`cancel`) and stopping every run at work when the user stops
+//! everything (`halt`). Every move of a run is one write job that adds the move to
 //! the run's timeline and announces it on `run:change` from the job's
 //! outbox.
 
@@ -15,6 +16,7 @@ mod control;
 mod exec;
 mod gate;
 mod grants;
+mod halt;
 mod idle;
 mod launch;
 mod lifecycle;
@@ -36,6 +38,7 @@ pub(crate) use check::holds;
 pub(crate) use control::{Control, announce as announce_routine, confirmed_in};
 pub(crate) use exec::Tools;
 pub(crate) use grants::Grants;
+pub(crate) use halt::hear as hear_halt;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use lifecycle::{delete, keep, live, row, set_state, undelete};
@@ -57,7 +60,7 @@ use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::{OneShot, ScratchFolders};
 use eos_core::capability::CapabilityReads;
 use eos_core::git::{ProjectKeys, RemoteSync};
-use eos_core::os::{TimeZone, ZoneRules};
+use eos_core::os::{Power, TimeZone, ZoneRules};
 use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -122,6 +125,10 @@ pub(crate) struct Engine {
     pub(crate) activity: Mutex<HashMap<String, i64>>,
     /// Ends a run's sessions once the run has ended.
     pub(crate) ended: Mutex<Option<Subscription>>,
+    /// Ends the runs at work when the user stops everything.
+    pub(crate) halt: Mutex<Option<Subscription>>,
+    /// The power source: triggered runs wait on a low battery.
+    pub(crate) power: Arc<dyn Power>,
     /// The time zones the system knows, for a blueprint's schedules.
     pub(crate) zones: Arc<dyn ZoneRules>,
     /// The user's clock, for the day spend is booked on.
@@ -347,6 +354,7 @@ pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
 /// is free once the app shuts down.
 pub(crate) async fn stop_supervisor(engine: &Engine) {
     drop(Engine::locked(&engine.ended).take());
+    drop(Engine::locked(&engine.halt).take());
     drop(Engine::locked(&engine.usage).take());
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {

@@ -100,6 +100,9 @@ fn queue(
 ) -> Result<Vec<RunCreated>, StartError> {
     let routine =
         tx.routines().find(&new.routine_id)?.ok_or_else(|| StartError::UnknownRoutine(new.routine_id.clone()))?;
+    if tx.inbox_halt().get()?.on {
+        return Err(StartError::Halted);
+    }
     if !takes_origin(routine.state, &new.origin) {
         return Err(StartError::RoutineState(routine.state));
     }
