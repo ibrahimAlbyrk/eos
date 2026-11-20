@@ -14,6 +14,15 @@ mod targets;
 pub(crate) use apply::DRAFT_PRODUCER;
 pub use apply::TARGET_REFUSED;
 
+/// What a run's draft is about: the run's item without its version
+/// (`github:pr:acme/game#482`, not `…#482@<sha>`), so a draft of a newer
+/// version replaces it and `signals:subject` finds it (03 G1). The send
+/// itself still goes to the item at its version.
+pub(crate) fn subject_of(item_key: &str, version: Option<&str>) -> String {
+    let bare = version.and_then(|version| item_key.strip_suffix(version)?.strip_suffix('@'));
+    bare.unwrap_or(item_key).to_owned()
+}
+
 use std::sync::Arc;
 
 use eos_core::delivery::Channels;
