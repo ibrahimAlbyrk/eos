@@ -52,6 +52,22 @@ async fn a_send_that_cannot_be_undone_waits_ten_seconds_and_stop_opens_the_draft
 }
 
 #[tokio::test]
+async fn a_stopped_send_of_an_edited_draft_opens_it_with_the_edit_that_was_sent() {
+    let held = Held::through(pull_requests(), mail_like()).await;
+    let saved = crate::gate::review("Saved before.");
+    let item = held.rig.items.save_draft(&held.item_id, 1, &saved).await.expect("saved");
+    let edited = crate::gate::review("Sent this way.");
+    let rows =
+        held.rig.items.send(&held.item_id, item.rev, Some(edited.clone()), "dashboard", false).await.expect("sent");
+
+    held.rig.items.stop_delivery(&rows[0].id).await.expect("stopped");
+    let item = held.rig.find(&held.item_id).await;
+    let working: eos_contracts::ResultDoc =
+        serde_json::from_str(item.working.as_deref().expect("a working doc")).expect("json");
+    assert_eq!((item.state, working), (ItemState::Open, edited));
+}
+
+#[tokio::test]
 async fn stopping_one_target_while_another_went_out_opens_the_draft_for_the_stopped_one_only() {
     let mut confirmed = pull_requests();
     let other: eos_contracts::Recipient = serde_json::from_value(serde_json::json!({"id": "pr2",
