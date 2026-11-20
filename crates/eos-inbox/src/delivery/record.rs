@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use super::{
     AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, target_of, target_value,
 };
-use crate::gate::DRAFT_PRODUCER;
+use crate::gate::{DRAFT_PRODUCER, subject_of};
 use crate::items::open_replacing_in;
 use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
@@ -282,7 +282,10 @@ pub(crate) fn hold_again_in(
 ) -> Result<(), Error> {
     let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
     let run = tx.runs().find(&row.run_id)?;
-    let subject_key = run.as_ref().and_then(|run| run.item_key.clone());
+    // The version the run's result was made on, kept as the gate keeps it.
+    let input: Value = run.as_ref().and_then(|run| serde_json::from_str(&run.input).ok()).unwrap_or(Value::Null);
+    let version = input["item"]["version"].clone();
+    let subject_key = run.as_ref().and_then(|run| run.item_key.as_deref()).map(|key| subject_of(key, version.as_str()));
     let mut targets = Vec::new();
     if let Some(subject) = &subject_key {
         let held = tx.inbox_items().waiting_with_subject(subject)?;
@@ -304,8 +307,10 @@ pub(crate) fn hold_again_in(
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
         summary: again.summary().to_owned(),
         payload: match again {
-            Again::Stale(reason) => json!({ "doc": doc, "staleReason": reason, "targets": targets }),
-            Again::TooOld | Again::Stopped => json!({ "doc": doc, "targets": targets }),
+            Again::Stale(reason) => {
+                json!({ "doc": doc, "staleReason": reason, "targets": targets, "subjectVersion": version })
+            }
+            Again::TooOld | Again::Stopped => json!({ "doc": doc, "targets": targets, "subjectVersion": version }),
         },
         by_hand: false,
     };

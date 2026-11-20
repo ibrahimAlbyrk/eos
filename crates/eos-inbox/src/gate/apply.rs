@@ -15,8 +15,8 @@ use eos_domain::outbound::{self, Flag, OutboundContext};
 use eos_domain::run_scope::Trust;
 use serde_json::{Map, Value, json};
 
-use super::Gate;
 use super::targets::{Chosen, Targets, choose, with_recipients};
+use super::{Gate, subject_of};
 use crate::delivery::{NewDelivery, queue_in, target_value};
 use crate::items::{ALERT_PRODUCER, open_replacing_in};
 use crate::outcomes::replaced_in;
@@ -164,7 +164,7 @@ fn hold_in(
         producer: DRAFT_PRODUCER.to_owned(),
         routine_id: Some(input.routine_id.clone()),
         run_id: Some(input.run_id.clone()),
-        subject_key: input.subject_key.clone(),
+        subject_key: input.subject_key.as_deref().map(|key| subject_of(key, input.item_facts["version"].as_str())),
         title: run.headline.clone().unwrap_or_else(|| "A result to send".to_owned()),
         summary: "It waits for you to send it.".to_owned(),
         payload: json!({
