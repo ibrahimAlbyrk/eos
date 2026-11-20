@@ -15,7 +15,7 @@ use eos_contracts::{
 };
 use eos_core::Error;
 use eos_core::os::ZoneRules;
-use eos_core::store::{StoredRoutine, StoredVersion, Tx};
+use eos_core::store::{Outbox, StoredRoutine, StoredVersion, Tx};
 use eos_domain::config::price_for_model;
 use eos_domain::routine::blueprint::{self, Context, Readable, Severity, canonical_json, hash};
 use eos_domain::routine::limits::{RUN_AT_LEAST_USD, RUN_ESTIMATE_TIMES, fill_defaults, per_run_usd};
@@ -26,6 +26,7 @@ use serde_json::Value;
 use super::Engine;
 use super::control::announce;
 use super::lifecycle::{live, row};
+use crate::patterns::ItemPatterns;
 use crate::routes::{gone, readable, showing_version};
 
 /// What a write refused for a routine whose version was made by a newer
@@ -255,7 +256,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
     let saved = engine
         .store
         .write(move |tx, out| {
-            let routine = live(tx, &id)?;
+            live(tx, &id)?;
             let shown = showing_version(tx, &id)?.ok_or_else(|| Error::not_found("routine", &id))?;
             if base.as_ref().is_some_and(|base| *base != shown.id) {
                 return Err(Error::Conflict("the routine changed since this edit began".into()));
@@ -267,32 +268,65 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
             if blocks(&issues) {
                 return Ok(Saved::Refused(issues));
             }
-            let draft = routine.state == RoutineState::Draft;
-            let version = NewVersion {
-                id: &version_id,
+            let added = Added {
                 routine_id: &id,
-                parent_id: Some(shown.id),
-                status: if draft { VersionStatus::Draft } else { VersionStatus::Kept },
+                version_id: &version_id,
                 author,
                 note,
                 prepared: &prepared,
                 device: &device,
                 now,
+                patterns: &patterns,
             };
-            insert_version(tx, version)?;
-            if !draft {
-                tx.routines().set_head(&id, &version_id, now)?;
-            }
-            if routine.name != prepared.blueprint.name {
-                tx.routines().set_name(&id, &prepared.blueprint.name, now)?;
-            }
-            tracing::info!(routine_id = %id, version_id = %version_id, author = ?author, "a routine got a new version");
-            announce(tx, out, &id, RoutineChangeReason::Version, now, &patterns)?;
+            add_in(tx, out, added)?;
             Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now, &patterns)?, version_id, warnings: issues })))
         })
         .await?;
     engine.wake.notify_one();
     Ok(saved)
+}
+
+/// A new version of a live routine from the version it shows.
+pub(crate) struct Added<'a> {
+    pub(crate) routine_id: &'a str,
+    pub(crate) version_id: &'a str,
+    pub(crate) author: VersionAuthor,
+    pub(crate) note: Option<String>,
+    pub(crate) prepared: &'a Prepared,
+    pub(crate) device: &'a str,
+    pub(crate) now: i64,
+    pub(crate) patterns: &'a ItemPatterns,
+}
+
+/// Writes `added` as the routine's head, or while the routine is a draft,
+/// its newest draft, and announces it. Answers whether it was kept as the
+/// head.
+pub(crate) fn add_in(tx: &dyn Tx, out: &mut Outbox, added: Added<'_>) -> Result<bool, Error> {
+    let Added { routine_id, version_id, author, note, prepared, device, now, patterns } = added;
+    let routine = live(tx, routine_id)?;
+    let shown = showing_version(tx, routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))?;
+    let kept = routine.state != RoutineState::Draft;
+    let version = NewVersion {
+        id: version_id,
+        routine_id,
+        parent_id: Some(shown.id),
+        status: if kept { VersionStatus::Kept } else { VersionStatus::Draft },
+        author,
+        note,
+        prepared,
+        device,
+        now,
+    };
+    insert_version(tx, version)?;
+    if kept {
+        tx.routines().set_head(routine_id, version_id, now)?;
+    }
+    if routine.name != prepared.blueprint.name {
+        tx.routines().set_name(routine_id, &prepared.blueprint.name, now)?;
+    }
+    tracing::info!(routine_id, version_id, author = ?author, "a routine got a new version");
+    announce(tx, out, routine_id, RoutineChangeReason::Version, now, patterns)?;
+    Ok(kept)
 }
 
 /// The stored blueprint of one of a live routine's versions, as it is kept.

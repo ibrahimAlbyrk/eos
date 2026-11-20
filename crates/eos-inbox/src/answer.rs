@@ -50,6 +50,16 @@ pub(crate) fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Chec
     }
 }
 
+/// A question whose asker waits is acted on by that asker, so it is marked
+/// in the answering job: the routines tell its answer only to a run whose
+/// asker is gone.
+fn heard_in(tx: &dyn Tx, waiters: &QuestionWaiters, item: &StoredItem, now: i64) -> Result<(), eos_core::Error> {
+    if item.kind == ItemKind::Question && waiters.waits(&item.id) {
+        consume_in(tx, &item.id, now)?;
+    }
+    Ok(())
+}
+
 /// Answers the item in one statement guarded by state and rev.
 pub(crate) fn answer_in(
     tx: &dyn Tx,
@@ -160,6 +170,7 @@ impl Items {
         let typed = answer.clone();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
         let (id, run_outcomes, control) = (id.to_owned(), self.outcomes.clone(), self.control.clone());
+        let waiters = self.waiters.clone();
         // A refused resume rolls the whole answer back; it comes out here.
         let refused = Arc::new(OnceLock::new());
         let refusal = refused.clone();
@@ -183,6 +194,7 @@ impl Items {
                     Ok(item) => item,
                     Err(refused) => return Ok(Err(refused)),
                 };
+                heard_in(tx, &waiters, &item, now)?;
                 let changed = match &typed {
                     InboxAnswer::DeliveryProblem { choice, doc } => {
                         let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
@@ -233,7 +245,7 @@ impl Items {
     pub async fn discard(&self, id: &str, rev: i64, by: &str) -> Result<StoredItem, Error> {
         let now = self.clock.now_ms();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(DISCARDED.to_owned()), at: now };
-        let (id, run_outcomes) = (id.to_owned(), self.outcomes.clone());
+        let (id, run_outcomes, waiters) = (id.to_owned(), self.outcomes.clone(), self.waiters.clone());
         let item = self
             .store
             .write(move |tx, out| {
@@ -241,6 +253,7 @@ impl Items {
                     Ok(item) => item,
                     Err(refused) => return Ok(Err(refused)),
                 };
+                heard_in(tx, &waiters, &item, now)?;
                 if item.kind == ItemKind::Draft {
                     consume_in(tx, &item.id, now)?;
                     let ended = Ended { item: &item, delivery_id: None, outcome: Outcome::Discarded, at: now };

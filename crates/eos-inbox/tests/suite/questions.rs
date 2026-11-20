@@ -109,6 +109,8 @@ async fn a_run_question_waits_in_needs_you_and_its_answer_reaches_the_asker() {
     assert!(asking.user.asked.lock().expect("asked").is_empty(), "the chat's path is not taken");
 
     asking.rig.items.answer(&item.id, item.rev, &choose("dev"), "phone").await.expect("answers");
+    // Marked in the answering job: the routines never see a race with the asker.
+    assert!(asking.rig.find(&item.id).await.consumed_at.is_some());
     let heard = asker.await.expect("the asker ends").expect("answers");
     assert_eq!(heard.get("Which branch?"), Some(&Value::String("dev".into())));
     // The asker heard it: nothing is left for the routines to act on.

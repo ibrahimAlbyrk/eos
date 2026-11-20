@@ -7,20 +7,22 @@
 //! the brief station then starts its lead, one run after the other, before
 //! the next pass. A run from a trigger is skipped while its routine's or
 //! everything's day budget is spent, and waits while the plan has no
-//! headroom or the battery is low; nothing leaves the queue while the user
+//! headroom or the battery is low; one of a routine at the rung Ask waits
+//! for the user's yes (`handoffs`). Nothing leaves the queue while the user
 //! has stopped everything. Each turn of the loop also holds working runs to
 //! their time and suspends the architects that went idle.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use eos_contracts::RoutineState;
+use eos_contracts::{RoutineState, Rung};
 use eos_core::Error;
 use eos_core::os::PowerStatus;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 
-use super::{Engine, brief, budget, move_run};
+use super::control::confirmed_in;
+use super::{Engine, brief, budget, handoffs, move_run};
 use crate::routes::{readable, showing_version};
 
 /// The longest the supervisor sleeps without being woken.
@@ -85,6 +87,9 @@ struct Allowed {
     /// What its runs may spend a day.
     per_day_usd: f64,
     version_id: Option<String>,
+    /// The user confirmed the rung Ask: a run from a trigger waits for
+    /// their yes before it starts (03 G13).
+    asks: bool,
 }
 
 /// What one pass did: when the next run that waits for its time is due, and
@@ -148,6 +153,9 @@ fn pass(
             if day.plan_busy || low_battery {
                 continue;
             }
+            if routine.asks && !handoffs::may_start_in(engine, tx, out, &run, now)? {
+                continue;
+            }
         }
         let working = busy.entry(run.routine_id.clone()).or_default();
         if *working >= routine.parallel {
@@ -177,7 +185,7 @@ fn skip(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, now: i64) -> Result<(), 
     skip_for(tx, out, run, Reason::User, now)
 }
 
-fn skip_for(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, reason: Reason, now: i64) -> Result<(), Error> {
+pub(crate) fn skip_for(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, reason: Reason, now: i64) -> Result<(), Error> {
     let skipped = RunMove { state: RunState::Skipped, station: None, reason: Some(reason), at: now };
     move_run(tx, out, run, skipped)?;
     let reason = reason.as_str();
@@ -215,7 +223,18 @@ fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
             None
         }
     };
+    // Nothing confirmed asks nothing; a confirmed version that cannot be
+    // read must not stop the queue for every other routine either.
+    let asks = match confirmed_in(tx, routine_id) {
+        Ok(confirmed) => confirmed.freedom.rung == Rung::Ask,
+        Err(Error::NotFound { .. }) => false,
+        Err(error) => {
+            tracing::warn!(routine_id, %error, "a routine's confirmed version could not be read");
+            false
+        }
+    };
     Ok(Allowed {
+        asks,
         state,
         parallel: blueprint.as_ref().map_or(1, |blueprint| blueprint.limits.parallel.max(1)),
         per_day_usd: blueprint.as_ref().map_or(f64::INFINITY, |blueprint| blueprint.limits.per_day_usd.0),

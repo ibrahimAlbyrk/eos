@@ -10,6 +10,7 @@ mod control;
 mod failures;
 mod gate;
 mod halt;
+mod handoffs;
 mod intent;
 mod isolation;
 mod ports;

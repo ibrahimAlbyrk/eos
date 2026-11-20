@@ -18,6 +18,7 @@ mod failures;
 mod gate;
 mod grants;
 mod halt;
+mod handoffs;
 mod idle;
 mod launch;
 mod lifecycle;
@@ -40,6 +41,7 @@ pub(crate) use control::{Control, announce as announce_routine, confirmed_in};
 pub(crate) use exec::Tools;
 pub(crate) use grants::Grants;
 pub(crate) use halt::hear as hear_halt;
+pub(crate) use handoffs::hear as hear_answers;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use lifecycle::{delete, keep, live, row, set_state, undelete};
@@ -129,6 +131,10 @@ pub(crate) struct Engine {
     pub(crate) ended: Mutex<Option<Subscription>>,
     /// Ends the runs at work when the user stops everything.
     pub(crate) halt: Mutex<Option<Subscription>>,
+    /// Acts on the user's answers to the routines' items.
+    pub(crate) handoffs: Mutex<Option<Subscription>>,
+    /// One pass over those answers at a time.
+    pub(crate) handing: tokio::sync::Mutex<()>,
     /// The power source: triggered runs wait on a low battery.
     pub(crate) power: Arc<dyn Power>,
     /// The time zones the system knows, for a blueprint's schedules.
@@ -366,6 +372,7 @@ pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
 pub(crate) async fn stop_supervisor(engine: &Engine) {
     drop(Engine::locked(&engine.ended).take());
     drop(Engine::locked(&engine.halt).take());
+    drop(Engine::locked(&engine.handoffs).take());
     drop(Engine::locked(&engine.usage).take());
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {

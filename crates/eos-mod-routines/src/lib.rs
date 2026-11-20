@@ -42,6 +42,12 @@
 //! own write; Needs you reports
 //! what became of it through [`RunOutcomes`].
 //!
+//! A run from a trigger of a routine whose confirmed rung is Ask waits in
+//! the queue on a `run_start` item until the user says run or skip. The
+//! user's answers to the routines' items (`run_start`, `confirm_change`,
+//! `suggestion`, and a `question` whose asker is gone) are acted on at start
+//! and on `inbox:change`, each in a write job that marks it consumed.
+//!
 //! What each of a run's agents is doing goes out on `run:activity`, one
 //! line a second per run at most, to the tabs that show the run.
 //!
@@ -211,6 +217,8 @@ impl RoutinesModule {
             activity: Mutex::new(HashMap::new()),
             ended: Mutex::new(None),
             halt: Mutex::new(None),
+            handoffs: Mutex::new(None),
+            handing: tokio::sync::Mutex::new(()),
             power,
             zones,
             data_dir,
@@ -327,6 +335,7 @@ impl Module for RoutinesModule {
             // A halt switched on before Eos quit ends the runs it would pick up.
             engine::hear_halt(&self.engine).await?;
             engine::recover(&self.engine).await?;
+            engine::hear_answers(&self.engine).await;
             engine::start_supervisor(&self.engine);
             Ok(())
         })
