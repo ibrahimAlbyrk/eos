@@ -245,6 +245,13 @@ pub trait InboxRepo {
     /// draft whose send the user stopped in its hold); `false` when it is
     /// not answered.
     fn reopen(&self, id: &str, at: i64) -> Result<bool, Error>;
+    /// The open items that may interrupt and have not, made at or after
+    /// `created_from`, oldest first.
+    fn unnotified(&self, created_from: i64) -> Result<Vec<StoredItem>, Error>;
+    /// How many items interrupted at or after `since`.
+    fn notified_since(&self, since: i64) -> Result<i64, Error>;
+    /// Records that the item interrupted; `false` when it already had.
+    fn set_notified(&self, id: &str, at: i64) -> Result<bool, Error>;
     /// Deletes up to `limit` items that ended (answered or closed) and were
     /// last written before `before`; how many.
     fn delete_ended_before(&self, before: i64, limit: i64) -> Result<usize, Error>;

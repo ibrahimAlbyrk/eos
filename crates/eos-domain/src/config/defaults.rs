@@ -187,5 +187,10 @@ pub(super) fn defaults(host: &Host) -> Value {
     );
     put("genui", json!({}));
     put("github", json!({ "clientId": env.text("EOS_GITHUB_CLIENT_ID", DEFAULT_GITHUB_CLIENT_ID) }));
+    // D11: quiet at night, a count of what waits twice a day.
+    put(
+        "attention",
+        json!({ "quietOn": true, "quietFrom": "22:00", "quietTo": "08:00", "digests": ["09:00", "17:00"], "interrupts": "all" }),
+    );
     Value::Object(out)
 }

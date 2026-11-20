@@ -120,6 +120,13 @@ impl TimeZone for HostTimeZone {
     }
 }
 
+/// The Dock icon until the shell hands in its own: shows nothing.
+pub(crate) struct NoDockBadge;
+
+impl eos_core::os::DockBadge for NoDockBadge {
+    fn set(&self, _count: Option<u32>) {}
+}
+
 /// Every time zone the system knows, from its zone files.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct HostZoneRules;

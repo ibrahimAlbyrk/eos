@@ -44,12 +44,16 @@
 //! - The sweeper ([`Items::sweep`]) expires items whose time ran out, opens
 //!   again the ones put off, and deletes those that ended 90 days ago.
 //!
+//! - [`attention::Notifier`] interrupts sparingly, keeps quiet hours, sends
+//!   digests and keeps the Dock badge on the open count.
+//!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
 //! and counts are logged.
 
 mod alerts;
 mod answer;
+pub mod attention;
 mod control;
 pub mod delivery;
 mod edits;

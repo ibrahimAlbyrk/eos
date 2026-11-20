@@ -7,7 +7,8 @@
 //!
 //! | Service | Off the network |
 //! |---|---|
-//! | The phone's relay, and the wake-up pushes it would carry | never dialled |
+//! | The phone's relay | never dialled |
+//! | Wake-up pushes to the phone (`PhoneNotify`) | every push answers `LinkOff`; nothing is dialled |
 //! | Paired computers | no listener, no dial |
 //! | Sync | its vault refuses every call: nothing is pulled or pushed |
 //! | The update feed | updates are off |
@@ -34,7 +35,7 @@ use eos_contracts::update::UpdateOffReason;
 use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
 use eos_core::capability::CapabilitySecrets;
 use eos_core::delivery::Channels;
-use eos_core::net::relay::Relay;
+use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome as PhonePushOutcome, Relay};
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::signals::{
     FactDecl, PollPage, PollRequest, PushEvent, PushOutcome, Scope, SignalSource, SignalSources, SourceError,
@@ -66,6 +67,12 @@ impl Reach {
 
     pub(crate) fn relay(self, relay: Option<Arc<dyn Relay>>) -> Option<Arc<dyn Relay>> {
         relay.filter(|_| self.network)
+    }
+
+    /// How the user's phone is woken: off the network nobody is asked, and
+    /// every push answers that the link is off.
+    pub(crate) fn phone_notify(self, notify: Arc<dyn PhoneNotify>) -> Arc<dyn PhoneNotify> {
+        if self.network { notify } else { Arc::new(NoPush) }
     }
 
     /// Whether paired computers may be listened for and dialled.
@@ -218,6 +225,15 @@ impl SignalSource for OffSource {
 
     fn accept_push(&self, _scope: &Scope, _event: &PushEvent) -> Result<PushOutcome, SourceError> {
         Err(SourceError::Off)
+    }
+}
+
+/// Pushes that go nowhere.
+struct NoPush;
+
+impl PhoneNotify for NoPush {
+    fn push(&self, _push: PhonePush) -> BoxFuture<'_, Result<PhonePushOutcome, Error>> {
+        Box::pin(std::future::ready(Ok(PhonePushOutcome::LinkOff)))
     }
 }
 
@@ -419,6 +435,17 @@ mod tests {
         let on = Reach::new(true).signal_sources(sources).get("github.pulls").expect("the source");
         assert!(on.poll(request).await.is_ok());
         assert_eq!(fake.requests().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn off_the_network_a_phone_push_answers_link_off_and_dials_nothing() {
+        let phone = Arc::new(eos_testkit::relay::FakePhoneNotify::new());
+        let push = PhonePush { kind: eos_core::net::relay::PushKind::NeedsYou, count: 2 };
+        let off = Reach::new(false).phone_notify(phone.clone());
+        assert_eq!(off.push(push).await, Ok(PhonePushOutcome::LinkOff));
+        assert!(phone.pushes().is_empty(), "nothing was asked of the relay");
+        assert!(Reach::new(true).phone_notify(phone.clone()).push(push).await.is_ok());
+        assert_eq!(phone.pushes(), [push]);
     }
 
     #[test]

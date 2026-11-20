@@ -2,6 +2,7 @@
 //! routes over one delivery are in [`deliveries`], the halt switch's in
 //! [`halt`].
 
+mod attention;
 mod deliveries;
 mod halt;
 
@@ -322,5 +323,6 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
     .into_iter()
     .chain(deliveries::all(shared))
     .chain(halt::all(shared))
+    .chain(attention::all(shared))
     .collect()
 }

@@ -270,6 +270,8 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/settings"),
     ("PUT", "/api/settings/archive"),
     ("PUT", "/api/settings/compaction"),
+    // When Needs you may interrupt: quiet hours, digests, `config.json`'s `attention`.
+    ("PUT", "/api/settings/attention"),
     // Renders a prompt; no model is asked.
     ("POST", "/api/prompts/preview"),
     // Visual answers: a view or an app an agent presents, its state, a place lookup on the
