@@ -3,7 +3,7 @@
 //!
 //! The binary calls [`run`] with its [`Options`] and [`Hooks`]; the shell owns the process
 //! from there: single instance, the window (shown or kept hidden as the launch decides,
-//! `eos_bridge::launch`) and its menu, the dashboard view with the
+//! `eos_bridge::launch`) and its menu, the menu-bar item, the dashboard view with the
 //! in-process handler of the app's own origin, child views for the core, and quitting.
 
 mod app;
@@ -15,6 +15,7 @@ mod native;
 mod probe;
 mod scheme;
 mod splash;
+mod tray;
 mod views;
 mod window;
 
@@ -30,6 +31,7 @@ use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
 
 pub use crate::app::SignInWindows;
 pub use crate::probe::Probe;
+pub use crate::tray::{MenuState, NextRun};
 
 /// How the shell is started.
 #[derive(Debug, Clone)]
@@ -76,6 +78,8 @@ pub struct Options {
     /// Whether this app may be a login item (Start at login): the installed app only. A
     /// test or dev run has another identity and never registers one.
     pub login_item: bool,
+    /// A development or test run: its menu-bar item says "(dev)", beside the installed app's.
+    pub dev_run: bool,
 }
 
 /// What the shell offers the core.
@@ -95,6 +99,8 @@ pub struct Ports {
     pub work_hold: Arc<dyn WorkHold>,
     /// The number on the app's Dock icon.
     pub dock_badge: Arc<dyn DockBadge>,
+    /// What the menu-bar item shows; the item follows each state handed in.
+    pub menu_state: Arc<dyn Fn(MenuState) + Send + Sync>,
     /// The runtime the shell's own tasks run on.
     pub rt: tokio::runtime::Handle,
     /// Quits the app as its menu does: the shutdown hook runs, then the process exits.

@@ -19,7 +19,7 @@ use eos_bridge::power::WakeDetector;
 use eos_bridge::recovery::{AfterCrash, Recovery};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::window_state::WindowState;
-use eos_bridge::{Bridge, EditCommand, LoginItem, Parts, Service, ShellHost, migrate};
+use eos_bridge::{Bridge, Core, EditCommand, LoginItem, Parts, Plane, Service, ShellHost, migrate};
 use eos_platform::{SCREEN_SAVER_BUNDLE, ScreenSaver};
 use serde_json::{Value, json};
 use tauri::{Manager, RunEvent, WindowEvent};
@@ -33,6 +33,7 @@ use crate::native::activity::Activities;
 use crate::native::dock::DockTile;
 use crate::native::{appkit, dock, launch, notify};
 use crate::splash::Splash;
+use crate::tray::{Action, Tray};
 use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
 use crate::{Hooks, Options, Ports, menu, scheme, window};
@@ -154,6 +155,11 @@ struct Shell {
     unshown: std::sync::Mutex<Option<WindowState>>,
     /// When the dashboard's view is released and made again.
     dashboard_life: Arc<std::sync::Mutex<DashboardLife>>,
+    /// The menu-bar item.
+    tray: Tray,
+    /// The core as the bridge reaches it: the menu-bar item's commands go there too.
+    core: OnceLock<Arc<dyn Core>>,
+    host: OnceLock<Arc<Host>>,
 }
 
 pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
@@ -243,6 +249,9 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         launched_with: request.clone(),
         unshown: std::sync::Mutex::new(None),
         dashboard_life: Arc::new(std::sync::Mutex::new(dashboard_life)),
+        tray: Tray::default(),
+        core: OnceLock::new(),
+        host: OnceLock::new(),
     });
 
     let for_setup = shell.clone();
@@ -251,7 +260,10 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
     let built = tauri::Builder::default()
         .runtime(cef)
         .on_menu_event(move |_app, event| {
-            if let Some(command) = Command::from_id(event.id().as_ref()) {
+            let id = event.id().as_ref();
+            if let Some(action) = Action::from_id(id) {
+                for_menu.tray_action(action);
+            } else if let Some(command) = Command::from_id(id) {
                 for_menu.menu(command);
             }
         })
@@ -320,6 +332,15 @@ impl Shell {
             opener: Arc::new(Opener),
             work_hold: Arc::new(Activities::default()),
             dock_badge: Arc::new(DockTile(app.clone())),
+            menu_state: {
+                let shell = Arc::downgrade(self);
+                Arc::new(move |state| {
+                    if let Some(shell) = shell.upgrade() {
+                        shell.tray.set(state);
+                        shell.draw_tray();
+                    }
+                })
+            },
             rt: self.rt.handle().clone(),
             quit: {
                 let shell = Arc::downgrade(self);
@@ -353,6 +374,7 @@ impl Shell {
         };
 
         let core = self.hooks.core(&ports);
+        let _ = self.core.set(core.clone());
         let seed = migrate::plan(&options.data_dir, options.electron_profile.as_deref(), now_ms());
         if let Some(seed) = &seed {
             log(
@@ -384,6 +406,7 @@ impl Shell {
             now_ms,
         });
         let _ = host.bridge.set(Arc::downgrade(&bridge));
+        let _ = self.host.set(host.clone());
         let _ = self.bridge.set(bridge.clone());
         let artifacts = self.start_artifacts(&views, &bridge);
         self.start_hosts(&views, &bridge, core, host.clone(), artifacts);
@@ -703,6 +726,57 @@ impl Shell {
         }
     }
 
+    /// Draws the menu-bar item as its last state says, with the login item as it is now.
+    fn draw_tray(self: &Arc<Self>) {
+        let shell = self.clone();
+        self.on_main(move || {
+            let (Some(app), Some(host)) = (shell.app.get(), shell.host.get()) else { return };
+            if let Err(e) = shell.tray.draw(app, shell.options.dev_run, host.login_item()) {
+                log("tray", &format!("the menu-bar item was not drawn: {e}"));
+            }
+        });
+    }
+
+    /// A click in the menu-bar item's menu. Runs on the main thread.
+    fn tray_action(self: &Arc<Self>, action: Action) {
+        match action {
+            Action::NeedsYou => {
+                self.show_window();
+                if let Some(bridge) = self.bridge.get() {
+                    bridge.events().emit_or_wait("navigate", json!({ "route": "eos:/needs" }));
+                }
+            }
+            Action::Open => self.show_window(),
+            Action::Halt | Action::Resume => {
+                let Some(core) = self.core.get().cloned() else { return };
+                let path = if action == Action::Halt { "/api/eos/halt" } else { "/api/eos/resume" };
+                self.rt.spawn(async move {
+                    let token = core.ui_token();
+                    match eos_bridge::ask::ask(core.as_ref(), Plane::Api, "POST", path, &token, None).await {
+                        Ok((200, _)) => {}
+                        Ok((status, _)) => log("tray", &format!("{path} answered {status}")),
+                        Err(e) => log("tray", &format!("{path} was not reached: {e}")),
+                    }
+                });
+            }
+            Action::Login => {
+                let Some(host) = self.host.get().cloned() else { return };
+                let shell = self.clone();
+                // The system's calls block for a moment: off the main thread.
+                self.rt.spawn_blocking(move || {
+                    match host.login_item() {
+                        LoginItem::NeedsApproval => host.open_login_items_settings(),
+                        LoginItem::On => drop(host.set_login_item(false)),
+                        LoginItem::Off => drop(host.set_login_item(true)),
+                        LoginItem::Unavailable => {}
+                    }
+                    shell.draw_tray();
+                });
+            }
+            Action::Quit => self.quit(),
+        }
+    }
+
     /// A menu command. Runs on the main thread.
     fn menu(&self, command: Command) {
         let (Some(views), Some(bridge)) = (self.views.get(), self.bridge.get()) else { return };
@@ -860,6 +934,7 @@ impl Shell {
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
             "dockBadge": self.dock_label(),
+            "tray": self.tray.status(self.app.get()),
             "logs": self.options.logs.as_ref().map(|dir| json!({
                 "folder": dir,
                 "files": [eos_kit_log::CORE_LOG, eos_kit_log::SHELL_LOG],
