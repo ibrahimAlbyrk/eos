@@ -85,6 +85,8 @@ fn options(core_home: Option<&Path>) -> Options {
         // The measuring probe drives the dashboard: a dev run only.
         probe: cfg!(feature = "dev-run") && env("EOS_SHELL_PROBE").is_some(),
         dashboard_release_after: dashboard_release_after(),
+        // A test or dev run is another app to the system: it never becomes a login item.
+        login_item: RELEASE,
     }
 }
 

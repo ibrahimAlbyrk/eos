@@ -3,13 +3,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, Weak};
 
-use eos_bridge::{Banner, BannerTarget, Bridge, EditCommand, ShellHost, Theme};
+use eos_bridge::{Banner, BannerTarget, Bridge, EditCommand, LoginItem, ShellHost, Theme};
 use serde_json::{Value, json};
 use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplFrame};
 
 use crate::log::log;
-use crate::native::{appkit, notify};
+use crate::native::{appkit, login, notify};
 use crate::views::Views;
 
 /// The window's background before the first paint, by theme (the dashboard's own colors).
@@ -27,6 +27,8 @@ pub(crate) struct Host {
     pub(crate) bridge: OnceLock<Weak<Bridge>>,
     /// A quiet run makes no sound.
     pub(crate) quiet: bool,
+    /// Whether this app may be a login item (`Options::login_item`).
+    pub(crate) login_item: bool,
 }
 
 /// `worker:<id>` or `route:<name>`, then `@<host>` when a paired computer raised it (a host
@@ -168,6 +170,20 @@ impl ShellHost for Host {
 
     fn downloads_dir(&self) -> PathBuf {
         downloads_folder()
+    }
+
+    fn login_item(&self) -> LoginItem {
+        if self.login_item { login::status() } else { LoginItem::Unavailable }
+    }
+
+    fn set_login_item(&self, on: bool) -> LoginItem {
+        if self.login_item { login::set(on) } else { LoginItem::Unavailable }
+    }
+
+    fn open_login_items_settings(&self) {
+        if self.login_item {
+            login::open_settings();
+        }
     }
 }
 

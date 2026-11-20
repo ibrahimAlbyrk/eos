@@ -15,13 +15,13 @@ use crate::artifacts::ArtifactViews;
 use crate::assets::{Assets, Response};
 use crate::core::{Core, Plane};
 use crate::events::Events;
-use crate::host::{Banner, BannerTarget, EditCommand, ShellHost, Theme};
+use crate::host::{Banner, BannerTarget, EditCommand, LoginItem, ShellHost, Theme};
 use crate::hosts::HostViews;
 use crate::migrate::{Marker, Seed};
 use crate::panel::{Flag, Panel};
 use crate::transport::{Req, Service, Sink};
 use crate::urlspace::{self, Route};
-use crate::{script, token};
+use crate::{doors, script, token};
 
 /// What the bridge is built from.
 pub struct Parts {
@@ -286,7 +286,7 @@ impl Bridge {
                     self.refuse(&sink, 403, "ui token required")
                 };
             }
-            ("POST", _) => {}
+            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM) => {}
             _ => return self.refuse(&sink, 405, "method not allowed"),
         }
         // Everything else acts on this Mac: the dashboard itself only.
@@ -295,11 +295,16 @@ impl Bridge {
         }
         let body: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
         let Some(me) = self.me.upgrade() else { return };
-        let path = path.to_string();
+        let (path, put) = (path.to_string(), req.method == "PUT");
         // Off the request thread: bridges reach into the window and the views.
         self.rt.spawn(async move {
-            let outcome = me.bridge(&path, body).await;
+            // The doors answer their own shape; every other bridge answers `{value}`.
+            let (outcome, bare) = match path.as_str() {
+                LOGIN_ITEM => (me.login_item(put, &body).await, true),
+                _ => (me.bridge(&path, body).await, false),
+            };
             match outcome {
+                Ok(value) if bare => send(&sink, json_response(200, value)),
                 Ok(value) => send(&sink, json_response(200, json!({ "value": value }))),
                 Err(Refusal(status, error)) => {
                     // The bridge's path names the call (`/_shell/…`), never what it carried.
@@ -436,6 +441,38 @@ impl Bridge {
         }
     }
 
+    /// `GET` reads the login item, `PUT {on}` turns it on or off: `{available, state,
+    /// offered}`. Any `PUT` is the user's choice, so the one-time offer is not made again.
+    /// Eos never registers by itself: only a `PUT` changes the login item.
+    async fn login_item(&self, put: bool, body: &Value) -> Outcome {
+        let on =
+            if put { Some(body.get("on").and_then(Value::as_bool).ok_or(Refusal(400, "on required"))?) } else { None };
+        let host = self.host.clone();
+        let state = self
+            .rt
+            .spawn_blocking(move || {
+                let state = match on {
+                    Some(on) if host.login_item() != LoginItem::Unavailable => host.set_login_item(on),
+                    _ => host.login_item(),
+                };
+                // Turned on but held for the user's approval: take them to where they give it.
+                if on == Some(true) && state == LoginItem::NeedsApproval {
+                    host.open_login_items_settings();
+                }
+                state
+            })
+            .await
+            .map_err(|_| Refusal(500, "bridge failed"))?;
+        if put {
+            doors::mark_login_offered(&self.data_dir).map_err(|_| Refusal(500, "doors not written"))?;
+        }
+        Ok(json!({
+            "available": state != LoginItem::Unavailable,
+            "state": state.name(),
+            "offered": doors::login_offered(&self.data_dir),
+        }))
+    }
+
     async fn hosts_call(&self, verb: &str, body: &Value) -> Outcome {
         let Some(hosts) = self.hosts.get() else {
             return match verb {
@@ -539,6 +576,9 @@ impl Service for Bridge {
         }
     }
 }
+
+/// The bridge of the Start at login door (`/_shell/doors/login-item`).
+const LOGIN_ITEM: &str = "doors/login-item";
 
 /// What the page hears when a file could not be written.
 pub(crate) const SAVE_FAILED: &str = "The file could not be saved in Downloads.";

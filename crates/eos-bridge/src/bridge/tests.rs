@@ -34,6 +34,8 @@ struct FakeHost {
     calls: Mutex<Vec<String>>,
     banners: Mutex<Vec<Banner>>,
     downloads: Mutex<PathBuf>,
+    /// The login item as the system would report it.
+    login: Mutex<Option<LoginItem>>,
 }
 
 impl FakeHost {
@@ -81,6 +83,19 @@ impl ShellHost for FakeHost {
     }
     fn downloads_dir(&self) -> PathBuf {
         self.downloads.lock().unwrap().clone()
+    }
+    fn login_item(&self) -> LoginItem {
+        self.login.lock().unwrap().unwrap_or(LoginItem::Off)
+    }
+    fn set_login_item(&self, on: bool) -> LoginItem {
+        self.log(format!("login {on}"));
+        // A first registration waits for the user's approval, as macOS asks for it.
+        let state = if on { LoginItem::NeedsApproval } else { LoginItem::Off };
+        *self.login.lock().unwrap() = Some(state);
+        state
+    }
+    fn open_login_items_settings(&self) {
+        self.log("login settings");
     }
 }
 
@@ -669,4 +684,59 @@ fn a_browser_download_lands_in_downloads_without_replacing_a_file() {
     assert_eq!(download_destination(downloads, ""), downloads.join("download"));
     std::fs::write(downloads.join(".env"), b"x").unwrap();
     assert_eq!(download_destination(downloads, ".env"), downloads.join(".env (1)"));
+}
+
+// ---- Start at login ------------------------------------------------------------------
+
+async fn login_item(w: &World, method: &str, body: &[u8]) -> Answer {
+    let url = "http://eos.localhost/_shell/doors/login-item";
+    call(&w.bridge, method, url, &[("x-eos-ui-token", TOKEN)], body).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_login_item_is_read_each_time_and_never_registered_unasked() {
+    let w = world();
+    let a = login_item(&w, "GET", b"").await;
+    assert_eq!(a.status, 200);
+    assert_eq!(a.json(), json!({ "available": true, "state": "off", "offered": false }));
+    // The user turned it on in System Settings: the next read says so.
+    *w.host.login.lock().unwrap() = Some(LoginItem::On);
+    assert_eq!(login_item(&w, "GET", b"").await.json()["state"], "on");
+    assert!(w.host.calls.lock().unwrap().is_empty(), "reading never registers");
+    assert!(!w.data.join("doors.json").exists(), "reading makes no offer");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn turning_it_on_waits_for_approval_in_system_settings_and_the_offer_is_made_once() {
+    let w = world();
+    let a = login_item(&w, "PUT", br#"{"on":true}"#).await;
+    assert_eq!(a.json(), json!({ "available": true, "state": "needs-approval", "offered": true }));
+    assert_eq!(*w.host.calls.lock().unwrap(), ["login true", "login settings"]);
+    let doors: Value = serde_json::from_slice(&std::fs::read(w.data.join("doors.json")).unwrap()).unwrap();
+    assert_eq!(doors, json!({ "loginOffered": true }));
+
+    let off = login_item(&w, "PUT", br#"{"on":false}"#).await;
+    assert_eq!(off.json(), json!({ "available": true, "state": "off", "offered": true }));
+    assert_eq!(w.host.calls.lock().unwrap().last().map(String::as_str), Some("login false"));
+    assert_eq!(login_item(&w, "GET", b"").await.json()["state"], "off", "it stays off");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn without_a_login_item_nothing_is_registered() {
+    let w = world();
+    *w.host.login.lock().unwrap() = Some(LoginItem::Unavailable);
+    let a = login_item(&w, "PUT", br#"{"on":true}"#).await;
+    assert_eq!(a.json(), json!({ "available": false, "state": "off", "offered": true }));
+    assert!(w.host.calls.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_login_item_takes_the_dashboards_token_and_a_choice() {
+    let w = world();
+    let url = "http://eos.localhost/_shell/doors/login-item";
+    assert_eq!(call(&w.bridge, "GET", url, &[], b"").await.status, 403);
+    assert_eq!(call(&w.bridge, "PUT", url, &[("x-eos-ui-token", "wrong")], br#"{"on":true}"#).await.status, 403);
+    assert_eq!(login_item(&w, "PUT", br#"{"on":"yes"}"#).await.status, 400);
+    assert_eq!(login_item(&w, "DELETE", b"").await.status, 405);
+    assert!(w.host.calls.lock().unwrap().is_empty());
 }

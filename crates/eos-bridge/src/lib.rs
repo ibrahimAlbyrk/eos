@@ -15,6 +15,7 @@ pub mod core;
 pub mod dashboard_life;
 #[cfg(feature = "dev-run")]
 pub mod dev;
+pub mod doors;
 pub mod events;
 pub mod host;
 pub mod hosts;
@@ -39,7 +40,7 @@ pub mod window_state;
 
 pub use bridge::{Bridge, Notified, Parts, download_destination, sanitize_filename};
 pub use core::{Core, LateCore, NoCore, Plane};
-pub use host::{Banner, BannerTarget, EditCommand, ShellHost, Theme};
+pub use host::{Banner, BannerTarget, EditCommand, LoginItem, ShellHost, Theme};
 pub use router::{Classify, RouterCore};
 pub use transport::{Body, Head, Initiator, Read, Req, Service, Sink, channel};
 

@@ -77,6 +77,27 @@ pub struct Banner {
     pub host: Option<String>,
 }
 
+/// The app as a login item (Start at login), as the system reports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginItem {
+    /// No login item here: macOS 12, or a build that is not the installed app.
+    Unavailable,
+    On,
+    Off,
+    /// Registered, waiting for the user's approval in System Settings › Login Items.
+    NeedsApproval,
+}
+
+impl LoginItem {
+    pub fn name(self) -> &'static str {
+        match self {
+            LoginItem::On => "on",
+            LoginItem::Unavailable | LoginItem::Off => "off",
+            LoginItem::NeedsApproval => "needs-approval",
+        }
+    }
+}
+
 pub trait ShellHost: Send + Sync + 'static {
     /// Starts a native window drag from the mouse press being handled.
     fn start_window_drag(&self);
@@ -102,4 +123,11 @@ pub trait ShellHost: Send + Sync + 'static {
     /// Opens a file or folder with its default app.
     fn open_path(&self, path: &Path);
     fn downloads_dir(&self) -> PathBuf;
+    /// The login item's state, read from the system each time: the user may change it in
+    /// System Settings.
+    fn login_item(&self) -> LoginItem;
+    /// Registers the app as a login item or removes it; answers the state after.
+    fn set_login_item(&self, on: bool) -> LoginItem;
+    /// Opens System Settings › General › Login Items.
+    fn open_login_items_settings(&self);
 }

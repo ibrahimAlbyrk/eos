@@ -8,7 +8,7 @@ use eos_core::BoxFuture;
 
 use super::*;
 use crate::ask::collect;
-use crate::host::{Banner, EditCommand, Theme};
+use crate::host::{Banner, EditCommand, LoginItem, Theme};
 use crate::testdir::Dir;
 use crate::transport::{Initiator, Req, Sink, channel};
 
@@ -146,6 +146,13 @@ impl ShellHost for Window {
     fn downloads_dir(&self) -> PathBuf {
         self.0.clone()
     }
+    fn login_item(&self) -> LoginItem {
+        LoginItem::Unavailable
+    }
+    fn set_login_item(&self, _on: bool) -> LoginItem {
+        LoginItem::Unavailable
+    }
+    fn open_login_items_settings(&self) {}
 }
 
 struct Bench {
