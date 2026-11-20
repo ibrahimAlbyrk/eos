@@ -16,6 +16,7 @@ import { BlueprintCard } from "./BlueprintCard.jsx";
 import { FreedomLadder } from "./FreedomLadder.jsx";
 import { shownVersion } from "./BlueprintEditor.jsx";
 import { HAND_BLUEPRINT } from "./words.js";
+import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
@@ -24,6 +25,11 @@ import routineDraft from "../gallery/sample/routine-draft.json";
 import drafts from "../gallery/sample/blueprint-drafts.json";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
+// The architect sessions' event rows, by worker id.
+const architectEvents = {};
+vi.mock("../../../hooks/useWorkerEvents.js", () => ({
+  useWorkerEvents: vi.fn((id) => ({ events: architectEvents[id] ?? [], eventsFor: id })),
+}));
 vi.mock("../../../api/client.js", () => ({ api: { setStreamFocus: async () => ({ ok: true, body: { live: [] } }) } }));
 
 const PR = routineDetail.routine.id;
@@ -149,6 +155,30 @@ describe("a routine being made", () => {
     expect(html).toContain('<span class="eos-bp-actions__cost">Uses github. At most $2 a run, stops at $5 a day.</span>');
     expect(html).toContain('<button type="button" class="eos-bp-chip eos-bp-value" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">sonnet</span></button>');
     expect(html).toContain("Where the item came from, on GitHub<span class=\"eos-sr\">, locked</span>");
+  });
+
+  it("shows what the architect itself writes, from its session's events, and not Eos's prompt to it", async () => {
+    const said = (id, role, blocks) => ({ id, type: "agent_event", ts: id, payload: { type: "message", role, blocks } });
+    architectEvents["wk-arch1"] = [
+      { id: 1, type: "user_message", ts: 1, payload: { text: "You are the architect of a routine." } },
+      said(2, "assistant", [{ type: "text", text: "I read the **docs** folder.", blockId: "b1" }]),
+      said(3, "assistant", [{ type: "tool_call", callId: "c1", name: "Read", input: {} }]),
+      said(4, "assistant", [{ type: "text", text: "One question first.", blockId: "b2" }]),
+    ];
+    const paths = { ...reads, [ROUTES.routineDraft(DOCS)]: { ...drafts[DOCS], architectId: "wk-arch1" } };
+    const html = await editor(DOCS, fixtureTransport(paths));
+    expect(useWorkerEvents).toHaveBeenCalledWith("wk-arch1");
+    expect(html).toContain('<div class="eos-bp-reply"><md>I read the **docs** folder.</md></div><div class="eos-bp-reply"><md>One question first.</md></div>');
+    expect(html).not.toContain("You are the architect");
+    expect(html).toContain('<div class="eos-bp-question__text">');
+    expect(html).toContain("Wrote the blueprint");
+  });
+
+  it("reads no session while no architect works on the draft", async () => {
+    useWorkerEvents.mockClear();
+    const html = await editor(DOCS);
+    expect(useWorkerEvents).not.toHaveBeenCalled();
+    expect(html).not.toContain("eos-bp-reply");
   });
 
   it("posts a choice to the architect, and words to it while it works", async () => {
