@@ -6,12 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eos_contracts::{PermissionMode, WorkerState};
 use eos_core::Error;
-use eos_core::agent::{AgentRuntime, LiveCompaction};
+use eos_core::agent::{AgentRuntime, LiveCompaction, NoteTurn};
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
 use eos_sessions::{
-    CommandAnswer, Dispatched, MessageInput, Reported, SessionDeps, SessionHooks, Sessions, SpawnRequest,
+    CommandAnswer, Dispatched, MessageInput, NOTES_WAIT_MS, Reported, SessionDeps, SessionHooks, Sessions, SpawnRequest,
 };
 use eos_testkit::agent::Call;
 use eos_testkit::{
@@ -35,6 +35,11 @@ struct Hooks {
     /// How many more idle edges arrive while a queue is being drained.
     edges_mid_drain: std::sync::Mutex<usize>,
     drains: AtomicUsize,
+    /// The notes every turn gets, and the turns that asked.
+    notes: std::sync::Mutex<Vec<String>>,
+    note_turns: std::sync::Mutex<Vec<NoteTurn>>,
+    /// The notes never come.
+    notes_stall: std::sync::atomic::AtomicBool,
 }
 
 impl SessionHooks for Hooks {
@@ -76,6 +81,14 @@ impl SessionHooks for Hooks {
 
     fn folder_exists(&self, path: &str) -> bool {
         !self.missing_folders.lock().expect("folders").iter().any(|p| p == path)
+    }
+
+    fn turn_notes(&self, turn: NoteTurn) -> eos_core::BoxFuture<'static, Vec<String>> {
+        self.note_turns.lock().expect("turns").push(turn);
+        if self.notes_stall.load(Ordering::SeqCst) {
+            return Box::pin(std::future::pending());
+        }
+        Box::pin(std::future::ready(self.notes.lock().expect("notes").clone()))
     }
 }
 
@@ -383,6 +396,40 @@ async fn a_message_is_delivered_once_and_recorded_before_the_agent_answers() {
 
     let missing = bench.sessions.dispatch(bench.message("w-nope", "hi")).await;
     assert_eq!(missing, Err(Error::not_found("worker", "w-nope")));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_turns_notes_go_with_its_start_and_its_message_and_a_late_one_never_holds_it() {
+    let bench = Bench::new();
+    *bench.hooks.notes.lock().expect("notes") = vec!["<system-reminder>pack</system-reminder>".to_owned()];
+    let id = bench.chat("first task").await;
+    let started = bench.agents.started();
+    assert_eq!(started.last().expect("a start").notes, ["<system-reminder>pack</system-reminder>"]);
+
+    bench.sessions.dispatch(bench.message(&id, "fix the bug")).await.expect("sends");
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.notes(&id), ["<system-reminder>pack</system-reminder>"], "left before the message");
+    let turns = bench.hooks.note_turns.lock().expect("turns").clone();
+    assert_eq!(
+        turns,
+        [
+            NoteTurn { worker_id: id.clone(), message: Some("first task".into()), start: true },
+            NoteTurn { worker_id: id.clone(), message: Some("fix the bug".into()), start: false },
+        ]
+    );
+
+    // Notes that never come: the message goes out once the wait is over, without them.
+    bench.hooks.notes_stall.store(true, Ordering::SeqCst);
+    let sessions = bench.sessions.clone();
+    let message = bench.message(&id, "and the test");
+    let sent = tokio::spawn(async move { sessions.dispatch(message).await });
+    until(|| async { bench.sleeper.pending().contains(&NOTES_WAIT_MS) }).await;
+    assert!(bench.agents.sent(&id).len() == 1, "the message waits for its notes");
+    assert!(bench.sleeper.wake());
+    assert_eq!(sent.await.expect("joins"), Ok(Dispatched::Sent));
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.sent(&id).len(), 2);
+    assert_eq!(bench.agents.notes(&id).len(), 1, "nothing late was left");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

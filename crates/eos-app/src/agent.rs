@@ -19,7 +19,7 @@ use eos_core::accounts::{
     AfterMove, PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
 use eos_core::agent::{
-    AgentRuntime, BackendCatalog, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, OneShot,
+    AgentRuntime, BackendCatalog, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, NoteTurn, OneShot,
     PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
 };
 use eos_core::git::{BranchIntegration, WorktreeManager};
@@ -457,6 +457,13 @@ impl SessionHooks for AppHooks {
     fn shape_report(&self, worker_id: &str, text: &mut String) {
         if let Some(runtime) = self.runtime() {
             runtime.modules.shape_report(worker_id, text);
+        }
+    }
+
+    fn turn_notes(&self, turn: NoteTurn) -> BoxFuture<'static, Vec<String>> {
+        match self.runtime() {
+            Some(runtime) => runtime.modules.turn_notes(turn),
+            None => Box::pin(std::future::ready(Vec::new())),
         }
     }
 

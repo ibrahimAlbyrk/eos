@@ -12,7 +12,7 @@ use eos_contracts::{
 };
 use eos_core::agent::{
     AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, CompactionNotice, LaunchSpec, ModelCatalog,
-    PromptAssembler, SessionSink, ToolInputDelta,
+    NoteTurn, PromptAssembler, SessionSink, ToolInputDelta,
 };
 use eos_core::git::WorktreeManager;
 use eos_core::store::{ConfigSource, RecentFolders, Store};
@@ -68,7 +68,15 @@ pub trait SessionHooks: Send + Sync + 'static {
     /// The last word on the text of a worker's report before its parent's
     /// model reads it.
     fn shape_report(&self, _worker_id: &str, _text: &mut String) {}
+    /// Notes for the model to read with a turn about to start: awaited at
+    /// most [`NOTES_WAIT_MS`], then the turn starts without what is late.
+    fn turn_notes(&self, _turn: NoteTurn) -> BoxFuture<'static, Vec<String>> {
+        Box::pin(std::future::ready(Vec::new()))
+    }
 }
+
+/// How long a turn waits for its notes.
+pub const NOTES_WAIT_MS: i64 = 250;
 
 /// The pauses before each new try of a batch of events the database did not take
 /// (busy, or the write failed), in ms: about 4 s in all, then the batch is given up.
