@@ -64,3 +64,10 @@ export function fixtureTransport(reads) {
     send: async () => ({ ok: false, status: 403, body: { error: "sample data" } }),
   };
 }
+
+// A resume refused while the routine names recipients the user has not
+// confirmed (D53): the 409 body { error, code, recipients: [{ id, label }] },
+// or null for any other answer.
+export function recipientsUnconfirmed(r) {
+  return r?.status === 409 && r.body?.code === "recipients_unconfirmed" && Array.isArray(r.body.recipients) ? r.body : null;
+}

@@ -12,6 +12,7 @@ import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
 import { SignalList } from "./SignalList.jsx";
+import { UnconfirmedRecipients } from "./Unconfirmed.jsx";
 import { pausedLine } from "./words.js";
 
 // Hand runs start in these states; a draft runs only trials.
@@ -38,12 +39,16 @@ function PauseResume({ routine }) {
   return null;
 }
 
-// A paused routine's band: why, in words, with Resume and its last run.
-function PausedBand({ routine }) {
+// A paused routine's band: why, in words, with Resume and its last run; once
+// Resume was refused until recipients are confirmed, that refusal in place
+// of the reason, and Resume to try again once they are.
+function PausedBand({ routine, refusal }) {
   return (
     <div className="eos-band eos-band--warn" role="status">
-      <span className="eos-band__text">{pausedLine(routine.pausedReason)}</span>
-      <button type="button" className="eos-btn eos-btn--primary" onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>
+      {refusal
+        ? <UnconfirmedRecipients refusal={refusal} routineId={routine.id} />
+        : <span className="eos-band__text">{pausedLine(routine.pausedReason)}</span>}
+      <button type="button" className={refusal ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>
       {routine.lastRun && <button type="button" className="eos-btn" onClick={() => openLocation(runLocation(routine.lastRun.id))}>Open the last run</button>}
     </div>
   );
@@ -63,7 +68,7 @@ function FailedBand({ run }) {
 // then its tabs: Overview, Runs, Signals, Blueprint. eos:/routines/<id>/versions/<n>
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
-  const { details, failed, list } = useRoutines();
+  const { details, failed, list, unconfirmed } = useRoutines();
   const devRun = useDevRunSeen();
   useEffect(() => {
     ensureInboxLoaded();
@@ -94,7 +99,7 @@ export function RoutinePage({ id, tab, version }) {
         {!detail && !failed[id] && <Loading blocks={3} />}
         {detail && (
           <>
-            {routine.state === "paused" && <PausedBand routine={routine} />}
+            {routine.state === "paused" && <PausedBand routine={routine} refusal={unconfirmed[id]} />}
             {routine.state !== "paused" && routine.lastRun?.state === "failed" && <FailedBand run={routine.lastRun} />}
             <div>
               <p className="eos-routine__summary">{routine.summary}</p>

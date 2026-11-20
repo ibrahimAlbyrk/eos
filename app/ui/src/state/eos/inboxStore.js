@@ -8,7 +8,7 @@ import { ROUTES } from "../../api/routes.js";
 import { afterFirstPaint } from "../../lib/firstPaint.js";
 import { without } from "./bounded.js";
 import { notify } from "../../lib/notify.js";
-import { isDevRunRefusal, transport } from "./transport.js";
+import { isDevRunRefusal, recipientsUnconfirmed, transport } from "./transport.js";
 
 const WAITING = new Set(["open", "later"]);
 const ATTENTION_ORDER = { interrupt: 0, digest: 1, silent: 2 };
@@ -21,9 +21,11 @@ const ATTENTION_ORDER = { interrupt: 0, digest: 1, silent: 2 };
 // the core gave no answer at all to the last request (G35). sendNotes:
 // delivery id → what the user did to a send here and how it ended:
 // "wrong", "undone", "partial" or "cannot_undo". A draft's deliveries are
-// its detail's `deliveries`, kept current from inbox:delivery.
+// its detail's `deliveries`, kept current from inbox:delivery. unconfirmed:
+// item id → the 409 recipients_unconfirmed body its Resume answered (D53).
 const EMPTY = {
   list: null, listFailed: false, details: {}, failed: {}, refused: {}, devRun: false, lastAnswered: undefined, offline: false, sendNotes: {},
+  unconfirmed: {},
 };
 let state = EMPTY;
 let started = false;
@@ -160,10 +162,16 @@ function dropShown(id) {
 
 // A 409 on a write: another device answered first, or the item was replaced
 // (kept in `refused`, the item read again to say who or by what), or it
-// changed or went stale since it was read (read again, which shows why). Any
-// other 409 is the core's plain reason, such as a recipient removed from the
-// routine: a toast in its words.
+// changed or went stale since it was read (read again, which shows why). A
+// Resume refused until recipients are confirmed is kept for the card, the
+// item unchanged. Any other 409 is the core's plain reason, such as a
+// recipient removed from the routine: a toast in its words.
 function conflicted(id, r) {
+  const refusal = recipientsUnconfirmed(r);
+  if (refusal) {
+    set({ unconfirmed: { ...state.unconfirmed, [id]: refusal } });
+    return;
+  }
   if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
   else if (r.body?.rev === undefined && r.body?.error !== "stale") notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
   void loadInboxItem(id);
