@@ -61,6 +61,10 @@ pub(crate) fn module(
         project_keys: cx.project_keys.clone(),
         profile,
         embedder,
+        edits: Some(eos_mod_memory::EditParts {
+            bus: cx.bus.clone(),
+            edits: Arc::new(eos_inbox::Edits::new(cx.store.clone())),
+        }),
         code: Some(eos_mod_memory::CodeParts { bus: cx.bus.clone(), transcripts: cx.terminals.transcripts.clone() }),
         learn: Some(eos_mod_memory::LearnParts {
             one_shot: cx.one_shot.clone(),

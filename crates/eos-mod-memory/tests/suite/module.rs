@@ -174,3 +174,76 @@ mod capture {
         assert_eq!(temp.count("SELECT COUNT(*) FROM mem_credit"), 0, "a surprise helps nothing");
     }
 }
+
+mod edits {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use eos_contracts::{EditOp, Part, PartEdit, ResultDoc};
+    use eos_core::inbox::ResultEdit;
+    use eos_mod_memory::{EditParts, MemoryModule};
+    use eos_runtime::module::Module;
+    use eos_runtime::{Kernel, KernelOptions};
+    use eos_testkit::{FakeResultEdits, FakeSleeper, TempStore};
+
+    fn edit(id: i64) -> ResultEdit {
+        let part = |text: &str| Part {
+            key: "summary".into(),
+            role: "summary".into(),
+            text: text.into(),
+            meta: Default::default(),
+        };
+        let doc = |text: &str| ResultDoc {
+            kind: "github.review".into(),
+            channel: "github".into(),
+            action: "post_review".into(),
+            parts: vec![part(text)],
+        };
+        ResultEdit {
+            id,
+            item_id: "nd-1".into(),
+            delivery_id: None,
+            routine_id: "rt-1".into(),
+            run_id: "rn-1".into(),
+            before: doc("A long summary."),
+            after: doc("Short."),
+            ops: vec![PartEdit {
+                key: "summary".into(),
+                op: EditOp::Changed,
+                before: Some(part("A long summary.")),
+                after: Some(part("Short.")),
+            }],
+            derived_from_untrusted: false,
+            at: 1,
+        }
+    }
+
+    async fn moments(temp: &TempStore, want: i64) -> i64 {
+        for _ in 0..200 {
+            let n = temp.count("SELECT COUNT(*) FROM mem_moments WHERE source = 'edit'");
+            if n >= want {
+                return n;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        temp.count("SELECT COUNT(*) FROM mem_moments WHERE source = 'edit'")
+    }
+
+    #[tokio::test]
+    async fn edits_are_read_at_start_and_after_each_change_in_needs_you() {
+        let kernel = Kernel::new(KernelOptions::default());
+        let temp = TempStore::on_bus(&kernel.bus);
+        let edits = Arc::new(FakeResultEdits::new());
+        edits.add(edit(1));
+        let mut parts = crate::rig::parts(&temp, Arc::new(FakeSleeper::default()), None);
+        parts.edits = Some(EditParts { bus: kernel.bus.clone(), edits: edits.clone() });
+        let memory = MemoryModule::new(parts);
+        memory.start().await.unwrap();
+        assert_eq!(moments(&temp, 1).await, 1);
+        edits.add(edit(2));
+        let change: eos_runtime::bus::Topic<serde_json::Value> = eos_runtime::bus::Topic::new("inbox:change");
+        kernel.bus.publish(&change, &serde_json::json!({}));
+        assert_eq!(moments(&temp, 2).await, 2);
+        memory.stop().await;
+    }
+}

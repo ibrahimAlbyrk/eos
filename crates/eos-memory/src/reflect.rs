@@ -20,7 +20,7 @@ use eos_domain::experience::clean::{clean, clean_about_user};
 use eos_domain::experience::cues::Cue;
 use eos_domain::experience::merge::{MergePlan, apply};
 use eos_domain::experience::moments::Signal;
-use eos_domain::experience::reflect::{Answer, Draft, answer_schema, draft_of, template};
+use eos_domain::experience::reflect::{Answer, Draft, answer_schema, as_guess, draft_of, echoes, template};
 use eos_domain::experience::{ScopeLevel, Trust};
 use eos_domain::redact::Scrubber;
 use eos_domain::time::{iso_from_ms, wall_clock};
@@ -235,6 +235,12 @@ impl Reflector {
         } else {
             match template(signal, shown.user_in_moment.as_deref(), &cues) {
                 Some(mut draft) => {
+                    // An edit of a draft made from outside text keeps the user's
+                    // words only: one that repeats the outside text is a guess.
+                    let outside: Vec<&str> = shown.outside.iter().map(String::as_str).collect();
+                    if context.untrusted && echoes(&draft.text, &outside) {
+                        as_guess(&mut draft);
+                    }
                     // A rule stated inside a routine's run holds for that routine.
                     if signal == Signal::StatesRule && in_run {
                         draft.scope = ScopeLevel::Routine;

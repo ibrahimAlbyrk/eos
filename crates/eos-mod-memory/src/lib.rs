@@ -29,6 +29,7 @@
 //! count only.
 
 mod code;
+mod edits;
 mod hooks;
 mod reflection;
 mod reminders;
@@ -46,6 +47,7 @@ use eos_core::experience::{
     RunPackRequest,
 };
 use eos_core::git::ProjectKeys;
+use eos_core::inbox::ResultEdits;
 use eos_core::os::TimeZone;
 use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
 use eos_core::routine::RunLookup;
@@ -62,6 +64,7 @@ use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
 
 use crate::code::CodePanes;
+use crate::edits::EditWatch;
 use crate::hooks::Capturer;
 use crate::reflection::{LibraryPrompt, Moments, PlanGate, Reflecting};
 pub use crate::reminders::NoteSink;
@@ -105,6 +108,19 @@ impl std::fmt::Debug for CodeParts {
     }
 }
 
+/// Where the user's edits of routines' results are read, and the bus that
+/// says when Needs you changed.
+pub struct EditParts {
+    pub bus: Bus,
+    pub edits: Arc<dyn ResultEdits>,
+}
+
+impl std::fmt::Debug for EditParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EditParts").finish_non_exhaustive()
+    }
+}
+
 /// What reflection asks the model with.
 pub struct LearnParts {
     pub one_shot: Arc<dyn OneShot>,
@@ -141,6 +157,8 @@ pub struct MemoryParts {
     pub embedder: Option<LoadEmbedder>,
     /// Code-view panes, when terminals are composed.
     pub code: Option<CodeParts>,
+    /// The user's edits of routines' results, when routines are composed.
+    pub edits: Option<EditParts>,
     /// Reflection: without it, moments are captured and wait.
     pub learn: Option<LearnParts>,
     /// About you, counted on the Memory screen.
@@ -172,6 +190,7 @@ pub struct MemoryModule {
     health: Arc<Mutex<EmbedderHealth>>,
     api: Arc<routes::Api>,
     runs: Arc<RunMemory>,
+    edits: Option<Arc<EditWatch>>,
     background_model_calls: bool,
     /// What runs from `start` to `stop`.
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
@@ -196,6 +215,7 @@ impl MemoryModule {
             profile,
             embedder,
             code,
+            edits,
             learn,
             memories,
             home,
@@ -208,6 +228,9 @@ impl MemoryModule {
         let code = code.map(|c| {
             let capture = Capture::new(store.clone(), clock.clone(), ids.clone());
             Arc::new(CodePanes::new(&c.bus, capture, c.transcripts, clock.clone(), wake.clone()))
+        });
+        let edits = edits.map(|e| {
+            Arc::new(EditWatch::new(&e.bus, store.clone(), clock.clone(), ids.clone(), e.edits, wake.clone()))
         });
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
         let health = Arc::new(Mutex::new(health));
@@ -225,6 +248,7 @@ impl MemoryModule {
                     project_keys: project_keys.clone(),
                     runs: runs.clone(),
                     code: code.clone(),
+                    edits: edits.as_ref().map(|e| e.inner().edits.clone()),
                 }),
                 prompt: Arc::new(LibraryPrompt(learn.prompts)),
                 recall: recall.clone(),
@@ -271,6 +295,7 @@ impl MemoryModule {
             health,
             api,
             runs: runs_memory,
+            edits,
             background_model_calls,
             tasks: Mutex::new(Vec::new()),
         }
@@ -428,6 +453,9 @@ impl Module for MemoryModule {
         tasks.push(tokio::spawn(self.capturer.clone().tick(self.sleeper.clone())));
         if let Some(code) = &self.code {
             tasks.push(tokio::spawn(code.poll(self.sleeper.clone())));
+        }
+        if let Some(edits) = &self.edits {
+            tasks.push(tokio::spawn(edits.inner().run()));
         }
         if let Some(reflecting) = &self.reflecting {
             tasks.push(tokio::spawn(reflecting.clone().run(self.sleeper.clone())));

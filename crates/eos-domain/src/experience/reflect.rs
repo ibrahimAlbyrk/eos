@@ -170,6 +170,13 @@ fn cut(text: &str, max: usize) -> String {
     text.trim().chars().take(max).collect()
 }
 
+/// Makes `draft` a short-lived guess: what it says came from outside text.
+pub fn as_guess(draft: &mut Draft) {
+    draft.kind = NoteKind::Fact;
+    draft.trust = Trust::Guess;
+    draft.valid_for = Some(GUESS_VALID_MS);
+}
+
 /// The draft an answer gives for a moment of `trust`. `outside` are the
 /// outside reads shown to the model (tool results from the web, a browser,
 /// a connector, a capability, or any output of an untrusted run), `user`
@@ -216,9 +223,7 @@ pub fn draft_of(answer: &Answer, trust: Trust, outside: &[&str], user: &[&str]) 
     };
     let lesson = if draft.instead.is_empty() { draft.text.clone() } else { draft.instead.clone() };
     if echoes(&lesson, outside) && !echoes(&lesson, user) {
-        draft.kind = NoteKind::Fact;
-        draft.trust = Trust::Guess;
-        draft.valid_for = Some(GUESS_VALID_MS);
+        as_guess(&mut draft);
     }
     Ok(draft)
 }
@@ -238,7 +243,8 @@ pub fn echoes(text: &str, sources: &[&str]) -> bool {
 }
 
 /// The note the rules make where no model may be asked: a rule or a
-/// correction the user wrote is kept in their words; a command that worked
+/// correction the user wrote is kept in their words, an edit of a routine's
+/// draft as its line says it; a command that worked
 /// after failing becomes a skill. Other moments wait for a model, or teach
 /// nothing.
 pub fn template(signal: Signal, user_text: Option<&str>, cues: &[Cue]) -> Option<Draft> {
@@ -264,6 +270,16 @@ pub fn template(signal: Signal, user_text: Option<&str>, cues: &[Cue]) -> Option
             (!text.is_empty()).then(|| {
                 let mut draft = base(NoteKind::Lesson, text.clone(), Trust::Said);
                 draft.instead = cut(&text, 200);
+                draft.evidence = cut(&text, EVIDENCE_CHARS);
+                draft
+            })
+        }
+        Signal::Edits => {
+            // The user's edit of a routine's draft, as the edit's line says it.
+            let text = cut(user_text?, NOTE_CHARS);
+            (!text.is_empty()).then(|| {
+                let mut draft = base(NoteKind::Lesson, text.clone(), Trust::Did);
+                draft.scope = ScopeLevel::Routine;
                 draft.evidence = cut(&text, EVIDENCE_CHARS);
                 draft
             })
