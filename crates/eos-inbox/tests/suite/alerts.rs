@@ -56,7 +56,7 @@ async fn resume_is_refused_while_too_many_results_still_wait() {
     let alert = waiting.into_iter().find(|item| item.kind == ItemKind::RoutineAlert).expect("the cap's alert");
     assert_eq!(alert.subject_key.as_deref(), Some(TOO_MANY_WAITING));
     let paused = ControlCall::Pause { routine_id: "rt-1".into(), reason: TOO_MANY_WAITING.into() };
-    assert_eq!(rig.control.calls(), [paused.clone()]);
+    assert_eq!(rig.control.calls(), std::slice::from_ref(&paused));
 
     match rig.items.answer(&alert.id, 1, &answer(AlertChoice::Resume), "dashboard").await {
         Err(Error::Core(eos_core::Error::Conflict(reason))) => assert!(reason.contains("still wait"), "{reason}"),
