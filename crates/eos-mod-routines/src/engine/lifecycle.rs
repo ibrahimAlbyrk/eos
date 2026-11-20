@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use eos_contracts::{RoutineChangeReason, RoutineHandState, RoutineKind, RoutineState, RoutineSummary};
 use eos_core::Error;
+use eos_core::routine::ResumeRefusal;
 use eos_core::store::{Outbox, RunMove, StoredRoutine, Tx};
 use eos_domain::routine::run::{Reason, RunState};
 
-use super::control::announce;
+use super::control::{announce, refusal_in};
 use super::supervisor::skip_queued_in;
 use super::{Engine, move_run};
 use crate::patterns::ItemPatterns;
@@ -54,31 +55,43 @@ async fn change(
 
 /// `PUT …/state`. A draft becomes active only by its start; a paused or
 /// archived routine's queued runs that may no longer start are skipped in
-/// the same write. Its runs at work finish.
+/// the same write. Its runs at work finish. A routine paused because a
+/// target was refused becomes active only once the user confirmed every
+/// recipient its head names (D53); the refusal writes nothing.
 pub(crate) async fn set_state(
     engine: &Arc<Engine>,
     routine_id: &str,
     state: RoutineHandState,
-) -> Result<Option<RoutineSummary>, Error> {
-    change(engine, routine_id, move |tx, out, id, now, patterns| {
-        let routine = live(tx, id)?;
-        if routine.state == RoutineState::Draft {
-            return Err(Error::Conflict("a draft routine is started from its draft".into()));
-        }
-        let (next, reason) = match state {
-            RoutineHandState::Active => (RoutineState::Active, None),
-            RoutineHandState::Paused => (RoutineState::Paused, Some(BY_USER)),
-            RoutineHandState::Archived => (RoutineState::Archived, None),
-        };
-        if routine.state == next {
-            return Ok(());
-        }
-        tx.routines().set_state(id, next, reason, now)?;
-        skip_queued_in(tx, out, id, next, now)?;
-        tracing::info!(routine_id = id, state = ?next, "a routine's state was set");
-        announce(tx, out, id, RoutineChangeReason::State, now, patterns)
-    })
-    .await
+) -> Result<Result<Option<RoutineSummary>, ResumeRefusal>, Error> {
+    let (id, now, patterns) = (routine_id.to_owned(), engine.clock.now_ms(), engine.patterns.clone());
+    let answer = engine
+        .store
+        .write(move |tx, out| {
+            let routine = live(tx, &id)?;
+            if routine.state == RoutineState::Draft {
+                return Err(Error::Conflict("a draft routine is started from its draft".into()));
+            }
+            let (next, reason) = match state {
+                RoutineHandState::Active => (RoutineState::Active, None),
+                RoutineHandState::Paused => (RoutineState::Paused, Some(BY_USER)),
+                RoutineHandState::Archived => (RoutineState::Archived, None),
+            };
+            if next == RoutineState::Active
+                && let Some(refusal) = refusal_in(tx, &routine)?
+            {
+                return Ok(Err(refusal));
+            }
+            if routine.state != next {
+                tx.routines().set_state(&id, next, reason, now)?;
+                skip_queued_in(tx, out, &id, next, now)?;
+                tracing::info!(routine_id = %id, state = ?next, "a routine's state was set");
+                announce(tx, out, &id, RoutineChangeReason::State, now, &patterns)?;
+            }
+            row(tx, &id, now, &patterns).map(Ok)
+        })
+        .await?;
+    engine.wake.notify_one();
+    Ok(answer)
 }
 
 /// `DELETE /api/routines/:id`: to Recently deleted. Its runs that have not

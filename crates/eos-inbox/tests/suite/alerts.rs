@@ -1,8 +1,10 @@
 //! A routine's alert answered: Resume resumes the routine through its
-//! control, refused while too many results still wait; Keep paused leaves
-//! it paused.
+//! control, refused while too many results still wait or while the
+//! routine's head names an unconfirmed recipient; Keep paused leaves it
+//! paused.
 
 use eos_contracts::{AlertChoice, InboxAnswer, NoticeChoice};
+use eos_core::routine::ResumeRefusal;
 use eos_core::store::StoredItem;
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_inbox::{Error, ROUTINE_CAP, TOO_MANY_WAITING};
@@ -68,4 +70,27 @@ async fn resume_is_refused_while_too_many_results_still_wait() {
     rig.items.answer(&notices[0].id, 1, &dismiss, "dashboard").await.expect("answers");
     rig.items.answer(&alert.id, 1, &answer(AlertChoice::Resume), "dashboard").await.expect("resumes");
     assert_eq!(rig.control.calls(), [paused, resumed(TOO_MANY_WAITING)]);
+}
+
+#[tokio::test]
+async fn resume_is_refused_and_the_alert_stays_open_while_a_recipient_is_unconfirmed() {
+    let rig = Rig::new();
+    let item = alert(&rig, "target_refused").await;
+    let boss = serde_json::from_value(json!({"id": "boss", "kind": "fixed", "channel": "mail",
+                                            "address": "boss@acme.dev"}))
+    .expect("a recipient");
+    let refusal = ResumeRefusal { recipients: vec![boss] };
+    rig.control.refuse_resume("rt-1", Some(refusal.clone()));
+
+    match rig.items.answer(&item.id, 1, &answer(AlertChoice::Resume), "dashboard").await {
+        Err(Error::RecipientsUnconfirmed(refused)) => assert_eq!(refused, refusal),
+        other => panic!("{other:?}"),
+    }
+    let open = rig.find(&item.id).await;
+    assert_eq!((open.state, open.rev, open.consumed_at), (ItemState::Open, 1, None), "nothing written");
+    assert!(rig.control.calls().is_empty());
+
+    rig.control.refuse_resume("rt-1", None);
+    rig.items.answer(&item.id, 1, &answer(AlertChoice::Resume), "dashboard").await.expect("resumes");
+    assert_eq!(rig.control.calls(), [resumed("target_refused")]);
 }

@@ -70,8 +70,10 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = setting.clone();
         async move {
             let body: RoutineStateRequest = req.parse()?;
-            let row = engine::set_state(&engine, &param(&req, "id"), body.state).await?;
-            Ok(Response::json(200, &row))
+            match engine::set_state(&engine, &param(&req, "id"), body.state).await? {
+                Ok(row) => Ok(Response::json(200, &row)),
+                Err(refusal) => Ok(Response::json(409, &refusal.answer())),
+            }
         }
     });
     let deleting = engine.clone();

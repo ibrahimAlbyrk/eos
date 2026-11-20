@@ -130,6 +130,7 @@ pub(super) fn refused(error: eos_inbox::Error) -> Result<Response, ApiError> {
             Ok(Response::json(409, &json!({ "error": "stale", "staleReason": reason })))
         }
         eos_inbox::Error::CannotUndo => Ok(Response::json(409, &json!({ "error": "cannot_undo" }))),
+        eos_inbox::Error::RecipientsUnconfirmed(refusal) => Ok(Response::json(409, &refusal.answer())),
         eos_inbox::Error::Core(e) => Err(e.into()),
     }
 }

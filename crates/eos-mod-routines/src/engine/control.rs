@@ -1,14 +1,17 @@
 //! `RoutineControl`: what other areas change of a routine. A change of
 //! Freedom is a new kept version made from the head; a pause or a resume is
-//! the routine's state. Each is announced on `routine:change`.
+//! the routine's state. Each is announced on `routine:change`. A routine
+//! paused because the gate refused a target resumes only once the user
+//! confirmed every recipient its head names (D53).
 
 use std::sync::Arc;
 
-use eos_contracts::{RoutineChange, RoutineChangeReason, RoutineState, Rung, VersionAuthor, VersionStatus};
-use eos_core::routine::{Confirmed, RoutineControl};
+use eos_contracts::{Recipient, RoutineChange, RoutineChangeReason, RoutineState, Rung, VersionAuthor, VersionStatus};
+use eos_core::routine::{Confirmed, ResumeError, ResumeRefusal, RoutineControl};
 use eos_core::store::{Outbox, StoredRoutine, StoredVersion, Tx};
 use eos_core::{BoxFuture, Error};
 use eos_domain::routine::blueprint::{canonical_json, hash};
+use eos_inbox::gate::TARGET_REFUSED;
 use serde_json::Value;
 
 use super::Engine;
@@ -33,6 +36,24 @@ pub(crate) fn confirmed_in(tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, E
         }
     }
     Err(Error::not_found("confirmed routine", routine_id))
+}
+
+/// Why `routine` may not resume yet: it is paused because a target was
+/// refused and its head names recipients the user has not confirmed.
+pub(crate) fn refusal_in(tx: &dyn Tx, routine: &StoredRoutine) -> Result<Option<ResumeRefusal>, Error> {
+    if routine.state != RoutineState::Paused || routine.paused_reason.as_deref() != Some(TARGET_REFUSED) {
+        return Ok(None);
+    }
+    let Some(head) = tx.routine_versions().head(&routine.id)? else { return Ok(None) };
+    let Some(blueprint) = readable(&head)? else { return Ok(None) };
+    let confirmed = match confirmed_in(tx, &routine.id) {
+        Ok(confirmed) => confirmed.goes_to,
+        Err(Error::NotFound { .. }) => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    let recipients: Vec<Recipient> =
+        blueprint.goes_to.into_iter().filter(|recipient| !confirmed.contains(recipient)).collect();
+    Ok((!recipients.is_empty()).then_some(ResumeRefusal { recipients }))
 }
 
 fn routine(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error> {
@@ -168,6 +189,10 @@ impl RoutineControl for Control {
                 .write(move |tx, out| {
                     for routine in tx.routines().list()? {
                         if routine.state == RoutineState::Paused && routine.paused_reason.as_deref() == Some(&reason) {
+                            if refusal_in(tx, &routine)?.is_some() {
+                                tracing::info!(routine_id = %routine.id, "a routine stays paused: recipients to confirm");
+                                continue;
+                            }
                             tx.routines().set_state(&routine.id, RoutineState::Active, None, now)?;
                             tracing::info!(routine_id = %routine.id, reason = %reason, "a routine was resumed");
                             announce(tx, out, &routine.id, RoutineChangeReason::State, now, &patterns)?;
@@ -182,10 +207,13 @@ impl RoutineControl for Control {
         })
     }
 
-    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+    fn resume_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), ResumeError> {
         let routine = routine(tx, routine_id)?;
         if routine.state != RoutineState::Paused || routine.paused_reason.as_deref() != Some(reason) {
             return Ok(());
+        }
+        if let Some(refusal) = refusal_in(tx, &routine)? {
+            return Err(ResumeError::Unconfirmed(refusal));
         }
         let now = self.0.clock.now_ms();
         tx.routines().set_state(routine_id, RoutineState::Active, None, now)?;

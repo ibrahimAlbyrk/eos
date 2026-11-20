@@ -1,11 +1,13 @@
 //! The user's answer to a routine's alert, acted on in the answering job:
 //! Resume resumes the routine paused for the alert's reason, Keep paused
 //! leaves it paused. A routine paused because too many results wait is not
-//! resumed while they still wait.
+//! resumed while they still wait; one paused because a target was refused
+//! is not resumed while its head names a recipient the user has not
+//! confirmed, and that refusal is passed on (D53).
 
 use eos_contracts::AlertChoice;
 use eos_core::Error;
-use eos_core::routine::RoutineControl;
+use eos_core::routine::{ResumeError, RoutineControl};
 use eos_core::store::{Outbox, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
 use serde_json::Value;
@@ -25,7 +27,7 @@ pub(crate) fn answered_in(
     item: &StoredItem,
     choice: AlertChoice,
     now: i64,
-) -> Result<(), Error> {
+) -> Result<(), ResumeError> {
     consume_in(tx, &item.id, now)?;
     let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
     let (Some(routine_id), Some(reason), AlertChoice::Resume) =
@@ -37,9 +39,9 @@ pub(crate) fn answered_in(
         let waiting = tx.inbox_items().waiting_of_routine(routine_id)?;
         let results = waiting.iter().filter(|item| item.kind != ItemKind::RoutineAlert).count();
         if results > ROUTINE_CAP {
-            return Err(Error::Conflict(format!(
+            return Err(ResumeError::Store(Error::Conflict(format!(
                 "{results} results still wait for you. Go through some of them, then resume the routine."
-            )));
+            ))));
         }
     }
     control.resume_in(tx, out, routine_id, reason)

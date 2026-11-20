@@ -93,3 +93,27 @@ async fn stop_everything_and_resume_answer_the_switch_and_announce_it() {
     }
     assert_eq!(heard, [json!({"on": true, "since": 1_000_000}), json!({"on": false})]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn resume_on_an_alert_names_the_recipients_to_confirm_first_and_leaves_it_open() {
+    let rig = Rig::new().await;
+    let mut alert = new_item(ItemKind::RoutineAlert, "rt-1");
+    alert.payload = json!({"reason": "target_refused"});
+    let item = rig.open(alert).await;
+    let me = serde_json::from_value(json!({"id": "me", "kind": "me", "channel": "push"})).expect("a recipient");
+    rig.control.refuse_resume("rt-1", Some(eos_core::routine::ResumeRefusal { recipients: vec![me] }));
+    let path = format!("/api/inbox/{}/answer", item.id);
+    let body = json!({"rev": 1, "answer": {"kind": "routine_alert", "choice": "resume"}});
+    let (status, refused) = rig.ask(Method::Post, &path, Some(body.clone())).await;
+    assert_eq!(status, 409);
+    assert_eq!(
+        refused,
+        json!({"error": "Confirm where this routine sends before it resumes.", "code": "recipients_unconfirmed",
+               "recipients": [{"id": "me", "label": "you"}]})
+    );
+    let (_, open) = rig.ask(Method::Get, &format!("/api/inbox/{}", item.id), None).await;
+    assert_eq!((&open["item"]["state"], &open["item"]["rev"]), (&json!("open"), &json!(1)));
+
+    rig.control.refuse_resume("rt-1", None);
+    assert_eq!(rig.ask(Method::Post, &path, Some(body)).await.0, 200);
+}
