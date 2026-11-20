@@ -99,13 +99,31 @@ describe("a new routine", () => {
     expect(await makeRoutine("Sort my mail")).toBe("rt-new000000001");
     expect(t.send).toHaveBeenCalledWith("POST", ROUTES.routinesArchitect, { sentence: "Sort my mail" });
 
-    setEosTransport(recording(async () => ({ ok: false, status: 409, body: { error: "3 architects are at work; finish or leave one first" } })));
+    const busy = { error: "too many architects are at work; finish or leave one first", code: "architects_busy" };
+    setEosTransport(recording(async () => ({ ok: false, status: 409, body: busy })));
     await refreshRoutines();
     expect(await makeRoutine("Watch the build")).toBeNull();
     openLocation("eos:/routines/new");
     const html = draw();
-    expect(html).toContain('<div class="eos-band eos-band--warn" role="alert"><span class="eos-band__text">3 architects are at work; finish or leave one first</span>');
+    expect(html).toContain('<div class="eos-band eos-band--warn" role="alert"><span class="eos-band__text">Three architects are at work. Leave a draft to make room.</span>');
     expect(html).toContain(">Leave the draft of Docs Review</button>");
+  });
+
+  it("says an architect's other refusals as a line of their own, offering no draft to leave", async () => {
+    const cases = [
+      [{ error: "the draft has no architect", code: "no_architect" }, "No architect works on this draft now."],
+      [{ error: "the routine was made by a newer Eos", code: "newer_format" }, "A newer version of Eos made this routine. It cannot be changed here."],
+      [{ error: "the routine is being deleted" }, "the routine is being deleted"],
+    ];
+    for (const [body, line] of cases) {
+      await editor(DOCS);
+      setEosTransport(recording(async () => ({ ok: false, status: 409, body }), reads));
+      expect(await sayToArchitect(DOCS, { text: "Skip the changelog" })).toBe(false);
+      const html = draw();
+      expect(html).toContain(`<p class="eos-note" role="alert">${line}</p>`);
+      expect(html).not.toContain("Leave the draft of");
+      expect(html).not.toContain("eos-band--err");
+    }
   });
 
   it("is made by hand from the filled blueprint, and shows what the rules refused", async () => {
