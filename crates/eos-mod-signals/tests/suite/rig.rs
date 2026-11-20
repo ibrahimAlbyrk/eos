@@ -15,8 +15,8 @@ use eos_domain::signals::key::capability_scope;
 use eos_mod_signals::{SignalsModule, SignalsParts, SoloRunner};
 use eos_runtime::module::Module;
 use eos_testkit::{
-    FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeSleeper, FakeTimeZone, FakeZoneRules,
-    SeqIds, TempStore,
+    FakeCapabilityHealth, FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeSleeper,
+    FakeSource, FakeTimeZone, FakeZoneRules, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -184,18 +184,26 @@ pub(crate) struct Bench {
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) sleeper: Arc<FakeSleeper>,
     pub(crate) bus: eos_runtime::bus::Bus,
+    /// The source of [`REPO`]'s pull requests, `github.pulls`.
+    pub(crate) pulls: Arc<FakeSource>,
+    pub(crate) sources: Arc<FakeSignalSources>,
+    pub(crate) health: Arc<FakeCapabilityHealth>,
 }
 
 impl Bench {
     pub(crate) fn new(routines: Vec<RoutineTriggers>) -> Self {
         let temp = TempStore::new();
         add_source(&temp);
+        let pulls = Arc::new(FakeSource::default());
         Self {
             temp,
             directory: Arc::new(FakeRoutineDirectory::new(routines)),
             clock: Arc::new(FakeClock::at(5_000)),
             sleeper: Arc::new(FakeSleeper::default()),
             bus: eos_runtime::Kernel::new(eos_runtime::KernelOptions::default()).bus,
+            sources: Arc::new(FakeSignalSources::new().with("github.pulls", pulls.clone())),
+            pulls,
+            health: Arc::new(FakeCapabilityHealth::new()),
         }
     }
 
@@ -207,7 +215,8 @@ impl Bench {
             sleeper: self.sleeper.clone(),
             ids: Arc::new(SeqIds::new()),
             zones: Arc::new(FakeZoneRules::new()),
-            sources: Arc::new(FakeSignalSources::new()),
+            sources: self.sources.clone(),
+            health: self.health.clone(),
             runner: Arc::new(SoloRunner::new("dev-1")),
             intake,
             directory: self.directory.clone(),

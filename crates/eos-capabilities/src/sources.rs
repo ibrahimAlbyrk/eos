@@ -139,6 +139,10 @@ impl SignalSource for Source {
         &self.facts
     }
 
+    fn interval_ms(&self) -> Option<i64> {
+        self.decl.interval_s.map(|s| i64::from(s) * 1000)
+    }
+
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {
         Box::pin(self.poll_once(request))
     }

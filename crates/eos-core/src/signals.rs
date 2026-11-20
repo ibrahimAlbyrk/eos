@@ -102,6 +102,15 @@ pub enum PushOutcome {
 pub trait SignalSource: Send + Sync {
     /// What rules may test.
     fn facts(&self) -> &[FactDecl];
+    /// How often the source asks to be polled; `None` when it does not say.
+    fn interval_ms(&self) -> Option<i64> {
+        None
+    }
+    /// How long one poll may hold the call waiting for news; 0 for a short
+    /// poll.
+    fn wait_ms(&self) -> u64 {
+        0
+    }
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>>;
     /// A verified push: a hint to poll now, a signal (a source with no list
     /// to poll), or refused.

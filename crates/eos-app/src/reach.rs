@@ -200,6 +200,14 @@ impl SignalSource for OffSource {
         self.0.facts()
     }
 
+    fn interval_ms(&self) -> Option<i64> {
+        self.0.interval_ms()
+    }
+
+    fn wait_ms(&self) -> u64 {
+        self.0.wait_ms()
+    }
+
     fn poll(&self, _request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {
         Box::pin(std::future::ready(Err(SourceError::Off)))
     }

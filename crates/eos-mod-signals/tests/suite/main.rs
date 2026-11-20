@@ -2,6 +2,7 @@
 //! side.
 
 mod batch;
+mod polls;
 mod rig;
 mod router;
 mod routes;
