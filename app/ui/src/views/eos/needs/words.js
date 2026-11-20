@@ -60,6 +60,8 @@ export function secondsLeft(sendAt, now) {
 
 // What became of a send, by its state or by what the user did to it here.
 export const SEND_NOTES = {
+  queued: "Waiting to send.",
+  sending: "Sending now.",
   sent: "Sent.",
   undone: "Taken back.",
   partial: "Taken back. Some of it stays where it went.",
