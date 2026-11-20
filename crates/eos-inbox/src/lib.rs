@@ -23,6 +23,8 @@
 //! - The user sends a held draft ([`Items::send`]): its deliveries, what the
 //!   user changed ([`Edits`]) and what became of the result
 //!   (`inbox_outcomes`) are written in the answering job.
+//! - The user's answer to a `delivery_problem` sends again, records the send
+//!   as made or stops it, and settles the run, in the answering job.
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
@@ -36,6 +38,7 @@ pub mod gate;
 mod handoff;
 mod items;
 mod outcomes;
+mod problems;
 mod questions;
 mod routing;
 mod send;

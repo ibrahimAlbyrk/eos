@@ -13,17 +13,19 @@ use eos_domain::routine::numbers::Outcome;
 use tokio::sync::Notify;
 
 use crate::outcomes::{self, Ended};
+use crate::problems::{self, Answered};
 use crate::questions::QuestionWaiters;
 use crate::{Error, announce, consume_in};
 
 /// The kinds answered through [`Items::answer`]. A draft is sent or
 /// discarded; a run's permission ask and an about-you suggestion are answered
 /// by their own routes.
-const ANSWERED_HERE: [ItemKind; 6] = [
+const ANSWERED_HERE: [ItemKind; 7] = [
     ItemKind::RunStart,
     ItemKind::Question,
     ItemKind::RoutineAlert,
     ItemKind::ConfirmChange,
+    ItemKind::DeliveryProblem,
     ItemKind::Notice,
     ItemKind::Suggestion,
 ];
@@ -140,13 +142,16 @@ impl Items {
 
     /// Answers the item as it was at `rev`. `by` is who answered:
     /// `dashboard`, `phone`, `peer` or `system`. The answer must be of the
-    /// item's kind, and of a kind answered here.
+    /// item's kind, and of a kind answered here. A delivery problem's answer
+    /// is acted on in the same job.
     pub async fn answer(&self, id: &str, rev: i64, answer: &InboxAnswer, by: &str) -> Result<StoredItem, Error> {
         let text = serde_json::to_value(answer).map_err(|e| eos_core::Error::Validation(e.to_string()))?;
         let kind = text["kind"].as_str().and_then(ItemKind::parse);
-        let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: self.clock.now_ms() };
-        let id = id.to_owned();
-        let item = self
+        let now = self.clock.now_ms();
+        let typed = answer.clone();
+        let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
+        let (id, run_outcomes) = (id.to_owned(), self.outcomes.clone());
+        let (item, requeued) = self
             .store
             .write(move |tx, out| {
                 let item = tx.inbox_items().find(&id)?.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
@@ -162,9 +167,23 @@ impl Items {
                         item.kind.as_str()
                     )));
                 }
-                answer_in(tx, out, &id, rev, &answer)
+                let item = match answer_in(tx, out, &id, rev, &answer)? {
+                    Ok(item) => item,
+                    Err(refused) => return Ok(Err(refused)),
+                };
+                let requeued = match &typed {
+                    InboxAnswer::DeliveryProblem { choice, doc } => {
+                        let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
+                        problems::answered_in(tx, out, run_outcomes.as_ref(), answered)?
+                    }
+                    _ => false,
+                };
+                Ok(Ok((item, requeued)))
             })
             .await??;
+        if requeued {
+            self.wake.notify_one();
+        }
         self.waiters.wake(&item);
         Ok(item)
     }
