@@ -130,6 +130,18 @@ mod tests {
     }
 
     #[test]
+    fn a_showing_before_the_release_acted_withdraws_it() {
+        // The shell closes the view on the main thread after the look; a showing handled
+        // there first must leave the view in place (the shell asks `released` again).
+        let mut life = DashboardLife::new(DASHBOARD_RELEASE_AFTER_MS);
+        life.step(0, seen(false, true, false));
+        assert_eq!(life.step(11 * MIN, seen(false, true, false)), DashboardStep::Release);
+        assert_eq!(life.step(11 * MIN + 1, seen(true, true, false)), DashboardStep::Recreate);
+        assert!(!life.released(), "the release no longer stands");
+        assert_eq!(life.step(11 * MIN + 5_000, seen(true, true, false)), DashboardStep::Keep);
+    }
+
+    #[test]
     fn a_clock_set_back_does_not_release_early() {
         let mut life = DashboardLife::new(DASHBOARD_RELEASE_AFTER_MS);
         life.step(100 * MIN, seen(false, true, false));
