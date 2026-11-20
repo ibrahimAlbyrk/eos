@@ -2,7 +2,7 @@
 //! tells it. A new version flags the waiting drafts made on an older one as
 //! stale, with how many newer versions came in; their send then needs the
 //! user's second confirm. A closed subject expires every item about it: a
-//! draft ends its run as `expired`, and the run's queued sends stop.
+//! draft ends its run as `expired`, and the run's sends that wait stop.
 
 use eos_contracts::SignalSubject;
 use eos_core::Error;
@@ -12,7 +12,7 @@ use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use serde_json::{Value, json};
 
-use crate::delivery::{QUEUED, STOPPED};
+use crate::delivery::{HOLDING, QUEUED, STOPPED};
 use crate::outcomes::{Ended, ended_in};
 use crate::{Items, announce};
 
@@ -71,7 +71,9 @@ fn expire_in(
         return Ok(true);
     }
     if let Some(run_id) = &item.run_id {
-        for mut row in tx.inbox_deliveries().of_run(run_id)?.into_iter().filter(|row| row.state == QUEUED) {
+        for mut row in
+            tx.inbox_deliveries().of_run(run_id)?.into_iter().filter(|row| row.state == QUEUED || row.state == HOLDING)
+        {
             row.state = STOPPED.to_owned();
             row.last_error_kind = Some(SUBJECT_CLOSED.to_owned());
             row.next_attempt_at = None;

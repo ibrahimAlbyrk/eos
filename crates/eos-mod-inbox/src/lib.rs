@@ -103,6 +103,7 @@ impl InboxModule {
             store: store.clone(),
             clock,
             ids: delivery.ids.clone(),
+            zone: delivery.zone.clone(),
             channels: delivery.channels.clone(),
             outcomes: delivery.outcomes.clone(),
             control: delivery.control.clone(),

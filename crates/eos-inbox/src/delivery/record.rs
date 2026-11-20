@@ -24,8 +24,40 @@ use crate::items::open_replacing_in;
 use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
 
-/// Why a send whose subject moved on was stopped.
+/// Why a send went back to the user as a draft.
+pub(crate) enum Again {
+    /// Its subject moved on since the result was made.
+    Stale(String),
+    /// An automatic send that did not go out within a day.
+    TooOld,
+    /// The user stopped an automatic send in its hold.
+    Stopped,
+}
+
+impl Again {
+    /// The kind a row stopped this way keeps: its run's draft replaces it.
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            Again::Stale(_) => STALE,
+            Again::TooOld => AUTO_STALE,
+            Again::Stopped => STOPPED_BY_USER,
+        }
+    }
+
+    fn summary(&self) -> &'static str {
+        match self {
+            Again::Stale(_) => "What it is about changed since it was made. Look at it again before you send it.",
+            Again::TooOld => "It waited over a day to go out. Look at it again before you send it.",
+            Again::Stopped => "You stopped it before it went out.",
+        }
+    }
+}
+
 const STALE: &str = "stale";
+const AUTO_STALE: &str = "auto_stale";
+const STOPPED_BY_USER: &str = "stopped";
+/// The kinds of a stopped row whose run's draft goes out in its place.
+const HELD_AGAIN: [&str; 3] = [STALE, AUTO_STALE, STOPPED_BY_USER];
 
 /// Waits after the 1st to 5th failed attempt (03 G5); the 6th is the last.
 const RETRY_MS: [i64; 5] = [30_000, 120_000, 600_000, 3_600_000, 14_400_000];
@@ -107,6 +139,7 @@ pub(crate) fn problem_in(
     problem: Problem,
 ) -> Result<(), Error> {
     let error_kind = problem.error_kind();
+    let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
     tracing::info!(delivery_id = %row.id, run_id = %row.run_id, error_kind, "a delivery needs the user");
     let item = NewItem {
         kind: ItemKind::DeliveryProblem,
@@ -116,7 +149,8 @@ pub(crate) fn problem_in(
         subject_key: Some(row.id.clone()),
         title: "A result was not sent".to_owned(),
         summary: problem.summary(at),
-        payload: json!({ "errorKind": error_kind, "deliveryId": row.id }),
+        // What a retry would send, for the user to edit first (Edit and retry).
+        payload: json!({ "errorKind": error_kind, "deliveryId": row.id, "doc": doc }),
         by_hand: false,
     };
     open_in(tx, out, at, item).map(drop)
@@ -170,9 +204,10 @@ pub(crate) fn record_in(
             }
         }
         Attempt::Stale(reason) => {
-            stale = Some(reason);
+            let again = Again::Stale(reason);
             row.state = STOPPED.to_owned();
-            row.last_error_kind = Some(STALE.to_owned());
+            row.last_error_kind = Some(again.kind().to_owned());
+            stale = Some(again);
         }
         Attempt::NoChannel => {
             row.state = WAITING_CAPABILITY.to_owned();
@@ -186,19 +221,21 @@ pub(crate) fn record_in(
         // The run keeps delivering while the user decides: a retry or "I sent
         // it myself" still finishes it, and only "Don't send" fails it.
         problem_in(tx, out, at, &row, problem)?;
-    } else if let Some(reason) = stale {
-        hold_again_in(tx, out, at, outcomes, &row, &reason)?;
+    } else if let Some(again) = stale {
+        hold_again_in(tx, out, at, outcomes, &row, &again)?;
     } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
         sent_in(tx, out, at.now, outcomes, &row)?;
     }
     Ok(())
 }
 
-/// Whether every send of `row`'s run went out. A send stopped as stale was
-/// held again as a draft: the draft's own send replaces it, so the run is
+/// Whether every send of `row`'s run went out. A send stopped as stale, too
+/// old or by the user was held again as a draft: the draft's own send replaces it, so the run is
 /// not done while that draft waits.
 pub(crate) fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error> {
-    let superseded = |other: &StoredDelivery| other.state == STOPPED && other.last_error_kind.as_deref() == Some(STALE);
+    let superseded = |other: &StoredDelivery| {
+        other.state == STOPPED && other.last_error_kind.as_deref().is_some_and(|kind| HELD_AGAIN.contains(&kind))
+    };
     let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
     if !rows.iter().all(|other| other.state == SENT || superseded(other)) {
         return Ok(false);
@@ -227,20 +264,21 @@ pub(crate) fn sent_in(
     ended_in(tx, out, outcomes, ended)
 }
 
-/// A send whose subject moved on goes back to the user as a draft (03 G1):
-/// never a stale send in silence. Its subject is the run's item, as the
+/// A send goes back to the user as a draft: its subject moved on (03 G1),
+/// never a stale send in silence; it is automatic and a day old (G5); or
+/// the user stopped it. Its subject is the run's item, as the
 /// gate's drafts are, so a later run's draft on that item replaces it. A
 /// draft this run already holds again on that item is replaced by one that
 /// also goes to its targets: every send of one run carries the same result.
 /// Another run's draft it replaces ends that run as `replaced`; its own run
 /// waits for the user again, on the new draft.
-fn hold_again_in(
+pub(crate) fn hold_again_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     at: &Opening<'_>,
     outcomes: &dyn RunOutcomes,
     row: &StoredDelivery,
-    reason: &str,
+    again: &Again,
 ) -> Result<(), Error> {
     let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
     let run = tx.runs().find(&row.run_id)?;
@@ -264,8 +302,11 @@ fn hold_again_in(
         run_id: Some(row.run_id.clone()),
         subject_key,
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
-        summary: "What it is about changed since it was made. Look at it again before you send it.".to_owned(),
-        payload: json!({ "doc": doc, "staleReason": reason, "targets": targets }),
+        summary: again.summary().to_owned(),
+        payload: match again {
+            Again::Stale(reason) => json!({ "doc": doc, "staleReason": reason, "targets": targets }),
+            Again::TooOld | Again::Stopped => json!({ "doc": doc, "targets": targets }),
+        },
         by_hand: false,
     };
     let (item, replaced) = open_replacing_in(tx, out, at, draft)?;

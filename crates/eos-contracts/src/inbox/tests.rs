@@ -64,8 +64,13 @@ fn a_list_and_an_item_read_and_write_back_in_camel_case() {
         "answeredBy": "phone",
         "answer": {"kind": "run_start", "choice": "skip"},
         "replacedBy": "nd-2",
+        "deliveries": [{"id": "dl-1", "state": "holding", "sendAt": 700}, {"id": "dl-2", "state": "sent", "undoUntil": 900}],
     }));
     assert_eq!(detail.working.map(|doc| doc.parts.len()), Some(1));
+    let retry: RetryRequest = round_trip(json!({"doc": doc()}));
+    assert!(retry.doc.is_some());
+    let _: RetryRequest = round_trip(json!({}));
+    let _: UndoAnswer = round_trip(json!({"state": "undone", "partial": true}));
 }
 
 #[test]

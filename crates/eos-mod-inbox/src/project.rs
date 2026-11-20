@@ -148,5 +148,6 @@ fn shown(item: InboxItem, payload: Value) -> InboxItemDetail {
         answered_by: None,
         answer: None,
         replaced_by: None,
+        deliveries: Vec::new(),
     }
 }

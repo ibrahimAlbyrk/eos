@@ -241,6 +241,13 @@ pub trait InboxRepo {
     fn unconsumed(&self, producer: &str) -> Result<Vec<StoredItem>, Error>;
     /// Marks an answered item as acted on; `false` when it was already.
     fn consume(&self, id: &str, at: i64) -> Result<bool, Error>;
+    /// Opens an answered item again, one rev up, its answer cleared (a
+    /// draft whose send the user stopped in its hold); `false` when it is
+    /// not answered.
+    fn reopen(&self, id: &str, at: i64) -> Result<bool, Error>;
+    /// Deletes up to `limit` items that ended (answered or closed) and were
+    /// last written before `before`; how many.
+    fn delete_ended_before(&self, before: i64, limit: i64) -> Result<usize, Error>;
 }
 
 pub trait DeliveryRepo {
@@ -252,6 +259,8 @@ pub trait DeliveryRepo {
     /// Writes every field of the row with its id but the ones it was made
     /// with (ids, target, body, class, mode, `created_at`).
     fn update(&self, delivery: &StoredDelivery) -> Result<(), Error>;
+    /// Replaces what the row sends: the user edited it before it went again.
+    fn rewrite_body(&self, id: &str, body: &str, body_hash: &str) -> Result<(), Error>;
     /// The rows in `state`, oldest first.
     fn in_state(&self, state: &str) -> Result<Vec<StoredDelivery>, Error>;
     /// A run's rows, oldest first.

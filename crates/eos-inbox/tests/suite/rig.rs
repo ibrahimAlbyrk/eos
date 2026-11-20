@@ -48,26 +48,19 @@ impl Rig {
         let outcomes = Arc::new(FakeRunOutcomes::new());
         let wake = Arc::new(tokio::sync::Notify::new());
         let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", confirmed));
+        let zone = Arc::new(FakeTimeZone::new("Europe/Istanbul", 180));
         let items = Items::new(ItemsParts {
             store: temp.port(),
             clock: clock.clone(),
             ids: ids.clone(),
+            zone: zone.clone(),
             channels: Arc::new(channels),
             outcomes: outcomes.clone(),
             control: control.clone(),
             wake: wake.clone(),
             waiters,
         });
-        Self {
-            temp,
-            clock,
-            ids,
-            zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
-            control,
-            outcomes,
-            wake,
-            items,
-        }
+        Self { temp, clock, ids, zone, control, outcomes, wake, items }
     }
 
     /// Opens `new` in a write job of its own, as a producer would in its.

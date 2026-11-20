@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::{InboxAnswer, ResultDoc};
 use eos_core::delivery::Channels;
+use eos_core::os::TimeZone;
 use eos_core::routine::{RoutineControl, RunOutcomes};
 use eos_core::store::{ItemAnswer, Outbox, Store, StoredItem, Tx};
 use eos_core::{Clock, Ids};
@@ -100,7 +101,10 @@ pub struct ItemsParts {
     pub store: Arc<dyn Store>,
     pub clock: Arc<dyn Clock>,
     pub ids: Arc<dyn Ids>,
-    /// The channels a sent draft goes out through, for their actions' traits.
+    /// The user's time zone, for the items a write opens.
+    pub zone: Arc<dyn TimeZone>,
+    /// The channels a sent draft goes out through, for their actions' traits,
+    /// and a sent result is taken back through.
     pub channels: Arc<dyn Channels>,
     /// Hears what became of each run's result.
     pub outcomes: Arc<dyn RunOutcomes>,
@@ -125,6 +129,7 @@ pub struct Items {
     pub(crate) store: Arc<dyn Store>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: Arc<dyn Ids>,
+    pub(crate) zone: Arc<dyn TimeZone>,
     pub(crate) channels: Arc<dyn Channels>,
     pub(crate) outcomes: Arc<dyn RunOutcomes>,
     pub(crate) control: Arc<dyn RoutineControl>,
@@ -140,8 +145,8 @@ impl std::fmt::Debug for Items {
 
 impl Items {
     pub fn new(parts: ItemsParts) -> Self {
-        let ItemsParts { store, clock, ids, channels, outcomes, control, wake, waiters } = parts;
-        Self { store, clock, ids, channels, outcomes, control, wake, waiters }
+        let ItemsParts { store, clock, ids, zone, channels, outcomes, control, wake, waiters } = parts;
+        Self { store, clock, ids, zone, channels, outcomes, control, wake, waiters }
     }
 
     /// Answers the item as it was at `rev`. `by` is who answered:

@@ -160,3 +160,23 @@ async fn a_send_held_again_puts_its_delivering_run_back_to_waiting_for_the_user(
     let held = bench.run(&run);
     assert_eq!((held.state, held.station), (RunState::WaitingForUser, Some(Station::Gate)));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_result_taken_back_after_its_run_ended_changes_the_runs_outcome() {
+    let bench = Bench::new(true);
+    bench.gate.decide(GateDecision::Delivering { delivery_ids: vec!["dl-1".into()] });
+    let (run, lead) = working(&bench, unchecked()).await;
+    bench.module.tools().submit_result(&lead, review()).await.expect("handed in");
+    bench.eventually(|| bench.state(&run) == RunState::Delivering).await;
+    let (id, outcomes) = (run.clone(), bench.module.outcomes());
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, out| {
+            outcomes.finished(tx, out, &id, Outcome::AutoSent)?;
+            outcomes.finished(tx, out, &id, Outcome::Undone)
+        })
+        .expect("writes");
+    let undone = bench.run(&run);
+    assert_eq!((undone.state, undone.outcome), (RunState::Done, Some(Outcome::Undone)));
+}

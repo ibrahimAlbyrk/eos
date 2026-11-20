@@ -66,6 +66,43 @@ pub struct DeliveryRef {
 
 impl Validate for DeliveryRef {}
 
+/// One send of a draft, so Stop, Undo and "That was wrong" are offered
+/// after a reload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftDelivery {
+    pub id: String,
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undo_until: Option<i64>,
+}
+
+impl Validate for DraftDelivery {}
+
+/// `POST /api/inbox/deliveries/{id}/retry`: a failed send goes again, as
+/// `doc` when the user edited it first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RetryRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc: Option<ResultDoc>,
+}
+
+impl Validate for RetryRequest {}
+
+/// What `POST /api/inbox/deliveries/{id}/undo` answers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct UndoAnswer {
+    /// `undone`.
+    pub state: String,
+    /// Some of it stays (a review's text).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partial: Option<bool>,
+}
+
+impl Validate for UndoAnswer {}
+
 /// `inbox:delivery`: a delivery moved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

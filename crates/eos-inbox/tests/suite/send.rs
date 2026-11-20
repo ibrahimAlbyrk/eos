@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use eos_contracts::{ActionClass, Part, ResultDoc};
 use eos_core::Clock;
+use eos_core::delivery::ChannelTraits;
 use eos_core::routine::{Confirmed, GateDecision, RoutineControl, RunGate, RunOutcomes};
 use eos_core::store::{StoredEdit, StoredOutcome};
 use eos_domain::inbox::{ItemKind, ItemState};
@@ -21,8 +22,8 @@ use crate::rig::{Rig, pull_requests};
 
 pub(crate) struct Held {
     pub(crate) rig: Rig,
-    engine: Arc<Delivery>,
-    channels: FakeChannels,
+    pub(crate) engine: Arc<Delivery>,
+    pub(crate) channels: FakeChannels,
     pub(crate) item_id: String,
     _control: Arc<dyn RoutineControl>,
 }
@@ -47,7 +48,12 @@ impl Held {
 
     /// As [`Held::new`], what the user confirmed of `rt-1` by the time of the send `confirmed`.
     async fn confirming(confirmed: Confirmed) -> Self {
-        let channels = FakeChannels::new().with("github", review_traits(ActionClass::Speak));
+        Self::through(confirmed, review_traits(ActionClass::Speak)).await
+    }
+
+    /// As [`Held::new`], through a channel with `traits`.
+    pub(crate) async fn through(confirmed: Confirmed, traits: ChannelTraits) -> Self {
+        let channels = FakeChannels::new().with("github", traits);
         let rig = Rig::with_channels(TempStore::new(), channels.clone(), confirmed);
         let gate = Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone());
         let control: Arc<dyn RoutineControl> = rig.control.clone();
@@ -89,11 +95,11 @@ impl Held {
         self.engine.pass().await.expect("a pass");
     }
 
-    async fn edits(&self) -> Vec<StoredEdit> {
+    pub(crate) async fn edits(&self) -> Vec<StoredEdit> {
         self.rig.temp.port().read(|tx| tx.inbox_edits().since(0, 10)).await.expect("reads")
     }
 
-    async fn outcomes(&self) -> Vec<StoredOutcome> {
+    pub(crate) async fn outcomes(&self) -> Vec<StoredOutcome> {
         self.rig.temp.port().read(|tx| tx.inbox_outcomes().by_routine("rt-1", 10)).await.expect("reads")
     }
 }

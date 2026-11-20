@@ -3,20 +3,26 @@
 //! goes to (the routine, the recipient and the run's item), while halt is
 //! off; each becomes `sending` with one more attempt. A row the
 //! user approved over an hour ago and never tried (Eos was closed) is not
-//! sent but told (03 G5).
+//! sent but told (03 G5), and an automatic one made over a day ago goes
+//! back to the user as a draft. A row in its hold (`holding`) is claimed
+//! like a queued one once due.
 
 use std::collections::{HashMap, HashSet};
 
 use eos_core::Error;
+use eos_core::delivery::Channels;
+use eos_core::routine::RunOutcomes;
 use eos_core::store::{DeliveryRepo, Outbox, StoredDelivery, Tx};
 use eos_domain::freedom::rung::APPROVED_FRESH_MS;
 
-use super::record::{Problem, problem_in};
-use super::{APPROVED, FAILED, QUEUED, SENDING, UNCERTAIN, announce};
+use super::record::{Again, Problem, hold_again_in, problem_in};
+use super::{APPROVED, FAILED, HOLDING, QUEUED, SENDING, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, automatic};
 use crate::Opening;
 
 /// The most rows one claim takes.
 const CLAIM_MAX: usize = 20;
+/// An automatic send older than this is held for the user instead (03 G5).
+pub(crate) const AUTO_HELD_AFTER_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Where a send really goes: two sends to the same pull request go one at
 /// a time, sends to different items or of different routines do not wait
@@ -67,7 +73,20 @@ fn due(row: &StoredDelivery, now: i64) -> bool {
     row.next_attempt_at.is_some_and(|at| at <= now)
 }
 
-pub(crate) fn claim_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>) -> Result<Vec<StoredDelivery>, Error> {
+/// The rows that wait to go, queued or in their hold, oldest first.
+pub(crate) fn waiting(repo: &dyn DeliveryRepo) -> Result<Vec<StoredDelivery>, Error> {
+    let mut rows = repo.in_state(QUEUED)?;
+    rows.extend(repo.in_state(HOLDING)?);
+    rows.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+    Ok(rows)
+}
+
+pub(crate) fn claim_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
+) -> Result<Vec<StoredDelivery>, Error> {
     if tx.inbox_halt().get()?.on {
         return Ok(Vec::new());
     }
@@ -78,7 +97,18 @@ pub(crate) fn claim_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>) -> Resul
     // queued row may go.
     let mut looked_at: HashSet<Place> = HashSet::new();
     let mut claimed = Vec::new();
-    for mut row in repo.in_state(QUEUED)? {
+    for mut row in waiting(repo)? {
+        if due(&row, at.now) && automatic_too_old(&row, at.now) {
+            row.state = STOPPED.to_owned();
+            row.next_attempt_at = None;
+            row.updated_at = at.now;
+            let again = Again::TooOld;
+            row.last_error_kind = Some(again.kind().to_owned());
+            repo.update(&row)?;
+            announce(out, &row);
+            hold_again_in(tx, out, at, outcomes, &row, &again)?;
+            continue;
+        }
         if due(&row, at.now) && approval_too_old(&row, at.now) {
             row.state = FAILED.to_owned();
             row.last_error_kind = Some("approval_stale".to_owned());
@@ -123,7 +153,7 @@ pub(crate) fn next_due_in(tx: &dyn Tx) -> Result<Option<i64>, Error> {
     let busy = busy(repo, &mut places)?;
     let mut looked_at: HashSet<Place> = HashSet::new();
     let mut next = repo.next_due(UNCERTAIN)?;
-    for row in repo.in_state(QUEUED)? {
+    for row in waiting(repo)? {
         let place = places.of(&row)?;
         if looked_at.insert(place.clone()) && !busy.contains(&place) {
             next = next.into_iter().chain(row.next_attempt_at).min();
@@ -132,6 +162,32 @@ pub(crate) fn next_due_in(tx: &dyn Tx) -> Result<Option<i64>, Error> {
     Ok(next)
 }
 
+/// An automatic send that has not gone out a day after it was made (Eos
+/// was closed, or it waited on its capability).
+pub(crate) fn automatic_too_old(row: &StoredDelivery, now: i64) -> bool {
+    automatic(&row.mode) && now - row.created_at > AUTO_HELD_AFTER_MS
+}
+
 fn approval_too_old(row: &StoredDelivery, now: i64) -> bool {
     row.mode == APPROVED && row.attempts == 0 && row.approved_at.is_some_and(|at| now - at > APPROVED_FRESH_MS)
+}
+
+/// Every send that waits for its capability is queued again, due now, once
+/// a channel sends it again; an automatic one a day old is then held at the
+/// claim instead (03 G23, G5).
+pub(crate) fn resume_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, channels: &dyn Channels) -> Result<(), Error> {
+    let repo = tx.inbox_deliveries();
+    for mut row in repo.in_state(WAITING_CAPABILITY)? {
+        if channels.get(&row.channel).is_none() {
+            continue;
+        }
+        row.state = QUEUED.to_owned();
+        row.next_attempt_at = Some(at.now);
+        row.last_error_kind = None;
+        row.updated_at = at.now;
+        repo.update(&row)?;
+        announce(out, &row);
+        tracing::info!(delivery_id = %row.id, "a send that waited for its capability goes again");
+    }
+    Ok(())
 }

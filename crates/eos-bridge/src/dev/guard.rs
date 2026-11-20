@@ -133,6 +133,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/inbox/{id}/answer"),
     // A send approves a delivery as the user.
     ("POST", "/api/inbox/{id}/send"),
+    // Taking a send back reaches the service it went to as the user; trying a failed one again
+    // approves it as the user.
+    ("POST", "/api/inbox/deliveries/{id}/undo"),
+    ("POST", "/api/inbox/deliveries/{id}/retry"),
     // Runs: a start, a message to a run's team and a resume set agents working; the items a
     // routine may run on are read from the user's accounts.
     ("POST", "/api/runs"),
@@ -380,6 +384,9 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/inbox/{id}/draft"),
     ("POST", "/api/inbox/{id}/later"),
     ("POST", "/api/inbox/{id}/discard"),
+    // Stopping a send in its hold and saying a sent one was wrong change only the data folder.
+    ("POST", "/api/inbox/deliveries/{id}/stop"),
+    ("POST", "/api/inbox/deliveries/{id}/wrong"),
     // Signals: the previews compute a schedule's next times and try a Which's rules on kept
     // signals; neither writes or asks the model.
     ("POST", "/api/signals/schedule/preview"),

@@ -73,6 +73,9 @@ pub struct InboxItemDetail {
     /// The newer item that took its place.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaced_by: Option<String>,
+    /// A draft's sends, newest last.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deliveries: Vec<DraftDelivery>,
 }
 
 impl Validate for InboxItemDetail {}
