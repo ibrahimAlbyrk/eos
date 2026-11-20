@@ -41,7 +41,10 @@ use std::path::PathBuf;
 
 use eos_core::accounts::PlanAccess;
 use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
-use eos_core::experience::{Embedder, ExperienceSearch, FoundNote};
+use eos_core::experience::{
+    CheckVerdict, Embedder, ExperienceFeedback, ExperiencePacks, ExperienceSearch, FoundNote, RunOutcome, RunPack,
+    RunPackRequest,
+};
 use eos_core::git::ProjectKeys;
 use eos_core::os::TimeZone;
 use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
@@ -50,7 +53,7 @@ use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_domain::redact::Scrubber;
-use eos_memory::{Capture, Credit, Recall, ReflectParts, Reflector};
+use eos_memory::{Capture, Credit, Feedback, Recall, ReflectParts, Reflector};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
@@ -168,6 +171,7 @@ pub struct MemoryModule {
     embedder: Mutex<Option<LoadEmbedder>>,
     health: Arc<Mutex<EmbedderHealth>>,
     api: Arc<routes::Api>,
+    runs: Arc<RunMemory>,
     background_model_calls: bool,
     /// What runs from `start` to `stop`.
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
@@ -241,6 +245,9 @@ impl MemoryModule {
             runs.clone(),
             credit.clone(),
         );
+        let feedback =
+            Feedback::new(store.clone(), clock.clone(), ids.clone(), recall.clone(), credit.clone(), device.clone());
+        let runs_memory = Arc::new(RunMemory { feedback, wake: wake.clone() });
         let api = Arc::new(routes::Api {
             store: store.clone(),
             clock: clock.clone(),
@@ -263,6 +270,7 @@ impl MemoryModule {
             embedder: Mutex::new(embedder),
             health,
             api,
+            runs: runs_memory,
             background_model_calls,
             tasks: Mutex::new(Vec::new()),
         }
@@ -276,6 +284,16 @@ impl MemoryModule {
         self.background_model_calls
     }
 
+    /// Packs for routines' runs.
+    pub fn experience_packs(&self) -> Arc<dyn ExperiencePacks> {
+        self.runs.clone()
+    }
+
+    /// What routines tell memory about their runs.
+    pub fn experience_feedback(&self) -> Arc<dyn ExperienceFeedback> {
+        self.runs.clone()
+    }
+
     /// `recall_experience` for the agent tools.
     pub fn experience_search(&self) -> Arc<dyn ExperienceSearch> {
         Arc::new(Search(self.reminders.clone()))
@@ -283,6 +301,38 @@ impl MemoryModule {
 
     pub async fn settings(&self) -> Result<ExperienceSettings, Error> {
         self.store.read(eos_memory::settings::read_in).await
+    }
+}
+
+/// Memory as routines' runs see it.
+struct RunMemory {
+    feedback: Feedback,
+    /// Wakes reflection when a failed check left a moment.
+    wake: Arc<Notify>,
+}
+
+impl ExperiencePacks for RunMemory {
+    fn for_run(&self, request: RunPackRequest) -> BoxFuture<'_, Result<RunPack, Error>> {
+        Box::pin(self.feedback.for_run(request))
+    }
+}
+
+impl ExperienceFeedback for RunMemory {
+    fn run_ended(&self, outcome: RunOutcome) -> BoxFuture<'_, Result<(), Error>> {
+        Box::pin(async move { self.feedback.run_ended(&outcome.run_id, &outcome.kind).await })
+    }
+
+    fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>> {
+        Box::pin(async move {
+            if self.feedback.check_failed(verdict).await? {
+                self.wake.notify_one();
+            }
+            Ok(())
+        })
+    }
+
+    fn routine_removed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move { self.feedback.routine_removed(routine_id).await.map(drop) })
     }
 }
 

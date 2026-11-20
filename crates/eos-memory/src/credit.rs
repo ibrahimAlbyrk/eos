@@ -119,6 +119,41 @@ impl Credit {
             .await
     }
 
+    /// A run ended as `kind`: a delivered run's pack notes count as used
+    /// once each, and a run sent as it was (or sent by itself) helps each of
+    /// them once. Answers how many notes it helped.
+    pub async fn run_ended(&self, run_id: &str, kind: &str) -> Result<usize, Error> {
+        let delivered = matches!(kind, "sent_unedited" | "sent_edited" | "auto_sent");
+        let good = matches!(kind, "sent_unedited" | "auto_sent");
+        let (run_id, kind, device, now) =
+            (run_id.to_owned(), kind.to_owned(), self.device.clone(), self.clock.now_ms());
+        self.store
+            .write(move |tx, out| {
+                let open: Vec<_> = tx.mem_uses().of_run(&run_id)?.into_iter().filter(|u| u.outcome.is_none()).collect();
+                let mut notes = BTreeSet::new();
+                for used in &open {
+                    if notes.insert(used.note_id.clone()) && delivered {
+                        tx.mem_uses().set_acted(&used.id)?;
+                    }
+                }
+                tx.mem_uses().settle(None, Some(&run_id), if good { HELPED } else { &kind })?;
+                let notes: Vec<String> = notes.into_iter().collect();
+                for note_id in &notes {
+                    let (helped, used) = (i64::from(good), i64::from(delivered));
+                    if helped + used > 0 {
+                        tx.mem_credit().add(note_id, &device, helped, 0, used, delivered.then_some(now))?;
+                        restand_in(tx, note_id, now)?;
+                    }
+                }
+                let count = if good { notes.len() } else { 0 };
+                if delivered {
+                    announce(out, notes);
+                }
+                Ok(count)
+            })
+            .await
+    }
+
     /// The user says a note is not right: it is hurt once. Answers the
     /// state it is in after, `None` when there is no such note.
     pub async fn not_right(&self, note_id: &str) -> Result<Option<NoteState>, Error> {

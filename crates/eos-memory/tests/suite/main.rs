@@ -4,6 +4,7 @@
 
 mod capture;
 mod credit;
+mod feedback;
 mod notes;
 mod recall;
 mod reflect;

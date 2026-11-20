@@ -14,6 +14,7 @@
 //!   them beside the notes they meet, in one job.
 //! - [`credit`] moves notes' counters and states by what followed their
 //!   recall: acted on, a good end, a surprise, "Not right".
+//! - [`feedback`] packs a routine's run and hears how it ended.
 //! - [`forget`] forgets a note and brings it back within 30 days.
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
@@ -26,6 +27,7 @@
 pub mod capture;
 pub mod credit;
 pub mod deliver;
+pub mod feedback;
 pub mod forget;
 pub mod merge;
 pub mod pack;
@@ -38,7 +40,8 @@ pub mod vectors;
 
 pub use capture::{Capture, Captured};
 pub use credit::{ChatOutcome, Credit};
-pub use pack::{Pack, chat_pack};
+pub use feedback::Feedback;
+pub use pack::{Pack, chat_pack, run_pack};
 pub use recall::{Cues, Recall, Recalled, Situation};
 pub use reflect::{Gate, ModelGate, MomentContext, MomentSource, ReflectParts, ReflectPrompt, Reflector};
 pub use vectors::VectorIndex;
