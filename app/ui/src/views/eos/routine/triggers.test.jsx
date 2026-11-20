@@ -14,7 +14,7 @@ import { EosMain } from "../EosMain.jsx";
 import { localZone } from "../blueprint/slots/when.js";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { onLocalZone } from "./Triggers.jsx";
-import { timeAt, zoneName } from "./words.js";
+import { decisionLine, timeAt, zoneName } from "./words.js";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
 import routinePaused from "../gallery/sample/routine-paused.json";
@@ -163,6 +163,13 @@ describe("the signal list", () => {
     html = draw();
     expect(html).toContain('role="radio" aria-checked="true" class="eos-seg__opt">Turned away</button>');
     expect(lines(html, "eos-signal__title")).toEqual(["Bump the build tools"]);
+  });
+
+  it("names the rule an unmatched signal failed, or the model's answer, never a rule it cannot count", () => {
+    expect(decisionLine({ decision: "unmatched", reason: "2" })).toBe("Turned away by rule 3");
+    expect(decisionLine({ decision: "unmatched", reason: "ask" })).toBe("Turned away by the model's answer");
+    expect(decisionLine({ decision: "unmatched", reason: "other" })).toBe("Turned away");
+    expect(decisionLine({ decision: "unmatched" })).toBe("Turned away");
   });
 
   it("runs one anyway and says what the core answered", async () => {

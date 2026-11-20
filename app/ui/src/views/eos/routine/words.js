@@ -83,9 +83,11 @@ export const decisionWord = (word) => DECISIONS[word] ?? word;
 // A rule by its place in the Which: the core counts from 0, people from 1.
 export const ruleName = (index) => `rule ${Number(index) + 1}`;
 
-// What became of a signal for the routine; an unmatched one names its rule.
+// What became of a signal for the routine; an unmatched one names its rule,
+// or the model when the routine's question turned it away (reason `ask`).
 export function decisionLine(decision) {
-  if (decision.decision === "unmatched" && decision.reason != null) return `Turned away by ${ruleName(decision.reason)}`;
+  if (decision.decision === "unmatched" && decision.reason === "ask") return "Turned away by the model's answer";
+  if (decision.decision === "unmatched" && /^\d+$/.test(decision.reason ?? "")) return `Turned away by ${ruleName(decision.reason)}`;
   return decisionWord(decision.decision);
 }
 
