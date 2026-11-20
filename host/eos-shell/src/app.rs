@@ -670,6 +670,12 @@ impl Shell {
                         let _ = window.hide();
                     }
                 }
+                // The window came back without the app's own showing: switching to the hidden
+                // app, or its minimized tile in the Dock. A released dashboard is made again
+                // now, not at the next look.
+                WindowEvent::Focused(true) => {
+                    self.dashboard_step(true);
+                }
                 WindowEvent::Resized(_) | WindowEvent::Moved(_) => {
                     if let (Some(window), Some(keeper)) = (self.window.get(), self.keeper.get())
                         && let Some(fullscreen) = keeper.changed(window, false)
@@ -977,7 +983,7 @@ impl Shell {
                 std::thread::sleep(TICK);
                 tick = tick.wrapping_add(1);
                 // Also makes a released dashboard again when the window came back without
-                // the app's own showing (switching to the hidden app).
+                // the focus, which a quiet run never takes.
                 self.dashboard_step(false);
                 let woke = detector.tick(now_ms());
                 if let Some(away) = woke {
