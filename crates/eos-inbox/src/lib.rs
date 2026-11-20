@@ -44,6 +44,10 @@
 //! - The sweeper ([`Items::sweep`]) expires items whose time ran out, opens
 //!   again the ones put off, and deletes those that ended 90 days ago.
 //!
+//! - Each send that went out reads the routine's streak again; ten in a
+//!   row as Eos made them open one `freedom_offer`, and an accepted offer
+//!   raises the routine ([`Items::freedom`] reads where it stands).
+//!
 //! - [`attention::Notifier`] interrupts sparingly, keeps quiet hours, sends
 //!   digests and keeps the Dock badge on the open count.
 //!
@@ -61,6 +65,7 @@ pub mod gate;
 mod halt;
 mod handoff;
 mod items;
+mod offers;
 mod outcomes;
 mod problems;
 mod questions;
@@ -80,6 +85,7 @@ pub use handoff::consume_in;
 pub use items::{
     NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in, withdraw_run_start_in,
 };
+pub use offers::INBOX_FREEDOM;
 pub use questions::{QuestionWaiters, RunQuestionParts, RunQuestions, WITHDRAWN};
 pub use routing::RunAsks;
 pub use stale::SUBJECT_CLOSED;

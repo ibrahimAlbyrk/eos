@@ -13,17 +13,19 @@ use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use tokio::sync::Notify;
 
-use crate::alerts;
+use crate::items::Opening;
 use crate::outcomes::{self, Ended};
 use crate::problems::{self, Answered};
 use crate::questions::QuestionWaiters;
 use crate::{Error, announce, consume_in};
+use crate::{alerts, offers};
 
 /// The kinds answered through [`Items::answer`]. A draft is sent or
 /// discarded; a run's permission ask and an about-you suggestion are answered
 /// by their own routes.
-const ANSWERED_HERE: [ItemKind; 7] = [
+const ANSWERED_HERE: [ItemKind; 8] = [
     ItemKind::RunStart,
+    ItemKind::FreedomOffer,
     ItemKind::Question,
     ItemKind::RoutineAlert,
     ItemKind::ConfirmChange,
@@ -161,8 +163,9 @@ impl Items {
 
     /// Answers the item as it was at `rev`. `by` is who answered:
     /// `dashboard`, `phone`, `peer` or `system`. The answer must be of the
-    /// item's kind, and of a kind answered here. A delivery problem's and a
-    /// routine alert's answer are acted on in the same job.
+    /// item's kind, and of a kind answered here. A delivery problem's, a
+    /// routine alert's and an offer's answer are acted on in the same job;
+    /// an accepted offer raises its routine once the job committed.
     pub async fn answer(&self, id: &str, rev: i64, answer: &InboxAnswer, by: &str) -> Result<StoredItem, Error> {
         let text = serde_json::to_value(answer).map_err(|e| eos_core::Error::Validation(e.to_string()))?;
         let kind = text["kind"].as_str().and_then(ItemKind::parse);
@@ -170,7 +173,7 @@ impl Items {
         let typed = answer.clone();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
         let (id, run_outcomes, control) = (id.to_owned(), self.outcomes.clone(), self.control.clone());
-        let waiters = self.waiters.clone();
+        let (ids, zone, waiters) = (self.ids.clone(), self.zone.clone(), self.waiters.clone());
         // A refused resume rolls the whole answer back; it comes out here.
         let refused = Arc::new(OnceLock::new());
         let refusal = refused.clone();
@@ -195,10 +198,16 @@ impl Items {
                     Err(refused) => return Ok(Err(refused)),
                 };
                 heard_in(tx, &waiters, &item, now)?;
+                let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+                let mut raise = None;
                 let changed = match &typed {
                     InboxAnswer::DeliveryProblem { choice, doc } => {
                         let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
-                        problems::answered_in(tx, out, run_outcomes.as_ref(), control.as_ref(), answered)?
+                        problems::answered_in(tx, out, run_outcomes.as_ref(), &at, answered)?
+                    }
+                    InboxAnswer::FreedomOffer { choice } if item.producer == offers::OFFER_PRODUCER => {
+                        raise = offers::answered_in(tx, out, &item, *choice, now)?;
+                        false
                     }
                     InboxAnswer::RoutineAlert { choice } if alerts::acted_on(&item) => {
                         match alerts::answered_in(tx, out, control.as_ref(), &item, *choice, now) {
@@ -212,15 +221,19 @@ impl Items {
                     }
                     _ => false,
                 };
-                Ok(Ok((item, changed)))
+                Ok(Ok((item, changed, raise)))
             })
             .await;
         if let Some(unconfirmed) = refused.get() {
             return Err(Error::RecipientsUnconfirmed(unconfirmed.clone()));
         }
-        let (item, changed) = written??;
+        let (item, changed, raise) = written??;
         if changed {
             self.wake.notify_one();
+        }
+        if let (Some(rung), Some(routine_id)) = (raise, item.routine_id.as_deref()) {
+            tracing::info!(routine_id, "an accepted offer raises a routine");
+            self.control.raise(routine_id, rung).await?;
         }
         self.waiters.wake(&item);
         Ok(item)

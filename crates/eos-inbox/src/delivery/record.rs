@@ -5,12 +5,12 @@
 //! `delivery_problem` item that asks the user. The run hears of a send
 //! through [`RunOutcomes`].
 
-use eos_contracts::ResultDoc;
+use eos_contracts::{ResultDoc, Rung};
 use eos_core::Error;
 use eos_core::capability::FailureKind;
 use eos_core::delivery::{ChannelTraits, Receipt, SendError, SendErrorKind, Undo};
 use eos_core::routine::RunOutcomes;
-use eos_core::store::{Outbox, StoredDelivery, Tx};
+use eos_core::store::{NewOutcome, Outbox, StoredDelivery, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
@@ -21,7 +21,7 @@ use crate::gate::{DRAFT_PRODUCER, run_subject};
 use crate::halt::queue_again_in;
 use crate::items::open_replacing_in;
 use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
-use crate::{NewItem, Opening, open_in};
+use crate::{NewItem, Opening, offers, open_in};
 
 /// Why a send went back to the user as a draft.
 pub(crate) enum Again {
@@ -225,7 +225,7 @@ pub(crate) fn record_in(
     } else if let Some(again) = stale {
         hold_again_in(tx, out, at, outcomes, &row, &again)?;
     } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
-        sent_in(tx, out, at.now, outcomes, &row)?;
+        sent_in(tx, out, at, outcomes, &row)?;
     }
     Ok(())
 }
@@ -246,11 +246,12 @@ pub(crate) fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error>
 }
 
 /// The run's last delivery went out: one Freedom sent ends `auto_sent`; a
-/// draft the user sent ends `sent_unedited` or `sent_edited`, recorded.
+/// draft the user sent ends `sent_unedited` or `sent_edited`. Each is an
+/// outcome row, and the routine's streak is read again.
 pub(crate) fn sent_in(
     tx: &dyn Tx,
     out: &mut Outbox,
-    now: i64,
+    at: &Opening<'_>,
     outcomes: &dyn RunOutcomes,
     row: &StoredDelivery,
 ) -> Result<(), Error> {
@@ -258,11 +259,65 @@ pub(crate) fn sent_in(
         Some(item_id) if row.mode != AUTO => tx.inbox_items().find(item_id)?,
         _ => None,
     };
-    let Some(item) = item else { return outcomes.finished(tx, out, &row.run_id, Outcome::AutoSent) };
-    let sent: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
-    let outcome = sent_outcome(&item, &sent);
-    let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: now };
-    ended_in(tx, out, outcomes, ended)
+    match item {
+        Some(item) => {
+            let sent: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
+            let outcome = sent_outcome(&item, &sent);
+            let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: at.now };
+            ended_in(tx, out, outcomes, ended)?;
+        }
+        None => {
+            let rung = at.control.confirmed_in(tx, &row.routine_id).map(|confirmed| confirmed.freedom.rung);
+            let auto = NewOutcome {
+                routine_id: row.routine_id.clone(),
+                run_id: row.run_id.clone(),
+                item_id: None,
+                delivery_id: Some(row.id.clone()),
+                outcome: Outcome::AutoSent.as_str().to_owned(),
+                rung: rung.map_or_else(|_| row.mode.clone(), rung_word),
+                at: at.now,
+            };
+            tx.inbox_outcomes().insert(&auto)?;
+            outcomes.finished(tx, out, &row.run_id, Outcome::AutoSent)?;
+        }
+    }
+    offers::sent_in(tx, out, at, &row.routine_id)
+}
+
+/// A rung as its outcome rows keep it (`draft`, `send_then_tell`, …).
+fn rung_word(rung: Rung) -> String {
+    serde_json::to_value(rung).ok().and_then(|word| word.as_str().map(str::to_owned)).unwrap_or_default()
+}
+
+/// What a send held again keeps of how it was first held, so its send
+/// counts for the streak as the first one would have.
+struct FirstHold {
+    rung: String,
+    untrusted: bool,
+    /// The user changed the result before the first send.
+    edited: bool,
+}
+
+fn first_hold_in(tx: &dyn Tx, at: &Opening<'_>, row: &StoredDelivery) -> Result<FirstHold, Error> {
+    let item = match &row.item_id {
+        Some(id) => tx.inbox_items().find(id)?,
+        None => None,
+    };
+    let Some(item) = item else {
+        let rung = at.control.confirmed_in(tx, &row.routine_id).map(|confirmed| confirmed.freedom.rung);
+        return Ok(FirstHold {
+            rung: rung.map_or_else(|_| row.mode.clone(), rung_word),
+            untrusted: true,
+            edited: false,
+        });
+    };
+    let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
+    let sent: Option<ResultDoc> = serde_json::from_str(&row.body).ok();
+    Ok(FirstHold {
+        rung: payload["rung"].as_str().unwrap_or("draft").to_owned(),
+        untrusted: payload["untrusted"].as_bool().unwrap_or(true),
+        edited: sent.is_none_or(|sent| sent_outcome(&item, &sent) == Outcome::SentEdited),
+    })
 }
 
 /// A send goes back to the user as a draft: its subject moved on (03 G1),
@@ -282,6 +337,7 @@ pub(crate) fn hold_again_in(
     again: &Again,
 ) -> Result<(), Error> {
     let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
+    let held = first_hold_in(tx, at, row)?;
     let run = tx.runs().find(&row.run_id)?;
     // The version the run's result was made on, kept as the gate keeps it.
     let input: Value = run.as_ref().and_then(|run| serde_json::from_str(&run.input).ok()).unwrap_or(Value::Null);
@@ -307,11 +363,19 @@ pub(crate) fn hold_again_in(
         subject_key,
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
         summary: again.summary().to_owned(),
-        payload: match again {
-            Again::Stale(reason) => {
-                json!({ "doc": doc, "staleReason": reason, "targets": targets, "subjectVersion": version })
+        payload: {
+            let mut payload = json!({
+                "doc": doc,
+                "targets": targets,
+                "subjectVersion": version,
+                "rung": held.rung,
+                "untrusted": held.untrusted,
+                "edited": held.edited,
+            });
+            if let Again::Stale(reason) = again {
+                payload["staleReason"] = json!(reason);
             }
-            Again::TooOld | Again::Stopped => json!({ "doc": doc, "targets": targets, "subjectVersion": version }),
+            payload
         },
         by_hand: false,
     };

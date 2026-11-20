@@ -4,6 +4,7 @@
 
 mod attention;
 mod deliveries;
+mod freedom;
 mod halt;
 
 use std::cmp::Reverse;
@@ -16,6 +17,7 @@ use eos_contracts::{
 };
 use eos_core::store::{ItemPlace, ItemQuery, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::{ItemKind, ItemState, order_rank};
+use eos_domain::routine::numbers::Outcome;
 use eos_runtime::access::{Access, Caller, LocalCaller, Tier};
 use eos_runtime::http::path::percent_decode;
 use eos_runtime::http::{ApiError, Request, Response};
@@ -68,9 +70,11 @@ fn sends_in(tx: &dyn Tx, item: &StoredItem) -> Result<Vec<DraftDelivery>, eos_co
     let Some(run_id) = item.run_id.as_deref().filter(|_| item.kind == ItemKind::Draft) else { return Ok(Vec::new()) };
     let rows = tx.inbox_deliveries().of_run(run_id)?;
     let own = rows.into_iter().filter(|row| row.item_id.as_deref() == Some(item.id.as_str()));
-    Ok(own
-        .map(|row| DraftDelivery { id: row.id, state: row.state, send_at: row.send_at, undo_until: row.undo_until })
-        .collect())
+    own.map(|row| {
+        let wrong = tx.inbox_outcomes().judged(&row.routine_id, &row.id, Outcome::Wrong.as_str())?;
+        Ok(DraftDelivery { id: row.id, state: row.state, send_at: row.send_at, undo_until: row.undo_until, wrong })
+    })
+    .collect()
 }
 
 /// Who answered, as an item keeps it.
@@ -323,6 +327,7 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
     .into_iter()
     .chain(deliveries::all(shared))
     .chain(halt::all(shared))
+    .chain(freedom::all(shared))
     .chain(attention::all(shared))
     .collect()
 }

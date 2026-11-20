@@ -40,3 +40,36 @@ async fn a_send_is_stopped_in_its_hold_and_the_others_refuse_what_does_not_apply
     assert_eq!(rig.ask(Method::Post, &path("retry"), Some(json!({}))).await.0, 409);
     assert_eq!(rig.ask(Method::Post, "/api/inbox/deliveries/dl-none/stop", None).await.0, 404);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_send_said_wrong_shows_so_and_freedom_reads_the_streak_since_the_last_offer() {
+    let rig = Rig::new().await;
+    for (n, outcome) in ["sent_edited", "sent_unedited", "expired", "sent_unedited"].iter().enumerate() {
+        rig.temp.exec(&format!(
+            "INSERT INTO inbox_outcomes (routine_id, run_id, outcome, rung, at) VALUES ('rt-1', 'rn-0', '{outcome}', 'draft', {n})"
+        ));
+    }
+    let (status, freedom) = rig.ask(Method::Get, "/api/routines/rt-1/freedom", None).await;
+    assert_eq!(status, 200, "{freedom}");
+    assert_eq!(freedom, json!({"routineId": "rt-1", "rung": "draft", "grants": [], "streak": 2, "offer": "none"}));
+    assert_eq!(rig.ask(Method::Get, "/api/routines/rt-none/freedom", None).await.0, 404);
+
+    let mut draft = new_item(ItemKind::Draft, "rt-1");
+    draft.run_id = Some("rn-0".into());
+    let item = rig.open(draft).await;
+    rig.temp.exec(&format!(
+        "INSERT INTO inbox_deliveries (id, item_id, run_id, routine_id, channel, action, target, target_ref, class, \
+         mode, state, body, body_hash, attempts, created_at, updated_at) VALUES ('dl-9', '{}', 'rn-0', 'rt-1', \
+         'github', 'post_review', '{{}}', 'pr', 'speak', 'approved', 'sent', \
+         '{{\"kind\":\"github.review\",\"channel\":\"github\",\"action\":\"post_review\",\"parts\":[]}}', \
+         'h', 1, 1, 1)",
+        item.id
+    ));
+    let (_, shown) = rig.ask(Method::Get, &format!("/api/inbox/{}", item.id), None).await;
+    assert_eq!(shown["deliveries"][0].get("wrong"), None);
+    assert_eq!(rig.ask(Method::Post, "/api/inbox/deliveries/dl-9/wrong", None).await.0, 200);
+    let (_, shown) = rig.ask(Method::Get, &format!("/api/inbox/{}", item.id), None).await;
+    assert_eq!(shown["deliveries"][0]["wrong"], true, "said once, it stays said after a reload");
+    let (_, freedom) = rig.ask(Method::Get, "/api/routines/rt-1/freedom", None).await;
+    assert_eq!(freedom["streak"], 0, "that was wrong ends it");
+}
