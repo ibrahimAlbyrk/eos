@@ -82,6 +82,24 @@ async fn i_sent_it_myself_records_the_send_and_finishes_the_run() {
 }
 
 #[tokio::test]
+async fn an_answered_unknown_send_wakes_the_engine_for_the_send_it_held_back() {
+    for choice in [ProblemChoice::MarkSent, ProblemChoice::Discard] {
+        let sender = Sender::new();
+        sender.unknown().await;
+        sender.queue("dl-2", "sms", "me", "queued", "auto", sender.rig.clock.now_ms()).await;
+        sender.pass().await;
+        assert!(sender.sent().is_empty(), "it waits behind the unknown send");
+        // A permit an earlier write left is not the answer's wake.
+        let _ = tokio::time::timeout(Duration::from_millis(10), sender.rig.wake.notified()).await;
+        sender.answer(choice).await;
+        let woken = tokio::time::timeout(Duration::from_secs(1), sender.rig.wake.notified()).await;
+        assert!(woken.is_ok(), "the delivery engine is woken after {choice:?}");
+        sender.pass().await;
+        assert_eq!(sender.sent(), ["dl-2"]);
+    }
+}
+
+#[tokio::test]
 async fn dont_send_stops_the_send_and_fails_the_runs_delivery_for_good() {
     let sender = Sender::new();
     sender.stale_approval().await;

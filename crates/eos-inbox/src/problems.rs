@@ -26,8 +26,9 @@ pub(crate) struct Answered<'a> {
     pub(crate) now: i64,
 }
 
-/// Acts on the answer; whether a send was queued again, so the delivery
-/// engine is woken once the job committed.
+/// Acts on the answer; whether a send changed, so the delivery engine is
+/// woken once the job committed: a send queued again goes now, and sends
+/// to the same place that waited behind an unknown one may go.
 pub(crate) fn answered_in(
     tx: &dyn Tx,
     out: &mut Outbox,
@@ -75,7 +76,7 @@ pub(crate) fn answered_in(
     announce(out, &row);
     tracing::info!(delivery_id = %row.id, item_id = %item.id, state = %row.state, "a delivery problem was answered");
     match choice {
-        ProblemChoice::Retry => return Ok(true),
+        ProblemChoice::Retry => {}
         ProblemChoice::MarkSent if delivering(tx, &row.run_id)? && all_sent(tx, &row)? => {
             sent_in(tx, out, now, outcomes, &row)?;
         }
@@ -84,5 +85,5 @@ pub(crate) fn answered_in(
         }
         _ => {}
     }
-    Ok(false)
+    Ok(true)
 }
