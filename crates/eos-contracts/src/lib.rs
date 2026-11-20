@@ -97,7 +97,7 @@ pub use routine::*;
 pub use shared::*;
 pub use side_question::*;
 pub use signals::*;
-pub use stream::{StreamChange, StreamSync};
+pub use stream::{StreamChange, StreamSync, SystemWake};
 pub use subagents::*;
 pub use sync::*;
 pub use task::*;

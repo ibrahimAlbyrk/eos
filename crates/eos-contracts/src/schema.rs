@@ -646,6 +646,7 @@ bundle![
     SyncKeyResponse,
     SyncPhase,
     SyncStatusResponse,
+    SystemWake,
     Takes,
     TakesEmpty,
     Task,

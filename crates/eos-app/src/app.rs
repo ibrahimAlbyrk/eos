@@ -738,6 +738,16 @@ impl App {
         self.updates.signals()
     }
 
+    /// The computer woke after `away` asleep: announced once on
+    /// `system:wake`, so whatever waits on the clock looks again at once.
+    pub fn woke(&self, away: Duration) {
+        let wake = eos_contracts::SystemWake { away_ms: i64::try_from(away.as_millis()).unwrap_or(i64::MAX) };
+        match serde_json::to_vec(&wake) {
+            Ok(json) => self.runtime.kernel.bus.publish_raw(topics::SYSTEM_WAKE, None, json.into()),
+            Err(error) => tracing::warn!(%error, "the wake could not be announced"),
+        }
+    }
+
     /// Call once the core is ready and the window is up. When this start
     /// follows an update, the applier that swapped the app in is waiting for
     /// this mark and puts the previous version back without it
