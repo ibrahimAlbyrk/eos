@@ -168,7 +168,10 @@ impl Router {
             }
         };
         if let Settled::Answered { matches, asked: true, .. } = settled {
-            self.asks.cache().insert(key, (matches, now));
+            let mut cache = self.asks.cache();
+            // Answers past their time are dropped, so the cache does not grow for good.
+            cache.retain(|_, (_, at)| now - *at < ASK_CACHE_MS);
+            cache.insert(key, (matches, now));
         }
         self.write_settled(route, routine, settled).await
     }
