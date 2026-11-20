@@ -1,7 +1,8 @@
 //! Waking the phone (07 §4.6, G38): while the room is held, the push goes on
 //! its own connection; otherwise over the relay's HTTP API with the room
-//! owner's secret, so a push needs neither the link armed nor the computer
-//! held awake.
+//! owner's secret, so a push needs neither the room held nor the computer
+//! awake. A link switched off, or one whose room was never set up (no phone
+//! can have paired), wakes nobody: nothing is dialled and nothing written.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,6 +35,10 @@ impl PhoneNotify for RemotePush {
 async fn send(shared: &Shared, push: PhonePush) -> Result<PushOutcome, Error> {
     // This app reaches no relay at all.
     let Some(relay) = shared.parts.relay.clone() else { return Ok(PushOutcome::LinkOff) };
+    let remote = shared.parts.config.current().remote.clone();
+    // Switched off, or no relay was ever set: no phone is to be woken.
+    let url = remote.relay.map(|relay| relay.url).filter(|url| !url.is_empty());
+    let Some(url) = url.filter(|_| remote.enabled) else { return Ok(PushOutcome::LinkOff) };
     let room = shared.armed().as_ref().map(|armed| armed.room.clone()).filter(|room| room.online());
     if let Some(room) = room {
         match tokio::time::timeout(SOCKET_PUSH_TIMEOUT, room.push(push)).await {
@@ -44,10 +49,9 @@ async fn send(shared: &Shared, push: PhonePush) -> Result<PushOutcome, Error> {
             Err(_) => return Err(Error::Unreachable("relay (no push result in time)".into())),
         }
     }
-    let url = shared.parts.config.current().remote.relay.clone().map(|relay| relay.url).filter(|url| !url.is_empty());
-    // No relay was ever set: no phone can have been paired.
-    let Some(url) = url else { return Ok(PushOutcome::LinkOff) };
-    let secrets = shared.parts.store.secrets()?;
+    // The room's secrets are minted when the link is first armed: without
+    // them no phone has ever had a pairing code.
+    let Some(secrets) = shared.parts.store.saved_secrets()? else { return Ok(PushOutcome::LinkOff) };
     let target = PushTarget { url, room: secrets.room, owner: secrets.owner };
     match relay.push(target, push).await {
         Ok(result) => Ok(result.into()),

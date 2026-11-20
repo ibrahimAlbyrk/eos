@@ -9,14 +9,17 @@ use common::{Harness, NOW, RELAY_URL, ROOM, base_routes, enabled};
 use std::sync::Arc;
 
 use eos_core::net::relay::{PhonePush, PushKind, PushOutcome, PushResult, RelayClientId, RoomEvent};
-use eos_core::store::ConfigSource;
-use eos_mod_remote::GatewayOptions;
+use eos_core::store::{ConfigSource, RemoteStore};
+use eos_mod_remote::{GatewayOptions, RemoteModule, RemoteParts};
 use eos_relay::RelayClient;
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::module::Module;
+use eos_runtime::{Kernel, KernelOptions};
+use eos_store_files::remote::RemoteFiles;
 use eos_testkit::fixtures::recorded_response;
-use eos_testkit::relay::{FakeRelay, FakeRelayPort, PushVia, inner_json};
+use eos_testkit::relay::{FakeKeepAwake, FakeRelay, FakeRelayPort, PushVia, inner_json};
+use eos_testkit::{FakeClock, FakeConfig, SeqIds};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -330,7 +333,7 @@ async fn a_push_goes_on_the_room_s_connection_while_armed_and_over_http_otherwis
     assert_eq!((target.url.as_str(), target.room.as_str(), target.owner.as_str()), (RELAY_URL, ROOM, h.store.owner()));
     assert_eq!(sent, push);
 
-    // Switched off but set: no socket, and no keep-awake for it.
+    // Switched off but set: no socket, no keep-awake, and no push at all.
     let off = Harness::new(
         &base_routes(),
         json!({ "remote": { "enabled": false, "relay": { "url": RELAY_URL } } }),
@@ -338,18 +341,53 @@ async fn a_push_goes_on_the_room_s_connection_while_armed_and_over_http_otherwis
         true,
     );
     off.module.start().await.expect("starts");
-    assert_eq!(push_test(&off).await, (200, json!({ "sent": 1, "failed": 0 })));
-    assert_eq!((off.relay.http_pushes().len(), off.relay.claims().len(), off.awake.taken()), (1, 0, 0));
+    assert_eq!(push_test(&off).await, (200, json!({ "sent": 0, "failed": 0, "reason": "link-off" })));
+    assert_eq!((off.relay.http_pushes().len(), off.relay.claims().len(), off.awake.taken()), (0, 0, 0));
+}
+
+/// The module over the room's real files in `home/remote`, not armed.
+fn on_files(home: &std::path::Path, config: Value, relay: &Arc<FakeRelayPort>) -> RemoteModule {
+    let clock = Arc::new(FakeClock::at(NOW));
+    let kernel = Kernel::new(KernelOptions { clock: clock.clone(), ..KernelOptions::default() });
+    RemoteModule::new(RemoteParts {
+        config: Arc::new(FakeConfig::new(config)),
+        store: Arc::new(RemoteFiles::new(home.join("remote"))),
+        relay: Some(relay.clone()),
+        keep_awake: Arc::new(FakeKeepAwake::new()),
+        kernel,
+        clock,
+        ids: Arc::new(SeqIds::new()),
+        options: GatewayOptions::default(),
+    })
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_link_switched_off_or_never_set_up_dials_nothing_and_writes_no_secrets() {
+    let push = PhonePush { kind: PushKind::NeedsYou, count: 2 };
+    let off = json!({ "remote": { "enabled": false, "relay": { "url": RELAY_URL } } });
+    for config in [off, json!({ "remote": { "enabled": true } }), enabled()] {
+        let home = tempfile::tempdir().expect("a folder");
+        let relay = Arc::new(FakeRelayPort::new());
+        let module = on_files(home.path(), config.clone(), &relay);
+        assert_eq!(module.phone_notify().push(push).await, Ok(PushOutcome::LinkOff), "{config}");
+        assert!(relay.http_pushes().is_empty(), "nothing reached the relay: {config}");
+        assert!(!home.path().join("remote").exists(), "no secrets were made: {config}");
+    }
+
+    // On, and its room set up when it was armed: the push goes as before.
+    let home = tempfile::tempdir().expect("a folder");
+    let room = RemoteFiles::new(home.path().join("remote")).secrets().expect("minted");
+    let relay = Arc::new(FakeRelayPort::new());
+    let module = on_files(home.path(), enabled(), &relay);
+    assert_eq!(module.phone_notify().push(push).await, Ok(PushOutcome::Sent { devices: 1, failed: 0 }));
+    let (target, sent) = relay.http_pushes().pop().expect("an HTTP push");
+    assert_eq!((target.room, target.owner, sent), (room.room, room.owner, push));
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_push_test_answers_each_reason() {
-    let h = Harness::new(
-        &base_routes(),
-        json!({ "remote": { "enabled": false, "relay": { "url": RELAY_URL } } }),
-        GatewayOptions::default(),
-        true,
-    );
+    // Switched on, not armed: every push goes over HTTP.
+    let h = Harness::new(&base_routes(), enabled(), GatewayOptions::default(), true);
     let answers = [
         (Ok(PushResult::default()), json!({ "sent": 0, "failed": 0, "reason": "no-devices" })),
         (
@@ -398,9 +436,8 @@ async fn a_push_reaches_the_test_relay_over_the_socket_while_armed_and_over_http
     }
     assert_eq!(push_test(&h).await, (200, json!({ "sent": 2, "failed": 0 })));
 
-    let off = json!({ "enabled": false }).as_object().cloned().expect("an object");
-    h.config.patch("remote", off).expect("saved");
-    h.module.reconcile();
+    // The room let go, the link still on: the relay is reached over HTTP.
+    h.module.stop().await;
     assert!(!h.module.is_armed());
     server.set_push_configured(false);
     assert_eq!(push_test(&h).await, (200, json!({ "sent": 0, "failed": 2, "reason": "not-configured" })));
@@ -409,4 +446,10 @@ async fn a_push_reaches_the_test_relay_over_the_socket_while_armed_and_over_http
     let via: Vec<PushVia> = server.pushes().iter().map(|p| p.via).collect();
     assert_eq!(via, [PushVia::Socket, PushVia::Http, PushVia::Http]);
     assert!(server.pushes().iter().all(|p| p.kind == "test" && p.count == 1));
+
+    // Switched off: the relay hears nothing.
+    let off = json!({ "enabled": false }).as_object().cloned().expect("an object");
+    h.config.patch("remote", off).expect("saved");
+    assert_eq!(push_test(&h).await, (200, json!({ "sent": 0, "failed": 0, "reason": "link-off" })));
+    assert_eq!(server.pushes().len(), 3);
 }

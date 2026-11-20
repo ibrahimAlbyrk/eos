@@ -60,6 +60,10 @@ impl RemoteStore for FakeRemoteStore {
         Ok(self.secrets.clone())
     }
 
+    fn saved_secrets(&self) -> Result<Option<RoomSecrets>, Error> {
+        Ok(Some(self.secrets.clone()))
+    }
+
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error> {
         lock(&self.audit).push(entry.clone());
         Ok(())

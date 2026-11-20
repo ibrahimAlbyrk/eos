@@ -6,7 +6,8 @@
 //!   computer's room on the relay and the computer is kept awake.
 //! - [`RemoteModule::phone_notify`]: wakes the paired phone with a kind and a
 //!   count, over the room's connection while armed, else over the relay's
-//!   HTTP API (`push`).
+//!   HTTP API (`push`); while the link is off, or its room was never set up,
+//!   nothing is sent.
 //! - the gateway (`gateway`): a session per phone — the snapshot on join,
 //!   `hello` / `focus` / `sub` / `control` frames, events and row patches out.
 //!

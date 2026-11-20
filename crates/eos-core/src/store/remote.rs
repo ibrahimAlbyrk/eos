@@ -49,6 +49,9 @@ pub trait RemoteStore: Send + Sync + 'static {
     /// The room's secrets; what is missing is minted and written, readable
     /// by the user only.
     fn secrets(&self) -> Result<RoomSecrets, Error>;
+    /// The room's secrets as written, `None` while any is missing: nothing is
+    /// minted, so asking leaves no trace of a link that was never set up.
+    fn saved_secrets(&self) -> Result<Option<RoomSecrets>, Error>;
     /// Appends to `remote-audit.log`. The log is only ever appended to.
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error>;
 }
