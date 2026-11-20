@@ -21,7 +21,9 @@ use eos_runtime::bus::Bus;
 use eos_runtime::jobs::{JobActionError, JobHandle, JobProgress, JobRegistry, JobSpec, JobStatus};
 use serde_json::json;
 
-use crate::rules::{empty_dropped, is_away_due, is_nightly_due, next_nightly};
+use eos_domain::time::{is_nightly_due, next_nightly};
+
+use crate::rules::{empty_dropped, is_away_due};
 use crate::run::{DreamParts, dream_over_chats};
 use crate::{DREAM_CHANGE, JOB_KIND};
 

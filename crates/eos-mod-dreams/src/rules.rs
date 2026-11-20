@@ -12,7 +12,6 @@ use eos_contracts::{
     DreamSignalStance, DreamVerdict, DreamVerdictQuotesItemSays, UserMemory, UserMemoryScope, UserMemoryStatus,
 };
 use eos_domain::text::{js_trim, js_trim_end};
-use eos_domain::time::{OffsetAt, instant_of, wall_clock};
 use eos_domain::user_memory::lint_memory_text;
 use regress::Regex;
 
@@ -20,34 +19,8 @@ use crate::ledger::candidate_scope;
 
 pub const DREAM_CHAT_CHARS: usize = 24_000;
 const AGENT_LINE_CHARS: usize = 600;
-const DAY_MS: i64 = 24 * 60 * 60_000;
 
 // ---- schedule ---------------------------------------------------------------
-
-/// The most recent `HH:MM` on the user's clock at or before `now`.
-pub fn nightly_slot(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
-    let mut parts = nightly_at.split(':').map(|part| part.parse::<i64>().ok());
-    let (hours, minutes) = (parts.next().flatten().unwrap_or(3), parts.next().flatten().unwrap_or(0));
-    let midnight = wall_clock(now, offset_at).div_euclid(DAY_MS) * DAY_MS;
-    let wall = midnight + hours * 3_600_000 + minutes * 60_000;
-    let slot = instant_of(wall, offset_at);
-    if slot > now { instant_of(wall - DAY_MS, offset_at) } else { slot }
-}
-
-/// The same time on the user's clock a day after the latest slot: 23 or 25
-/// hours later on the nights the clocks change.
-pub fn next_nightly(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
-    let slot = nightly_slot(now, nightly_at, offset_at);
-    instant_of(wall_clock(slot, offset_at) + DAY_MS, offset_at)
-}
-
-/// Due once the clock passed tonight's slot and nothing started since: a
-/// computer asleep at 03:00 dreams when it wakes. `since` is the last run's
-/// start, or when dreaming was switched on (switching it on in the afternoon
-/// does not dream at once).
-pub fn is_nightly_due(now: i64, nightly_at: &str, since: i64, offset_at: OffsetAt<'_>) -> bool {
-    since < nightly_slot(now, nightly_at, offset_at)
-}
 
 /// Away: no user message for `away_minutes`, nothing working, and no dream
 /// yet since the user was last active — one dream per away stretch.
@@ -384,6 +357,7 @@ pub fn apply_verdicts(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eos_domain::time::{OffsetAt, is_nightly_due, next_nightly, nightly_slot};
     use serde_json::json;
 
     const HOUR: i64 = 3_600_000;
