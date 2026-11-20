@@ -8,7 +8,8 @@
 //! and the row moved, saved together or not at all. A schedule that is new,
 //! changed or resumed is armed then: no slot before it fires. The latest
 //! slot fires once however many passed, `missed` counting the rest; a slot
-//! at or before the last one fired never fires. Then the sources the
+//! at or before the last one fired never fires. Then the runs that finished
+//! upstream of a routine's `after` are kept as signals (`after`), the sources the
 //! routines read are kept and the due ones polled (`polls`), and the router
 //! is kicked, which closes due batches and retries what it could not route.
 //!
@@ -31,6 +32,7 @@ use eos_domain::signals::key;
 use eos_domain::signals::schedule::{ScheduleState, clock_reset, due, next_slot};
 use tokio::sync::Notify;
 
+use crate::after::follow_in;
 use crate::polls::Polls;
 use crate::router::{CLOCK, Router, Routing, run_in};
 use crate::sources::{SourceSpec, source_in};
@@ -112,8 +114,32 @@ impl Scheduler {
                 next = earliest(next, at);
             }
         }
+        self.follow(&held).await?;
         self.polls.ensure(&held).await?;
         Ok(earliest(next, self.polls.start_due().await?))
+    }
+}
+
+impl Scheduler {
+    /// Keeps the finished runs of every routine a held routine waits on, one
+    /// write each.
+    async fn follow(&self, held: &[Arc<RoutineTriggers>]) -> Result<(), Error> {
+        let waiting =
+            held.iter().filter(|routine| matches!(routine.state, RoutineState::Active | RoutineState::Paused));
+        let mut upstreams: Vec<String> = waiting
+            .flat_map(|routine| routine.when.on.iter())
+            .filter_map(|trigger| match trigger {
+                Trigger::After { after, .. } => Some(after.routine.clone()),
+                _ => None,
+            })
+            .collect();
+        upstreams.sort();
+        upstreams.dedup();
+        for upstream in upstreams {
+            let (intake, ids, now) = (self.router.intake.clone(), self.ids.clone(), self.clock.now_ms());
+            self.store.write(move |tx, _| follow_in(tx, intake.as_ref(), ids.as_ref(), &upstream, now)).await?;
+        }
+        Ok(())
     }
 }
 

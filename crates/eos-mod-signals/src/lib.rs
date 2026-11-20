@@ -19,7 +19,9 @@
 //! after a sleep or a closed app; it passes at least once a minute and at
 //! once on `system:wake`, `routine:change` and `run:change`. Each pass
 //! also polls the capability sources the routines read that are due
-//! (`polls`), on each source's own clock, with backoff after failures.
+//! (`polls`), on each source's own clock, with backoff after failures, and
+//! keeps the runs that finished of the routines another one waits on
+//! (`after`): a run's change starts a pass.
 //!
 //! The routes (`routes`) show what starts each routine's runs, list the
 //! signals, replay some through the run intake and preview a schedule or a
@@ -28,7 +30,9 @@
 //! Changes are announced on `signals:change`. Keys, subjects, scopes and
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
 
+mod after;
 mod batch;
+mod ingest;
 mod limits;
 mod polls;
 mod router;
