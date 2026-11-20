@@ -8,7 +8,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use eos_core::agent::WorkerSessions;
 use eos_core::experience::Embedder;
+use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_domain::config::Env;
 use eos_runtime::module::Module;
@@ -28,7 +30,17 @@ pub(crate) fn model_dir(resources: Option<&Path>, env: &Env) -> Option<PathBuf> 
     resources.map(|r| r.join(BUNDLED_MODEL)).filter(|dir| dir.is_dir())
 }
 
-pub(crate) fn module(cx: &Context, runs: Arc<dyn RunLookup>) -> Arc<dyn Module> {
+/// Reminders go to a worker's live session, with its next request.
+struct SessionNotes(eos_sessions::Sessions);
+
+impl eos_mod_memory::NoteSink for SessionNotes {
+    fn note(&self, worker_id: &str, text: String) -> bool {
+        let Some(session) = WorkerSessions::session(&self.0, worker_id) else { return false };
+        session.note(text).is_ok()
+    }
+}
+
+pub(crate) fn module(cx: &Context, runs: Arc<dyn RunLookup>, profile: Arc<dyn UserProfileReader>) -> Arc<dyn Module> {
     let embedder = cx.embed_model.clone().map(|dir| -> eos_mod_memory::LoadEmbedder {
         Box::new(move || {
             eos_embed::LocalEmbedder::load(&dir).map(|e| Arc::new(e) as Arc<dyn Embedder>).map_err(|e| e.to_string())
@@ -40,6 +52,9 @@ pub(crate) fn module(cx: &Context, runs: Arc<dyn RunLookup>) -> Arc<dyn Module> 
         sleeper: cx.sleeper.clone(),
         ids: cx.ids.clone(),
         runs: Some(runs),
+        sink: Arc::new(SessionNotes(cx.sessions.clone())),
+        project_keys: cx.project_keys.clone(),
+        profile,
         embedder,
         background_model_calls: cx.reach.background_model_calls(),
     }))

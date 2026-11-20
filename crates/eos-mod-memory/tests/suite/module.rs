@@ -6,20 +6,12 @@ use std::time::Duration;
 
 use eos_contracts::ExperienceSettings;
 use eos_core::experience::Embedder;
-use eos_mod_memory::{EmbedderHealth, LoadEmbedder, MemoryModule, MemoryParts};
+use eos_mod_memory::{EmbedderHealth, LoadEmbedder, MemoryModule};
 use eos_runtime::module::Module;
-use eos_testkit::{FakeClock, FakeEmbedder, FakeSleeper, SeqIds, TempStore};
+use eos_testkit::{FakeEmbedder, FakeSleeper, TempStore};
 
 fn module(temp: &TempStore, embedder: Option<LoadEmbedder>) -> MemoryModule {
-    MemoryModule::new(MemoryParts {
-        store: temp.port(),
-        clock: Arc::new(FakeClock::new()),
-        sleeper: Arc::new(FakeSleeper::default()),
-        ids: Arc::new(SeqIds::new()),
-        runs: None,
-        embedder,
-        background_model_calls: false,
-    })
+    MemoryModule::new(crate::rig::parts(temp, Arc::new(FakeSleeper::default()), embedder))
 }
 
 async fn settled(module: &MemoryModule) -> EmbedderHealth {
@@ -74,22 +66,14 @@ mod capture {
     use std::time::Duration;
 
     use eos_contracts::{AgentEvent, WorkerEventType};
-    use eos_mod_memory::{MemoryModule, MemoryParts};
+    use eos_mod_memory::MemoryModule;
     use eos_runtime::idle::IdleHooks;
     use eos_runtime::module::Module;
-    use eos_testkit::{FakeClock, FakeSleeper, SeqIds, TempStore};
+    use eos_testkit::{FakeClock, FakeSleeper, TempStore};
     use serde_json::json;
 
     fn module(temp: &TempStore, sleeper: Arc<FakeSleeper>) -> MemoryModule {
-        MemoryModule::new(MemoryParts {
-            store: temp.port(),
-            clock: Arc::new(FakeClock::new()),
-            sleeper,
-            ids: Arc::new(SeqIds::new()),
-            runs: None,
-            embedder: None,
-            background_model_calls: false,
-        })
+        MemoryModule::new(crate::rig::parts(temp, sleeper, None))
     }
 
     fn correct(temp: &TempStore) {

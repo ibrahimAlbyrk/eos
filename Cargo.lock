@@ -2177,6 +2177,7 @@ version = "0.0.1"
 dependencies = [
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-memory",
  "eos-runtime",
  "eos-testkit",
