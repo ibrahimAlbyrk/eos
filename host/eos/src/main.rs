@@ -87,6 +87,7 @@ fn options(core_home: Option<&Path>) -> Options {
         dashboard_release_after: dashboard_release_after(),
         // A test or dev run is another app to the system: it never becomes a login item.
         login_item: RELEASE,
+        dev_run: !RELEASE,
     }
 }
 
@@ -170,6 +171,8 @@ struct CoreState {
     app: OnceLock<(Arc<eos_app::App>, tokio::runtime::Handle)>,
     /// The core while it starts; unset when there is none to start.
     late: OnceLock<Arc<LateCore>>,
+    /// The menu-bar item's counts, once the core is up.
+    duty: OnceLock<Arc<follow::Duty>>,
     started: Mutex<Started>,
 }
 
@@ -205,14 +208,16 @@ impl CoreState {
 
     /// The bridge answers and the core is up (or will never be), whether or not the window
     /// shows.
-    fn on_bridge_ready(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
-        if let Some((app, rt)) = self.app.get() {
-            follow::events(&app.runtime().kernel.bus, bridge, rt);
+    fn on_bridge_ready(&self, bridge: &Arc<Bridge>, ports: &Ports) {
+        if let (Some((app, rt)), Some(late)) = (self.app.get(), self.late.get()) {
+            let bus = &app.runtime().kernel.bus;
+            follow::events(bus, bridge, rt);
+            let _ = self.duty.set(follow::Duty::start(bus, rt, late.clone(), ports.menu_state.clone()));
             // The panel's "pick an element" mode is the browser feature's.
             bridge.set_element_picker(app.element_picker());
         }
         #[cfg(feature = "dev-run")]
-        dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
+        dev::started(bridge, ports, self.app.get().map(|(app, _)| app.router()));
     }
 
     /// The dashboard is loading and the core is up (or will never be).

@@ -31,7 +31,7 @@ cef-dll-sys = "=154.5.0"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 serde_json = "1"
-tauri = { version = "=3.0.0-alpha.6", features = ["custom-protocol", "devtools", "unstable"] }
+tauri = { version = "=3.0.0-alpha.6", features = ["custom-protocol", "devtools", "tray-icon", "unstable"] }
 tauri-build = "=3.0.0-alpha.4"
 tauri-runtime-cef = { version = "=3.0.0-alpha.7", features = ["devtools", "unstable"] }
 tokio = { version = "1", default-features = false }
