@@ -1,6 +1,11 @@
 // Relay runtime config from env. The relay is URL-agnostic: it binds a plain ws
 // listener (TLS/ACME is owned by the fronting Caddy, design §7.1/§7.3).
 
+// The operator's own APNs key (07 G19). Null when any of the four values is unset: push then
+// answers `not-configured` and nothing reaches Apple.
+export type ApnsConfig = { keyPath: string; keyId: string; teamId: string; bundleId: string };
+export type ApnsOrigins = { production: string; sandbox: string };
+
 export type RelayConfig = {
   host: string;
   port: number;
@@ -21,6 +26,9 @@ export type RelayConfig = {
   maxVaults: number;
   maxVaultBytes: number;
   maxBlobBytes: number;
+  apns: ApnsConfig | null;
+  // Tests point these at a local fake.
+  apnsOrigins: ApnsOrigins;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
@@ -34,5 +42,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
     maxVaults: Number(env.RELAY_VAULT_MAX ?? 16),
     maxVaultBytes: Number(env.RELAY_VAULT_MAX_BYTES ?? 256 * 1024 * 1024),
     maxBlobBytes: 8 * 1024 * 1024,
+    apns: loadApns(env),
+    apnsOrigins: { production: "https://api.push.apple.com", sandbox: "https://api.sandbox.push.apple.com" },
   };
+}
+
+function loadApns(env: NodeJS.ProcessEnv): ApnsConfig | null {
+  const { APNS_KEY: keyPath, APNS_KEY_ID: keyId, APNS_TEAM_ID: teamId, APNS_BUNDLE_ID: bundleId } = env;
+  return keyPath && keyId && teamId && bundleId ? { keyPath, keyId, teamId, bundleId } : null;
 }
