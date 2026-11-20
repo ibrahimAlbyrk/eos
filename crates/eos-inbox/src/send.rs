@@ -10,7 +10,7 @@
 use eos_contracts::{ActionClass, Recipient, RecipientKind, ResultDoc};
 use eos_core::delivery::{ChannelTraits, Idempotency, Place, Target, Undo};
 use eos_core::routine::RoutineControl;
-use eos_core::store::{ItemAnswer, StoredDelivery, Tx};
+use eos_core::store::{ItemAnswer, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::result_doc::{MAIL, recipient_key};
 use eos_domain::routine::run::RunState;
@@ -81,6 +81,17 @@ pub(crate) fn gone_in(
     Err(eos_core::Error::Conflict(format!("This recipient was removed from the routine: {name}. Nothing was sent.")))
 }
 
+/// Keeps what the user sent as the draft's working doc at its rev, so a
+/// send stopped in its hold opens the draft with that text.
+fn keep_working_in(tx: &dyn Tx, mut item: StoredItem, sent: &ResultDoc) -> Result<(), eos_core::Error> {
+    let rev = item.rev;
+    item.working = Some(serde_json::to_string(sent).map_err(|e| eos_core::Error::Validation(e.to_string()))?);
+    if !tx.inbox_items().update_waiting(&item, rev)? {
+        return Err(eos_core::Error::Conflict("The draft changed while it was sent.".into()));
+    }
+    Ok(())
+}
+
 impl Items {
     /// Sends the draft as it was at `rev`: as the user edited it in `doc`,
     /// else as last saved, else as held. `by` is who sent it. A stale draft
@@ -116,6 +127,7 @@ impl Items {
                 let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
                 let held = held_doc(&payload).ok_or_else(|| invalid("the draft holds no result"))?;
                 let saved = item.working.as_deref().and_then(|text| serde_json::from_str::<ResultDoc>(text).ok());
+                let edited = doc.is_some();
                 let sent = doc.or(saved).unwrap_or_else(|| held.clone());
                 if (&sent.kind, &sent.channel, &sent.action) != (&held.kind, &held.channel, &held.action) {
                     return Err(invalid("a draft is sent as what it is, where it was to go"));
@@ -125,6 +137,9 @@ impl Items {
                     return Err(invalid("the draft goes to nobody"));
                 }
                 gone_in(tx, control.as_ref(), &routine_id, &targets)?;
+                if edited {
+                    keep_working_in(tx, item, &sent)?;
+                }
                 let item = match answer_in(tx, out, &id, rev, &answer)? {
                     Ok(item) => item,
                     Err(refused) => return Ok(Err(refused)),
