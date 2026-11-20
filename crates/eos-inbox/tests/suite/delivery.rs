@@ -321,6 +321,28 @@ async fn a_result_whose_subject_moved_on_goes_back_to_the_user_as_a_draft() {
 }
 
 #[tokio::test]
+async fn each_target_whose_send_went_stale_is_held_again_as_a_draft_of_its_own() {
+    let sender = Sender::new();
+    sender.rig.temp.exec("UPDATE runs SET item_key = 'github:pr:acme/game#482' WHERE id = 'rn-1'");
+    let now = sender.rig.clock.now_ms();
+    sender.queue("dl-pr", "github", "pr", "queued", "auto", now).await;
+    sender.queue("dl-boss", "github", "boss", "queued", "auto", now).await;
+    sender.channels.stale("new commits");
+    sender.channels.stale("new commits");
+    sender.pass().await;
+    let items = sender.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+    let mut targets: Vec<String> = items
+        .iter()
+        .filter(|item| item.kind.as_str() == "draft")
+        .map(|item| {
+            serde_json::from_str::<Value>(&item.payload).expect("json")["targets"][0]["recipientId"].to_string()
+        })
+        .collect();
+    targets.sort();
+    assert_eq!(targets, ["\"boss\"", "\"pr\""], "neither replaced the other");
+}
+
+#[tokio::test]
 async fn the_loop_sends_what_the_gate_queues_and_stops() {
     let gated = Gated::new();
     let channels = gated.channels.clone();
