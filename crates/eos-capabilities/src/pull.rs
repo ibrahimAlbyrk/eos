@@ -3,8 +3,9 @@
 //! GitHub's shapes: its channel, its checkout and the check of a review.
 
 use eos_contracts::{ItemRef, PrReview, PrReviewComment, ResultDoc};
-use eos_domain::result_doc::{EVENT, GITHUB_REVIEW, SUMMARY};
-use serde_json::Value;
+use eos_domain::result_doc::shape::{MetaShape, MetaValue, PartKey, PartShape, ResultShape};
+use eos_domain::result_doc::{EVENT, GITHUB_REVIEW, SUMMARY, comment_key};
+use serde_json::{Value, json};
 
 /// The `github` built-in.
 pub(crate) const GITHUB: &str = "github";
@@ -57,6 +58,73 @@ impl Pull {
     /// The input naming the pull request: `{repo, number}`.
     pub(crate) fn input(&self) -> Value {
         serde_json::json!({ "repo": self.repo, "number": self.number })
+    }
+}
+
+/// What a review result looks like: what [`review_of`] reads.
+pub(crate) fn review_shape() -> ResultShape {
+    let words = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect::<Vec<_>>();
+    let meta = |name: &str, required, value, what: &str, example| MetaShape {
+        name: name.to_owned(),
+        required,
+        value,
+        what: what.to_owned(),
+        example,
+    };
+    let event = PartShape {
+        key: PartKey::One(EVENT.to_owned()),
+        role: EVENT.to_owned(),
+        name: "review event".to_owned(),
+        required: false,
+        what: "What the review asks of the author; `COMMENT` when left out.".to_owned(),
+        values: words(&["COMMENT", "REQUEST_CHANGES"]),
+        meta: Vec::new(),
+        otherwise: None,
+        example: "COMMENT".to_owned(),
+    };
+    let summary = PartShape {
+        key: PartKey::One(SUMMARY.to_owned()),
+        role: SUMMARY.to_owned(),
+        name: "summary".to_owned(),
+        required: true,
+        what: "The review's general text. A remark with no line to point at goes here.".to_owned(),
+        values: Vec::new(),
+        meta: Vec::new(),
+        otherwise: None,
+        example: "The change reads well; one case is not handled.".to_owned(),
+    };
+    let comment = PartShape {
+        key: PartKey::Each(comment_key),
+        role: "comment".to_owned(),
+        name: "line comment".to_owned(),
+        required: false,
+        what: "A comment on one line of the change.".to_owned(),
+        values: Vec::new(),
+        meta: vec![
+            meta("path", true, MetaValue::Text, "The changed file, from the repository's root.", json!("src/login.rs")),
+            meta("line", true, MetaValue::Line, "The line the comment is on.", json!(42)),
+            meta(
+                "side",
+                false,
+                MetaValue::OneOf(words(&["LEFT", "RIGHT"])),
+                "`RIGHT` for the new code (the usual), `LEFT` for removed code.",
+                json!("RIGHT"),
+            ),
+            meta("startLine", false, MetaValue::Line, "The first line, for a comment on several lines.", json!(40)),
+        ],
+        otherwise: Some("put general remarks in the summary part".to_owned()),
+        example: "This returns before the session is saved.\n\n```suggestion\n    session.save()?;\n```".to_owned(),
+    };
+    ResultShape {
+        kind: GITHUB_REVIEW.to_owned(),
+        channel: GITHUB.to_owned(),
+        actions: words(&["post_review", "approve_pull_request"]),
+        parts: vec![event, summary, comment],
+        notes: vec![
+            "Every part other than `event` and `summary` is a line comment and needs `meta.path` and `meta.line`; a review with only general remarks has just the summary.".to_owned(),
+            "To suggest a change, end the comment's text with a ```suggestion block holding the new lines.".to_owned(),
+            "`approve_pull_request` approves and sends only the summary; it cannot be taken back.".to_owned(),
+        ],
     }
 }
 

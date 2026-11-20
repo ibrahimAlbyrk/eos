@@ -19,6 +19,7 @@ mod retention;
 mod routes;
 mod run_routes;
 mod seed;
+mod shape;
 mod solo;
 mod start;
 mod supervisor;

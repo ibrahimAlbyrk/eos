@@ -37,7 +37,7 @@ async fn a_review_is_held_to_the_input_of_the_action_that_sends_it() {
     let item = pull_item(7, HEAD);
     assert_eq!(reads.validate_result("github.review", &review("post_review", "COMMENT", 30), &item).await, Ok(()));
     let broken = reads.validate_result("github.review", &review("post_review", "MAYBE", 30), &item).await;
-    assert!(broken.expect_err("refused").starts_with("Input validation error"), "an event post_review does not take");
+    assert_eq!(broken, Err(vec!["part `event`: `MAYBE` is not one of `COMMENT`, `REQUEST_CHANGES`.".to_owned()]));
     let mut lineless = review("post_review", "COMMENT", 30);
     lineless.parts[2].meta.remove("line");
     assert!(reads.validate_result("github.review", &lineless, &item).await.is_err());

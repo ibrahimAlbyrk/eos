@@ -5,6 +5,7 @@
 
 use eos_contracts::{CapabilityItem, ItemRef, ResultDoc};
 use eos_domain::capability::health::Health;
+use eos_domain::result_doc::shape::ResultShape;
 
 use super::{ActionError, Capability};
 use crate::signals::{Scope, SourceError};
@@ -68,14 +69,18 @@ pub trait CapabilityReads: Send + Sync {
         limit: usize,
     ) -> BoxFuture<'a, Result<Vec<CapabilityItem>, Error>>;
     fn recognisers(&self) -> BoxFuture<'_, Result<Vec<ItemRecogniser>, Error>>;
-    /// Whether `body`, a result of `kind` about `item`, fits the input of
-    /// the channel action that sends it; the text of what does not.
+    /// The shape of a `kind` result, as the channel here that sends it
+    /// declares it; `None` when none does.
+    fn result_shape(&self, kind: &str) -> Option<ResultShape>;
+    /// Whether `body`, a result of `kind` about `item`, has the kind's shape
+    /// and fits the input of the channel action that sends it; else what
+    /// does not, one line each.
     fn validate_result<'a>(
         &'a self,
         kind: &'a str,
         body: &'a ResultDoc,
         item: &'a ItemRef,
-    ) -> BoxFuture<'a, Result<(), String>>;
+    ) -> BoxFuture<'a, Result<(), Vec<String>>>;
     /// Of the capabilities `needs` names, those that are not here or do not
     /// take calls.
     fn missing<'a>(&'a self, needs: &'a [String]) -> BoxFuture<'a, Result<Vec<MissingNeed>, Error>>;

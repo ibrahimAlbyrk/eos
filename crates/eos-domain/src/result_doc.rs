@@ -8,6 +8,8 @@ use std::collections::{HashMap, HashSet};
 
 use eos_contracts::{EditOp, Part, PartEdit, ResultDoc};
 
+pub mod shape;
+
 /// A pull request review: [`EVENT`], [`SUMMARY`] and a [`comment_key`] per
 /// line comment, whose meta holds its `path`, `line` and `side`. Its
 /// comments are a set: their order does not count.
