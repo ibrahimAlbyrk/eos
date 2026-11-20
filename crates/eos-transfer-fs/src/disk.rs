@@ -99,17 +99,31 @@ pub(crate) fn list(home: &Path, dir: &str, hidden: bool) -> Result<TransferListi
     Ok(TransferListing { parent: abs.parent().map(text), path: text(&abs), home: text(home), entries })
 }
 
+/// A database file of Eos's own: opening it in this process would cost SQLite its locks.
+fn refuse_database(path: &Path) -> TransferError {
+    refuse(Code::BadPath, format!("{} is Eos's own database and can't be sent while Eos runs", path.display()))
+}
+
 fn too_many() -> TransferError {
     refuse(Code::TooMany, "more than 100,000 files — zip them first")
 }
 
 /// Everything under one picked path, without following links: the item
 /// itself, then (for a folder) its children in name order, depth first.
-fn walk(root: PathBuf, rel: String, meta: Metadata, items: &mut Vec<ManifestItem>) -> Result<(), TransferError> {
+fn walk(
+    root: PathBuf,
+    rel: String,
+    meta: Metadata,
+    database: &dyn Fn(&Path) -> bool,
+    items: &mut Vec<ManifestItem>,
+) -> Result<(), TransferError> {
     let mut stack = vec![(root, rel, meta)];
     while let Some((abs, rel, meta)) = stack.pop() {
         if items.len() >= TRANSFER_MAX_ITEMS as usize {
             return Err(too_many());
+        }
+        if database(&abs) {
+            return Err(refuse_database(&abs));
         }
         let mut item = ManifestItem {
             rel,
@@ -150,7 +164,8 @@ fn walk(root: PathBuf, rel: String, meta: Metadata, items: &mut Vec<ManifestItem
     Ok(())
 }
 
-pub(crate) fn scan(paths: &[String]) -> Result<TransferManifest, TransferError> {
+/// What was picked, refused when it holds one of Eos's database files (`database`).
+pub(crate) fn scan(paths: &[String], database: &dyn Fn(&Path) -> bool) -> Result<TransferManifest, TransferError> {
     let mut items = Vec::new();
     let mut names: Vec<String> = Vec::new();
     for path in paths {
@@ -162,7 +177,7 @@ pub(crate) fn scan(paths: &[String]) -> Result<TransferManifest, TransferError> 
         }
         let meta = fs::symlink_metadata(&abs)
             .map_err(|_| refuse(Code::NotFound, format!("{} doesn't exist", abs.display())))?;
-        walk(abs, name.clone(), meta, &mut items)?;
+        walk(abs, name.clone(), meta, database, &mut items)?;
         names.push(name);
     }
     let files = items.iter().filter(|item| item.r#type == ManifestItemType::File);
@@ -171,9 +186,17 @@ pub(crate) fn scan(paths: &[String]) -> Result<TransferManifest, TransferError> 
 }
 
 /// `range` of the file at `path`, refused when the file is not the one that
-/// was scanned (`expect`).
-pub(crate) fn read(path: &str, range: ByteRange, expect: FileStamp) -> Result<Bytes, TransferError> {
+/// was scanned (`expect`) or is one of Eos's database files (`database`).
+pub(crate) fn read(
+    path: &str,
+    range: ByteRange,
+    expect: FileStamp,
+    database: &dyn Fn(&Path) -> bool,
+) -> Result<Bytes, TransferError> {
     let abs = absolute(path)?;
+    if database(&abs) {
+        return Err(refuse_database(&abs));
+    }
     let inside = range.offset.checked_add(range.length).is_some_and(|end| end <= expect.size);
     if range.length < 1 || range.length > TRANSFER_MAX_CHUNK as u64 || !inside {
         return Err(refuse(Code::BadPath, "that range is outside the file"));

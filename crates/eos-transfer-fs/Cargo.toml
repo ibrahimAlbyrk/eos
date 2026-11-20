@@ -13,6 +13,7 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-fs.workspace = true
+eos-platform.workspace = true
 indexmap.workspace = true
 rustix.workspace = true
 serde_json.workspace = true

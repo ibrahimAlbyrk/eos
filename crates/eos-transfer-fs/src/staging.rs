@@ -16,6 +16,7 @@ use eos_core::Clock;
 use eos_core::net::transfer::WriteAt;
 use eos_domain::transfer::{TransferError, format_bytes, is_transfer_id, keep_both_name, rel_segments, root_of};
 use eos_kit_fs::path::normalize;
+use eos_platform::{DATABASE_FILES, DataPaths};
 use indexmap::IndexMap;
 use rustix::fs::{AtFlags, CWD, Timespec, Timestamps};
 
@@ -213,6 +214,17 @@ impl Disk {
 
     fn memory(&self) -> MutexGuard<'_, Memory> {
         self.memory.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// `path` is one of Eos's database files, which only SQLite opens while the app runs (see
+    /// `eos_platform`'s `database` module): a transfer never reads them.
+    pub(crate) fn is_database_file(&self, path: &Path) -> bool {
+        // A transfer opens files without following a link in the last part, so only a file that bears one of
+        // the names can be one; checking the name first spares a big folder's scan the link lookups.
+        let named = path
+            .file_name()
+            .is_some_and(|name| DATABASE_FILES.iter().any(|file| name.to_string_lossy().eq_ignore_ascii_case(file)));
+        named && self.forbidden.iter().any(|root| DataPaths::new(root).is_database_file(path))
     }
 
     fn assert_allowed(&self, path: &Path) -> Result<(), TransferError> {

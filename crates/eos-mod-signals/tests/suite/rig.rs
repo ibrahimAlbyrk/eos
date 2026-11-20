@@ -271,7 +271,10 @@ impl Bench {
             files: Arc::new(self.watcher.clone()),
             git: Arc::new(self.watcher.clone()),
             git_info: Arc::new(git()),
-            disk: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), self.home.join("trash"))),
+            disk: Arc::new(eos_fs::DiskFileSystem::new(
+                eos_platform::host(),
+                &eos_platform::DataPaths::new(self.home.path()),
+            )),
             data_dir: self.home.path().to_owned(),
             autostart,
         })

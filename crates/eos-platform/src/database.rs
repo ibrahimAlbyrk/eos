@@ -17,7 +17,7 @@ use eos_domain::signals::when::inside_folder;
 use crate::paths::DataPaths;
 
 /// The database and its companions, as SQLite names them beside `state.db`.
-pub(crate) const DATABASE_FILES: &[&str] = &["state.db", "state.db-wal", "state.db-shm", "state.db-journal"];
+pub const DATABASE_FILES: &[&str] = &["state.db", "state.db-wal", "state.db-shm", "state.db-journal"];
 
 /// The walker's ignore file in the data folder: ripgrep, the agents' Grep
 /// and every other walker built on the same rules read it.

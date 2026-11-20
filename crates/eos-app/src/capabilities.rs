@@ -87,7 +87,7 @@ pub(crate) struct Parts<'a> {
 /// network). No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
     let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, github, grants, options } = parts;
-    let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir()));
+    let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths));
     let secrets: Arc<dyn CapabilitySecrets> = options.secrets.unwrap_or_else(|| reach.capabilities(keychain));
     let transport: Arc<dyn Transport> = match options.github {
         Some(transport) => transport,

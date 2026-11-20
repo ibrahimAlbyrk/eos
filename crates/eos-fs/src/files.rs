@@ -10,7 +10,7 @@ use eos_domain::fs_ignore::is_ignored;
 use eos_domain::text::locale_compare;
 use eos_kit_fs::path::normalize;
 use eos_kit_fs::trash_into_dir;
-use eos_platform::HostPlatform;
+use eos_platform::{DataPaths, HostPlatform};
 
 use crate::errors::{classified, node_message, verbatim};
 
@@ -26,13 +26,30 @@ pub struct DiskFileSystem {
 struct Inner {
     host: &'static dyn HostPlatform,
     trash_dir: PathBuf,
+    /// Whose database files are never opened here: only SQLite opens them
+    /// while the app runs (see `eos_platform`'s `database` module).
+    data: DataPaths,
 }
 
 impl DiskFileSystem {
-    /// `host` supplies the system trash; `trash_dir` is where a trashed path goes when the system trash is
-    /// unavailable or refuses.
-    pub fn new(host: &'static dyn HostPlatform, trash_dir: impl Into<PathBuf>) -> Self {
-        Self { inner: Arc::new(Inner { host, trash_dir: trash_dir.into() }) }
+    /// `host` supplies the system trash; a trashed path goes to the data folder's trash folder when the system
+    /// trash is unavailable or refuses.
+    pub fn new(host: &'static dyn HostPlatform, data: &DataPaths) -> Self {
+        Self { inner: Arc::new(Inner { host, trash_dir: data.trash_dir(), data: data.clone() }) }
+    }
+}
+
+impl Inner {
+    /// Refuses `path` when it is one of the database files; `as_error` makes the refusal the error the
+    /// caller's port method reports a refusal as.
+    fn closed(&self, path: &Path, as_error: fn(String) -> Error) -> Result<(), Error> {
+        if self.data.is_database_file(path) {
+            return Err(as_error(format!(
+                "EPERM: operation not permitted, open '{}' (Eos's database is opened only by Eos itself)",
+                path.display()
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -284,17 +301,22 @@ impl FileSystem for DiskFileSystem {
 
     fn read_text<'a>(&'a self, path: &'a Path, max_text_bytes: u64) -> BoxFuture<'a, Result<FileRead, Error>> {
         let path = path.to_owned();
-        Box::pin(blocking(move || read_text(&path, max_text_bytes)))
+        let inner = self.inner.clone();
+        Box::pin(blocking(move || inner.closed(&path, Error::Storage).and_then(|()| read_text(&path, max_text_bytes))))
     }
 
     fn open<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<Box<dyn OpenFile>, Error>> {
         let path = path.to_owned();
-        Box::pin(blocking(move || open(&path)))
+        let inner = self.inner.clone();
+        Box::pin(blocking(move || inner.closed(&path, Error::Storage).and_then(|()| open(&path))))
     }
 
     fn write_text<'a>(&'a self, path: &'a Path, content: &'a str, mkdirp: bool) -> BoxFuture<'a, Result<(), Error>> {
         let (path, content) = (path.to_owned(), content.as_bytes().to_vec());
-        Box::pin(blocking(move || write_text(&path, &content, mkdirp)))
+        let inner = self.inner.clone();
+        Box::pin(blocking(move || {
+            inner.closed(&path, Error::Storage).and_then(|()| write_text(&path, &content, mkdirp))
+        }))
     }
 
     fn write_temp<'a>(
@@ -309,7 +331,10 @@ impl FileSystem for DiskFileSystem {
 
     fn create_file<'a>(&'a self, path: &'a Path, content: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         let (path, content) = (path.to_owned(), content.as_bytes().to_vec());
-        Box::pin(blocking(move || create_file(&path, &content)))
+        let inner = self.inner.clone();
+        Box::pin(blocking(move || {
+            inner.closed(&path, Error::PermissionDenied).and_then(|()| create_file(&path, &content))
+        }))
     }
 
     fn mkdir<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<(), Error>> {
@@ -324,7 +349,13 @@ impl FileSystem for DiskFileSystem {
 
     fn move_entry<'a>(&'a self, from: &'a Path, to: &'a Path, overwrite: bool) -> BoxFuture<'a, Result<(), Error>> {
         let (from, to) = (from.to_owned(), to.to_owned());
-        Box::pin(blocking(move || move_entry(&from, &to, overwrite)))
+        // Across filesystems a move copies, which opens both ends.
+        let inner = self.inner.clone();
+        Box::pin(blocking(move || {
+            inner.closed(&from, Error::PermissionDenied)?;
+            inner.closed(&to, Error::PermissionDenied)?;
+            move_entry(&from, &to, overwrite)
+        }))
     }
 
     fn trash<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<(), Error>> {

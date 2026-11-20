@@ -17,7 +17,7 @@ struct Sandbox {
 fn sandbox() -> Sandbox {
     let keep = tempfile::tempdir().expect("dir");
     let root = fs::canonicalize(keep.path()).expect("real path");
-    let fs = DiskFileSystem::new(eos_platform::generic_host(), root.join(".eos-trash"));
+    let fs = DiskFileSystem::new(eos_platform::generic_host(), &eos_platform::DataPaths::new(&root));
     Sandbox { _keep: keep, root, fs }
 }
 
@@ -238,4 +238,38 @@ async fn trashing_moves_the_path_into_the_fallback_folder() {
     assert_eq!(trashed.len(), 1);
     assert_eq!(fs::read_to_string(trashed[0].path().join("src/a.txt")).expect("read"), "kept");
     assert!(s.fs.trash(&s.root.join("gone")).await.is_err());
+}
+
+/// The Files panel, its previews and the editor read and write any path they are asked for, in the app's
+/// own process: none may open the database's files, or the app loses SQLite's locks and dies when another
+/// program opens the database next.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_database_files_are_never_opened_and_the_app_keeps_its_locks() {
+    let s = sandbox();
+    let busy = eos_testkit::BusyDatabase::open(&s.root);
+    let outside = s.root.join("elsewhere");
+    fs::create_dir(&outside).expect("a folder");
+    symlink(&s.root.join("state.db-shm"), &outside.join("notes.txt"));
+    let refused = |result: Result<(), Error>| match result {
+        Err(Error::Storage(message) | Error::PermissionDenied(message)) => {
+            assert!(message.contains("Eos's database"), "{message}");
+        }
+        other => panic!("not refused: {other:?}"),
+    };
+    let named = ["state.db", "state.db-wal", "state.db-shm", "state.db-journal", "pages/../STATE.db-shm"];
+    let mut paths: Vec<PathBuf> = named.iter().map(|name| s.root.join(name)).collect();
+    paths.push(outside.join("notes.txt"));
+    for path in &paths {
+        refused(s.fs.read_text(path, 1024).await.map(drop));
+        refused(s.fs.open(path).await.map(drop));
+        refused(s.fs.write_text(path, "x", false).await);
+        refused(s.fs.create_file(path, "x").await);
+        refused(s.fs.move_entry(path, &outside.join("moved"), true).await);
+    }
+    let note = s.write("note.txt", "kept");
+    refused(s.fs.move_entry(&note, &s.root.join("state.db-wal"), true).await);
+    assert!(s.fs.read_text(&note, 1024).await.is_ok(), "any other file still reads");
+
+    busy.another_program_opens();
+    busy.finish();
 }

@@ -540,7 +540,7 @@ impl App {
             shell: shell.as_ref().map(|s| (s.views.clone(), s.panel.clone())),
             config: config.clone(),
             store: store.clone(),
-            files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir())),
+            files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &paths)),
             clock: clock.clone(),
             sleeper: sleeper.clone(),
             bus: kernel.bus.clone(),

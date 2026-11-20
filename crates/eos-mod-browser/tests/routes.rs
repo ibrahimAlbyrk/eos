@@ -36,12 +36,14 @@ fn fixture_with(browser: Value, window: bool) -> Fixture {
     let kernel = Kernel::new(KernelOptions { clock: clock.clone(), ..KernelOptions::default() });
     let (views, panel) = (FakeBrowserViews::new(), FakeBrowserPanel::new());
     let shell = window.then(|| (views.clone() as Arc<dyn BrowserViews>, panel.clone() as Arc<dyn BrowserPanel>));
-    let trash = temp.home.join("trash");
     let module = Arc::new(BrowserModule::new(Ports {
         shell,
         config: Arc::new(FakeConfig::new(json!({ "browser": browser }))),
         store: temp.port(),
-        files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), trash)),
+        files: Arc::new(eos_fs::DiskFileSystem::new(
+            eos_platform::host(),
+            &eos_platform::DataPaths::new(temp.home.path()),
+        )),
         clock: clock.clone(),
         sleeper: sleeper.clone(),
         bus: kernel.bus.clone(),

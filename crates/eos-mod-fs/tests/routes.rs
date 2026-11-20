@@ -64,7 +64,7 @@ fn app_with(files: Option<Arc<dyn FileWatcher>>) -> App {
     let module = FsModule::new(
         kernel.clone(),
         Ports {
-            files: Arc::new(eos_fs::DiskFileSystem::new(host, root.join(".eos-trash"))),
+            files: Arc::new(eos_fs::DiskFileSystem::new(host, &eos_platform::DataPaths::new(&root))),
             desktop: Arc::new(eos_fs::DesktopApps::new(host, clock, root.join("icon-cache"))),
             picker: None,
             file_watcher: files.unwrap_or_else(|| dirs.clone()),
@@ -592,4 +592,26 @@ async fn a_watch_that_panics_fails_its_request_as_any_panic_does() {
     // The next change still gets its turn.
     let unwatch = json!({ "clientId": "tab-1", "all": true });
     assert_eq!(app.post("/fs/unwatch", unwatch).await, (200, json!({ "ok": true })));
+}
+
+/// The dashboard or the phone may ask for any path, and these routes read it in the app's own process: the
+/// database's files are refused, so the app keeps SQLite's locks while another program opens the database.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_database_files_are_refused_and_the_app_keeps_its_locks() {
+    let app = app();
+    let busy = eos_testkit::BusyDatabase::open(&app.root);
+    for file in ["state.db", "state.db-wal", "state.db-shm"] {
+        let path = app.path(file);
+        for route in ["/fs/read", "/fs/image"] {
+            let (status, body) = app.get(&format!("{route}?{}", query(&[("path", &path)]))).await;
+            assert_eq!(status, 404, "{route} {file}");
+            assert!(body["error"].as_str().is_some_and(|e| e.contains("Eos's database")), "{route} {file}: {body}");
+        }
+        assert_eq!(app.raw(&format!("/fs/raw{path}"), None).await.status, 404, "{file}");
+        let (status, _) = app.post("/fs/write", json!({ "path": path, "content": "x" })).await;
+        assert_ne!(status, 200, "{file}");
+    }
+
+    busy.another_program_opens();
+    busy.finish();
 }
