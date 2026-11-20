@@ -171,7 +171,7 @@
   "tool/start_specialist.prompt.md": "f4ef03dfb1c9a1c970fd6e7e59ea88d242d5eceeba3d258f2ed8c7ad8499b3e7",
   "tool/start_trial.prompt.md": "7fef78e1792d248b3e53c60f146cb1d4b79570a96a0069fdc5a09acf4412b492",
   "tool/stop_specialist.prompt.md": "b0c490128173c14084cfb93e9ef37d012f4840a6905cf3fe00a2bcfda0c0a63e",
-  "tool/submit_result.prompt.md": "2e9fd89e84fe4f9bd06d7085a3600b1d4b63b181be166d770f7397d69c091289",
+  "tool/submit_result.prompt.md": "10c9758c644653b261151b3170c74bfa358a5d61f8c39144b7b7653020ce7432",
   "tool/submit_verdict.prompt.md": "943aa1a6109af58b3bf42ce90373623bee0d8f556fd1008cf84bfc64eda62d1c",
   "tool/suggest_memory.prompt.md": "e36634b9bcdf31ac4aab6a756af8f318d4e85fe3a9a1009ea2842cf9bdabf545",
   "verify.prompt.md": "77f5f1d150c8e6e6aa25767308e9b7ed994bcaefb23ec1228ddb8a2fed7d8a8b"

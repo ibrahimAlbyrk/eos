@@ -115,6 +115,11 @@ pub(crate) async fn read(engine: &Engine, run_id: &str) -> Result<Option<Checkin
 /// as one part.
 pub(crate) fn result_doc(result: &StoredRunResult) -> ResultDoc {
     let body: serde_json::Value = serde_json::from_str(&result.body).unwrap_or(serde_json::Value::Null);
+    doc_of(&result.kind, body)
+}
+
+/// A result of `kind` whose body is `body`, as parts.
+pub(crate) fn doc_of(kind: &str, body: serde_json::Value) -> ResultDoc {
     if let Ok(doc) = serde_json::from_value::<ResultDoc>(body.clone()) {
         return doc;
     }
@@ -123,7 +128,7 @@ pub(crate) fn result_doc(result: &StoredRunResult) -> ResultDoc {
         other => other.to_string(),
     };
     let part = eos_contracts::Part { key: "body".into(), role: "text".into(), text, meta: Default::default() };
-    ResultDoc { kind: result.kind.clone(), channel: String::new(), action: String::new(), parts: vec![part] }
+    ResultDoc { kind: kind.to_owned(), channel: String::new(), action: String::new(), parts: vec![part] }
 }
 
 /// What the rules find wrong with the result, each a line the lead can act
