@@ -199,6 +199,14 @@ pub struct SignalTally {
     pub signals: i64,
 }
 
+/// What a routine's schedules did in a window: slots that ran as one later
+/// slot, and slots that fired late.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SlotTally {
+    pub missed: i64,
+    pub late: i64,
+}
+
 pub trait SignalRouteRepo {
     /// Fails when the signal has a decision for the routine already.
     fn insert(&self, route: &StoredSignalRoute) -> Result<(), Error>;
@@ -208,6 +216,10 @@ pub trait SignalRouteRepo {
     /// The routine's signals decided at or after `since`, counted by
     /// decision and run state.
     fn tally(&self, routine_id: &str, since: i64) -> Result<Vec<SignalTally>, Error>;
+    /// The routine's schedule slots that fired at or after `since`: the
+    /// `missed` facts summed, and those fired over `late_ms` after their
+    /// slot counted.
+    fn slots(&self, routine_id: &str, since: i64, late_ms: i64) -> Result<SlotTally, Error>;
     /// A signal's decisions, by routine id.
     fn by_signal(&self, signal_id: i64) -> Result<Vec<StoredSignalRoute>, Error>;
     /// The runs the routine's `run` decisions on signals about `subject`

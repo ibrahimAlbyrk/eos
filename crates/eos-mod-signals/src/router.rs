@@ -177,8 +177,8 @@ pub(crate) struct Router {
 /// What one signal's routing needs inside its write.
 pub(crate) struct Routing {
     runner: Arc<dyn Runner>,
-    intake: Arc<dyn RunIntake>,
-    autostart: bool,
+    pub(crate) intake: Arc<dyn RunIntake>,
+    pub(crate) autostart: bool,
     now: i64,
     ids: Arc<dyn Ids>,
     zone: Arc<dyn TimeZone>,
