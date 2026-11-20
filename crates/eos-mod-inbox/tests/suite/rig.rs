@@ -63,10 +63,10 @@ pub(crate) struct Rig {
 
 impl Rig {
     pub(crate) async fn new() -> Self {
-        let temp = TempStore::new();
         let clock = Arc::new(FakeClock::at(1_000_000));
         let waiting = Arc::new(Waiting::default());
         let kernel = Kernel::new(KernelOptions::default());
+        let temp = TempStore::on_bus(&kernel.bus);
         let module = Arc::new(InboxModule::new(InboxParts {
             store: temp.port(),
             clock: clock.clone(),

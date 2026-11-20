@@ -36,6 +36,10 @@
 //!   out can be taken back in its channel's window ([`Items::undo`]) or
 //!   called wrong ([`Items::wrong`]), and a failed one tried again, edited
 //!   or not ([`Items::retry`]).
+//! - "Stop everything" ([`Items::halt`]) freezes every send that has not
+//!   gone out, and the gate and the claim hold everything while it is on;
+//!   resuming ([`Items::resume`]) asks the user about each frozen send and
+//!   sends nothing by itself.
 //! - The sweeper ([`Items::sweep`]) expires items whose time ran out, opens
 //!   again the ones put off, and deletes those that ended 90 days ago.
 //!
@@ -49,6 +53,7 @@ mod control;
 pub mod delivery;
 mod edits;
 pub mod gate;
+mod halt;
 mod handoff;
 mod items;
 mod outcomes;
@@ -65,6 +70,7 @@ use eos_domain::inbox::ItemState;
 
 pub use answer::{Items, ItemsParts};
 pub use edits::Edits;
+pub use halt::HALTED;
 pub use handoff::consume_in;
 pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in};
 pub use questions::{QuestionWaiters, RunQuestionParts, RunQuestions};
@@ -75,6 +81,8 @@ pub use stale::SUBJECT_CLOSED;
 pub const INBOX_CHANGE: &str = "inbox:change";
 /// The topic every move of a delivery announces.
 pub const INBOX_DELIVERY: &str = "inbox:delivery";
+/// The topic the halt switch announces.
+pub const INBOX_HALT: &str = "inbox:halt";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

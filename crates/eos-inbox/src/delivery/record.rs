@@ -86,6 +86,8 @@ pub(crate) enum Problem {
     ApprovedBeforeQuit {
         approved_at: i64,
     },
+    /// A send the user's "Stop everything" froze, after they resumed.
+    Halted,
 }
 
 impl Problem {
@@ -101,7 +103,7 @@ impl Problem {
                 _ => FailureKind::Service,
             },
             Problem::Unknown => FailureKind::Service,
-            Problem::ApprovedBeforeQuit { .. } => FailureKind::Internal,
+            Problem::ApprovedBeforeQuit { .. } | Problem::Halted => FailureKind::Internal,
         };
         kind.as_str()
     }
@@ -126,6 +128,7 @@ impl Problem {
                 let minutes = local.rem_euclid(DAY_MS) / 60_000;
                 format!("Approved at {:02}:{:02}, Eos closed before sending. Send now?", minutes / 60, minutes % 60)
             }
+            Problem::Halted => "Held when you stopped Eos. Send now?".to_owned(),
         }
     }
 }

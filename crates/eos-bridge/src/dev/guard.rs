@@ -387,6 +387,10 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // Stopping a send in its hold and saying a sent one was wrong change only the data folder.
     ("POST", "/api/inbox/deliveries/{id}/stop"),
     ("POST", "/api/inbox/deliveries/{id}/wrong"),
+    // "Stop everything" and resuming from it change only the data folder: resume sends
+    // nothing, it asks about each held send.
+    ("POST", "/api/eos/halt"),
+    ("POST", "/api/eos/resume"),
     // Signals: the previews compute a schedule's next times and try a Which's rules on kept
     // signals; neither writes or asks the model.
     ("POST", "/api/signals/schedule/preview"),

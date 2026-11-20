@@ -76,3 +76,20 @@ async fn a_shown_item_is_answered_through_its_own_route() {
         json!(["POST /api/user-memories/um-abcdefgh/approve", "POST /api/user-memories/um-abcdefgh/dismiss"])
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stop_everything_and_resume_answer_the_switch_and_announce_it() {
+    let rig = Rig::new().await;
+    let mut halts = rig.runtime.kernel.bus.subscribe("inbox:halt", 8);
+    let (status, on) = rig.ask(Method::Post, "/api/eos/halt", None).await;
+    assert_eq!((status, on), (200, json!({"on": true, "since": 1_000_000})));
+    assert_eq!(rig.ask(Method::Get, "/api/eos/halt", None).await.1, json!({"on": true, "since": 1_000_000}));
+    let (status, off) = rig.ask(Method::Post, "/api/eos/resume", None).await;
+    assert_eq!((status, off), (200, json!({"on": false})));
+    rig.runtime.kernel.bus.flush().await;
+    let mut heard = Vec::new();
+    while let Ok(Ok(event)) = tokio::time::timeout(std::time::Duration::from_millis(500), halts.recv()).await {
+        heard.push(event.payload_as::<serde_json::Value>().expect("json"));
+    }
+    assert_eq!(heard, [json!({"on": true, "since": 1_000_000}), json!({"on": false})]);
+}

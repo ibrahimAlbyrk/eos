@@ -1,7 +1,9 @@
 //! The routes over the items, each item turned into its wire row; the
-//! routes over one delivery are in [`deliveries`].
+//! routes over one delivery are in [`deliveries`], the halt switch's in
+//! [`halt`].
 
 mod deliveries;
+mod halt;
 
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
@@ -318,5 +320,6 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
     ]
     .into_iter()
     .chain(deliveries::all(shared))
+    .chain(halt::all(shared))
     .collect()
 }
