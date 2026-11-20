@@ -371,8 +371,11 @@ impl Reminders {
             chat.delivered.extend(note_ids.iter().cloned());
         }
         let epoch = self.chats().get(worker_id).map_or(0, |c| c.epoch);
-        let to =
-            Receiver { worker_id: worker_id.to_owned(), run_id: place.run.as_ref().map(|r| r.run_id.clone()), epoch };
+        let to = Receiver {
+            worker_id: Some(worker_id.to_owned()),
+            run_id: place.run.as_ref().map(|r| r.run_id.clone()),
+            epoch,
+        };
         if let Err(e) = record(&self.store, self.clock.as_ref(), self.ids.as_ref(), &to, how, note_ids).await {
             tracing::warn!(worker_id, error = %e, "memory: the notes delivered were not recorded");
         }

@@ -20,6 +20,7 @@ fn the_topics_read_and_write_their_fields_in_order() {
         json!({"workerId": "w-1", "runId": "rn-1", "noteIds": ["mn-0a1b2c3d4e5f"], "how": "pack"}),
     );
     round_trip::<ExperienceRecalledEvent>(json!({"workerId": "w-1", "noteIds": [], "how": "reminder"}));
+    round_trip::<ExperienceRecalledEvent>(json!({"runId": "rn-1", "noteIds": ["mn-1"], "how": "pack"}));
 }
 
 #[test]

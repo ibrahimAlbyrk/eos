@@ -67,7 +67,8 @@ pub fn reminder(header: &str, recalled: &[Recalled], delivered: &HashSet<String>
 /// Who received notes, and in which epoch of their conversation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Receiver {
-    pub worker_id: String,
+    /// None for a run's pack, given before its lead starts.
+    pub worker_id: Option<String>,
     pub run_id: Option<String>,
     /// When the epoch began (epoch ms).
     pub epoch: i64,
@@ -88,7 +89,7 @@ pub async fn record(
         .map(|note_id| StoredUse {
             id: ids.memory_row_id(),
             note_id: note_id.clone(),
-            worker_id: Some(to.worker_id.clone()),
+            worker_id: to.worker_id.clone(),
             run_id: to.run_id.clone(),
             how: how.as_str().to_owned(),
             epoch: to.epoch,

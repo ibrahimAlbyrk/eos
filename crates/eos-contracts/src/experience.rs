@@ -24,7 +24,9 @@ impl Validate for ExperienceChange {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExperienceRecalledEvent {
-    pub worker_id: String,
+    /// The chat's agent; none for a run's pack, given before its lead starts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<String>,
     pub note_ids: Vec<String>,
@@ -176,7 +178,7 @@ pub struct ExperienceHelp {
 pub struct ExperienceVersion {
     pub rev: i64,
     pub at: i64,
-    /// `learned`, `corrected`, `edited`, `merged`, `narrowed` or `restored`.
+    /// `learned`, `corrected`, `edited`, `merged`, `narrowed`, `restored` or `closed`.
     pub why: String,
 }
 

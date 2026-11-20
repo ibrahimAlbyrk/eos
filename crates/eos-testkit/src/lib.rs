@@ -73,6 +73,7 @@ mod confinement;
 mod db;
 mod delivery;
 mod embed;
+mod experience;
 mod fakes;
 mod files;
 pub mod fixtures;
@@ -121,6 +122,7 @@ pub use confinement::FakeConfinement;
 pub use db::{Announced, TempStore};
 pub use delivery::FakeChannels;
 pub use embed::FakeEmbedder;
+pub use experience::{FakeExperienceFeedback, FakeExperiencePacks, FeedbackCall};
 pub use fakes::{
     EchoTool, FakeCredentials, FakeDesktop, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch,
     FakeSettings, FakeToolSets, FakeTries, FakeUser, FakeWorktrees, ScriptedOneShot,
