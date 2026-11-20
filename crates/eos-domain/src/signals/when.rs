@@ -2,7 +2,7 @@
 //! triggers make between routines, and the slot in plain English.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Component, Path};
 
 use eos_contracts::{Issues, Trigger, When};
 
@@ -77,9 +77,34 @@ fn folder_path(path: &str, data_dir: Option<&Path>, cx: &mut Issues) {
     let path = Path::new(path);
     if !path.is_absolute() {
         cx.push("Expected an absolute path");
-    } else if data_dir.is_some_and(|data_dir| path.starts_with(data_dir)) {
+    } else if data_dir.is_some_and(|data_dir| inside_folder(path, data_dir)) {
         cx.push("Must not be inside Eos's data folder");
     }
+}
+
+/// Whether `path` is `folder` or inside it, by the text of both: `.` and
+/// `..` are resolved, and letters compare without case, as the Mac's disks
+/// do by default. Links are the caller's to resolve first.
+pub fn inside_folder(path: &Path, folder: &Path) -> bool {
+    let (path, folder) = (plain_parts(path), plain_parts(folder));
+    path.len() >= folder.len() && path.iter().zip(&folder).all(|(a, b)| a == b)
+}
+
+/// The parts of `path` with `.` and `..` resolved, in lower case.
+fn plain_parts(path: &Path) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    for part in path.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if parts.last().is_some_and(|last| last != "/") {
+                    parts.pop();
+                }
+            }
+            other => parts.push(other.as_os_str().to_string_lossy().to_lowercase()),
+        }
+    }
+    parts
 }
 
 /// Finds a loop among routines that run after one another: each entry is a

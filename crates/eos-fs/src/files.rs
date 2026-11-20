@@ -331,6 +331,11 @@ impl FileSystem for DiskFileSystem {
         let (inner, path) = (self.inner.clone(), path.to_owned());
         Box::pin(blocking(move || trash(&inner, &path)))
     }
+
+    fn canonical<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<PathBuf, Error>> {
+        let path = path.to_owned();
+        Box::pin(blocking(move || std::fs::canonicalize(&path).map_err(Error::storage)))
+    }
 }
 
 #[cfg(test)]

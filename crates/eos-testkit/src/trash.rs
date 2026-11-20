@@ -104,4 +104,8 @@ impl FileSystem for FakeTrash {
             Ok(())
         })
     }
+
+    fn canonical<'a>(&'a self, _: &'a Path) -> BoxFuture<'a, Result<PathBuf, Error>> {
+        unused()
+    }
 }
