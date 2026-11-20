@@ -70,6 +70,9 @@ pub struct Options {
     pub sign_in_provider: Option<String>,
     /// Start the measuring probe (`Ports::probe`): for responsiveness runs only.
     pub probe: bool,
+    /// How long the window stays hidden before the dashboard's view is released
+    /// (`eos_bridge::dashboard_life`). Shorter only in a test run.
+    pub dashboard_release_after: Duration,
 }
 
 /// What the shell offers the core.
@@ -96,6 +99,8 @@ pub struct Ports {
     /// The restart splash: `Some(caption)` shows it above every window until the app quits,
     /// `None` closes it again (the restart failed). Blocking.
     pub splash: Arc<dyn Fn(Option<String>) + Send + Sync>,
+    /// Hides the window as its close button does. For a test run's script.
+    pub hide_window: Arc<dyn Fn() + Send + Sync>,
     /// The measuring probe, when `Options::probe` asked for it.
     pub probe: Option<Arc<Probe>>,
     /// The claude.ai sign-in windows, when the artifact views show a stand-in.

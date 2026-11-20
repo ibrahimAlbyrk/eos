@@ -12,7 +12,9 @@ What it checks:
   4. the Rust core answers every request behind the dev guard, the event stream included;
   5. a second launch hands over, `--quit` stops everything;
   6. the logs: both files beside this run's data, the story told, nothing private in them;
-  7. a number set on the Dock icon is what the icon shows.
+  7. a number set on the Dock icon is what the icon shows;
+  8. a window kept hidden releases the dashboard's view (after a shortened time), keeps the
+     other child views, and showing it again makes the view again.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -204,11 +206,47 @@ def hidden_start(run):
     check("--quit stops the hidden start", run.stop_app())
 
 
+def released(run):
+    """8. The dashboard's view released while the window stays hidden, on a shell data folder
+    thrown away afterwards. The release time is shortened to a few seconds."""
+    subprocess.run(["rm", "-rf", SHELL_DATA], check=True)
+    os.makedirs(SHELL_DATA)
+    steps_file, steps_out = os.path.join(OUT, "release-steps.jsonl"), os.path.join(OUT, "release-out.jsonl")
+    page = "data:text/html,<title>kept</title><h1>kept view</h1>"
+    with open(steps_file, "w") as f:
+        f.write(json.dumps({"create": {"as": "k", "profile": "smoke", "url": page}}) + "\n")
+    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none",
+               EOS_DEV_SCRIPT=steps_file, EOS_DEV_SCRIPT_OUT=steps_out, EOS_DEV_SCRIPT_FOLLOW="1",
+               EOS_DEV_DASHBOARD_RELEASE_MS="3000")
+    subprocess.run([os.path.join(HOST, "scripts", "launch.sh"), APP, "--quiet"], check=True, env=env)
+    st = wait_for("ready", lambda: (lambda s: s if bridge_of(s).get("ready") else None)(ctl("--status")), 40)
+    if not check("a plain start reports the dashboard loaded", st and st.get("dashboard") == "loaded", st and st.get("dashboard")):
+        return run.stop_app()
+    kept = wait_for("kept view", lambda: ctl("--status").get("views"), 20)
+    with open(steps_file, "a") as f:
+        f.write(json.dumps({"hide": None}) + "\n")
+    st = wait_for("released", lambda: (lambda s: s if s.get("dashboard") == "released" else None)(ctl("--status")), 30)
+    log = lambda: open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+    check("a window kept hidden releases the dashboard's view", st and st["window"]["visible"] is False and "views: dashboard view closed" in log(),
+          st["window"] if st else "not within 30 s")
+    check("... and keeps the other child views", kept and st and st.get("views") == kept, st and st.get("views"))
+    shown = ctl()
+    st = wait_for("loaded", lambda: (lambda s: s if s.get("dashboard") == "loaded" and s["window"]["visible"] else None)(ctl("--status")), 30)
+    reloaded = wait_for("reloaded", lambda: log().count("shell: dashboard loading") == 2, 30)
+    check("showing the window makes the dashboard's view again and loads the page",
+          shown.get("ok") is True and st and reloaded and log().count("in-process handler registered") == 2,
+          st.get("dashboard") if st else "not within 30 s")
+    with open(steps_file, "a") as f:
+        f.write(json.dumps({"end": None}) + "\n")
+    check("--quit stops the released run", run.stop_app())
+
+
 def checks(run):
     bundle_contents()
     subprocess.run(["rm", "-rf", OUT], check=True)
     os.makedirs(SHELL_DATA)
     hidden_start(run)
+    released(run)
     # ---- a fresh shell profile, and an "Electron profile" holding the layout to restore:
     # one chat selected with the Browser tab open in its side panel.
     subprocess.run(["rm", "-rf", SHELL_DATA], check=True)

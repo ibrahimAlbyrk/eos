@@ -4,11 +4,13 @@ memory study measured it: `phys_footprint` of every process of the app (footprin
 fixed time after the dashboard is ready, the window painting, a fresh shell profile per run.
 
   memory.py <Eos.app> [--runs 5] [--wait 40] [--label NAME] [--network-in-process]
-            [--no-core] [--covered] [--vmmap]
+            [--no-core] [--covered] [--closed] [--vmmap]
 
   --network-in-process  Chromium's network service inside the browser process (the setting)
   --no-core             the shell alone, without the Rust core in process
   --covered             let Chromium stop painting when other windows cover the app's
+  --closed              the window hidden and the dashboard's view released (after a
+                        shortened release time); measured `--wait` seconds after the release
   --vmmap               on the last run, how much of the CEF framework's constant data is
                         dirty in the dashboard's renderer (clean when the framework is
                         mapped at launch, about 12 MB when it is dlopen()ed)
@@ -126,17 +128,31 @@ def stop_app():
     RUN.stop_app()
 
 
-def one_run(chat, wait, env_extra, vmmap):
+def one_run(chat, wait, env_extra, vmmap, closed):
     electron = prepare(chat)
     log = os.path.join(smoke.DEV_OUT, "app.err")
     if os.path.exists(log):
         os.remove(log)
     env = dict(os.environ, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE=electron, **env_extra)
+    steps = os.path.join(OUT, "steps.jsonl")
+    if closed:
+        # The window is hidden through a followed dev script once the dashboard is ready.
+        open(steps, "w").close()
+        env.update(EOS_DEV_SCRIPT=steps, EOS_DEV_SCRIPT_OUT=os.path.join(OUT, "steps-out.jsonl"),
+                   EOS_DEV_SCRIPT_FOLLOW="1", EOS_DEV_DASHBOARD_RELEASE_MS="5000")
     subprocess.run([os.path.join(smoke.HOST, "scripts", "launch.sh"), smoke.APP, "--quiet"], check=True, env=env)
     st = smoke.wait_for("ready", lambda: (lambda s: s if smoke.bridge_of(s).get("ready") else None)(smoke.ctl("--status")), 60)
     if not st:
         stop_app()
         return {"void": "the dashboard did not become ready"}
+    if closed:
+        # Long enough for the page to ask for the restored chat, as an open run does.
+        time.sleep(10)
+        with open(steps, "a") as f:
+            f.write(json.dumps({"hide": None}) + "\n")
+        if not smoke.wait_for("released", lambda: smoke.ctl("--status").get("dashboard") == "released", 40):
+            stop_app()
+            return {"void": "the dashboard's view was not released"}
     time.sleep(wait)
     rows = processes()
     fp = footprints([pid for pid, _ in rows])
@@ -165,8 +181,13 @@ def one_run(chat, wait, env_extra, vmmap):
         run["void"] = "a process of the app went away"
     elif opened != {chat}:
         run["void"] = f"the page loaded {len(opened)} chats, expected exactly the one restored"
-    elif after.get("window", {}).get("visible") is not True:
-        run["void"] = "the window was not visible"
+    elif after.get("window", {}).get("visible") is not (not closed):
+        run["void"] = "the window was hidden" if not closed else "the window was shown"
+    elif closed and after.get("dashboard") != "released":
+        run["void"] = "the dashboard's view came back"
+    if closed:
+        with open(steps, "a") as f:
+            f.write(json.dumps({"end": None}) + "\n")
     stop_app()
     return run
 
@@ -211,7 +232,7 @@ def measure(runs, wait, label):
         env_extra["EOS_HOME"] = ""
     results = []
     for i in range(runs):
-        run = one_run(chat, wait, env_extra, flag("--vmmap") and i == runs - 1)
+        run = one_run(chat, wait, env_extra, flag("--vmmap") and i == runs - 1, flag("--closed"))
         results.append(run)
         print(f"run {i + 1}: " + (f"void: {run['void']}" if "void" in run else f"{run['total']:.0f} MB in {run['procs']} processes {run['by']} load {run['load1']}"), flush=True)
     with open(os.path.join(OUT, "results", label + ".json"), "w") as f:

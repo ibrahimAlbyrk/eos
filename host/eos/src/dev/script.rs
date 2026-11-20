@@ -29,6 +29,7 @@
 //! `{"ticks": {"count": 10, "every_ms": 60000, "hold": true}}` waits `count` timers of
 //! `every_ms` in a row, with a `Run` work hold taken when `hold` is true, and returns how
 //! late each fired: `{"held", "lateMs": [..], "wallLateMs": [..]}` (the App Nap drift check).
+//! `{"hide": null}` hides the window as its close button does (the dashboard's release).
 //! The output file gets one result per step, in order.
 //!
 //! A responsiveness run (`tests/responsiveness.py`, with the shell's probe on) also has
@@ -251,6 +252,11 @@ impl Run {
                 Ok(Value::Null)
             }
             "ticks" => Ok(ticks(&self.ports, arg).await),
+            "hide" => {
+                let hide = self.ports.hide_window.clone();
+                tokio::task::spawn_blocking(move || hide()).await.map_err(|e| e.to_string())?;
+                Ok(Value::Null)
+            }
             other => Err(format!("unknown step {other:?}")),
         }
     }
