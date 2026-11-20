@@ -31,6 +31,7 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "set_page_task",
     "search_memory",
     "suggest_memory",
+    "recall_experience",
     "plugin_status",
     "plugin_preview",
     "present",

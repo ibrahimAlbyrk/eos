@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::{ActivityEvent, ActivityEventKind, AgentEvent};
+use eos_core::experience::FoundNote;
 use eos_core::git::ProjectKeys;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::{RunLookup, RunRef};
@@ -21,6 +22,7 @@ use eos_core::{Clock, Ids};
 use eos_domain::experience::HookKind;
 use eos_domain::experience::budget::REMINDER_NOTES_PER_TURN;
 use eos_domain::experience::cues::{self, Cue};
+use eos_domain::experience::rank::PACK_THRESHOLD;
 use eos_domain::experience::render::{ABOUT_FILE, BEFORE_PUSH, BEFORE_STEP, ERROR_SEEN, ON_REQUEST};
 use eos_memory::deliver::{How, Receiver, record, reminder};
 use eos_memory::{Cues, Recall, Situation, chat_pack};
@@ -46,6 +48,18 @@ struct Chat {
     /// Reminders given since the user's last message.
     this_turn: usize,
     recalling: bool,
+}
+
+/// What `recall_experience` says to an agent the user withholds the
+/// profile from, as `search_memory` does.
+const WITHHELD: &str = "the user doesn't share their profile with this provider";
+/// The most notes one search returns.
+const SEARCH_LIMIT_MAX: usize = 10;
+
+enum Located {
+    Unknown,
+    Withheld,
+    Here(Place),
 }
 
 /// Where a session works, as recall needs it.
@@ -122,25 +136,32 @@ impl Reminders {
         self.chats().remove(worker_id);
     }
 
-    /// Where the worker works; `None` when it is unknown or the user
-    /// withholds the profile from its backend kind, or reminders are off.
+    /// Where the worker works, when notes may reach it: `None` when it is
+    /// unknown, the user withholds the profile from its backend kind, or
+    /// the Reminders switch is off.
     async fn place(&self, worker_id: &str) -> Option<Place> {
-        let worker = worker_id.to_owned();
-        let read = self
-            .store
-            .read(move |tx| Ok((agent_caller(tx.workers(), Some(&worker))?, eos_memory::settings::read_in(tx)?)))
-            .await;
-        let (caller, settings) = match read {
-            Ok((Some(caller), settings)) => (caller, settings),
-            Ok((None, _)) => return None,
+        let on = self.store.read(|tx| Ok(eos_memory::settings::read_in(tx)?.reminders)).await;
+        if !on.unwrap_or(false) {
+            return None;
+        }
+        match self.locate(worker_id).await {
+            Ok(Located::Here(place)) => Some(place),
+            Ok(_) => None,
             Err(e) => {
                 tracing::warn!(worker_id, error = %e, "memory: the session's place was not read");
-                return None;
+                None
             }
+        }
+    }
+
+    async fn locate(&self, worker_id: &str) -> Result<Located, eos_core::Error> {
+        let worker = worker_id.to_owned();
+        let Some(caller) = self.store.read(move |tx| agent_caller(tx.workers(), Some(&worker))).await? else {
+            return Ok(Located::Unknown);
         };
         let withheld = caller.kind.as_ref().is_some_and(|kind| self.profile.get().sharing.withhold_from.contains(kind));
-        if withheld || !settings.reminders {
-            return None;
+        if withheld {
+            return Ok(Located::Withheld);
         }
         let project = match caller.project.as_deref() {
             Some(path) => Some(self.project_keys.to_key(path).await),
@@ -151,7 +172,42 @@ impl Reminders {
             None => None,
         };
         let situation = Situation { routine: run.as_ref().map(|r| r.routine_id.clone()), project, work_kind: None };
-        Some(Place { situation, root: caller.project, run })
+        Ok(Located::Here(Place { situation, root: caller.project, run }))
+    }
+
+    /// What `recall_experience` answers an agent.
+    pub(crate) async fn search(
+        &self,
+        agent_id: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<FoundNote>, eos_core::Error> {
+        let place = match self.locate(agent_id).await? {
+            Located::Here(place) => place,
+            Located::Withheld => return Err(eos_core::Error::PermissionDenied(WITHHELD.into())),
+            Located::Unknown => return Err(eos_core::Error::PermissionDenied("only an agent can recall".into())),
+        };
+        let found = cues::from_message(query, place.root.as_deref());
+        let wanted = Cues { hooks: found.cues, query: Some(query.to_owned()).filter(|q| !q.trim().is_empty()) };
+        let recalled = self.recall.recall(&place.situation, &wanted, limit.clamp(1, SEARCH_LIMIT_MAX)).await?;
+        let recalled: Vec<_> = recalled.into_iter().filter(|r| r.score >= PACK_THRESHOLD).collect();
+        let note_ids: Vec<String> = recalled.iter().map(|r| r.note.note.id.clone()).collect();
+        if !note_ids.is_empty() {
+            if let Some(chat) = self.chats().get_mut(agent_id) {
+                chat.delivered.extend(note_ids.iter().cloned());
+            }
+            self.deliver(agent_id, &place, How::Tool, &note_ids).await;
+        }
+        Ok(recalled
+            .into_iter()
+            .map(|r| FoundNote {
+                id: r.note.note.id,
+                text: r.note.note.text,
+                scope: r.note.note.scope,
+                state: r.note.note.state,
+                trust: r.note.note.trust,
+            })
+            .collect())
     }
 
     /// The notes that go with a turn: the epoch's pack on its first turn,

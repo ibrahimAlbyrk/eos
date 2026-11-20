@@ -160,6 +160,7 @@
   "tool/propose_blueprint.prompt.md": "24679b277a9d1de657be7a8f02a37244027a8e101e563ce105e5aace5fb0cf0d",
   "tool/react.prompt.md": "2a16a8df874903f680bb856b5b884c860b7924166ee1b89899d6568a06be757d",
   "tool/read_page.prompt.md": "36c9abbe3a714f715ac33de0a0d1836ae6e2352d007d5a19f2ef67ec48934b00",
+  "tool/recall_experience.prompt.md": "2435b981535eb66d8eadbdd35b2aa0ec010cd2be0dde8970fcd17a82d6238f91",
   "tool/report_failure.prompt.md": "8da76dbf18f8ffe1bebf246612eb411ac0cebe96312d60afe2c3015e8960dfe2",
   "tool/report_progress.prompt.md": "a29e444df5799571eaea9c34df57a84614649a09dd322c710b1338177e762e29",
   "tool/respond_to_peer.prompt.md": "1aa3c6c70547dd04af06f06829b18bdabaace46e3ad8a87cc73ea68b4c7fdac0",

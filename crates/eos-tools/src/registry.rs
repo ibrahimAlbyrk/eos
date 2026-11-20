@@ -9,6 +9,7 @@ use eos_core::agent::{
 };
 use eos_core::browser::BrowserTools;
 use eos_core::capability::CapabilityCalls;
+use eos_core::experience::ExperienceSearch;
 use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
@@ -46,6 +47,8 @@ pub struct Services {
     pub pages: Arc<dyn PageEditor>,
     pub memory_search: Arc<dyn MemorySearch>,
     pub memory_suggestions: Arc<dyn MemorySuggestions>,
+    /// What Eos learned from work, as an agent recalls it.
+    pub experience: Option<Arc<dyn ExperienceSearch>>,
     pub plugins: Arc<dyn Plugins>,
     pub browser: Option<Arc<dyn BrowserTools>>,
     pub visual: Option<Visual>,
@@ -118,7 +121,7 @@ impl Tools {
         // The parts both surfaces share, in the order both list them.
         let shared = || {
             let mut list = pages::specs(&s.pages);
-            list.extend(memory::specs(&s.memory_search, &s.memory_suggestions));
+            list.extend(memory::specs(&s.memory_search, &s.memory_suggestions, s.experience.as_ref()));
             if let Some(browser) = &s.browser {
                 list.extend(browser::specs(browser));
             }
@@ -169,7 +172,7 @@ impl Tools {
         let run_shared = || {
             let mut list = vec![time::spec(&s.clock, &s.zone)];
             list.extend(
-                memory::specs(&s.memory_search, &s.memory_suggestions)
+                memory::specs(&s.memory_search, &s.memory_suggestions, None)
                     .into_iter()
                     .filter(|t| t.name == "search_memory"),
             );

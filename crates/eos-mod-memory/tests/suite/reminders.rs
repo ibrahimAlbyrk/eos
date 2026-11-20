@@ -85,3 +85,18 @@ async fn a_withheld_provider_and_reminders_off_get_nothing() {
     assert!(rig.memory.turn_notes(&turn("w-1", "npm run lint", true)).await.is_empty());
     assert_eq!(rig.uses(), 0);
 }
+
+#[tokio::test]
+async fn an_agent_recalls_by_situation_and_a_withheld_provider_is_refused() {
+    let rig = Rig::new();
+    rig.note_about("mn-000000000001", LINT, "npm run lint");
+    let search = rig.memory.experience_search();
+    let found = search.search("w-1", "npm run lint", 5).await.unwrap();
+    assert_eq!(found.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), ["mn-000000000001"]);
+    assert_eq!(rig.uses(), 1);
+    assert!(rig.temp.announced.list().last().unwrap().1.contains(r#""how":"tool""#));
+
+    rig.profile.0.lock().unwrap().sharing.withhold_from = vec!["claude".into()];
+    let refused = search.search("w-1", "npm run lint", 5).await.unwrap_err();
+    assert!(matches!(refused, eos_core::Error::PermissionDenied(_)), "{refused:?}");
+}

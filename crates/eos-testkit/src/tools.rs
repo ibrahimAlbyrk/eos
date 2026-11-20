@@ -16,6 +16,7 @@ use eos_core::agent::{
     SessionFolder, SpawnedWorker, UserNotifier, UserQuestions, WorkerControl,
 };
 use eos_core::browser::{BrowserCall, BrowserError, BrowserTools};
+use eos_core::experience::{ExperienceSearch, FoundNote};
 use eos_core::genui::{
     LocationRefusal, PlaceCenter, Places, PlacesError, PlacesFound, PresentRefusal, PresentedApp, PresentedView,
     UserLocation, VisualAnswers,
@@ -249,6 +250,30 @@ impl MemorySearch for FakeFeatures {
         ready(self.core("memory.search", asked).map(|body| {
             let memories: Vec<UserMemory> = typed("memory.search", body["memories"].clone());
             memories.into_iter().map(Arc::new).collect()
+        }))
+    }
+}
+
+impl ExperienceSearch for FakeFeatures {
+    fn search<'a>(
+        &'a self,
+        agent_id: &'a str,
+        query: &'a str,
+        limit: usize,
+    ) -> BoxFuture<'a, Result<Vec<FoundNote>, Error>> {
+        let asked = json!({"agentId": agent_id, "query": query, "limit": limit});
+        ready(self.core("memory.recall", asked).map(|body| {
+            let notes = body["notes"].as_array().cloned().unwrap_or_default();
+            notes
+                .iter()
+                .map(|n| FoundNote {
+                    id: typed("memory.recall", n["id"].clone()),
+                    text: typed("memory.recall", n["text"].clone()),
+                    scope: typed("memory.recall", n["scope"].clone()),
+                    state: typed("memory.recall", n["state"].clone()),
+                    trust: typed("memory.recall", n["trust"].clone()),
+                })
+                .collect()
         }))
     }
 }

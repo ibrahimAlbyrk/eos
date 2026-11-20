@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::{AgentEvent, ExperienceChange, ExperienceRecalledEvent, ExperienceSettings};
 use eos_core::agent::{CompactionNotice, NoteTurn};
-use eos_core::experience::Embedder;
+use eos_core::experience::{Embedder, ExperienceSearch, FoundNote};
 use eos_core::git::ProjectKeys;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
@@ -160,8 +160,26 @@ impl MemoryModule {
         self.background_model_calls
     }
 
+    /// `recall_experience` for the agent tools.
+    pub fn experience_search(&self) -> Arc<dyn ExperienceSearch> {
+        Arc::new(Search(self.reminders.clone()))
+    }
+
     pub async fn settings(&self) -> Result<ExperienceSettings, Error> {
         self.store.read(eos_memory::settings::read_in).await
+    }
+}
+
+struct Search(Arc<Reminders>);
+
+impl ExperienceSearch for Search {
+    fn search<'a>(
+        &'a self,
+        agent_id: &'a str,
+        query: &'a str,
+        limit: usize,
+    ) -> BoxFuture<'a, Result<Vec<FoundNote>, Error>> {
+        Box::pin(self.0.search(agent_id, query, limit))
     }
 }
 
