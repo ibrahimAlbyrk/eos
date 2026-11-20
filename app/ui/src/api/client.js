@@ -232,15 +232,15 @@ export const api = {
   // Ephemeral connection test — validates a provider config (preset + key) via a live
   // /v1/models call before the config is persisted.
   async testBackend(body) {
-    return postJson(ROUTES.apiBackendTest, body);
+    return postJson(ROUTES.apiBackendTest, body, uiTokenHeader());
   },
   // Add a provider profile (writes the key to Keychain + config.json, reloads daemon).
   async addBackend(body) {
-    return postJson(ROUTES.apiBackends, body);
+    return postJson(ROUTES.apiBackends, body, uiTokenHeader());
   },
   // Remove a configured provider profile by name.
   async deleteBackend(name) {
-    return del(ROUTES.apiBackendDelete(name));
+    return del(ROUTES.apiBackendDelete(name), uiTokenHeader());
   },
 
   // Workers
