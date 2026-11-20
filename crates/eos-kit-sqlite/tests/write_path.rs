@@ -378,3 +378,49 @@ fn every_thread_of_the_database_runs_the_start_hook_first() {
     db.close();
     assert_eq!(STARTED.load(Ordering::SeqCst), 5, "the writer and four readers");
 }
+
+/// Another program on the same file while the app's readers and writer are busy: the user's
+/// `sqlite3`, a backup tool, the previous app version. The app must keep working; the other
+/// program reads correctly or is refused, never takes the shared memory index from under us.
+#[test]
+fn another_program_opening_the_file_leaves_the_app_working() {
+    let sqlite3 = std::path::Path::new("/usr/bin/sqlite3");
+    if !sqlite3.exists() {
+        eprintln!("no sqlite3 command: skipped");
+        return;
+    }
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("state.db");
+    let db = Arc::new(fresh(&dir, Options { readers: 8, ..Options::default() }));
+    let stop = Arc::new(AtomicBool::new(false));
+    let busy: Vec<_> = (0..9)
+        .map(|i| {
+            let (db, stop) = (db.clone(), stop.clone());
+            thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    if i == 0 {
+                        db.write(|c| append(c, "w", "row")).expect("write");
+                    } else {
+                        count(&db);
+                    }
+                }
+            })
+        })
+        .collect();
+    let uri = format!("file:{}?mode=ro", path.display());
+    for target in [uri.as_str(), path.to_str().expect("utf-8 path")].iter().cycle().take(20) {
+        let out = std::process::Command::new(sqlite3)
+            .args([*target, "SELECT count(*) FROM events;"])
+            .output()
+            .expect("sqlite3 runs");
+        let (stdout, stderr) = (String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+        let read = out.status.success() && stdout.trim().parse::<i64>().is_ok();
+        assert!(read || stderr.contains("locked") || stderr.contains("busy"), "{stdout}{stderr}");
+    }
+    stop.store(true, Ordering::Relaxed);
+    for t in busy {
+        t.join().expect("the app's threads keep working");
+    }
+    db.write(|c| append(c, "w", "after")).expect("the writer still works");
+    assert!(count(&db) > 0);
+}
