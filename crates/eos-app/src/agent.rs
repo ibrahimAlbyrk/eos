@@ -83,6 +83,7 @@ impl std::fmt::Debug for AgentOptions {
 pub(crate) fn engine(paths: &DataPaths, options: &AgentOptions, deps: EngineDeps) -> Arc<LazyEngine> {
     let engine = EngineOptions {
         protected: paths.agent_protected(),
+        data: Some(paths.clone()),
         default_model: options.default_model.clone(),
         base_url: options.base_url.clone(),
         claude_home: options.claude_home.clone(),
