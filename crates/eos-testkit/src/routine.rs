@@ -51,6 +51,7 @@ pub enum ControlCall {
     StepDown { routine_id: String, reason: String },
     Pause { routine_id: String, reason: String },
     ResumePaused(String),
+    Resume { routine_id: String, reason: String },
     UsingCapability(String),
 }
 
@@ -125,6 +126,11 @@ impl RoutineControl for FakeRoutineControl {
 
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         self.done(ControlCall::ResumePaused(reason.to_owned()))
+    }
+
+    fn resume_in(&self, _tx: &dyn Tx, _out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+        locked(&self.calls).push(ControlCall::Resume { routine_id: routine_id.to_owned(), reason: reason.to_owned() });
+        Ok(())
     }
 
     fn using_capability<'a>(&'a self, capability_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>> {

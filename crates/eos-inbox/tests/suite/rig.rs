@@ -45,12 +45,14 @@ impl Rig {
         let ids = Arc::new(SeqIds::new());
         let outcomes = Arc::new(FakeRunOutcomes::new());
         let wake = Arc::new(tokio::sync::Notify::new());
+        let control = Arc::new(FakeRoutineControl::new());
         let items = Items::new(ItemsParts {
             store: temp.port(),
             clock: clock.clone(),
             ids: ids.clone(),
             channels: Arc::new(channels),
             outcomes: outcomes.clone(),
+            control: control.clone(),
             wake: wake.clone(),
             waiters,
         });
@@ -59,7 +61,7 @@ impl Rig {
             clock,
             ids,
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
-            control: Arc::new(FakeRoutineControl::new()),
+            control,
             outcomes,
             wake,
             items,
