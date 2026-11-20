@@ -31,6 +31,9 @@
 //! it reads the topic by name. A sweeper expires items whose time ran out,
 //! brings back the ones put off and deletes those that ended 90 days ago.
 //!
+//! A run's question that ends unanswered by anything but its asker
+//! (withdrawn, expired, replaced) wakes the asker that waits on it.
+//!
 //! Attention (`GET`/`PUT /api/settings/attention`): on every `inbox:change`
 //! the Dock badge shows the open count and what may interrupt does
 //! ([`Notifier`](eos_inbox::attention::Notifier)); the same task wakes at
@@ -53,7 +56,7 @@ use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_inbox::attention::{Notifier, NotifierParts};
 use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_inbox::{Items, ItemsParts, QuestionWaiters};
-use eos_runtime::bus::{Bus, RecvError, Topic, TopicDecl};
+use eos_runtime::bus::{Bus, RecvError, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 
@@ -110,6 +113,11 @@ pub struct InboxModule {
     /// acts on subject events one at a time in the order they came, and the
     /// sweeper.
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    /// The run askers waiting on their questions.
+    waiters: Arc<QuestionWaiters>,
+    /// Wakes an asker whose question ended unanswered, from `after_ready`
+    /// to `stop`.
+    closed: Mutex<Option<Subscription>>,
 }
 
 /// What every route holds.
@@ -150,7 +158,7 @@ impl InboxModule {
             outcomes: delivery.outcomes.clone(),
             control: delivery.control.clone(),
             wake: delivery.wake.clone(),
-            waiters,
+            waiters: waiters.clone(),
         });
         Self {
             parts: Arc::new(Shared {
@@ -167,6 +175,8 @@ impl InboxModule {
             clock,
             sleeper,
             tasks: Mutex::new(Vec::new()),
+            waiters,
+            closed: Mutex::new(None),
         }
     }
 
@@ -276,11 +286,19 @@ impl Module for InboxModule {
         self.hear_subjects();
         self.sweep();
         self.attend();
+        let waiters = self.waiters.clone();
+        let closed = self.bus.on(INBOX_CHANGE.name(), move |event| {
+            if let Ok(change) = event.payload_as::<InboxChange>() {
+                waiters.closed(&change);
+            }
+        });
+        *self.closed.lock().unwrap_or_else(PoisonError::into_inner) = Some(closed);
         Box::pin(std::future::ready(Ok(())))
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
+            drop(self.closed.lock().unwrap_or_else(PoisonError::into_inner).take());
             let tasks = std::mem::take(&mut *self.tasks.lock().unwrap_or_else(PoisonError::into_inner));
             for task in tasks {
                 task.abort();
