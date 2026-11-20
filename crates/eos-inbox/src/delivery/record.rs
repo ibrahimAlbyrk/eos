@@ -16,10 +16,9 @@ use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
-use super::{
-    AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, target_of, target_value,
-};
+use super::{AUTO, FAILED, FROZEN, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, target_of, target_value};
 use crate::gate::{DRAFT_PRODUCER, run_subject};
+use crate::halt::queue_again_in;
 use crate::items::open_replacing_in;
 use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
@@ -196,9 +195,8 @@ pub(crate) fn record_in(
                     row.next_attempt_at = Some(at.now);
                 }
                 SendErrorKind::Transient if row.attempts < MAX_ATTEMPTS => {
-                    row.state = QUEUED.to_owned();
                     let wait = RETRY_MS[usize::try_from(row.attempts - 1).unwrap_or_default().min(RETRY_MS.len() - 1)];
-                    row.next_attempt_at = Some(at.now + wait);
+                    queue_again_in(tx, &mut row, at.now + wait)?;
                 }
                 _ => {
                     row.state = FAILED.to_owned();
