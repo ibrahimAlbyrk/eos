@@ -17,7 +17,9 @@
 //!
 //! The scheduler (`scheduler`) fires each schedule's slots once, also
 //! after a sleep or a closed app; it passes at least once a minute and at
-//! once on `system:wake`, `routine:change` and `run:change`.
+//! once on `system:wake`, `routine:change` and `run:change`. Each pass
+//! also polls the capability sources the routines read that are due
+//! (`polls`), on each source's own clock, with backoff after failures.
 //!
 //! The routes (`routes`) show what starts each routine's runs, list the
 //! signals, replay some through the run intake and preview a schedule or a
@@ -28,16 +30,19 @@
 
 mod batch;
 mod limits;
+mod polls;
 mod router;
 mod routes;
 mod runner;
 mod scheduler;
+mod sources;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::SignalChange;
 use eos_contracts::stream::topics::SYSTEM_WAKE;
+use eos_core::capability::CapabilityHealth;
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
@@ -46,12 +51,17 @@ use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, Semaphore};
 use tokio::task::JoinHandle;
 
-use crate::router::{Router, ingest_in};
+use crate::polls::Polls;
+use crate::router::Router;
 use crate::scheduler::Scheduler;
 
+pub use polls::{
+    BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
+    WAKE_GRACE_MS, WAKE_RETRY_MS,
+};
 pub use runner::SoloRunner;
 pub use scheduler::SCHEDULER_MAX_SLEEP_MS;
 
@@ -73,6 +83,8 @@ pub struct SignalsParts {
     pub zones: Arc<dyn ZoneRules>,
     /// The sources the capabilities declare.
     pub sources: Arc<dyn SignalSources>,
+    /// Told when a source lost its sign-in or what it reads.
+    pub health: Arc<dyn CapabilityHealth>,
     pub runner: Arc<dyn Runner>,
     /// Admits the runs signals start, inside the routing write.
     pub intake: Arc<dyn RunIntake>,
@@ -105,8 +117,6 @@ pub struct SignalsModule {
     /// The router's and the scheduler's tasks, and the bus subscriptions
     /// that kick the scheduler, while the module runs.
     running: Mutex<Option<Running>>,
-    /// More signals wait to be routed than ingest takes more of.
-    backed_up: AtomicBool,
 }
 
 impl std::fmt::Debug for SignalsModule {
@@ -129,6 +139,23 @@ impl SignalsModule {
             zone: parts.zone.clone(),
             control: parts.control.clone(),
             failed: Mutex::default(),
+            backed_up: AtomicBool::new(false),
+        });
+        let kick = Arc::new(Notify::new());
+        let polls = Arc::new(Polls {
+            store: parts.store.clone(),
+            clock: parts.clock.clone(),
+            sleeper: parts.sleeper.clone(),
+            ids: parts.ids.clone(),
+            sources: parts.sources.clone(),
+            health: parts.health.clone(),
+            router: router.clone(),
+            kick: kick.clone(),
+            short: Arc::new(Semaphore::new(SHORT_SLOTS)),
+            long: Arc::new(Semaphore::new(LONG_SLOTS)),
+            polling: Mutex::default(),
+            tasks: Mutex::default(),
+            woke_at: AtomicI64::new(i64::MIN / 2),
         });
         let scheduler = Arc::new(Scheduler {
             store: parts.store.clone(),
@@ -138,9 +165,10 @@ impl SignalsModule {
             zones: parts.zones.clone(),
             runner: parts.runner.clone(),
             router: router.clone(),
-            kick: Notify::new(),
+            polls,
+            kick,
         });
-        Self { parts, router, scheduler, running: Mutex::new(None), backed_up: AtomicBool::new(false) }
+        Self { parts, router, scheduler, running: Mutex::new(None) }
     }
 
     fn running(&self) -> MutexGuard<'_, Option<Running>> {
@@ -153,21 +181,7 @@ impl SignalsModule {
     /// be routed, pages are refused (429) until fewer than [`CAUGHT_UP`]
     /// wait: nothing is dropped, the source polls again from its cursor.
     pub async fn ingest(&self, source_id: &str, page: PollPage) -> Result<usize, Error> {
-        let waiting = self.parts.store.read(|tx| tx.signals().received_count()).await?;
-        let backed_up = self.backed_up.load(Ordering::SeqCst);
-        if waiting > BACKED_UP || (backed_up && waiting >= CAUGHT_UP) {
-            if !backed_up {
-                tracing::warn!(waiting, "signals back up: sources wait until they are routed");
-            }
-            self.backed_up.store(true, Ordering::SeqCst);
-            self.router.kick.notify_one();
-            return Err(Error::LimitExceeded("too many signals wait to be routed".into()));
-        }
-        self.backed_up.store(false, Ordering::SeqCst);
-        let (source_id, now) = (source_id.to_owned(), self.parts.clock.now_ms());
-        let fresh = self.parts.store.write(move |tx, _| ingest_in(tx, &source_id, &page, now)).await?;
-        self.router.kick.notify_one();
-        Ok(fresh)
+        self.router.ingest(source_id, page).await
     }
 }
 
@@ -196,7 +210,12 @@ impl Module for SignalsModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         let kicks = KICKS.map(|topic| {
             let scheduler = self.scheduler.clone();
-            self.parts.bus.on(topic, move |_| scheduler.kick.notify_one())
+            self.parts.bus.on(topic, move |_| {
+                if topic == SYSTEM_WAKE {
+                    scheduler.polls.woke();
+                }
+                scheduler.kick.notify_one();
+            })
         });
         let running = Running {
             tasks: [tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())],
@@ -217,6 +236,7 @@ impl Module for SignalsModule {
                     let _ = task.await;
                 }
             }
+            self.scheduler.polls.stop().await;
         })
     }
 }

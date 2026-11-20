@@ -21,6 +21,8 @@ fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 #[derive(Debug, Default)]
 pub struct FakeSource {
     facts: Vec<FactDecl>,
+    interval_ms: Option<i64>,
+    wait_ms: u64,
     polls: Mutex<VecDeque<Result<PollPage, SourceError>>>,
     pushes: Mutex<VecDeque<Result<PushOutcome, SourceError>>>,
     requests: Mutex<Vec<PollRequest>>,
@@ -29,6 +31,14 @@ pub struct FakeSource {
 impl FakeSource {
     pub fn new(facts: Vec<FactDecl>) -> Self {
         Self { facts, ..Self::default() }
+    }
+
+    /// It asks to be polled every `interval_ms`, each poll holding the call
+    /// up to `wait_ms`.
+    pub fn timed(mut self, interval_ms: Option<i64>, wait_ms: u64) -> Self {
+        self.interval_ms = interval_ms;
+        self.wait_ms = wait_ms;
+        self
     }
 
     /// The next poll answers `page`.
@@ -54,6 +64,14 @@ impl FakeSource {
 impl SignalSource for FakeSource {
     fn facts(&self) -> &[FactDecl] {
         &self.facts
+    }
+
+    fn interval_ms(&self) -> Option<i64> {
+        self.interval_ms
+    }
+
+    fn wait_ms(&self) -> u64 {
+        self.wait_ms
     }
 
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {

@@ -16,6 +16,7 @@
 //! that came due.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{
@@ -32,6 +33,8 @@ use eos_domain::signals::decision::Decision;
 use eos_domain::signals::key::{capability_scope, fits};
 use eos_domain::signals::which::{Verdict, evaluate};
 use eos_inbox::Opening;
+
+use crate::{BACKED_UP, CAUGHT_UP};
 use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
@@ -62,10 +65,10 @@ fn error_kind(error: &Error) -> &'static str {
 }
 
 /// Keeps a page inside a write job: its new signals as `received`, the
-/// source's cursor as the page gave it. Answers how many were new.
-pub(crate) fn ingest_in(tx: &dyn Tx, source_id: &str, page: &PollPage, now: i64) -> Result<usize, Error> {
+/// source's cursor as the page gave it. Answers the new signals.
+pub(crate) fn ingest_in(tx: &dyn Tx, source_id: &str, page: &PollPage, now: i64) -> Result<Vec<i64>, Error> {
     let mut source = tx.signal_sources().find(source_id)?.ok_or_else(|| Error::not_found("source", source_id))?;
-    let mut fresh = 0;
+    let mut fresh = Vec::new();
     for draft in page.items.iter().filter(|draft| fits(&draft.key)) {
         let signal = NewSignal {
             source_id: source_id.to_owned(),
@@ -79,16 +82,16 @@ pub(crate) fn ingest_in(tx: &dyn Tx, source_id: &str, page: &PollPage, now: i64)
             item_json: draft.item.to_string(),
             depth: 0,
         };
-        fresh += usize::from(tx.signals().ingest(&signal)?.is_some());
+        fresh.extend(tx.signals().ingest(&signal)?);
     }
     source.cursor_json = Some(page.cursor.to_string());
     source.last_poll_at = Some(now);
-    if fresh > 0 {
+    if !fresh.is_empty() {
         source.last_signal_at = Some(now);
     }
     source.updated_at = now;
     tx.signal_sources().update(&source)?;
-    tracing::info!(source_id, items = page.items.len(), fresh, "a source's page was kept");
+    tracing::info!(source_id, items = page.items.len(), fresh = fresh.len(), "a source's page was kept");
     Ok(fresh)
 }
 
@@ -172,6 +175,8 @@ pub(crate) struct Router {
     /// When each signal whose write failed last failed: a cache, so a
     /// restart tries them all again at once.
     pub(crate) failed: Mutex<HashMap<i64, i64>>,
+    /// More signals wait to be routed than ingest takes more of.
+    pub(crate) backed_up: AtomicBool,
 }
 
 /// What one signal's routing needs inside its write.
@@ -219,8 +224,16 @@ impl Routing {
         run_in(tx, out, self.intake.as_ref(), routine, signal, self.now, &stale)
     }
 
-    /// Routes one received signal inside a write job.
-    fn route_in(&self, tx: &dyn Tx, out: &mut Outbox, id: i64, routines: &[RoutineTriggers]) -> Result<(), Error> {
+    /// Routes one received signal inside a write job; a `baseline` one is
+    /// decided so for every routine, with no run.
+    fn route_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        id: i64,
+        routines: &[RoutineTriggers],
+        baseline: bool,
+    ) -> Result<(), Error> {
         let Some(signal) = tx.signals().find(id)?.filter(|signal| !signal.routed) else { return Ok(()) };
         let source = tx.signal_sources().find(&signal.signal.source_id)?;
         let facts: Facts =
@@ -231,7 +244,11 @@ impl Routing {
             .filter(|routine| source.as_ref().is_some_and(|source| takes(routine, source, &signal.signal.kind)))
             .filter(held);
         for routine in takers {
-            let decided = self.decide(tx, out, routine, &signal, &facts)?;
+            let decided = if baseline {
+                (Decision::Baseline, None, None)
+            } else {
+                self.decide(tx, out, routine, &signal, &facts)?
+            };
             self.record_in(tx, out, routine, &signal, decided)?;
         }
         tx.signals().mark_routed(id)
@@ -285,6 +302,40 @@ impl Routing {
 }
 
 impl Router {
+    /// Keeps one page for the source row `source_id` (see
+    /// [`SignalsModule::ingest`](crate::SignalsModule::ingest)). A
+    /// baseline page's signals are decided `baseline` for every routine
+    /// held here that takes them, in the same write.
+    pub(crate) async fn ingest(&self, source_id: &str, page: PollPage) -> Result<usize, Error> {
+        let waiting = self.store.read(|tx| tx.signals().received_count()).await?;
+        let backed_up = self.backed_up.load(Ordering::SeqCst);
+        if waiting > BACKED_UP || (backed_up && waiting >= CAUGHT_UP) {
+            if !backed_up {
+                tracing::warn!(waiting, "signals back up: sources wait until they are routed");
+            }
+            self.backed_up.store(true, Ordering::SeqCst);
+            self.kick.notify_one();
+            return Err(Error::LimitExceeded("too many signals wait to be routed".into()));
+        }
+        self.backed_up.store(false, Ordering::SeqCst);
+        let routines = if page.baseline { self.directory.triggers().await? } else { Vec::new() };
+        let (source_id, routing) = (source_id.to_owned(), self.routing());
+        let fresh = self
+            .store
+            .write(move |tx, out| {
+                let fresh = ingest_in(tx, &source_id, &page, routing.now)?;
+                if page.baseline {
+                    for id in &fresh {
+                        routing.route_in(tx, out, *id, &routines, true)?;
+                    }
+                }
+                Ok(fresh.len())
+            })
+            .await?;
+        self.kick.notify_one();
+        Ok(fresh)
+    }
+
     /// Routes every `received` signal, oldest first; answers how many. A
     /// signal whose write fails is logged and left for a later pass, at most
     /// once every [`RETRY_MS`], while the ones after it are routed.
@@ -305,7 +356,7 @@ impl Router {
                 }
                 let routing = self.routing();
                 let routines = routines.clone();
-                match self.store.write(move |tx, out| routing.route_in(tx, out, signal.id, &routines)).await {
+                match self.store.write(move |tx, out| routing.route_in(tx, out, signal.id, &routines, false)).await {
                     Ok(()) => {
                         self.failed().remove(&signal.id);
                         routed += 1;

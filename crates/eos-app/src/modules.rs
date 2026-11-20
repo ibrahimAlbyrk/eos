@@ -330,6 +330,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             ids: cx.ids.clone(),
             zones: Arc::new(crate::host::HostZoneRules),
             sources: cx.reach.signal_sources(cx.capabilities.signal_sources()),
+            health: cx.capabilities.clone(),
             runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
             intake: routines.intake(),
             directory: routines.directory(),

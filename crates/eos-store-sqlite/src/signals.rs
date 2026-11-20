@@ -169,6 +169,10 @@ impl SignalSourceRepo for SqliteTx<'_> {
         self.row(&format!("SELECT {SOURCE_COLUMNS} FROM signal_sources WHERE scope_hash = ?1"), [scope_hash], source)
     }
 
+    fn all(&self) -> Result<Vec<StoredSignalSource>, Error> {
+        self.rows(&format!("SELECT {SOURCE_COLUMNS} FROM signal_sources ORDER BY id"), params![], source)
+    }
+
     fn update(&self, source: &StoredSignalSource) -> Result<(), Error> {
         self.exec(
             "UPDATE signal_sources SET kind = ?2, source = ?3, scope_json = ?4, scope_hash = ?5, cursor_json = ?6, \

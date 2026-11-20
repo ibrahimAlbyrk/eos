@@ -150,6 +150,8 @@ pub trait SignalSourceRepo {
     fn find(&self, id: &str) -> Result<Option<StoredSignalSource>, Error>;
     /// The source with this kind, source and scope.
     fn by_scope(&self, scope_hash: &str) -> Result<Option<StoredSignalSource>, Error>;
+    /// Every source, by id.
+    fn all(&self) -> Result<Vec<StoredSignalSource>, Error>;
     /// Writes every field of the source with this id but `created_at`.
     fn update(&self, source: &StoredSignalSource) -> Result<(), Error>;
 }

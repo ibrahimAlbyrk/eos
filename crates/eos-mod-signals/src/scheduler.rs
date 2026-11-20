@@ -8,8 +8,9 @@
 //! and the row moved, saved together or not at all. A schedule that is new,
 //! changed or resumed is armed then: no slot before it fires. The latest
 //! slot fires once however many passed, `missed` counting the rest; a slot
-//! at or before the last one fired never fires. Then the router is kicked,
-//! which closes due batches and retries what it could not route.
+//! at or before the last one fired never fires. Then the sources the
+//! routines read are kept and the due ones polled (`polls`), and the router
+//! is kicked, which closes due batches and retries what it could not route.
 //!
 //! Between passes the loop sleeps until the next slot, at most
 //! [`SCHEDULER_MAX_SLEEP_MS`], since the timer stops while the computer
@@ -22,7 +23,7 @@ use eos_contracts::{RoutineState, Schedule, Trigger};
 use eos_core::os::ZoneRules;
 use eos_core::routine::RoutineTriggers;
 use eos_core::signals::{Holder, Runner};
-use eos_core::store::{NewSignal, Outbox, Store, StoredSignalSchedule, StoredSignalSource, Tx};
+use eos_core::store::{NewSignal, Outbox, Store, StoredSignalSchedule, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::routine::blueprint::hash;
 use eos_domain::signals::decision::Decision;
@@ -30,7 +31,9 @@ use eos_domain::signals::key;
 use eos_domain::signals::schedule::{ScheduleState, clock_reset, due, next_slot};
 use tokio::sync::Notify;
 
+use crate::polls::Polls;
 use crate::router::{CLOCK, Router, Routing, run_in};
+use crate::sources::{SourceSpec, source_in};
 
 /// The loop never sleeps longer: a sleep of the computer, a changed clock
 /// or zone is seen within this much awake time.
@@ -49,8 +52,17 @@ pub(crate) struct Scheduler {
     pub(crate) zones: Arc<dyn ZoneRules>,
     pub(crate) runner: Arc<dyn Runner>,
     pub(crate) router: Arc<Router>,
+    pub(crate) polls: Arc<Polls>,
     /// Rings when a pass should run now.
-    pub(crate) kick: Notify,
+    pub(crate) kick: Arc<Notify>,
+}
+
+/// The earlier of two times, either of which may be none.
+fn earliest(a: Option<i64>, b: Option<i64>) -> Option<i64> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
 }
 
 impl Scheduler {
@@ -74,14 +86,17 @@ impl Scheduler {
         }
     }
 
-    /// One pass over every schedule of the routines held here; answers the
-    /// next slot of any.
+    /// One pass over every schedule of the routines held here, then their
+    /// sources; answers the next slot or poll of any.
     async fn pass(&self) -> Result<Option<i64>, Error> {
         let routines = self.router.directory.triggers().await?;
-        let held =
-            routines.into_iter().filter(|routine| matches!(self.runner.holder(&routine.id), Holder::Here { .. }));
+        let held: Vec<Arc<RoutineTriggers>> = routines
+            .into_iter()
+            .filter(|routine| matches!(self.runner.holder(&routine.id), Holder::Here { .. }))
+            .map(Arc::new)
+            .collect();
         let mut next: Option<i64> = None;
-        for routine in held.map(Arc::new) {
+        for routine in &held {
             for (slot, trigger) in routine.when.on.iter().enumerate() {
                 let Trigger::Schedule { schedule, .. } = trigger else { continue };
                 let job = Slot {
@@ -94,13 +109,11 @@ impl Scheduler {
                     routing: self.router.routing(),
                 };
                 let at = self.store.write(move |tx, out| job.fire_in(tx, out)).await?;
-                next = match (next, at) {
-                    (Some(a), Some(b)) => Some(a.min(b)),
-                    (a, b) => a.or(b),
-                };
+                next = earliest(next, at);
             }
         }
-        Ok(next)
+        self.polls.ensure(&held).await?;
+        Ok(earliest(next, self.polls.start_due().await?))
     }
 }
 
@@ -224,29 +237,12 @@ impl Slot {
 /// The source every slot of the routine's schedules is a signal of, made
 /// the first time one fires.
 fn clock_source_in(tx: &dyn Tx, ids: &dyn Ids, routine_id: &str, now: i64) -> Result<String, Error> {
-    let scope_hash = format!("{CLOCK}:{routine_id}");
-    if let Some(source) = tx.signal_sources().by_scope(&scope_hash)? {
-        return Ok(source.id);
-    }
-    let source = StoredSignalSource {
-        id: ids.signal_source_id(),
-        kind: CLOCK.into(),
+    let spec = SourceSpec {
+        kind: CLOCK,
         source: None,
         scope_json: serde_json::json!({ "routine": routine_id }).to_string(),
-        scope_hash,
-        cursor_json: None,
-        state: "active".into(),
-        error_kind: None,
-        failures: 0,
+        scope_hash: format!("{CLOCK}:{routine_id}"),
         interval_ms: 0,
-        last_poll_at: None,
-        next_poll_at: None,
-        last_signal_at: None,
-        catch_up_json: None,
-        stopped_at: None,
-        created_at: now,
-        updated_at: now,
     };
-    tx.signal_sources().insert(&source)?;
-    Ok(source.id)
+    Ok(source_in(tx, ids, spec, now)?.0.id)
 }

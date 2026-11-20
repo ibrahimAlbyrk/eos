@@ -33,6 +33,8 @@ impl Rig {
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
+        // The source's first poll settles before the test looks at it.
+        bench.until(|| bench.temp.count("SELECT count(*) FROM signal_sources WHERE next_poll_at IS NULL") == 0).await;
         Self { bench, module, runtime }
     }
 
