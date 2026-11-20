@@ -55,6 +55,12 @@ impl QuestionWaiters {
         heard
     }
 
+    /// Whether an asker waits on `item_id`: its answer is heard there, and
+    /// the routines need not act on it.
+    pub(crate) fn waits(&self, item_id: &str) -> bool {
+        self.locked().contains_key(item_id)
+    }
+
     fn forget(&self, item_id: &str) {
         self.locked().remove(item_id);
     }
