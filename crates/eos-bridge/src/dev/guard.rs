@@ -395,6 +395,8 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // signals; neither writes or asks the model.
     ("POST", "/api/signals/schedule/preview"),
     ("POST", "/api/signals/which/preview"),
+    // Keeping the computer awake for schedules is a setting in the data folder.
+    ("PUT", "/api/signals/settings"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

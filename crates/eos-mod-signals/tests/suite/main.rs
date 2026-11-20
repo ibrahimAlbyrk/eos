@@ -2,6 +2,7 @@
 //! side.
 
 mod after;
+mod awake;
 mod batch;
 mod halt;
 mod polls;

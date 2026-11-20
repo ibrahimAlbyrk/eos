@@ -597,6 +597,7 @@ impl App {
             raw_routes: Default::default(),
             pdfjs_root,
             settings: settings.clone(),
+            work_hold: work_hold.clone(),
             usage_cache,
             media,
             location,

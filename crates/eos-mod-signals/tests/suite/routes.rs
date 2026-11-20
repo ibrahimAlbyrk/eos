@@ -79,7 +79,7 @@ fn schedule() -> Value {
 async fn each_route_needs_the_user_and_the_phone_its_tier() {
     let rig = Rig::new(active(), true).await;
     let which = json!({ "which": { "rule": { "fact": "draft", "is": false } }, "limit": 10 });
-    let routes: [(Method, &str, Option<Value>, Option<Tier>); 6] = [
+    let routes: [(Method, &str, Option<Value>, Option<Tier>); 7] = [
         (Method::Get, "/api/signals/routines", None, Some(Tier::Read)),
         (Method::Get, "/api/signals/routines/rt-a", None, Some(Tier::Read)),
         (Method::Get, "/api/signals", None, Some(Tier::Read)),
@@ -91,6 +91,7 @@ async fn each_route_needs_the_user_and_the_phone_its_tier() {
             Some(Tier::Read),
         ),
         (Method::Post, "/api/signals/which/preview", Some(which), None),
+        (Method::Put, "/api/signals/settings", Some(json!({ "keepAwakeForSchedules": false })), Some(Tier::Low)),
     ];
     for (method, path, body, tier) in routes {
         assert_eq!(rig.ask_as(Caller::UNTRUSTED, method, path, body.clone()).await.0, 403, "{method:?} {path}");
@@ -234,4 +235,17 @@ async fn every_routine_says_when_it_runs_next_and_whether_its_sources_work() {
     rig.bench.temp.exec("UPDATE signal_sources SET state = 'needs-attention'");
     let (_, rows) = rig.ask(Method::Get, "/api/signals/routines", None).await;
     assert_eq!((rows[0]["sourcesOk"].clone(), rows[2]["sourcesOk"].clone()), (json!(false), json!(true)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn keeping_the_mac_awake_for_schedules_is_set_through_its_own_route() {
+    let rig = Rig::new(active(), true).await;
+    let on = json!({ "keepAwakeForSchedules": true });
+    let (status, answer) = rig.ask(Method::Put, "/api/signals/settings", Some(on.clone())).await;
+    assert_eq!((status, answer), (200, on));
+    let stored = rig.bench.settings.0.lock().expect("settings").get("signals.keepAwakeForSchedules").cloned();
+    assert_eq!(stored, Some(eos_contracts::SettingValue::Flag(true)));
+    assert_eq!(rig.ask(Method::Put, "/api/signals/settings", Some(json!({}))).await.0, 400);
+    let protected = rig.runtime.protected_settings.iter().flat_map(|p| p.keys.iter()).collect::<Vec<_>>();
+    assert_eq!(protected, [&"signals.keepAwakeForSchedules"], "the flat settings route refuses it");
 }

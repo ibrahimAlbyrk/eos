@@ -15,8 +15,8 @@ use eos_domain::signals::key::capability_scope;
 use eos_mod_signals::{SignalsModule, SignalsParts, SoloRunner};
 use eos_runtime::module::Module;
 use eos_testkit::{
-    FakeCapabilityHealth, FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeSleeper,
-    FakeSource, FakeTimeZone, FakeZoneRules, SeqIds, TempStore,
+    FakeCapabilityHealth, FakeClock, FakePower, FakeRoutineControl, FakeRoutineDirectory, FakeSettings,
+    FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWorkHold, FakeZoneRules, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -188,6 +188,9 @@ pub(crate) struct Bench {
     pub(crate) pulls: Arc<FakeSource>,
     pub(crate) sources: Arc<FakeSignalSources>,
     pub(crate) health: Arc<FakeCapabilityHealth>,
+    pub(crate) holds: Arc<FakeWorkHold>,
+    pub(crate) power: Arc<FakePower>,
+    pub(crate) settings: Arc<FakeSettings>,
 }
 
 impl Bench {
@@ -205,6 +208,9 @@ impl Bench {
             sources: Arc::new(FakeSignalSources::new().with("github.pulls", pulls.clone())),
             pulls,
             health: Arc::new(FakeCapabilityHealth::new()),
+            holds: Arc::new(FakeWorkHold::new()),
+            power: Arc::new(FakePower::default()),
+            settings: Arc::new(FakeSettings::default()),
         }
     }
 
@@ -224,6 +230,9 @@ impl Bench {
             control: Arc::new(FakeRoutineControl::new()),
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
             bus: self.bus.clone(),
+            hold: self.holds.clone(),
+            power: self.power.clone(),
+            settings: self.settings.clone(),
             autostart,
         })
     }
