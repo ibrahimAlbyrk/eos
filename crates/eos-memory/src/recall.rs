@@ -91,6 +91,14 @@ impl Recall {
         self.meaning.read().unwrap_or_else(PoisonError::into_inner).clone()
     }
 
+    /// How alike two notes' meanings are; `None` while meaning search is off
+    /// or either note has no vector.
+    pub fn similarity(&self, a: i64, b: i64) -> Option<f64> {
+        let meaning = self.meaning()?;
+        let index = meaning.index.read().unwrap_or_else(PoisonError::into_inner);
+        index.similarity(a, b)
+    }
+
     /// Turns the search by meaning on with a loaded model: the vectors it
     /// made earlier are read into memory.
     pub async fn with_meaning(&self, embedder: Arc<dyn Embedder>) -> Result<(), Error> {

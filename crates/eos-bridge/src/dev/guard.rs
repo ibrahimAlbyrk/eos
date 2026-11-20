@@ -50,6 +50,7 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/btw"),
     ("PUT", "/workers/{id}/rename-intent"),
     ("POST", "/api/dreams"),
+    ("POST", "/api/memory/tidy"),
     // Terminals: a shell or a Claude pane, keys typed into one, a `!` command.
     ("POST", "/pty"),
     ("POST", "/pty/{id}/input"),

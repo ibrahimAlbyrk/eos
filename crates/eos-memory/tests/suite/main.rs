@@ -6,6 +6,7 @@ mod capture;
 mod credit;
 mod edits;
 mod feedback;
+mod night;
 mod notes;
 mod recall;
 mod reflect;

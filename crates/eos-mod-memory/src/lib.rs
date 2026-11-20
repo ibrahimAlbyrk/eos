@@ -22,6 +22,9 @@
 //! - Routes ([`routes`]): the Memory screen's summary, notes (edit, forget,
 //!   bring back, "Not right"), what a chat or run was reminded of, where
 //!   stated rules were said, and the Learning and Reminders switches.
+//! - Every night at the dreaming slot, and on "Tidy now"
+//!   (`POST /api/memory/tidy`), memory is tidied ([`night`]): a stoppable
+//!   `mem-tidy` job.
 //! - Model work nobody asked for (reflection, night tidying) runs only when
 //!   the host lets it ([`MemoryParts::background_model_calls`]).
 //!
@@ -31,6 +34,7 @@
 mod code;
 mod edits;
 mod hooks;
+mod night;
 mod reflection;
 mod reminders;
 mod routes;
@@ -55,10 +59,12 @@ use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_domain::redact::Scrubber;
+use eos_memory::night::{Night, NightParts};
 use eos_memory::{Capture, Credit, Feedback, Recall, ReflectParts, Reflector};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
+use eos_runtime::jobs::JobRegistry;
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
@@ -66,6 +72,7 @@ use tokio::sync::Notify;
 use crate::code::CodePanes;
 use crate::edits::EditWatch;
 use crate::hooks::Capturer;
+use crate::night::{LibraryGeneralize, Nightly};
 use crate::reflection::{LibraryPrompt, Moments, PlanGate, Reflecting};
 pub use crate::reminders::NoteSink;
 use crate::reminders::Reminders;
@@ -131,6 +138,8 @@ pub struct LearnParts {
     pub zone: Arc<dyn TimeZone>,
     /// Where a rule the user states in a chat is kept (About you).
     pub keeper: Arc<dyn UserMemoryKeeper>,
+    /// The Jobs tab, where each night's tidying shows.
+    pub jobs: JobRegistry,
 }
 
 impl std::fmt::Debug for LearnParts {
@@ -184,6 +193,7 @@ pub struct MemoryModule {
     capturer: Arc<Capturer>,
     code: Option<Arc<CodePanes>>,
     reflecting: Option<Arc<Reflecting>>,
+    nightly: Option<Arc<Nightly>>,
     reminders: Arc<Reminders>,
     sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
@@ -235,14 +245,38 @@ impl MemoryModule {
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
         let health = Arc::new(Mutex::new(health));
         let recall = Arc::new(Recall::new(store.clone(), clock.clone()));
+        let mut nightly = None;
         let reflecting = learn.map(|learn| {
+            let gate: Arc<PlanGate> =
+                Arc::new(PlanGate { background_model_calls, plan: learn.plan, profile: profile.clone() });
+            let night = Night::new(NightParts {
+                store: store.clone(),
+                clock: clock.clone(),
+                ids: ids.clone(),
+                zone: learn.zone.clone(),
+                one_shot: learn.one_shot.clone(),
+                gate: gate.clone(),
+                prompt: Arc::new(LibraryGeneralize(learn.prompts.clone())),
+                recall: recall.clone(),
+                scrubber: scrubber.clone(),
+                device: device.clone(),
+            });
+            nightly = Some(Arc::new(Nightly {
+                night,
+                store: store.clone(),
+                clock: clock.clone(),
+                zone: learn.zone.clone(),
+                profile: profile.clone(),
+                jobs: learn.jobs,
+                running: Mutex::new(None),
+            }));
             let reflector = Reflector::new(ReflectParts {
                 store: store.clone(),
                 clock: clock.clone(),
                 ids: ids.clone(),
                 zone: learn.zone,
                 one_shot: learn.one_shot,
-                gate: Arc::new(PlanGate { background_model_calls, plan: learn.plan, profile: profile.clone() }),
+                gate,
                 source: Arc::new(Moments {
                     store: store.clone(),
                     project_keys: project_keys.clone(),
@@ -282,6 +316,7 @@ impl MemoryModule {
             health: health.clone(),
             scrubber,
             device,
+            nightly: nightly.clone(),
         });
         Self {
             recall,
@@ -289,6 +324,7 @@ impl MemoryModule {
             capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs, credit, wake)),
             code,
             reflecting,
+            nightly,
             sleeper,
             store,
             embedder: Mutex::new(embedder),
@@ -408,6 +444,10 @@ impl Module for MemoryModule {
         routes::all(&self.api)
     }
 
+    fn job_kinds(&self) -> Vec<&'static str> {
+        vec![night::JOB_KIND]
+    }
+
     fn idle_hooks(&self) -> Vec<IdleHook> {
         let capturer = self.capturer.clone();
         let reminders = self.reminders.clone();
@@ -459,6 +499,9 @@ impl Module for MemoryModule {
         }
         if let Some(reflecting) = &self.reflecting {
             tasks.push(tokio::spawn(reflecting.clone().run(self.sleeper.clone())));
+        }
+        if let Some(nightly) = &self.nightly {
+            tasks.push(tokio::spawn(nightly.clone().run(self.sleeper.clone())));
         }
         drop(tasks);
         Box::pin(std::future::ready(Ok(())))

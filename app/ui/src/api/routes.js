@@ -413,4 +413,5 @@ export const ROUTES = {
   memoryRecalled: "/api/memory/recalled",
   memoryStated: "/api/memory/stated",
   memorySettings: "/api/memory/settings",
+  memoryTidy: "/api/memory/tidy",
 };

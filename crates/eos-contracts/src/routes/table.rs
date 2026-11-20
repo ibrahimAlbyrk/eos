@@ -390,6 +390,7 @@ pub const MEMORY_NOTE_NOT_RIGHT: Route =
 pub const MEMORY_RECALLED: Route = Route::new("memoryRecalled", "/api/memory/recalled", &[Get]).added();
 pub const MEMORY_STATED: Route = Route::new("memoryStated", "/api/memory/stated", &[Get]).added();
 pub const MEMORY_SETTINGS: Route = Route::new("memorySettings", "/api/memory/settings", &[Get, Put]).added();
+pub const MEMORY_TIDY: Route = Route::new("memoryTidy", "/api/memory/tidy", &[Post]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -748,4 +749,5 @@ pub const ROUTES: &[Route] = &[
     MEMORY_RECALLED,
     MEMORY_STATED,
     MEMORY_SETTINGS,
+    MEMORY_TIDY,
 ];

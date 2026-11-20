@@ -252,4 +252,6 @@ async fn what_a_chat_was_reminded_of_where_rules_were_said_and_the_switches() {
     let off = json!({"learning": false, "reminders": true});
     assert_eq!(api.ask(Method::Put, "/api/memory/settings", Some(off.clone())).await, (200, off.clone()));
     assert_eq!(api.ask(Method::Get, "/api/memory/settings", None).await, (200, off));
+    let (status, _) = api.ask(Method::Post, "/api/memory/tidy", None).await;
+    assert_eq!(status, 409, "no tidying where reflection is not composed");
 }
