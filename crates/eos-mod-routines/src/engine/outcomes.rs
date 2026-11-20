@@ -12,7 +12,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
 
 use super::gate::done;
-use super::{Engine, move_run, note};
+use super::{Engine, announce, move_run, note};
 
 pub(crate) struct Outcomes(pub(crate) Arc<Engine>);
 
@@ -45,9 +45,14 @@ impl RunOutcomes for Outcomes {
         let run = Self::run(tx, run_id)?;
         if run.state == RunState::Done {
             // A result taken back after it went out: the run ended, its outcome changes.
+            // Its state stays; watchers read the outcome again.
             tx.runs().set_outcome(run_id, outcome)?;
             let data = json!({"outcome": outcome.as_str()}).to_string();
-            return tx.runs().append_event(run_id, self.now(), "outcome", Some(&data));
+            let now = self.now();
+            tx.runs().append_event(run_id, now, "outcome", Some(&data))?;
+            let as_it_is = RunMove { state: run.state, station: run.station, reason: run.reason, at: now };
+            announce(out, &run.id, &run.routine_id, &as_it_is);
+            return Ok(());
         }
         done(tx, out, &run, outcome, self.now())
     }
