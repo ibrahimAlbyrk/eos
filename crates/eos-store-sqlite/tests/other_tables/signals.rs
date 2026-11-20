@@ -63,7 +63,7 @@ fn decided(signal_id: i64, routine_id: &str, decision: Decision) -> StoredSignal
 #[test]
 fn a_thing_a_source_sees_twice_is_one_signal_routed_once() {
     let temp = TempStore::new();
-    let (first, again, other_source, next, waiting, routed) = temp
+    let (first, again, other_source, next, waiting, later, routed) = temp
         .store
         .write_blocking(|tx, _| {
             let signals = tx.signals();
@@ -71,11 +71,12 @@ fn a_thing_a_source_sees_twice_is_one_signal_routed_once() {
             let again = signals.ingest(&seen("src-a", "github:pr:acme/game#482@9f1a4771", 30))?;
             let other_source = signals.ingest(&seen("src-b", "github:pr:acme/game#482@9f1a4771", 40))?;
             let next = signals.ingest(&seen("src-a", "github:pr:acme/game#483@0b2c", 50))?;
-            let waiting = signals.received(10)?;
+            let waiting = signals.received(0, 10)?;
+            let later = signals.received(first.unwrap_or_default(), 10)?;
             if let Some(id) = first {
                 signals.mark_routed(id)?;
             }
-            Ok((first, again, other_source, next, waiting, signals.received(10)?))
+            Ok((first, again, other_source, next, waiting, later, signals.received(0, 10)?))
         })
         .expect("writes");
     assert_eq!(again, None, "the same key from the same source is not kept again");
@@ -85,6 +86,7 @@ fn a_thing_a_source_sees_twice_is_one_signal_routed_once() {
     let ids = |signals: &[StoredSignal]| signals.iter().map(|s| s.id).collect::<Vec<_>>();
     assert_eq!(ids(&waiting), kept, "oldest first");
     assert_eq!(waiting[0].signal, seen("src-a", "github:pr:acme/game#482@9f1a4771", 20), "the first stays as it came");
+    assert_eq!(ids(&later), kept[1..], "only those after the one asked after");
     assert_eq!(ids(&routed), kept[1..], "a routed signal waits no more");
     let first = kept[0];
     let found = temp.store.read_blocking(move |tx| tx.signals().find(first)).expect("reads");

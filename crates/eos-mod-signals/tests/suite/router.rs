@@ -69,12 +69,20 @@ async fn a_signal_starts_one_run_of_each_routine_whichever_write_fails_before_a_
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_run_that_cannot_be_queued_undoes_its_signals_decisions_until_it_is_routed_again() {
+async fn a_signal_that_cannot_be_routed_holds_up_none_after_it_and_is_tried_again_a_minute_later() {
     let bench = two_routines();
     // The second admission is the first signal's second routine: the whole signal is undone.
     let failing = bench.module(bench.temp.port(), Arc::new(SavedIntake::new(Some(1))), true);
     failing.ingest(SOURCE_ID, two_pulls()).await.expect("kept");
-    bench.route(&failing).await;
+    failing.after_ready().await.expect("ready");
+    bench.until(|| bench.received() == 1).await;
+    let decided: Vec<(i64, String)> =
+        bench.routes().into_iter().map(|(signal, routine, ..)| (signal, routine)).collect();
+    assert_eq!(decided, [(2, "rt-a".to_owned()), (2, "rt-b".to_owned())], "the second is routed without the first");
+
+    bench.clock.advance(60_000);
+    failing.ingest(SOURCE_ID, page(Vec::new(), json!({}))).await.expect("kept");
+    bench.until(|| bench.received() == 0).await;
     stop(&failing).await;
     assert_once(&bench);
 }

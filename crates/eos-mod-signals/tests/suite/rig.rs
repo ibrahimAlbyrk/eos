@@ -213,6 +213,17 @@ impl Bench {
         self.temp.count("SELECT count(*) FROM signals WHERE state = 'received'")
     }
 
+    /// Waits until `done` holds.
+    pub(crate) async fn until(&self, done: impl Fn() -> bool) {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !done() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("it came to pass");
+    }
+
     /// Starts `module`'s router and waits until nothing waits to be routed.
     pub(crate) async fn route(&self, module: &SignalsModule) {
         module.after_ready().await.expect("ready");
