@@ -9,10 +9,11 @@ use std::time::Duration;
 use eos_contracts::ActionClass;
 use eos_core::Clock;
 use eos_core::delivery::{ChannelTraits, Idempotency, Receipt, SendError, SendErrorKind, Undo};
-use eos_core::routine::{GateDecision, RoutineControl};
+use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate};
 use eos_core::store::StoredDelivery;
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
+use eos_inbox::gate::Gate;
 use eos_testkit::{FakeChannels, FakeRunOutcomes, FakeSleeper, OutcomeCall};
 use serde_json::{Value, json};
 
@@ -319,8 +320,26 @@ async fn a_result_whose_subject_moved_on_goes_back_to_the_user_as_a_draft() {
     assert_eq!(payload["staleReason"], "new commits");
 }
 
+impl Sender {
+    /// The waiting drafts' subjects and the recipients each goes to.
+    async fn drafts(&self) -> Vec<(Option<String>, Vec<String>)> {
+        let items = self.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+        let drafts = items.into_iter().filter(|item| item.kind.as_str() == "draft");
+        drafts
+            .map(|item| {
+                let payload: Value = serde_json::from_str(&item.payload).expect("json");
+                let targets = payload["targets"].as_array().cloned().unwrap_or_default();
+                let mut recipients: Vec<String> =
+                    targets.iter().filter_map(|t| t["recipientId"].as_str().map(str::to_owned)).collect();
+                recipients.sort();
+                (item.subject_key, recipients)
+            })
+            .collect()
+    }
+}
+
 #[tokio::test]
-async fn each_target_whose_send_went_stale_is_held_again_as_a_draft_of_its_own() {
+async fn every_target_whose_send_went_stale_is_held_again_in_one_draft_about_the_item() {
     let sender = Sender::new();
     sender.rig.temp.exec("UPDATE runs SET item_key = 'github:pr:acme/game#482' WHERE id = 'rn-1'");
     let now = sender.rig.clock.now_ms();
@@ -329,16 +348,42 @@ async fn each_target_whose_send_went_stale_is_held_again_as_a_draft_of_its_own()
     sender.channels.stale("new commits");
     sender.channels.stale("new commits");
     sender.pass().await;
-    let items = sender.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
-    let mut targets: Vec<String> = items
-        .iter()
-        .filter(|item| item.kind.as_str() == "draft")
-        .map(|item| {
-            serde_json::from_str::<Value>(&item.payload).expect("json")["targets"][0]["recipientId"].to_string()
-        })
-        .collect();
-    targets.sort();
-    assert_eq!(targets, ["\"boss\"", "\"pr\""], "neither replaced the other");
+    let subject = Some("github:pr:acme/game#482".to_owned());
+    assert_eq!(sender.drafts().await, [(subject, vec!["boss".to_owned(), "pr".to_owned()])], "no target is lost");
+}
+
+#[tokio::test]
+async fn a_later_runs_draft_on_the_same_item_replaces_one_held_again() {
+    let sender = Sender::new();
+    sender.rig.temp.exec("UPDATE runs SET item_key = 'github:pr:acme/game#482' WHERE id = 'rn-1'");
+    sender.queue("dl-1", "github", "pr", "queued", "approved", sender.rig.clock.now_ms()).await;
+    sender.channels.stale("new commits");
+    sender.pass().await;
+    let subject = Some("github:pr:acme/game#482".to_owned());
+    assert_eq!(sender.drafts().await, [(subject, vec!["pr".to_owned()])], "held again");
+
+    sender.rig.temp.exec(
+        "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, item_key, created_at, \
+         updated_at) VALUES ('rn-2', 'rt-1', 'standing', 'hand', '{}', 'checking', 0, 'mac-1', \
+         'github:pr:acme/game#482', 1, 1)",
+    );
+    let rig = &sender.rig;
+    let gate = Arc::new(Gate::new(Arc::new(sender.channels.clone()), rig.zone.clone(), rig.clock.clone()));
+    let control: Arc<dyn RoutineControl> = rig.control.clone();
+    gate.attach(&control);
+    let (ids, now) = (rig.ids.clone(), rig.clock.now_ms());
+    let later = GateInput { run_id: "rn-2".into(), ..input("draft") };
+    let decision = rig
+        .temp
+        .port()
+        .write(move |tx, out| gate.apply_in(tx, out, now, ids.as_ref(), &later))
+        .await
+        .expect("the gate decides");
+    assert!(matches!(decision, GateDecision::Held { .. }), "{decision:?}");
+    let items = rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+    let drafts: Vec<_> =
+        items.iter().filter(|item| item.kind.as_str() == "draft").map(|item| item.run_id.clone()).collect();
+    assert_eq!(drafts, [Some("rn-2".to_owned())], "one draft about the pull request waits");
 }
 
 #[tokio::test]
