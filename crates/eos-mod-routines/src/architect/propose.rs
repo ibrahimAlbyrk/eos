@@ -36,6 +36,7 @@ pub(crate) async fn propose(
     };
     let (worker, version_id, now) = (worker_id.to_owned(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (job, zones, device) = (engine.clone(), engine.zones.clone(), engine.device.clone());
+    let data_dir = engine.data_dir.clone();
     let patterns = engine.patterns.clone();
     engine
         .store
@@ -46,7 +47,7 @@ pub(crate) async fn propose(
             if readable(&shown)?.is_none() {
                 return Err(Error::Conflict(NEWER_FORMAT.into()));
             }
-            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref())?;
+            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref(), &data_dir)?;
             if blocks(&issues) {
                 return Ok(Proposal::Refused(issues));
             }

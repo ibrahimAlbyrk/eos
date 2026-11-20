@@ -6,6 +6,7 @@
 //! announces `routine:change` with the row from its own job.
 
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use eos_contracts::{
@@ -99,6 +100,7 @@ pub(crate) fn check_in(
     routine_id: &str,
     blueprint: &Blueprint,
     zones: &dyn ZoneRules,
+    data_dir: &Path,
 ) -> Result<Vec<BlueprintIssue>, Error> {
     let mut chains = Vec::new();
     for routine in tx.routines().list()? {
@@ -116,7 +118,7 @@ pub(crate) fn check_in(
         chains.push((routine.id, after.collect()));
     }
     let known = |zone: &str| zones.known(zone);
-    let context = Context { routine: routine_id, chains: &chains, known_zone: &known };
+    let context = Context { routine: routine_id, chains: &chains, known_zone: &known, data_dir: Some(data_dir) };
     let issues = blueprint::validate(blueprint, &context).into_iter().map(|found| BlueprintIssue {
         path: found.path,
         message: found.message,
@@ -184,12 +186,12 @@ pub(crate) async fn create(
         Err(issues) => return Ok(Saved::Refused(issues)),
     };
     let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
-    let (zones, device) = (engine.zones.clone(), engine.device.clone());
+    let (zones, data_dir, device) = (engine.zones.clone(), engine.data_dir.clone(), engine.device.clone());
     let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
-            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref())?;
+            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref(), &data_dir)?;
             if blocks(&issues) {
                 return Ok(Saved::Refused(issues));
             }
@@ -248,7 +250,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
         Err(issues) => return Ok(Saved::Refused(issues)),
     };
     let (id, version_id, now) = (routine_id.to_owned(), engine.ids.routine_version_id(), engine.clock.now_ms());
-    let (zones, device) = (engine.zones.clone(), engine.device.clone());
+    let (zones, data_dir, device) = (engine.zones.clone(), engine.data_dir.clone(), engine.device.clone());
     let patterns = engine.patterns.clone();
     let saved = engine
         .store
@@ -261,7 +263,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
             if readable(&shown)?.is_none() {
                 return Err(Error::Conflict(NEWER_FORMAT.into()));
             }
-            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref())?;
+            let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref(), &data_dir)?;
             if blocks(&issues) {
                 return Ok(Saved::Refused(issues));
             }

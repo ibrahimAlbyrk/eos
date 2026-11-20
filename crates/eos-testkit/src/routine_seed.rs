@@ -383,7 +383,7 @@ mod tests {
             (RELEASE_NOTES, release_notes()),
         ] {
             let Ok(Readable::Current(typed)) = read(&blueprint) else { panic!("{routine} reads") };
-            let context = Context { routine, chains: &[], known_zone: &|_| true };
+            let context = Context { routine, chains: &[], known_zone: &|_| true, data_dir: None };
             let errors: Vec<_> =
                 validate(&typed, &context).into_iter().filter(|issue| issue.severity == Severity::Error).collect();
             assert!(errors.is_empty(), "{routine}: {errors:?}");

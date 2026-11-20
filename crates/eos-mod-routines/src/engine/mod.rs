@@ -55,6 +55,7 @@ pub(crate) use versions::{
 };
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
@@ -132,6 +133,8 @@ pub(crate) struct Engine {
     pub(crate) power: Arc<dyn Power>,
     /// The time zones the system knows, for a blueprint's schedules.
     pub(crate) zones: Arc<dyn ZoneRules>,
+    /// Eos's data folder, which no folder trigger may watch.
+    pub(crate) data_dir: PathBuf,
     /// The user's clock, for the day spend is booked on.
     pub(crate) zone: Arc<dyn TimeZone>,
     /// `settings.json`, where the budgets for all routines are.

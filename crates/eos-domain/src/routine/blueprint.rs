@@ -5,6 +5,7 @@
 
 use std::collections::HashSet;
 use std::fmt;
+use std::path::Path;
 
 use eos_contracts::{
     BLUEPRINT_FORMAT, Blueprint, Freedom, Issues, Num, OptionType, Recipient, RecipientKind, RoutineAgent, RoutineKind,
@@ -103,11 +104,18 @@ pub struct Context<'a> {
     pub chains: &'a [(String, Vec<String>)],
     /// Whether this computer knows a time zone's name.
     pub known_zone: &'a dyn Fn(&str) -> bool,
+    /// Eos's own data folder, which no folder trigger may watch. `None`
+    /// where the caller does not know it: the folder source refuses it then.
+    pub data_dir: Option<&'a Path>,
 }
 
 impl fmt::Debug for Context<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Context").field("routine", &self.routine).field("chains", &self.chains).finish_non_exhaustive()
+        f.debug_struct("Context")
+            .field("routine", &self.routine)
+            .field("chains", &self.chains)
+            .field("data_dir", &self.data_dir)
+            .finish_non_exhaustive()
     }
 }
 
@@ -120,7 +128,7 @@ pub fn validate(blueprint: &Blueprint, context: &Context<'_>) -> Vec<Issue> {
     cx.at("name", |cx| cx.str_min(blueprint.name.trim(), 1));
     cx.at("options", |cx| options(&blueprint.options, &blueprint.who.agents, cx));
     cx.at("when", |cx| {
-        when::validate(&blueprint.when, context.known_zone, cx);
+        when::validate(&blueprint.when, context.known_zone, context.data_dir, cx);
         cx.at("on", |cx| chain(blueprint, context, cx));
     });
     cx.at("which", |cx| which::validate(&blueprint.which, cx));
