@@ -21,7 +21,9 @@
 //! also polls the capability sources the routines read that are due
 //! (`polls`), on each source's own clock, with backoff after failures, and
 //! keeps the runs that finished of the routines another one waits on
-//! (`after`): a run's change starts a pass.
+//! (`after`): a run's change starts a pass. It also reads the folders and
+//! branches on this computer the routines watch (`local`), at once when
+//! their watcher reports a change.
 //!
 //! The routes (`routes`) show what starts each routine's runs, list the
 //! signals, replay some through the run intake and preview a schedule or a
@@ -45,6 +47,7 @@ mod awake;
 mod batch;
 mod ingest;
 mod limits;
+mod local;
 mod polls;
 mod retention;
 mod router;
@@ -57,11 +60,12 @@ mod summary;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_contracts::stream::topics::SYSTEM_WAKE;
-use eos_contracts::{HaltState, SignalChange, SignalSubject};
+use eos_contracts::stream::topics::{FS_CHANGE, GIT_CHANGE, SYSTEM_WAKE};
+use eos_contracts::{FsChangeEvent, GitChangeEvent, GitChangeKind, HaltState, SignalChange, SignalSubject};
 use eos_core::agent::OneShot;
 use eos_core::capability::CapabilityHealth;
-use eos_core::os::{Power, TimeZone, WorkHold, ZoneRules};
+use eos_core::git::{GitInfo, GitWatcher};
+use eos_core::os::{FileSystem, FileWatcher, Power, TimeZone, WorkHold, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
@@ -73,12 +77,14 @@ use tokio::sync::{Notify, Semaphore};
 use tokio::task::JoinHandle;
 
 use crate::awake::{Awake, AwakeParts, KEEP_AWAKE};
+use crate::local::Local;
 use crate::polls::Polls;
 use crate::router::Router;
 use crate::scheduler::Scheduler;
 
 pub use ask::{ASK_CACHE_MS, ASK_TIMEOUT_MS, ASKS_AT_ONCE, ASKS_PER_DAY, FACTS_TEXT_MAX, UNSORTED_AFTER_MS};
 pub use awake::OFFER_LATE_MS;
+pub use local::{FOLDER_ENTRIES_MAX, FOLDER_LISTING_MS, FOLDER_SETTLE_MS, FOLDERS_MAX, GIT_PATHS_MAX};
 pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
     WAKE_GRACE_MS, WAKE_RETRY_MS,
@@ -133,6 +139,16 @@ pub struct SignalsParts {
     pub prompts: Arc<eos_prompts::PromptService>,
     /// The model prices, for what an ask cost.
     pub config: Arc<dyn ConfigSource>,
+    /// Watches the folders routines read.
+    pub files: Arc<dyn FileWatcher>,
+    /// Watches the repositories routines read.
+    pub git: Arc<dyn GitWatcher>,
+    /// Reads a watched branch's commits.
+    pub git_info: Arc<dyn GitInfo>,
+    /// Lists a watched folder.
+    pub disk: Arc<dyn FileSystem>,
+    /// Eos's own data folder, which no routine may watch.
+    pub data_dir: std::path::PathBuf,
     /// Whether a matched signal starts its run by itself: true only in the
     /// installed app.
     pub autostart: bool,
@@ -204,6 +220,20 @@ impl SignalsModule {
             runner: parts.runner.clone(),
             directory: parts.directory.clone(),
         }));
+        let local = Arc::new(Local {
+            store: parts.store.clone(),
+            clock: parts.clock.clone(),
+            ids: parts.ids.clone(),
+            router: router.clone(),
+            files: parts.files.clone(),
+            git: parts.git.clone(),
+            git_info: parts.git_info.clone(),
+            disk: parts.disk.clone(),
+            data_dir: parts.data_dir.clone(),
+            leases: Mutex::default(),
+            changed: Mutex::default(),
+            settling: Mutex::default(),
+        });
         let scheduler = Arc::new(Scheduler {
             store: parts.store.clone(),
             clock: parts.clock.clone(),
@@ -213,6 +243,7 @@ impl SignalsModule {
             runner: parts.runner.clone(),
             router: router.clone(),
             polls,
+            local,
             awake,
             swept_at: AtomicI64::new(i64::MIN / 2),
             kick,
@@ -275,9 +306,28 @@ impl Module for SignalsModule {
                 scheduler.kick.notify_one();
             })
         });
+        let local = self.scheduler.local.clone();
+        let scheduler = self.scheduler.clone();
+        let files = self.parts.bus.on(FS_CHANGE, move |event| {
+            let Ok(batch) = event.payload_as::<FsChangeEvent>() else { return };
+            let mut dirs: Vec<&str> = batch.changes.iter().map(|change| change.dir.as_str()).collect();
+            dirs.dedup();
+            if dirs.into_iter().filter(|dir| local.changed(std::path::Path::new(dir))).count() > 0 {
+                scheduler.kick.notify_one();
+            }
+        });
+        let (local, scheduler) = (self.scheduler.local.clone(), self.scheduler.clone());
+        let git = self.parts.bus.on(GIT_CHANGE, move |event| {
+            let Ok(change) = event.payload_as::<GitChangeEvent>() else { return };
+            let moved = change.kinds.iter().any(|kind| matches!(kind, GitChangeKind::Head | GitChangeKind::Refs));
+            if moved && local.changed(std::path::Path::new(&change.dir)) {
+                scheduler.kick.notify_one();
+            }
+        });
         let running = Running {
             tasks: [tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())],
             _kicks: kicks,
+            _local: [files, git],
         };
         if let Some(previous) = self.running().replace(running) {
             previous.tasks.iter().for_each(JoinHandle::abort);
@@ -295,6 +345,7 @@ impl Module for SignalsModule {
                 }
             }
             self.scheduler.polls.stop().await;
+            self.scheduler.local.release();
             self.scheduler.awake.release();
         })
     }
@@ -304,4 +355,6 @@ impl Module for SignalsModule {
 struct Running {
     tasks: [JoinHandle<()>; 2],
     _kicks: [Subscription; 4],
+    /// The watchers' changes to the folders and branches read here.
+    _local: [Subscription; 2],
 }

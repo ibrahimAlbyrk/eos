@@ -619,6 +619,7 @@ impl App {
             sweep_leftovers,
             reach,
             git_watcher: crate::files::git_watcher(&clock, &kernel.bus, &repos),
+            file_watcher: crate::files::file_watcher(&clock, &kernel.bus),
             repos,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
             remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {

@@ -20,7 +20,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{
-    Facts, ItemRef, ResultMode, RoutineState, RunInput, RunTrigger, SignalChange, SignalChangeWhat, Trigger,
+    Fact, Facts, FolderEvent, ItemRef, ResultMode, RoutineState, RunInput, RunTrigger, SignalChange, SignalChangeWhat,
+    Trigger,
 };
 use eos_core::os::TimeZone;
 use eos_core::routine::{
@@ -30,6 +31,7 @@ use eos_core::signals::{Holder, Runner, SignalSources};
 use eos_core::store::{Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::signals::decision::Decision;
+use eos_domain::signals::glob;
 use eos_domain::signals::key::capability_scope;
 use eos_domain::signals::which::{Verdict, evaluate};
 use eos_inbox::Opening;
@@ -38,7 +40,7 @@ use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
 use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
-use crate::{after, ask, batch};
+use crate::{after, ask, batch, local};
 
 /// The kind of a schedule's slot, as signal and source.
 pub(crate) const CLOCK: &str = "clock";
@@ -69,13 +71,27 @@ pub(crate) fn error_kind(error: &Error) -> &'static str {
 }
 
 /// Whether a routine's When reads the source the signal came from, for
-/// what happened to it (a run upstream: how it ended).
-fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str) -> bool {
+/// what happened to it (a run upstream: how it ended; a file: added,
+/// changed or removed, its name matching the routine's).
+fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str, facts: &Facts) -> bool {
     routine.when.on.iter().any(|trigger| match trigger {
         Trigger::Source { source: name, scope, events, .. } => {
             source.source.as_deref() == Some(name.as_str())
                 && capability_scope(name, scope).1 == source.scope_hash
                 && (events.is_empty() || events.iter().any(|event| event == kind))
+        }
+        Trigger::Folder { folder, .. } => {
+            let name = match facts.get("name") {
+                Some(Fact::Text(name)) => name.as_str(),
+                _ => "",
+            };
+            source.kind == local::FOLDER
+                && source.scope_hash == local::folder_scope(&folder.path)
+                && folder.events.iter().any(|event| folder_event(*event) == kind)
+                && folder.names.as_deref().is_none_or(|names| glob::matches(names, name))
+        }
+        Trigger::Git { git, .. } => {
+            source.kind == local::GIT && source.scope_hash == local::git_scope(&git.repo, &git.branch)
         }
         Trigger::After { after, .. } => {
             source.kind == after::AFTER
@@ -84,6 +100,15 @@ fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str) -> 
         }
         _ => false,
     })
+}
+
+/// The kind of a folder's signal for `event`.
+fn folder_event(event: FolderEvent) -> &'static str {
+    match event {
+        FolderEvent::Added => "added",
+        FolderEvent::Changed => "changed",
+        FolderEvent::Removed => "removed",
+    }
 }
 
 /// What started a run of `signal`: a schedule's slot names the slot and how
@@ -248,7 +273,7 @@ impl Routing {
         let held = |routine: &&RoutineTriggers| matches!(self.runner.holder(&routine.id), Holder::Here { .. });
         let takers = routines
             .iter()
-            .filter(|routine| source.as_ref().is_some_and(|source| takes(routine, source, &signal.signal.kind)))
+            .filter(|routine| source.as_ref().is_some_and(|source| takes(routine, source, &signal.signal.kind, &facts)))
             .filter(held);
         for routine in takers {
             let decided = if baseline {
