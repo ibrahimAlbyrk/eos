@@ -249,6 +249,16 @@ pub trait DeliveryRepo {
     /// Up to `limit` deliveries in `state` whose next attempt is due at
     /// `now`, the longest due first.
     fn due(&self, state: &str, now: i64, limit: i64) -> Result<Vec<StoredDelivery>, Error>;
+    /// Writes every field of the row with its id but the ones it was made
+    /// with (ids, target, body, class, mode, `created_at`).
+    fn update(&self, delivery: &StoredDelivery) -> Result<(), Error>;
+    /// The rows in `state`, oldest first.
+    fn in_state(&self, state: &str) -> Result<Vec<StoredDelivery>, Error>;
+    /// A run's rows, oldest first.
+    fn of_run(&self, run_id: &str) -> Result<Vec<StoredDelivery>, Error>;
+    /// When the earliest row in `state` is next due; none when no row in it
+    /// has a time.
+    fn next_due(&self, state: &str) -> Result<Option<i64>, Error>;
 }
 
 pub trait EditRepo {

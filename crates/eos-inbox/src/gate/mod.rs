@@ -11,6 +11,7 @@
 mod apply;
 mod targets;
 
+pub(crate) use apply::DRAFT_PRODUCER;
 pub use apply::TARGET_REFUSED;
 
 use std::sync::{Arc, OnceLock, Weak};

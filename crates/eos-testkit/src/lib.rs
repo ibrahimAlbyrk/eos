@@ -132,7 +132,7 @@ pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
 pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
-pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunStarter};
+pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunOutcomes, FakeRunStarter, OutcomeCall};
 pub use secrets::FakeCapabilitySecrets;
 pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
 pub use terminal::{

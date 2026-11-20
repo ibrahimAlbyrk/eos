@@ -1,14 +1,16 @@
 //! The run ports other areas call, answered from what the test sets: starts,
-//! admissions and the routines' triggers; and the gate routines call.
+//! admissions and the routines' triggers; the gate routines call, and what
+//! Needs you reports back of a result.
 
 use std::sync::{Mutex, MutexGuard};
 
 use eos_core::routine::{
     Admission, AdmitOutcome, AdmitRefusal, FinishedRun, GateDecision, GateInput, NewRun, RoutineDirectory, RoutineLoad,
-    RoutineTriggers, RunCreated, RunGate, RunIntake, RunStarter, StartError,
+    RoutineTriggers, RunCreated, RunGate, RunIntake, RunOutcomes, RunStarter, StartError,
 };
 use eos_core::store::{Outbox, Tx};
 use eos_core::{BoxFuture, Error};
+use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -221,5 +223,56 @@ impl RunGate for FakeRunGate {
     fn withdraw_in(&self, _tx: &dyn Tx, _out: &mut Outbox, run_id: &str) -> Result<(), Error> {
         locked(&self.withdrawn).push(run_id.to_owned());
         Ok(())
+    }
+}
+
+/// One report [`FakeRunOutcomes`] was given.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OutcomeCall {
+    Held { run_id: String, item_id: String },
+    Delivering(String),
+    Finished { run_id: String, outcome: Outcome },
+    DeliveryFailed { run_id: String, reason: String },
+    Revise(String),
+}
+
+/// Records every report, in order; moves no run.
+#[derive(Debug, Default)]
+pub struct FakeRunOutcomes(Mutex<Vec<OutcomeCall>>);
+
+impl FakeRunOutcomes {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn calls(&self) -> Vec<OutcomeCall> {
+        locked(&self.0).clone()
+    }
+
+    fn record(&self, call: OutcomeCall) -> Result<(), Error> {
+        locked(&self.0).push(call);
+        Ok(())
+    }
+}
+
+impl RunOutcomes for FakeRunOutcomes {
+    fn held(&self, _: &dyn Tx, _: &mut Outbox, run_id: &str, inbox_id: &str) -> Result<(), Error> {
+        self.record(OutcomeCall::Held { run_id: run_id.to_owned(), item_id: inbox_id.to_owned() })
+    }
+
+    fn delivering(&self, _: &dyn Tx, _: &mut Outbox, run_id: &str) -> Result<(), Error> {
+        self.record(OutcomeCall::Delivering(run_id.to_owned()))
+    }
+
+    fn finished(&self, _: &dyn Tx, _: &mut Outbox, run_id: &str, outcome: Outcome) -> Result<(), Error> {
+        self.record(OutcomeCall::Finished { run_id: run_id.to_owned(), outcome })
+    }
+
+    fn delivery_failed(&self, _: &dyn Tx, _: &mut Outbox, run_id: &str, reason: &str) -> Result<(), Error> {
+        self.record(OutcomeCall::DeliveryFailed { run_id: run_id.to_owned(), reason: reason.to_owned() })
+    }
+
+    fn revise(&self, _: &dyn Tx, _: &mut Outbox, run_id: &str, _text: &str) -> Result<(), Error> {
+        self.record(OutcomeCall::Revise(run_id.to_owned()))
     }
 }

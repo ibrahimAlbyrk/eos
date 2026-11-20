@@ -1,0 +1,216 @@
+//! What an attempt comes to, recorded in a write job of its own after the
+//! channel answered: sent with its receipt; tried again on the retry
+//! ladder; unknown, to be reconciled; frozen in a development run; held
+//! again as a draft when its subject moved on; or failed for good with a
+//! `delivery_problem` item. The run hears of it through [`RunOutcomes`].
+
+use eos_core::Error;
+use eos_core::capability::FailureKind;
+use eos_core::delivery::{ChannelTraits, Receipt, SendError, SendErrorKind, Undo};
+use eos_core::routine::RunOutcomes;
+use eos_core::store::{Outbox, StoredDelivery, Tx};
+use eos_domain::inbox::ItemKind;
+use eos_domain::routine::numbers::Outcome;
+use eos_domain::routine::run::RunState;
+use serde_json::{Value, json};
+
+use super::{AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce};
+use crate::gate::DRAFT_PRODUCER;
+use crate::{NewItem, Opening, open_in};
+
+/// Waits after the 1st to 5th failed attempt (03 G5); the 6th is the last.
+const RETRY_MS: [i64; 5] = [30_000, 120_000, 600_000, 3_600_000, 14_400_000];
+pub(crate) const MAX_ATTEMPTS: i64 = 6;
+const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// What one attempt came to.
+#[derive(Debug)]
+pub(crate) enum Attempt {
+    Sent {
+        receipt: Receipt,
+        traits: Option<ChannelTraits>,
+    },
+    Failed(SendError),
+    /// The subject moved on since the result was made.
+    Stale(String),
+    /// No channel sends it now (its capability is gone or broken).
+    NoChannel,
+}
+
+/// Why the user is asked about a delivery.
+pub(crate) enum Problem {
+    Failed(SendError),
+    /// A send that may have gone out, through a channel that cannot tell.
+    Unknown,
+    ApprovedBeforeQuit {
+        approved_at: i64,
+    },
+}
+
+impl Problem {
+    /// The `FailureKind` word the dashboard explains it by.
+    fn error_kind(&self) -> &'static str {
+        let kind = match self {
+            Problem::Failed(error) => match (error.kind, error.detail_kind.as_str()) {
+                (SendErrorKind::UserDraftInProgress, _) => FailureKind::UserDraftInProgress,
+                (_, "own_pull_request") => FailureKind::NotAllowed,
+                (SendErrorKind::Auth, _) => FailureKind::Unauthorized,
+                (SendErrorKind::NotFound, _) => FailureKind::Gone,
+                (SendErrorKind::Permanent, _) => FailureKind::Validation,
+                _ => FailureKind::Service,
+            },
+            Problem::Unknown => FailureKind::Service,
+            Problem::ApprovedBeforeQuit { .. } => FailureKind::Internal,
+        };
+        kind.as_str()
+    }
+
+    fn summary(&self, at: &Opening<'_>) -> String {
+        match self {
+            Problem::Failed(error) => match (error.kind, error.detail_kind.as_str()) {
+                (SendErrorKind::UserDraftInProgress, _) => {
+                    "You have a review of your own in progress on this pull request".to_owned()
+                }
+                (_, "own_pull_request") => {
+                    "GitHub does not let you approve or ask for changes on your own pull request.".to_owned()
+                }
+                (SendErrorKind::Auth, _) => "Its sign-in was refused. Sign in again, then send it again.".to_owned(),
+                (SendErrorKind::NotFound, _) => "Where it was to go is not there any more.".to_owned(),
+                (SendErrorKind::Transient, _) => format!("It could not be sent after {MAX_ATTEMPTS} tries."),
+                _ => "It could not be sent.".to_owned(),
+            },
+            Problem::Unknown => "Eos closed while it was sending. Did it go out?".to_owned(),
+            Problem::ApprovedBeforeQuit { approved_at } => {
+                let local = approved_at + i64::from(at.zone.offset_minutes_at(*approved_at)) * 60_000;
+                let minutes = local.rem_euclid(DAY_MS) / 60_000;
+                format!("Approved at {:02}:{:02}, Eos closed before sending. Send now?", minutes / 60, minutes % 60)
+            }
+        }
+    }
+}
+
+/// Opens the `delivery_problem` item that asks the user about `row`.
+pub(crate) fn problem_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    row: &StoredDelivery,
+    problem: Problem,
+) -> Result<(), Error> {
+    let error_kind = problem.error_kind();
+    tracing::info!(delivery_id = %row.id, run_id = %row.run_id, error_kind, "a delivery needs the user");
+    let item = NewItem {
+        kind: ItemKind::DeliveryProblem,
+        producer: DRAFT_PRODUCER.to_owned(),
+        routine_id: Some(row.routine_id.clone()),
+        run_id: Some(row.run_id.clone()),
+        subject_key: Some(row.id.clone()),
+        title: "A result was not sent".to_owned(),
+        summary: problem.summary(at),
+        payload: json!({ "errorKind": error_kind, "deliveryId": row.id }),
+        by_hand: false,
+    };
+    open_in(tx, out, at, item).map(drop)
+}
+
+fn delivering(tx: &dyn Tx, run_id: &str) -> Result<bool, Error> {
+    Ok(tx.runs().find(run_id)?.is_some_and(|run| run.state == RunState::Delivering))
+}
+
+/// Writes `row` as `attempt` leaves it, if it is still the send in flight.
+pub(crate) fn record_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
+    id: &str,
+    attempt: Attempt,
+) -> Result<(), Error> {
+    let Some(mut row) = tx.inbox_deliveries().find(id)? else { return Ok(()) };
+    if row.state != super::SENDING && row.state != UNCERTAIN {
+        return Ok(());
+    }
+    row.updated_at = at.now;
+    row.next_attempt_at = None;
+    let (mut problem, mut stale) = (None, None);
+    match attempt {
+        Attempt::Sent { receipt, traits } => {
+            row.state = SENT.to_owned();
+            row.receipt = Some(json!({"id": receipt.id, "url": receipt.url}).to_string());
+            row.sent_at = Some(at.now);
+            row.undo_until = traits.filter(|t| t.undo != Undo::None).map(|t| at.now + t.undo_window_ms);
+            row.last_error_kind = None;
+        }
+        Attempt::Failed(error) => {
+            row.last_error_kind = Some(error.detail_kind.clone());
+            match error.kind {
+                SendErrorKind::DevRun => row.state = FROZEN.to_owned(),
+                SendErrorKind::Uncertain => {
+                    row.state = UNCERTAIN.to_owned();
+                    row.next_attempt_at = Some(at.now);
+                }
+                SendErrorKind::Transient if row.attempts < MAX_ATTEMPTS => {
+                    row.state = QUEUED.to_owned();
+                    let wait = RETRY_MS[usize::try_from(row.attempts - 1).unwrap_or_default().min(RETRY_MS.len() - 1)];
+                    row.next_attempt_at = Some(at.now + wait);
+                }
+                _ => {
+                    row.state = FAILED.to_owned();
+                    problem = Some(Problem::Failed(error));
+                }
+            }
+        }
+        Attempt::Stale(reason) => {
+            stale = Some(reason);
+            row.state = STOPPED.to_owned();
+            row.last_error_kind = Some("stale".to_owned());
+        }
+        Attempt::NoChannel => {
+            row.state = WAITING_CAPABILITY.to_owned();
+            row.last_error_kind = Some("no_channel".to_owned());
+        }
+    }
+    tx.inbox_deliveries().update(&row)?;
+    announce(out, &row);
+    tracing::info!(delivery_id = %row.id, state = %row.state, attempts = row.attempts, error_kind = ?row.last_error_kind, "a delivery moved");
+    if let Some(problem) = problem {
+        problem_in(tx, out, at, &row, problem)?;
+        if delivering(tx, &row.run_id)? {
+            outcomes.delivery_failed(tx, out, &row.run_id, row.last_error_kind.as_deref().unwrap_or_default())?;
+        }
+    } else if let Some(reason) = stale {
+        hold_again_in(tx, out, at, &row, &reason)?;
+    } else if row.state == SENT && delivering(tx, &row.run_id)? {
+        let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
+        if rows.iter().all(|other| other.state == SENT) {
+            let outcome = if row.mode == AUTO { Outcome::AutoSent } else { Outcome::SentUnedited };
+            outcomes.finished(tx, out, &row.run_id, outcome)?;
+        }
+    }
+    Ok(())
+}
+
+/// A send whose subject moved on goes back to the user as a draft (03 G1):
+/// never a stale send in silence.
+fn hold_again_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    row: &StoredDelivery,
+    reason: &str,
+) -> Result<(), Error> {
+    let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
+    let run = tx.runs().find(&row.run_id)?;
+    let draft = NewItem {
+        kind: ItemKind::Draft,
+        producer: DRAFT_PRODUCER.to_owned(),
+        routine_id: Some(row.routine_id.clone()),
+        run_id: Some(row.run_id.clone()),
+        subject_key: run.as_ref().and_then(|run| run.item_key.clone()),
+        title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
+        summary: "What it is about changed since it was made. Look at it again before you send it.".to_owned(),
+        payload: json!({ "doc": doc, "staleReason": reason }),
+        by_hand: false,
+    };
+    open_in(tx, out, at, draft).map(drop)
+}

@@ -14,7 +14,9 @@ use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
-use eos_testkit::{FakeClock, FakeRoutineControl, FakeTimeZone, SeqIds, TempStore};
+use eos_testkit::{
+    FakeChannels, FakeClock, FakeRoutineControl, FakeRunOutcomes, FakeSleeper, FakeTimeZone, SeqIds, TempStore,
+};
 use serde_json::{Value, json};
 
 #[derive(Default)]
@@ -61,6 +63,17 @@ impl Rig {
             clock: clock.clone(),
             questions: waiting.clone(),
             memories: waiting.clone(),
+            delivery: eos_inbox::delivery::DeliveryParts {
+                store: temp.port(),
+                clock: clock.clone(),
+                sleeper: Arc::new(FakeSleeper::default()),
+                ids: Arc::new(SeqIds::new()),
+                zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
+                channels: Arc::new(FakeChannels::new()),
+                control: Arc::new(FakeRoutineControl::new()),
+                outcomes: Arc::new(FakeRunOutcomes::new()),
+                wake: Arc::new(tokio::sync::Notify::new()),
+            },
         }));
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");

@@ -16,23 +16,29 @@
 //!
 //! Every route answers the user's text, so only the user's dashboard and
 //! phone reach them. Writes are announced on `inbox:change`.
+//!
+//! From `after_ready` to `stop` the module runs the delivery engine
+//! ([`Delivery`]), which sends what the gate and the user let go and
+//! announces each move of a delivery on `inbox:delivery`.
 
 mod project;
 mod routes;
 
 use std::sync::Arc;
 
-use eos_contracts::InboxChange;
-use eos_core::Clock;
+use eos_contracts::{DeliveryChange, InboxChange};
 use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
 use eos_core::store::Store;
+use eos_core::{BoxFuture, Clock};
 use eos_inbox::Items;
+use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_runtime::bus::{Topic, TopicDecl};
-use eos_runtime::module::Module;
+use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 
 pub const INBOX_CHANGE: Topic<InboxChange> = Topic::new(eos_inbox::INBOX_CHANGE);
+pub const INBOX_DELIVERY: Topic<DeliveryChange> = Topic::new(eos_inbox::INBOX_DELIVERY);
 
 /// What the module is built from.
 pub struct InboxParts {
@@ -42,6 +48,8 @@ pub struct InboxParts {
     pub questions: Arc<dyn OpenQuestions>,
     /// The memories, the suggestions about the user among them.
     pub memories: Arc<dyn UserMemoryReader>,
+    /// What the delivery engine sends with.
+    pub delivery: DeliveryParts,
 }
 
 impl std::fmt::Debug for InboxParts {
@@ -52,6 +60,7 @@ impl std::fmt::Debug for InboxParts {
 
 pub struct InboxModule {
     parts: Arc<Shared>,
+    delivery: Arc<Delivery>,
 }
 
 /// What every route holds.
@@ -70,9 +79,12 @@ impl std::fmt::Debug for InboxModule {
 
 impl InboxModule {
     pub fn new(parts: InboxParts) -> Self {
-        let InboxParts { store, clock, questions, memories } = parts;
+        let InboxParts { store, clock, questions, memories, delivery } = parts;
         let items = Items::new(store.clone(), clock);
-        Self { parts: Arc::new(Shared { store, items, questions, memories }) }
+        Self {
+            parts: Arc::new(Shared { store, items, questions, memories }),
+            delivery: Arc::new(Delivery::new(delivery)),
+        }
     }
 }
 
@@ -82,10 +94,19 @@ impl Module for InboxModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![INBOX_CHANGE.decl()]
+        vec![INBOX_CHANGE.decl(), INBOX_DELIVERY.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.parts)
+    }
+
+    fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
+        self.delivery.start();
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn stop(&self) -> BoxFuture<'_, ()> {
+        Box::pin(self.delivery.stop())
     }
 }

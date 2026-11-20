@@ -4,13 +4,20 @@
 //! it. Its target is stored from the recipient the gate checked, and every
 //! send reads it back from the row.
 
+mod claim;
+mod engine;
+mod reconcile;
+mod record;
+
+pub use engine::{Delivery, DeliveryParts};
+
 use eos_contracts::{DeliveryChange, ResultDoc};
 use eos_core::delivery::{ChannelTraits, Place, Target, Undo};
 use eos_core::routine::GateInput;
 use eos_core::store::{Outbox, StoredDelivery};
 use eos_core::{Error, Ids};
 use eos_domain::routine::blueprint::hash;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::INBOX_DELIVERY;
 
@@ -47,6 +54,20 @@ pub(crate) fn target_json(target: &Target) -> String {
         Place::Item(key) => json!({"item": key}),
     };
     json!({"recipientId": target.recipient_id, "place": place}).to_string()
+}
+
+/// The target a row stores; none for a row this app cannot read.
+pub(crate) fn target_of(stored: &str) -> Option<Target> {
+    let value: Value = serde_json::from_str(stored).ok()?;
+    let place = &value["place"];
+    let place = if place["me"] == true {
+        Place::Me
+    } else if let Some(address) = place["address"].as_str() {
+        Place::Address(address.to_owned())
+    } else {
+        Place::Item(place["item"].as_str()?.to_owned())
+    };
+    Some(Target { recipient_id: value["recipientId"].as_str()?.to_owned(), place })
 }
 
 /// Announces a row as it is now.
