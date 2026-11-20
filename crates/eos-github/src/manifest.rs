@@ -176,6 +176,7 @@ pub(crate) fn manifest() -> Manifest {
                 "draft": "bool", "base": "string", "size": "number",
             },
             "events": ["opened", "updated", "ready", "closed"],
+            "closing": ["closed"],
             "interval_s": 60, "min_interval_s": 30,
         }],
         "candidates": [{ "item": PULL_REQUEST, "action": "find_pull_requests" }],

@@ -278,6 +278,9 @@ pub struct Source {
     /// What can happen to an item (`opened`, `updated`).
     #[serde(default)]
     pub events: Vec<String>,
+    /// The events that end their item (a pull request merged or closed).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub closing: Vec<String>,
     #[serde(default)]
     pub interval_s: Option<u32>,
     #[serde(default)]

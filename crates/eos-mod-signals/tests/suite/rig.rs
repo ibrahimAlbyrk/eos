@@ -194,7 +194,8 @@ impl Bench {
     pub(crate) fn new(routines: Vec<RoutineTriggers>) -> Self {
         let temp = TempStore::new();
         add_source(&temp);
-        let pulls = Arc::new(FakeSource::default());
+        // As GitHub's pull requests: a closed one ends its subject.
+        let pulls = Arc::new(FakeSource::default().closing(&["closed"]));
         Self {
             temp,
             directory: Arc::new(FakeRoutineDirectory::new(routines)),

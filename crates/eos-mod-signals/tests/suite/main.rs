@@ -3,6 +3,7 @@
 
 mod after;
 mod batch;
+mod halt;
 mod polls;
 mod rig;
 mod router;

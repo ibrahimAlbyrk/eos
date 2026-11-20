@@ -147,6 +147,10 @@ impl SignalSource for Source {
         self.decl.interval_s.map(|s| i64::from(s) * 1000)
     }
 
+    fn closes(&self, kind: &str) -> bool {
+        self.decl.closing.iter().any(|closing| closing == kind)
+    }
+
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {
         Box::pin(self.poll_once(request))
     }
