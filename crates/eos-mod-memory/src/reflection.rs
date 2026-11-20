@@ -3,18 +3,20 @@
 //! the host allows background model calls, the user is signed in to a Claude
 //! plan (never an API key alone, D23) and plan usage is under their dreaming
 //! line; a chat on another provider's model is reflected by the rules only
-//! (D24). Moments are read from the event log, or from a Code-view pane's
-//! transcript.
+//! (D24). Moments are read from the event log, a Code-view pane's
+//! transcript, or the user's edit of a routine's result.
 
 use std::sync::Arc;
 
 use eos_core::accounts::PlanAccess;
 use eos_core::git::ProjectKeys;
+use eos_core::inbox::ResultEdits;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_core::store::{EventOrder, EventQuery, Store, StoredMoment, agent_caller};
 use eos_core::{BoxFuture, Error, Sleeper};
 use eos_domain::run_scope::Trust;
+use eos_memory::edits::{edit_of, edit_rows};
 use eos_memory::merge::Place;
 use eos_memory::{Gate, ModelGate, MomentContext, MomentSource, Recall, ReflectPrompt, Reflector};
 use eos_prompts::PromptService;
@@ -59,11 +61,23 @@ pub(crate) struct Moments {
     pub(crate) project_keys: Arc<dyn ProjectKeys>,
     pub(crate) runs: Option<Arc<dyn RunLookup>>,
     pub(crate) code: Option<Arc<CodePanes>>,
+    pub(crate) edits: Option<Arc<dyn ResultEdits>>,
 }
 
 impl MomentSource for Moments {
     fn context<'a>(&'a self, moment: &'a StoredMoment) -> BoxFuture<'a, Result<Option<MomentContext>, Error>> {
         Box::pin(async move {
+            if moment.source == "edit" {
+                let (Some(edits), Some(id)) = (&self.edits, edit_of(&moment.worker_id)) else { return Ok(None) };
+                let Some(edit) = edits.get(id).await? else { return Ok(None) };
+                return Ok(Some(MomentContext {
+                    rows: edit_rows(&edit),
+                    anthropic: true,
+                    untrusted: edit.derived_from_untrusted,
+                    place: Place { routine: Some(edit.routine_id.clone()), project: None },
+                    project_path: None,
+                }));
+            }
             if moment.source == "code" {
                 let claude_session_id = moment.worker_id.trim_start_matches("pty:");
                 let rows = match &self.code {

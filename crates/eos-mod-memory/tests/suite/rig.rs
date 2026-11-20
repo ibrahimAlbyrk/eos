@@ -111,6 +111,7 @@ pub(crate) fn parts(temp: &TempStore, sleeper: Arc<FakeSleeper>, embedder: Optio
         profile: Arc::new(Profile(Mutex::new(empty_user_profile()))),
         embedder,
         code: None,
+        edits: None,
         learn: None,
         memories: Arc::new(AboutYou::default()),
         home: Some("/Users/someone".into()),
