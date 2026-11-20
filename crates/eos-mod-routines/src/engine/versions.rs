@@ -189,7 +189,8 @@ pub(crate) async fn create(
     let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (zones, data_dir, device) = (engine.zones.clone(), engine.data_dir.clone(), engine.device.clone());
     let patterns = engine.patterns.clone();
-    engine
+    let (made, makes) = (id.clone(), prepared.blueprint.makes.kind.clone());
+    let saved = engine
         .store
         .write(move |tx, out| {
             let issues = check_in(tx, &id, &prepared.blueprint, zones.as_ref(), &data_dir)?;
@@ -231,7 +232,11 @@ pub(crate) async fn create(
             announce(tx, out, &id, RoutineChangeReason::Created, now, &patterns)?;
             Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now, &patterns)?, version_id, warnings: issues })))
         })
-        .await
+        .await?;
+    if let Saved::Done(done) = &saved {
+        super::surfaces::created(engine, &made, &done.version_id, &makes).await;
+    }
+    Ok(saved)
 }
 
 /// A new version of a routine: kept as its head, or while the routine is a

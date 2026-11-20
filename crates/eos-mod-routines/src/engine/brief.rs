@@ -2,7 +2,8 @@
 //! again, its lead's `routine_sessions` row is written before the session
 //! starts (so the first `worker:spawn` already finds it), the lead starts as
 //! a focused session of the reserved definition with the run brief as its
-//! first message, and the run goes to work.
+//! first message and memory's notes for the item with it, and the run goes
+//! to work.
 
 use std::sync::Arc;
 
@@ -81,6 +82,7 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         Err(NoPlace::Failed(error)) => return Err(internal(error)),
     };
     let (model, effort) = model_of(&blueprint, &agent, &input);
+    let pack = super::memory::pack(engine, run_id, &routine_id, &input, &place).await;
     let session = RunSession {
         run_id: run_id.to_owned(),
         routine_id: routine_id.clone(),
@@ -97,6 +99,7 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         parent_id: None,
         reads_outside: false,
         at: (RunState::Running, Station::Brief),
+        pack,
     };
     let render = |folder: &str| render(engine, &blueprint, &agent, &input, folder);
     let Some(worker_id) = spawn::start(engine, session, render).await.map_err(internal)? else { return Ok(()) };

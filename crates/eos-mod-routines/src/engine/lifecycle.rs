@@ -1,7 +1,7 @@
 //! A routine's life by hand (01 §4.8): active, paused or archived; deleted
 //! to Recently deleted and back; a one-off kept as a standing routine. Each
 //! change is one write that also settles the routine's runs and announces
-//! `routine:change` with the row.
+//! `routine:change` with the row; the routine's surface follows it.
 
 use std::sync::Arc;
 
@@ -13,6 +13,7 @@ use eos_domain::routine::run::{Reason, RunState};
 
 use super::control::{announce, refusal_in};
 use super::supervisor::skip_queued_in;
+use super::surfaces::{self, Move as SurfaceMove};
 use super::{Engine, move_run};
 use crate::patterns::ItemPatterns;
 use crate::routes::{gone, summary};
@@ -64,10 +65,11 @@ pub(crate) async fn set_state(
     state: RoutineHandState,
 ) -> Result<Result<Option<RoutineSummary>, ResumeRefusal>, Error> {
     let (id, now, patterns) = (routine_id.to_owned(), engine.clock.now_ms(), engine.patterns.clone());
-    let answer = engine
+    let (answer, before) = engine
         .store
         .write(move |tx, out| {
             let routine = live(tx, &id)?;
+            let before = routine.state;
             if routine.state == RoutineState::Draft {
                 return Err(Error::Conflict("a draft routine is started from its draft".into()));
             }
@@ -79,7 +81,7 @@ pub(crate) async fn set_state(
             if next == RoutineState::Active
                 && let Some(refusal) = refusal_in(tx, &routine)?
             {
-                return Ok(Err(refusal));
+                return Ok((Err(refusal), before));
             }
             if routine.state != next {
                 tx.routines().set_state(&id, next, reason, now)?;
@@ -87,10 +89,15 @@ pub(crate) async fn set_state(
                 tracing::info!(routine_id = %id, state = ?next, "a routine's state was set");
                 announce(tx, out, &id, RoutineChangeReason::State, now, &patterns)?;
             }
-            row(tx, &id, now, &patterns).map(Ok)
+            Ok((row(tx, &id, now, &patterns).map(Ok)?, before))
         })
         .await?;
     engine.wake.notify_one();
+    let archived = state == RoutineHandState::Archived;
+    if answer.is_ok() && archived != (before == RoutineState::Archived) {
+        let to = if archived { SurfaceMove::Archive } else { SurfaceMove::Restore };
+        surfaces::moved(engine, routine_id, to).await;
+    }
     Ok(answer)
 }
 
@@ -98,7 +105,7 @@ pub(crate) async fn set_state(
 /// ended are cancelled and its waiting items withdrawn, in the same write;
 /// a run that is delivering finishes its send first (G34).
 pub(crate) async fn delete(engine: &Arc<Engine>, routine_id: &str) -> Result<Option<RoutineSummary>, Error> {
-    change(engine, routine_id, |tx, out, id, now, patterns| {
+    let row = change(engine, routine_id, |tx, out, id, now, patterns| {
         live(tx, id)?;
         tx.routines().set_state(id, RoutineState::Deleted, None, now)?;
         tx.routines().set_deleted_at(id, Some(now), now)?;
@@ -116,13 +123,15 @@ pub(crate) async fn delete(engine: &Arc<Engine>, routine_id: &str) -> Result<Opt
         tracing::info!(routine_id = id, cancelled, withdrawn, "a routine was deleted");
         announce(tx, out, id, RoutineChangeReason::Deleted, now, patterns)
     })
-    .await
+    .await?;
+    surfaces::moved(engine, routine_id, SurfaceMove::Archive).await;
+    Ok(row)
 }
 
 /// `POST …/undelete`: back from Recently deleted, paused (a draft stays a
 /// draft), so nothing starts until the user says so.
 pub(crate) async fn undelete(engine: &Arc<Engine>, routine_id: &str) -> Result<Option<RoutineSummary>, Error> {
-    change(engine, routine_id, |tx, out, id, now, patterns| {
+    let row = change(engine, routine_id, |tx, out, id, now, patterns| {
         let routine = tx.routines().find(id)?.filter(|routine| !gone(routine, now));
         let routine = routine.ok_or_else(|| Error::not_found("routine", id))?;
         if routine.state != RoutineState::Deleted {
@@ -137,7 +146,9 @@ pub(crate) async fn undelete(engine: &Arc<Engine>, routine_id: &str) -> Result<O
         tracing::info!(routine_id = id, "a routine came back from Recently deleted");
         announce(tx, out, id, RoutineChangeReason::State, now, patterns)
     })
-    .await
+    .await?;
+    surfaces::moved(engine, routine_id, SurfaceMove::Restore).await;
+    Ok(row)
 }
 
 /// `POST …/keep`: a one-off the user keeps becomes a standing routine,

@@ -30,6 +30,7 @@ mod patches;
 mod peer;
 mod plugins;
 mod reach;
+mod surfaces;
 mod terminals;
 mod threads;
 mod tools;

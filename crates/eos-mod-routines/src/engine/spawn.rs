@@ -41,6 +41,8 @@ pub(crate) struct RunSession {
     /// Where the run must be when the row is written; elsewhere it moved on
     /// (stopped) and nothing starts.
     pub(crate) at: (RunState, Station),
+    /// The notes its first start carries: a lead's, from memory.
+    pub(crate) pack: Option<String>,
 }
 
 /// Starts the session; its first message is `prompt` of its folder. `None`
@@ -96,6 +98,7 @@ async fn spawn(
         trust: session.trust,
         reads_outside: session.reads_outside,
         agent_key: session.agent_key.clone(),
+        pack: session.pack.clone(),
     };
     Engine::locked(&engine.launches).insert(worker_id.to_owned(), launch);
     let (cwd, worktree_from, branch, start_point) = match &session.place {

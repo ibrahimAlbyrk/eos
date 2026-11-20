@@ -221,6 +221,7 @@ async fn routines(engine: &Engine, when: &Leaving, cleared: &mut Cleared) {
             match remove(engine, routine).await {
                 Ok(()) => {
                     tracing::info!(routine_id = %routine.id, state = ?routine.state, "a routine left for good");
+                    crate::engine::routine_removed(engine, &routine.id).await;
                     cleared.routines += 1;
                 }
                 Err(error) => {

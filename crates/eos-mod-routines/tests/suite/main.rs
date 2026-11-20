@@ -22,6 +22,7 @@ mod seed;
 mod shape;
 mod solo;
 mod start;
+mod stations;
 mod supervisor;
 mod team;
 mod trial;

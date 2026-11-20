@@ -22,6 +22,7 @@ mod handoffs;
 mod idle;
 mod launch;
 mod lifecycle;
+mod memory;
 mod outcomes;
 mod ports;
 mod ready;
@@ -31,6 +32,7 @@ mod spawn;
 mod start;
 mod steer;
 mod supervisor;
+mod surfaces;
 mod team;
 mod versions;
 mod workspace;
@@ -47,11 +49,13 @@ pub(crate) use handoffs::hear as hear_answers;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
 pub(crate) use lifecycle::{delete, keep, live, row, set_state, undelete};
+pub(crate) use memory::routine_removed;
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
 pub(crate) use recover::recover;
 pub(crate) use start::start as start_runs;
 pub(crate) use steer::{message, pause, resume};
+pub(crate) use surfaces::{Move as SurfaceMove, moved as surface_moved};
 pub(crate) use team::shape_report;
 pub(crate) use versions::{
     Edit, NEWER_FORMAT, NewVersion, Prepared, Saved, blocks, check_in, copy, create, free_slug, insert_version,
@@ -65,10 +69,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::{OneShot, ScratchFolders};
 use eos_core::capability::CapabilityReads;
+use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
+use eos_core::surface::SurfaceAuthoring;
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState};
@@ -162,6 +168,9 @@ pub(crate) struct Engine {
     pub(crate) trash: Arc<dyn FileSystem>,
     /// When the retention pass is next due, and the one at work.
     pub(crate) retention: Mutex<crate::retention::Schedule>,
+    pub(crate) packs: Arc<dyn ExperiencePacks>,
+    pub(crate) feedback: Arc<dyn ExperienceFeedback>,
+    pub(crate) surfaces: Arc<dyn SurfaceAuthoring>,
 }
 
 impl Engine {
@@ -374,8 +383,9 @@ pub(crate) fn start_supervisor(engine: &Arc<Engine>) {
 }
 
 /// From now on, a run that ends (done, failed, cancelled, skipped) has its
-/// sessions interrupted and suspended, after the write that ended it, and a
-/// trial run tells the routine's architect how it went.
+/// sessions interrupted and suspended, after the write that ended it, a
+/// trial run tells the routine's architect how it went, and memory hears
+/// how it ended.
 pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
     let weak = Arc::downgrade(engine);
     let subscription = engine.bus.on(RUN_CHANGE.name(), move |event| {
@@ -388,6 +398,7 @@ pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
         tasks.spawn(async move {
             steer::quiet(&engine, &change.run_id).await;
             crate::architect::trial_ended(&engine, &change.run_id).await;
+            memory::run_ended(&engine, &change).await;
         });
     });
     *Engine::locked(&engine.ended) = Some(subscription);

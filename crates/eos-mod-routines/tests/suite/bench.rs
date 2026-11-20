@@ -25,9 +25,9 @@ use eos_sessions::{SessionDeps, SessionHooks, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
-    FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePower, FakePrompts, FakeRecents, FakeRunGate,
-    FakeScratch, FakeSettings, FakeSleeper, FakeTimeZone, FakeTrash, FakeWorktrees, FakeZoneRules, ScriptedOneShot,
-    ScriptedRuntime, SeqIds, TempStore,
+    FakeCapabilityReads, FakeClock, FakeConfig, FakeExperienceFeedback, FakeExperiencePacks, FakeModelCatalog,
+    FakePower, FakePrompts, FakeRecents, FakeRunGate, FakeScratch, FakeSettings, FakeSleeper, FakeSurfaceAuthoring,
+    FakeTimeZone, FakeTrash, FakeWorktrees, FakeZoneRules, ScriptedOneShot, ScriptedRuntime, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -68,6 +68,11 @@ pub(crate) struct Bench {
     pub(crate) power: Arc<FakePower>,
     /// Where retention moves what it clears.
     pub(crate) trash: Arc<FakeTrash>,
+    /// Memory: the packs leads start with, and what it heard.
+    pub(crate) packs: Arc<FakeExperiencePacks>,
+    pub(crate) feedback: Arc<FakeExperienceFeedback>,
+    /// What routines asked of their surfaces.
+    pub(crate) surfaces: Arc<FakeSurfaceAuthoring>,
 }
 
 /// A plan whose five-hour window a test fills.
@@ -203,6 +208,11 @@ impl Bench {
             (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
         let (model, power) = (Arc::new(ScriptedOneShot::default()), Arc::new(FakePower::default()));
         let trash = Arc::new(FakeTrash::new(temp.home.path().join("trash")));
+        let (packs, feedback, surfaces) = (
+            Arc::new(FakeExperiencePacks::new()),
+            Arc::new(FakeExperienceFeedback::new()),
+            Arc::new(FakeSurfaceAuthoring::new()),
+        );
         let parts = Shared {
             gate: &gate_port,
             keys: &keys,
@@ -213,6 +223,9 @@ impl Bench {
             model: &model,
             power: &power,
             trash: &trash,
+            packs: &packs,
+            feedback: &feedback,
+            surfaces: &surfaces,
         };
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
@@ -240,6 +253,9 @@ impl Bench {
             model,
             power,
             trash,
+            packs,
+            feedback,
+            surfaces,
         }
     }
 
@@ -258,6 +274,9 @@ impl Bench {
             model: &self.model,
             power: &self.power,
             trash: &self.trash,
+            packs: &self.packs,
+            feedback: &self.feedback,
+            surfaces: &self.surfaces,
         };
         module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
@@ -371,6 +390,9 @@ struct Shared<'a> {
     model: &'a Arc<ScriptedOneShot>,
     power: &'a Arc<FakePower>,
     trash: &'a Arc<FakeTrash>,
+    packs: &'a Arc<FakeExperiencePacks>,
+    feedback: &'a Arc<FakeExperienceFeedback>,
+    surfaces: &'a Arc<FakeSurfaceAuthoring>,
 }
 
 // The bench's parts, each shared with the module a restart builds again.
@@ -383,7 +405,7 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared { gate, keys, bus, settings, ids, plan, model, power, trash } = shared;
+    let Shared { gate, keys, bus, settings, ids, plan, model, power, trash, packs, feedback, surfaces } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -414,6 +436,9 @@ fn module(
         one_shot: model.clone(),
         power: power.clone(),
         trash: trash.clone(),
+        packs: packs.clone(),
+        feedback: feedback.clone(),
+        surfaces: surfaces.clone(),
     }))
 }
 

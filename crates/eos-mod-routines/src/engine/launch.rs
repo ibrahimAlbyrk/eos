@@ -33,6 +33,8 @@ pub(crate) struct RunLaunch {
     pub(crate) reads_outside: bool,
     /// The agent of the routine's Who it is; `None` for the checker.
     pub(crate) agent_key: Option<String>,
+    /// The notes memory packed for a lead, taken by its first start only.
+    pub(crate) pack: Option<String>,
 }
 
 /// An agent's own fence, when it has one.
@@ -55,8 +57,9 @@ pub(crate) fn run_scope(
 
 /// Shapes the start of `spec` when its worker is a run session.
 pub(crate) fn shape(engine: &Engine, spec: &mut LaunchSpec) {
-    let Some(launch) = Engine::locked(&engine.launches).get(&spec.worker_id).cloned() else { return };
+    let Some(launch) = take_pack(engine, &spec.worker_id) else { return };
     spec.folder_mcp = false;
+    spec.notes.extend(launch.pack.clone());
     if launch.trust == Trust::Untrusted {
         let work = match engine.folders.work_dir(&launch.routine_id, &launch.run_id) {
             Ok(work) => work,
@@ -71,6 +74,16 @@ pub(crate) fn shape(engine: &Engine, spec: &mut LaunchSpec) {
             spec.additional_dirs.push(workspace);
         }
     }
+}
+
+/// The worker's launch, its pack moved out of the kept one: a resume starts
+/// without it.
+fn take_pack(engine: &Engine, worker_id: &str) -> Option<RunLaunch> {
+    let mut launches = Engine::locked(&engine.launches);
+    let kept = launches.get_mut(worker_id)?;
+    let launch = kept.clone();
+    kept.pack = None;
+    Some(launch)
 }
 
 /// Where the working folder is, by the data folder's layout, when it could
@@ -108,6 +121,7 @@ pub(crate) async fn rebuild(engine: &Engine) -> Result<(), Error> {
                         trust: run.trust,
                         reads_outside,
                         agent_key: run.agent_key,
+                        pack: None,
                     };
                     launches.push((session.worker_id, launch));
                 }

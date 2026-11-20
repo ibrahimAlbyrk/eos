@@ -6,12 +6,13 @@
 //! has no model and recalls by hooks and words. Nothing is ever downloaded.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 
+use eos_core::BoxFuture;
 use eos_core::agent::WorkerSessions;
 use eos_core::experience::Embedder;
 use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
-use eos_core::routine::RunLookup;
+use eos_core::routine::{RunLookup, RunRef};
 use eos_domain::config::Env;
 
 use crate::modules::Context;
@@ -27,6 +28,26 @@ pub(crate) fn model_dir(resources: Option<&Path>, env: &Env) -> Option<PathBuf> 
         return Some(PathBuf::from(dir));
     }
     resources.map(|r| r.join(BUNDLED_MODEL)).filter(|dir| dir.is_dir())
+}
+
+/// Which run a worker works for, once routines are built: routines hold
+/// memory, so memory holds them weakly.
+#[derive(Default)]
+pub(crate) struct LateRuns(OnceLock<Weak<eos_mod_routines::RoutinesModule>>);
+
+impl LateRuns {
+    pub(crate) fn attach(&self, routines: &Arc<eos_mod_routines::RoutinesModule>) {
+        let _ = self.0.set(Arc::downgrade(routines));
+    }
+}
+
+impl RunLookup for LateRuns {
+    fn run_of<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Option<RunRef>> {
+        match self.0.get().and_then(Weak::upgrade) {
+            Some(routines) => Box::pin(async move { routines.lookup().run_of(worker_id).await }),
+            None => Box::pin(std::future::ready(None)),
+        }
+    }
 }
 
 /// Reminders go to a worker's live session, with its next request.

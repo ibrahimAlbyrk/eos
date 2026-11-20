@@ -176,6 +176,7 @@ async fn start_checker(engine: &Arc<Engine>, run_id: &str, checking: &Checking) 
         place: super::workspace::Place::Scratch,
         parent_id: None,
         reads_outside: false,
+        pack: None,
         at: (RunState::Checking, Station::Check),
     };
     spawn::start(engine, session, |_| render(engine, checking)).await.map(drop)
@@ -259,6 +260,9 @@ pub(crate) async fn judged(
         })
         .await?;
     tracing::info!(run_id, attempt, pass, "a run's result was checked");
+    if !pass && next.is_some() {
+        told_memory(engine, run_id).await;
+    }
     match next {
         Some(Next::Revise { lead, text }) => {
             release_lead(engine, run_id).await;
@@ -273,6 +277,20 @@ pub(crate) async fn judged(
         None => {}
     }
     Ok(())
+}
+
+/// Memory reads the checker's disagreement in the lead's conversation.
+async fn told_memory(engine: &Engine, run_id: &str) {
+    let id = run_id.to_owned();
+    match engine.store.read(move |tx| tx.runs().find(&id)).await {
+        Ok(Some(run)) => {
+            if let Some(lead) = &run.lead_id {
+                super::memory::check_failed(engine, run_id, &run.routine_id, lead).await;
+            }
+        }
+        Ok(None) => {}
+        Err(error) => tracing::warn!(run_id, %error, "a failed check was not told to memory"),
+    }
 }
 
 fn revise_text(verdict: &CheckVerdict) -> String {
