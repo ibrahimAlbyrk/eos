@@ -414,7 +414,7 @@ async fn the_loop_sends_what_the_user_sends_and_stops() {
     }));
     engine.start();
     let GateDecision::Held { item_id } = gated.apply(input("draft")).await else { panic!("not held") };
-    gated.rig.items.send(&item_id, 1, None, "dashboard").await.expect("sent");
+    gated.rig.items.send(&item_id, 1, None, "dashboard", false).await.expect("sent");
     let mut waited = 0;
     while channels.sent().is_empty() && waited < 200 {
         tokio::time::sleep(Duration::from_millis(10)).await;

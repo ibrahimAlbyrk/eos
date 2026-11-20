@@ -16,6 +16,8 @@ eos-policy.workspace = true
 eos-runtime.workspace = true
 indexmap.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tracing.workspace = true
 
 [dev-dependencies]
 eos-testkit.workspace = true

@@ -83,14 +83,16 @@ pub(crate) fn gone_in(
 
 impl Items {
     /// Sends the draft as it was at `rev`: as the user edited it in `doc`,
-    /// else as last saved, else as held. `by` is who sent it. Answers one
-    /// delivery per target.
+    /// else as last saved, else as held. `by` is who sent it. A stale draft
+    /// goes only with `confirm_stale` (03 G1). Answers one delivery per
+    /// target.
     pub async fn send(
         &self,
         id: &str,
         rev: i64,
         doc: Option<ResultDoc>,
         by: &str,
+        confirm_stale: bool,
     ) -> Result<Vec<StoredDelivery>, Error> {
         let now = self.clock.now_ms();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(SENT.to_owned()), at: now };
@@ -105,6 +107,9 @@ impl Items {
                     Ok(_) => return Err(invalid("only a draft is sent")),
                     Err(refused) => return Ok(Err(refused)),
                 };
+                if item.stale_at.is_some() && !confirm_stale {
+                    return Ok(Err(Error::Stale { reason: item.stale_reason.unwrap_or_default() }));
+                }
                 let (Some(routine_id), Some(run_id)) = (item.routine_id.clone(), item.run_id.clone()) else {
                     return Err(invalid("the draft belongs to no run"));
                 };

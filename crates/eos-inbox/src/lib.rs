@@ -27,6 +27,10 @@
 //!   as made or stops it, and settles the run, in the answering job.
 //! - Resume on a routine's alert resumes the routine through its control,
 //!   in the answering job; Keep paused leaves it paused.
+//! - A subject that moved on flags its waiting drafts stale, and one that
+//!   closed expires its items ([`Items::subject`]); a stale draft is sent
+//!   only on the user's second confirm.
+//! - A draft a newer run's draft replaced ends its run as `replaced`.
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
@@ -45,6 +49,7 @@ mod problems;
 mod questions;
 mod routing;
 mod send;
+mod stale;
 
 use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};
@@ -56,6 +61,7 @@ pub use handoff::consume_in;
 pub use items::{NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in};
 pub use questions::{QuestionWaiters, RunQuestionParts, RunQuestions};
 pub use routing::RunAsks;
+pub use stale::SUBJECT_CLOSED;
 
 /// The topic every write of an item announces.
 pub const INBOX_CHANGE: &str = "inbox:change";
@@ -71,6 +77,10 @@ pub enum Error {
     /// The item changed since the rev the write was made on.
     #[error("changed")]
     Changed { rev: i64 },
+    /// The draft's subject moved on since it was made, and the send did not
+    /// confirm sending it anyway.
+    #[error("stale")]
+    Stale { reason: String },
     #[error(transparent)]
     Core(#[from] eos_core::Error),
 }

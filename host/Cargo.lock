@@ -2478,6 +2478,8 @@ dependencies = [
  "eos-runtime",
  "indexmap 2.14.2",
  "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

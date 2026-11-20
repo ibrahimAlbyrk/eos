@@ -66,9 +66,11 @@ impl Rig {
         let temp = TempStore::new();
         let clock = Arc::new(FakeClock::at(1_000_000));
         let waiting = Arc::new(Waiting::default());
+        let kernel = Kernel::new(KernelOptions::default());
         let module = Arc::new(InboxModule::new(InboxParts {
             store: temp.port(),
             clock: clock.clone(),
+            bus: kernel.bus.clone(),
             questions: waiting.clone(),
             memories: waiting.clone(),
             waiters: Arc::default(),
@@ -84,8 +86,7 @@ impl Rig {
                 wake: Arc::new(tokio::sync::Notify::new()),
             },
         }));
-        let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
-            .expect("composes");
+        let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
