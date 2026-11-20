@@ -178,6 +178,10 @@ fn approval_too_old(row: &StoredDelivery, now: i64) -> bool {
 /// a channel sends it again; an automatic one a day old is then held at the
 /// claim instead (03 G23, G5).
 pub(crate) fn resume_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, channels: &dyn Channels) -> Result<(), Error> {
+    // While everything is stopped they keep waiting, and go again once resumed.
+    if tx.inbox_halt().get()?.on {
+        return Ok(());
+    }
     let repo = tx.inbox_deliveries();
     for mut row in repo.in_state(WAITING_CAPABILITY)? {
         if channels.get(&row.channel).is_none() {

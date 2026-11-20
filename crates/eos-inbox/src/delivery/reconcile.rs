@@ -9,8 +9,9 @@ use eos_core::delivery::{Idempotency, SendErrorKind};
 use eos_core::store::{Outbox, StoredDelivery, Tx};
 
 use super::record::{Attempt, Problem, problem_in};
-use super::{QUEUED, SENDING, UNCERTAIN, announce};
+use super::{SENDING, UNCERTAIN, announce};
 use crate::Opening;
+use crate::halt::queue_again_in;
 
 /// How long a lookup that failed waits before it is tried again.
 const RECHECK_MS: i64 = 60_000;
@@ -63,10 +64,7 @@ pub(crate) fn settle_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, id: &st
     let Some(mut row) = tx.inbox_deliveries().find(id)?.filter(|row| row.state == UNCERTAIN) else { return Ok(()) };
     row.updated_at = at.now;
     match found {
-        Found::Retry => {
-            row.state = QUEUED.to_owned();
-            row.next_attempt_at = Some(at.now);
-        }
+        Found::Retry => queue_again_in(tx, &mut row, at.now)?,
         Found::Unknown => {
             // Asked once; it stays unknown until the user answers.
             row.next_attempt_at = None;

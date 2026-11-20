@@ -2,14 +2,16 @@
 //! every send that has not gone out (`holding` or `queued`) is frozen; the
 //! gate holds every result and the claim takes nothing while it is on (both
 //! read the row in their own jobs). A send already on its way finishes and
-//! is recorded. Resume turns each send frozen by the switch into a
+//! is recorded; one that would go again (a passing failure, a lookup that
+//! did not find it) is frozen too, and one that waits for its capability
+//! keeps waiting. Resume turns each send frozen by the switch into a
 //! `delivery_problem` that asks the user; nothing goes by itself. A send
 //! frozen because the app is a development run is left as it is. Each
 //! switch, its frozen rows and `inbox:halt` commit in one job.
 
 use eos_contracts::HaltState;
 use eos_core::Error;
-use eos_core::store::{Outbox, StoredHalt, Tx};
+use eos_core::store::{Outbox, StoredDelivery, StoredHalt, Tx};
 
 use crate::delivery::record::{Problem, problem_in};
 use crate::delivery::{FAILED, FROZEN, HOLDING, QUEUED, announce};
@@ -32,6 +34,20 @@ fn switch_in(tx: &dyn Tx, out: &mut Outbox, on: bool, now: i64, by: &str) -> Res
     out.push(INBOX_HALT, &state(&halt));
     tracing::info!(on, by, "the halt switch changed");
     Ok(true)
+}
+
+/// `row` goes again at `next_attempt_at`; while the switch is on it is
+/// frozen instead, so that resuming asks about it rather than sending it.
+pub(crate) fn queue_again_in(tx: &dyn Tx, row: &mut StoredDelivery, next_attempt_at: i64) -> Result<(), Error> {
+    if tx.inbox_halt().get()?.on {
+        row.state = FROZEN.to_owned();
+        row.last_error_kind = Some(HALTED.to_owned());
+        row.next_attempt_at = None;
+    } else {
+        row.state = QUEUED.to_owned();
+        row.next_attempt_at = Some(next_attempt_at);
+    }
+    Ok(())
 }
 
 /// Switches halt on, `by` who did it, and freezes every send that has not
