@@ -67,9 +67,9 @@ pub(crate) fn module(
             prompts: cx.prompts.clone(),
             zone: Arc::new(crate::host::HostTimeZone),
             home: eos_platform::home_dir(),
-            device: cx.peer.device_id(),
             keeper,
         }),
+        device: cx.peer.device_id(),
         background_model_calls: cx.reach.background_model_calls(),
     }))
 }

@@ -100,3 +100,29 @@ async fn an_agent_recalls_by_situation_and_a_withheld_provider_is_refused() {
     let refused = search.search("w-1", "npm run lint", 5).await.unwrap_err();
     assert!(matches!(refused, eos_core::Error::PermissionDenied(_)), "{refused:?}");
 }
+
+#[tokio::test]
+async fn a_tool_call_that_does_what_a_delivered_note_says_counts_it_used() {
+    use eos_domain::experience::{HookKind, hook_id};
+    let rig = Rig::new();
+    rig.note_about("mn-000000000001", LINT, "npm run lint");
+    let hook = hook_id(HookKind::Command, "npm run lint");
+    rig.temp.exec(&format!("UPDATE mem_notes SET do_hooks = '[\"{hook}\"]'"));
+    assert_eq!(rig.memory.turn_notes(&turn("w-1", "run npm run lint please", true)).await.len(), 1);
+    rig.memory.on_agent_event("w-1", &tool("npm run lint", Some("sub")));
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(
+        rig.temp.count("SELECT COUNT(*) FROM mem_uses WHERE acted = 1"),
+        0,
+        "a subagent's call is not the agent's"
+    );
+    rig.memory.on_agent_event("w-1", &tool("npm run lint", None));
+    for _ in 0..100 {
+        if rig.temp.count("SELECT COUNT(*) FROM mem_credit WHERE used = 1") == 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(rig.temp.count("SELECT COUNT(*) FROM mem_uses WHERE acted = 1"), 1);
+    assert_eq!(rig.temp.count("SELECT COUNT(*) FROM mem_credit WHERE used = 1"), 1);
+}

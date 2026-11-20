@@ -46,7 +46,7 @@ use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_domain::redact::Scrubber;
-use eos_memory::{Capture, Recall, ReflectParts, Reflector};
+use eos_memory::{Capture, Credit, Recall, ReflectParts, Reflector};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
@@ -107,8 +107,6 @@ pub struct LearnParts {
     pub zone: Arc<dyn TimeZone>,
     /// The user's home folder, cut from what is stored.
     pub home: Option<PathBuf>,
-    /// This Mac, as notes name the device that wrote them.
-    pub device: String,
     /// Where a rule the user states in a chat is kept (About you).
     pub keeper: Arc<dyn UserMemoryKeeper>,
 }
@@ -139,6 +137,8 @@ pub struct MemoryParts {
     pub code: Option<CodeParts>,
     /// Reflection: without it, moments are captured and wait.
     pub learn: Option<LearnParts>,
+    /// This Mac, as notes and their counters name the device that wrote them.
+    pub device: String,
     /// Whether model calls nobody asked for may run: only in the installed
     /// app on the user's own data folder.
     pub background_model_calls: bool,
@@ -185,8 +185,10 @@ impl MemoryModule {
             embedder,
             code,
             learn,
+            device,
             background_model_calls,
         } = parts;
+        let credit = Arc::new(Credit::new(store.clone(), clock.clone(), device.clone()));
         let wake = Arc::new(Notify::new());
         let code = code.map(|c| {
             let capture = Capture::new(store.clone(), clock.clone(), ids.clone());
@@ -211,7 +213,7 @@ impl MemoryModule {
                 prompt: Arc::new(LibraryPrompt(learn.prompts)),
                 recall: recall.clone(),
                 scrubber: Arc::new(Scrubber::new(learn.home.as_deref())),
-                device: learn.device,
+                device: device.clone(),
                 keeper: learn.keeper,
             });
             Arc::new(Reflecting { reflector, recall: recall.clone(), wake: wake.clone() })
@@ -225,11 +227,12 @@ impl MemoryModule {
             project_keys,
             profile,
             runs.clone(),
+            credit.clone(),
         );
         Self {
             recall,
             reminders: Arc::new(reminders),
-            capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs, wake)),
+            capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs, credit, wake)),
             code,
             reflecting,
             sleeper,
@@ -304,7 +307,9 @@ impl Module for MemoryModule {
 
     fn idle_hooks(&self) -> Vec<IdleHook> {
         let capturer = self.capturer.clone();
+        let reminders = self.reminders.clone();
         vec![IdleHook::new("memory", 90, move |worker_id| {
+            reminders.turn_ended(worker_id);
             let capturer = capturer.clone();
             let worker_id = worker_id.to_owned();
             tokio::spawn(async move { capturer.look(&worker_id).await });

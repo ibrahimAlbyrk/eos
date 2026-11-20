@@ -28,7 +28,7 @@ use eos_domain::time::{iso_from_ms, wall_clock};
 use crate::merge::{Place, merge_in};
 use crate::recall::{Cues, Recall, Situation};
 use crate::transcript::render;
-use crate::{settings, stated};
+use crate::{credit, settings, stated};
 
 /// Reflections a Mac asks the model for in one local day.
 pub const REFLECTIONS_PER_DAY: i64 = 60;
@@ -227,7 +227,7 @@ impl Reflector {
                 Gate::Wait => return Ok(Outcome::Wait),
             }
         };
-        let (draft, plan) = if use_model {
+        let (draft, plan, contradicted) = if use_model {
             match self.ask(moment, signal, &context, &shown, &cues).await? {
                 Ok(found) => found,
                 Err(outcome) => return Ok(outcome),
@@ -239,7 +239,7 @@ impl Reflector {
                     if signal == Signal::StatesRule && in_run {
                         draft.scope = ScopeLevel::Routine;
                     }
-                    (draft, MergePlan::Insert { links: vec![], close: vec![] })
+                    (draft, MergePlan::Insert { links: vec![], close: vec![] }, Vec::new())
                 }
                 None => {
                     self.finish(moment, "skipped").await?;
@@ -257,12 +257,17 @@ impl Reflector {
         let merged = self
             .0
             .store
-            .write(move |tx, out| merge_in(tx, out, ids.as_ref(), &moment, &draft, &plan, &place, &device, now))
+            .write(move |tx, out| {
+                let merged = merge_in(tx, out, ids.as_ref(), &moment, &draft, &plan, &place, &device, now)?;
+                credit::hurt_in(tx, &contradicted, &device, now)?;
+                Ok(merged)
+            })
             .await?;
         Ok(Outcome::Learned(merged.new))
     }
 
-    /// Asks the model. `Err` carries what became of the moment instead.
+    /// Asks the model: the draft, its merge plan and the notes shown that the
+    /// moment contradicts. `Err` carries what became of the moment instead.
     async fn ask(
         &self,
         moment: &StoredMoment,
@@ -270,7 +275,7 @@ impl Reflector {
         context: &MomentContext,
         shown: &crate::transcript::Rendered,
         cues: &[Cue],
-    ) -> Result<Result<(Draft, MergePlan), Outcome>, Error> {
+    ) -> Result<Result<(Draft, MergePlan, Vec<String>), Outcome>, Error> {
         let now = self.0.clock.now_ms();
         let day = self.day(now);
         let counted = self
@@ -293,12 +298,20 @@ impl Reflector {
             work_kind: None,
         };
         let query = shown.user_in_moment.clone().or_else(|| shown.user.last().cloned());
-        let neighbours = self.0.recall.recall(&situation, &Cues { hooks: cues.to_vec(), query }, NEIGHBOURS).await?;
+        let recalled = self.0.recall.recall(&situation, &Cues { hooks: cues.to_vec(), query }, NEIGHBOURS).await?;
+        let (worker, until) = (moment.worker_id.clone(), moment.created_at);
+        let mut neighbours = self.0.store.read(move |tx| credit::reopened_in(tx, &worker, until)).await?;
+        neighbours.truncate(NEIGHBOURS);
+        for found in recalled {
+            if neighbours.len() < NEIGHBOURS && neighbours.iter().all(|n| n.note.id != found.note.note.id) {
+                neighbours.push(found.note);
+            }
+        }
         let listed: Vec<String> = neighbours
             .iter()
-            .map(|n| format!("- {} ({}): {}", n.note.note.id, n.note.note.state.as_str(), n.note.note.text))
+            .map(|n| format!("- {} ({}): {}", n.note.id, n.note.state.as_str(), n.note.text))
             .collect();
-        let shown_ids: HashSet<String> = neighbours.iter().map(|n| n.note.note.id.clone()).collect();
+        let shown_ids: HashSet<String> = neighbours.iter().map(|n| n.note.id.clone()).collect();
         let (system, prompt) = self.0.prompt.render(signal.as_str(), &shown.text, &listed.join("\n"))?;
         let request = OneShotRequest::new(prompt)
             .system(system)
@@ -324,7 +337,10 @@ impl Reflector {
         let outside: Vec<&str> = shown.outside.iter().map(String::as_str).collect();
         let user: Vec<&str> = shown.user.iter().map(String::as_str).collect();
         match draft_of(&answer, moment.trust, &outside, &user) {
-            Ok(draft) => Ok(Ok((draft, apply(&answer.neighbours, &shown_ids)))),
+            Ok(draft) => {
+                let contradicted = answer.contradicts.iter().filter(|id| shown_ids.contains(*id)).cloned().collect();
+                Ok(Ok((draft, apply(&answer.neighbours, &shown_ids), contradicted)))
+            }
             Err(_) => {
                 self.finish(moment, "skipped").await?;
                 Ok(Err(Outcome::Skipped))
