@@ -101,7 +101,7 @@ async fn detail(api: Arc<Api>, id: String) -> Result<Response, ApiError> {
         .read(move |tx| {
             let Some(note) = tx.mem_notes().find(&id)? else { return Ok(None) };
             let evidence = tx.mem_evidence().of_note(&id, MEM_EVIDENCE_PER_NOTE)?;
-            let links = tx.mem_graph().links(&[id.clone()])?;
+            let links = tx.mem_graph().links(std::slice::from_ref(&id))?;
             let other = |a: &str, b: &str| if a == id { b.to_owned() } else { a.to_owned() };
             let hook_ids: Vec<String> = links.iter().filter(|l| l.rel == "about").map(|l| other(&l.a, &l.b)).collect();
             let hooks = tx.mem_graph().hooks(&hook_ids)?;
