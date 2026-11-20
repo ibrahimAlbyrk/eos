@@ -38,7 +38,7 @@ pub(crate) fn subject_in(
     let mut changed = 0;
     for item in tx.inbox_items().waiting_with_subject(&change.subject_key)? {
         let moved = match &change.version {
-            _ if change.closed => expire_in(tx, out, now, outcomes, item)?,
+            _ if change.closed => expire_in(tx, out, now, outcomes, item, Some(SUBJECT_CLOSED))?,
             Some(version) if item.kind == ItemKind::Draft => stale_in(tx, out, now, item, version)?,
             _ => false,
         };
@@ -50,17 +50,21 @@ pub(crate) fn subject_in(
     Ok(changed)
 }
 
-/// The item expires; a draft ends its run and stops the run's queued sends.
-fn expire_in(
+/// The item expires, `why` when its subject closed; a draft ends its run
+/// and stops the run's sends that wait.
+pub(crate) fn expire_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     now: i64,
     outcomes: &dyn RunOutcomes,
     mut item: StoredItem,
+    why: Option<&str>,
 ) -> Result<bool, Error> {
     let rev = item.rev;
     item.state = ItemState::Expired;
-    item.stale_reason = Some(SUBJECT_CLOSED.to_owned());
+    if let Some(why) = why {
+        item.stale_reason = Some(why.to_owned());
+    }
     item.rev += 1;
     item.updated_at = now;
     if !tx.inbox_items().update_waiting(&item, rev)? {
@@ -75,7 +79,7 @@ fn expire_in(
             tx.inbox_deliveries().of_run(run_id)?.into_iter().filter(|row| row.state == QUEUED || row.state == HOLDING)
         {
             row.state = STOPPED.to_owned();
-            row.last_error_kind = Some(SUBJECT_CLOSED.to_owned());
+            row.last_error_kind = Some(why.unwrap_or("expired").to_owned());
             row.next_attempt_at = None;
             row.updated_at = now;
             tx.inbox_deliveries().update(&row)?;

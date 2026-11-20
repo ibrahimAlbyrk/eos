@@ -36,6 +36,8 @@
 //!   out can be taken back in its channel's window ([`Items::undo`]) or
 //!   called wrong ([`Items::wrong`]), and a failed one tried again, edited
 //!   or not ([`Items::retry`]).
+//! - The sweeper ([`Items::sweep`]) expires items whose time ran out, opens
+//!   again the ones put off, and deletes those that ended 90 days ago.
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
@@ -55,6 +57,7 @@ mod questions;
 mod routing;
 mod send;
 mod stale;
+mod sweep;
 
 use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};

@@ -26,7 +26,8 @@
 //! announces each move of a delivery on `inbox:delivery`, and hears
 //! `signals:subject`: a subject that moved on flags its drafts stale, one
 //! that closed expires its items. It never depends on the signals feature:
-//! it reads the topic by name.
+//! it reads the topic by name. A sweeper expires items whose time ran out,
+//! brings back the ones put off and deletes those that ended 90 days ago.
 
 mod project;
 mod routes;
@@ -37,7 +38,7 @@ use eos_contracts::{DeliveryChange, InboxChange, SignalSubject};
 use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
 use eos_core::store::Store;
-use eos_core::{BoxFuture, Clock};
+use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_inbox::{Items, ItemsParts, QuestionWaiters};
 use eos_runtime::bus::{Bus, RecvError, Topic, TopicDecl};
@@ -50,6 +51,8 @@ pub const INBOX_DELIVERY: Topic<DeliveryChange> = Topic::new(eos_inbox::INBOX_DE
 const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
 /// The subject events that may wait to be acted on.
 const SUBJECTS_QUEUED: usize = 256;
+/// The longest the sweeper sleeps: its retention pass runs at least hourly.
+const SWEEP_EVERY_MS: i64 = 60 * 60 * 1000;
 
 /// What the module is built from.
 pub struct InboxParts {
@@ -78,8 +81,12 @@ pub struct InboxModule {
     parts: Arc<Shared>,
     delivery: Arc<Delivery>,
     bus: Bus,
-    /// Acts on subject events, one at a time in the order they came.
-    subjects: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    clock: Arc<dyn Clock>,
+    sleeper: Arc<dyn Sleeper>,
+    /// What runs from `after_ready` to `stop`: the subject listener, which
+    /// acts on subject events one at a time in the order they came, and the
+    /// sweeper.
+    tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 /// What every route holds.
@@ -99,9 +106,10 @@ impl std::fmt::Debug for InboxModule {
 impl InboxModule {
     pub fn new(parts: InboxParts) -> Self {
         let InboxParts { store, clock, bus, questions, memories, waiters, delivery } = parts;
+        let sleeper = delivery.sleeper.clone();
         let items = Items::new(ItemsParts {
             store: store.clone(),
-            clock,
+            clock: clock.clone(),
             ids: delivery.ids.clone(),
             zone: delivery.zone.clone(),
             channels: delivery.channels.clone(),
@@ -114,8 +122,33 @@ impl InboxModule {
             parts: Arc::new(Shared { store, items, questions, memories }),
             delivery: Arc::new(Delivery::new(delivery)),
             bus,
-            subjects: Mutex::new(None),
+            clock,
+            sleeper,
+            tasks: Mutex::new(Vec::new()),
         }
+    }
+
+    fn keep(&self, task: tokio::task::JoinHandle<()>) {
+        self.tasks.lock().unwrap_or_else(PoisonError::into_inner).push(task);
+    }
+
+    /// From now on, items expire and come back at their times, and those
+    /// that ended long ago are deleted, at least once an hour.
+    fn sweep(&self) {
+        let (items, clock, sleeper) = (self.parts.items.clone(), self.clock.clone(), self.sleeper.clone());
+        self.keep(tokio::spawn(async move {
+            loop {
+                let next = match items.sweep().await {
+                    Ok(next) => next,
+                    Err(error) => {
+                        tracing::warn!(%error, "a sweep failed");
+                        None
+                    }
+                };
+                let wait = next.map_or(SWEEP_EVERY_MS, |at| (at - clock.now_ms()).clamp(0, SWEEP_EVERY_MS));
+                sleeper.sleep(wait).await;
+            }
+        }));
     }
 
     /// From now on, each subject event is acted on in a write job of its own.
@@ -140,10 +173,7 @@ impl InboxModule {
                 }
             }
         });
-        let previous = self.subjects.lock().unwrap_or_else(PoisonError::into_inner).replace(task);
-        if let Some(previous) = previous {
-            previous.abort();
-        }
+        self.keep(task);
     }
 }
 
@@ -163,13 +193,14 @@ impl Module for InboxModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         self.delivery.start();
         self.hear_subjects();
+        self.sweep();
         Box::pin(std::future::ready(Ok(())))
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            let subjects = self.subjects.lock().unwrap_or_else(PoisonError::into_inner).take();
-            if let Some(task) = subjects {
+            let tasks = std::mem::take(&mut *self.tasks.lock().unwrap_or_else(PoisonError::into_inner));
+            for task in tasks {
                 task.abort();
                 let _ = task.await;
             }
