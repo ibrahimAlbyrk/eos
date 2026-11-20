@@ -146,3 +146,16 @@ test("dropping a device reports its clientId and the Mac to notify", () => {
     assert.equal(dropped.mac, mac);
   }
 });
+
+test("an owner kept from an earlier run holds the room; only the current Mac owns it", () => {
+  const reg = new RoomRegistry({ knownOwner: (room) => (room === ROOM ? sha256Hex("the-owner") : null) });
+  assert.deepEqual(reg.register(ROOM, "impostor", [], fakeSocket()), { ok: false, code: "OWNER_MISMATCH" });
+  const mac = fakeSocket();
+  assert.deepEqual(reg.register(ROOM, "the-owner", [sha256Hex("dev")], mac), { ok: true, replaced: false });
+  assert.equal(reg.ownsRoom(ROOM, mac), true);
+  const dev = fakeSocket();
+  reg.join(ROOM, "dev", dev);
+  assert.equal(reg.ownsRoom(ROOM, dev), false);
+  reg.drop(mac);
+  assert.equal(reg.ownsRoom(ROOM, mac), false);
+});

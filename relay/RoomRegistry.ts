@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { bearerAllowed, ownerHashMatches, sha256Hex } from "./admission.ts";
+import { bearerAllowed, constantTimeHexEqual, ownerHashMatches, sha256Hex } from "./admission.ts";
 import { RelayError, type RelayErrorCode } from "./errors.ts";
 import { CLIENT_ID_LEN } from "./envelope.ts";
 
@@ -14,7 +14,6 @@ type Room = {
   mac: RelaySocket | null;
   allow: Set<string>; // device-bearer SHA-256 hashes, hex
   devices: Map<string, RelaySocket>; // clientId(hex) -> device socket
-  deviceTokens: Map<string, string>; // clientId(hex) -> apnsToken (opt-in push)
 };
 
 type ConnMeta =
@@ -37,10 +36,14 @@ export class RoomRegistry {
   private meta = new Map<RelaySocket, ConnMeta>();
   private ownerHashPin: string | null;
   private maxRoomDevices: number;
+  // The owner hash a room kept from an earlier run of the relay, so a restart does not reopen
+  // the room to whoever registers first.
+  private knownOwner: (room: string) => string | null;
 
-  constructor(opts: { ownerHashPin?: string | null; maxRoomDevices?: number } = {}) {
+  constructor(opts: { ownerHashPin?: string | null; maxRoomDevices?: number; knownOwner?: (room: string) => string | null } = {}) {
     this.ownerHashPin = opts.ownerHashPin ?? null;
     this.maxRoomDevices = opts.maxRoomDevices ?? 32;
+    this.knownOwner = opts.knownOwner ?? (() => null);
   }
 
   // Mac claims/owns a room (§5.2). First valid registration pins the owner hash
@@ -60,12 +63,13 @@ export class RoomRegistry {
     }
     const ownerHash = sha256Hex(ownerBearer);
     if (this.ownerHashPin && this.ownerHashPin !== ownerHash) return { ok: false, code: RelayError.OWNER_MISMATCH };
+    const known = this.knownOwner(room);
+    if (known && !constantTimeHexEqual(ownerHash, known)) return { ok: false, code: RelayError.OWNER_MISMATCH };
     this.rooms.set(room, {
       ownerHash,
       mac: socket,
       allow: new Set(allow.map((h) => h.toLowerCase())),
       devices: new Map(),
-      deviceTokens: new Map(),
     });
     this.meta.set(socket, { role: "mac", room });
     return { ok: true, replaced: false };
@@ -73,12 +77,7 @@ export class RoomRegistry {
 
   // Device admission (§5.3). Constant-time bearer-hash membership; on success assign
   // a 16-byte clientId and return the Mac socket so the caller can notify it.
-  join(
-    room: string,
-    bearer: string,
-    socket: RelaySocket,
-    apnsToken?: string,
-  ): Ok<{ clientId: Buffer; mac: RelaySocket }> | Err {
+  join(room: string, bearer: string, socket: RelaySocket): Ok<{ clientId: Buffer; mac: RelaySocket }> | Err {
     const r = this.rooms.get(room);
     if (!r || !r.mac) return { ok: false, code: RelayError.ROOM_NOT_FOUND };
     if (!bearerAllowed(bearer, r.allow)) return { ok: false, code: RelayError.BEARER_DENIED };
@@ -86,18 +85,14 @@ export class RoomRegistry {
     const clientId = randomBytes(CLIENT_ID_LEN);
     const hex = clientId.toString("hex");
     r.devices.set(hex, socket);
-    if (apnsToken) r.deviceTokens.set(hex, apnsToken);
     this.meta.set(socket, { role: "device", room, clientId: hex });
     return { ok: true, clientId, mac: r.mac };
   }
 
   // Mac-only allowlist mutation (§5.2 relayctl allow-add/allow-remove).
   updateAllow(room: string, op: "add" | "remove", hash: string, fromSocket: RelaySocket): Ok<{}> | Err {
-    const m = this.meta.get(fromSocket);
     const r = this.rooms.get(room);
-    if (!r || !m || m.role !== "mac" || m.room !== room || r.mac !== fromSocket) {
-      return { ok: false, code: RelayError.OWNER_MISMATCH };
-    }
+    if (!r || !this.ownsRoom(room, fromSocket)) return { ok: false, code: RelayError.OWNER_MISMATCH };
     if (op === "add") r.allow.add(hash.toLowerCase());
     else r.allow.delete(hash.toLowerCase());
     return { ok: true };
@@ -113,11 +108,10 @@ export class RoomRegistry {
     return { ok: true };
   }
 
-  // Per-device APNs tokens for opt-in push egress lookup (§5.3); the egress itself
-  // is a no-op stub in v1 (apns.ts).
-  deviceTokens(room: string): string[] {
-    const r = this.rooms.get(room);
-    return r ? [...r.deviceTokens.values()] : [];
+  // Whether the socket is the room's current Mac: only it may change the allowlist or push.
+  ownsRoom(room: string, socket: RelaySocket): boolean {
+    const m = this.meta.get(socket);
+    return Boolean(m && m.role === "mac" && m.room === room && this.rooms.get(room)?.mac === socket);
   }
 
   // Connection teardown. A dropped Mac leaves the room (and its allowlist) intact for
@@ -135,7 +129,6 @@ export class RoomRegistry {
       this.evictDevices(r);
       return { role: "mac", room: m.room };
     }
-    r.deviceTokens.delete(m.clientId);
     if (r.devices.get(m.clientId) !== socket) return null;
     r.devices.delete(m.clientId);
     return { role: "device", room: m.room, clientId: Buffer.from(m.clientId, "hex"), mac: r.mac };
@@ -149,7 +142,6 @@ export class RoomRegistry {
       try { socket.close(); } catch { /* already closing */ }
     }
     r.devices.clear();
-    r.deviceTokens.clear();
   }
 
   roomCount(): number {

@@ -7,32 +7,9 @@ import { createRelay } from "../server.ts";
 import { loadConfig } from "../config.ts";
 import { encodeEnvelope, encodeJsonEnvelope, parseEnvelope, FrameType, Dir } from "../envelope.ts";
 import { sha256Hex } from "../admission.ts";
+import { Inbox, body } from "./ws-inbox.ts";
 
 const ROOM = "AAAAAAAAAAAAAAAAAAAAAA";
-
-// Buffers inbound binary messages so a test can await them in arrival order.
-class Inbox {
-  private queue: Buffer[] = [];
-  private waiters: ((b: Buffer) => void)[] = [];
-  constructor(ws: WebSocket) {
-    ws.binaryType = "nodebuffer";
-    ws.on("message", (d) => {
-      const buf = d as Buffer;
-      const w = this.waiters.shift();
-      if (w) w(buf);
-      else this.queue.push(buf);
-    });
-  }
-  next(): Promise<Buffer> {
-    const q = this.queue.shift();
-    if (q) return Promise.resolve(q);
-    return new Promise((resolve) => this.waiters.push(resolve));
-  }
-}
-
-function body(buf: Buffer): Record<string, unknown> {
-  return JSON.parse(parseEnvelope(buf).payload.toString("utf8"));
-}
 
 // Registered Mac + joined device, each with its inbox (the acks already consumed).
 async function macAndDevice(url: string) {

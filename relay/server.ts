@@ -10,7 +10,12 @@ import {
   MAX_ENVELOPE_BYTES,
 } from "./envelope.ts";
 import { errorPayload, RelayError, type RelayErrorCode } from "./errors.ts";
-import { sendPushIntent, type PushIntent } from "./apns.ts";
+import { sha256Hex } from "./admission.ts";
+import { ApnsSender, isPushCount, isPushKind, type ApnsEnv } from "./push/apns.ts";
+import { Pusher } from "./push/pusher.ts";
+import { PushRate } from "./push/rate.ts";
+import { handlePush } from "./push/routes.ts";
+import { PushTokens } from "./push/tokens.ts";
 import { VaultStore } from "./vault/VaultStore.ts";
 import { handleVault, type VaultWaiters } from "./vault/routes.ts";
 
@@ -56,7 +61,9 @@ function notify(target: RelaySocket, room: string, json: Record<string, unknown>
   target.send(encodeJsonEnvelope({ type: FrameType.relayctl, room, dir: Dir.s2c, clientId, json }));
 }
 
-function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void {
+type Push = { tokens: PushTokens; pusher: Pusher };
+
+function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry, push: Push): void {
   if (raw.length > MAX_ENVELOPE_BYTES) {
     sendError(ws, "", RelayError.FRAME_TOO_LARGE, "envelope exceeds 5 MiB");
     return;
@@ -84,8 +91,12 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
         return;
       }
       const res = registry.register(room, owner, allow, ws);
-      if (!res.ok) sendError(ws, room, res.code, "register rejected");
-      else notify(ws, room, { t: "registered", room });
+      if (!res.ok) {
+        sendError(ws, room, res.code, "register rejected");
+        return;
+      }
+      push.tokens.keepRoom(room, sha256Hex(owner), allow.map((h) => h.toLowerCase()));
+      notify(ws, room, { t: "registered", room });
       return;
     }
     case FrameType.join: {
@@ -93,16 +104,19 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
       const room = str(j?.room) ?? env.room;
       const bearer = str(j?.bearer);
       const apnsToken = str(j?.apnsToken);
+      // A released phone sends no apnsEnv: its build talks to production.
+      const apnsEnv: ApnsEnv = j?.apnsEnv === "sandbox" ? "sandbox" : "production";
       // A silent drop here would leave the device waiting on a join-ack forever.
       if (!j || !bearer || !room) {
         sendError(ws, room ?? "", RelayError.BAD_REQUEST, "join needs room + bearer");
         return;
       }
-      const res = registry.join(room, bearer, ws, apnsToken);
+      const res = registry.join(room, bearer, ws);
       if (!res.ok) {
         sendError(ws, room, res.code, "join rejected");
         return;
       }
+      if (apnsToken) push.tokens.save(room, sha256Hex(bearer), apnsToken, apnsEnv);
       // §4.2 mandates BOTH deliveries: notify the Mac so it spins up the per-client
       // session, and ack the joining device so it learns the clientId it must stamp
       // on every outgoing frame. The device MUST NOT send a data frame before this
@@ -121,11 +135,20 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
         if (!hash) return;
         const res = registry.updateAllow(room, t === "allow-add" ? "add" : "remove", hash, ws);
         if (!res.ok) sendError(ws, room, res.code, "allowlist update rejected");
-      } else if (t === "pushIntent") {
-        // Opt-in APNs egress — no-op stub unless the operator configured their own
-        // APNs key + bundle-id (apns.ts). pushIntent framing is provisional.
-        const intent = j as PushIntent;
-        for (const token of registry.deviceTokens(room)) sendPushIntent(token, intent);
+        else if (t === "allow-remove") push.tokens.remove(room, hash.toLowerCase());
+      } else if (t === "push") {
+        if (!registry.ownsRoom(room, ws)) {
+          sendError(ws, room, RelayError.OWNER_MISMATCH, "only the room's owner may push");
+          return;
+        }
+        if (!isPushKind(j.kind) || !isPushCount(j.count)) {
+          sendError(ws, room, RelayError.BAD_REQUEST, "push needs a known kind + a whole count");
+          return;
+        }
+        push.pusher
+          .push(room, j.kind, j.count)
+          .then((answer) => notify(ws, room, { t: "push-result", ...answer }))
+          .catch(() => sendError(ws, room, RelayError.BAD_REQUEST, "push failed"));
       }
       return;
     }
@@ -136,9 +159,16 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
   }
 }
 
-export function createRelay(config: RelayConfig): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry; vault: VaultStore } {
-  const registry = new RoomRegistry({ ownerHashPin: config.ownerHashPin, maxRoomDevices: config.maxRoomDevices });
+export function createRelay(config: RelayConfig): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry; vault: VaultStore; tokens: PushTokens } {
   const vault = new VaultStore(config.vaultPath, { maxVaults: config.maxVaults, maxVaultBytes: config.maxVaultBytes });
+  const tokens = new PushTokens(config.vaultPath);
+  const sender = new ApnsSender(config);
+  const push = { tokens, pusher: new Pusher(tokens, sender, new PushRate()) };
+  const registry = new RoomRegistry({
+    ownerHashPin: config.ownerHashPin,
+    maxRoomDevices: config.maxRoomDevices,
+    knownOwner: (room) => tokens.ownerHash(room),
+  });
   const waiters: VaultWaiters = new Map();
   const httpServer = createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
@@ -147,6 +177,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
       return;
     }
     if (handleVault(req, res, vault, waiters, config)) return;
+    if (handlePush(req, res, tokens, push.pusher)) return;
     res.writeHead(426, { "content-type": "text/plain" });
     res.end("Upgrade Required");
   });
@@ -164,14 +195,18 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
   }, config.heartbeatMs);
   heartbeat.unref?.();
   wss.on("close", () => clearInterval(heartbeat));
-  httpServer.on("close", () => vault.close());
+  httpServer.on("close", () => {
+    vault.close();
+    tokens.close();
+    sender.close();
+  });
   wss.on("connection", (ws) => {
     ws.binaryType = "nodebuffer";
     alive.add(ws);
     ws.on("pong", () => alive.add(ws));
     ws.on("message", (data) => {
       const buf = asBuffer(data);
-      if (buf) handleMessage(ws, buf, registry);
+      if (buf) handleMessage(ws, buf, registry, push);
     });
     ws.on("close", () => {
       const dropped = registry.drop(ws);
@@ -181,7 +216,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     });
     ws.on("error", () => {});
   });
-  return { httpServer, wss, registry, vault };
+  return { httpServer, wss, registry, vault, tokens };
 }
 
 function isEntrypoint(): boolean {
