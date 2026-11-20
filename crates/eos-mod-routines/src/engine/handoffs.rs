@@ -56,6 +56,11 @@ pub(crate) fn may_start_in(
     if events.iter().any(|event| event.kind == START_ASKED) {
         return Ok(false);
     }
+    // An item opened earlier in this pass can pause the routine, which skips
+    // its queued runs: the pass still holds them as they were.
+    if tx.runs().find(&run.id)?.is_none_or(|run| run.state != RunState::Queued) {
+        return Ok(false);
+    }
     let name = tx.routines().find(&run.routine_id)?.map_or_else(|| "A routine".to_owned(), |routine| routine.name);
     let input: Option<RunInput> = serde_json::from_str(&run.input).ok();
     let item = input.and_then(|input| input.item);

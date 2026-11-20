@@ -225,3 +225,19 @@ async fn a_waiting_start_is_withdrawn_when_its_run_leaves_the_queue_without_it()
     assert_eq!(bench.state(&waiting), RunState::Skipped);
     assert_eq!(bench.item(&ask.id).state, eos_domain::inbox::ItemState::Withdrawn, "no answer can act on it");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_start_that_pauses_its_routine_asks_nothing_for_the_runs_it_skipped() {
+    let bench = Bench::new(true);
+    let routine = bench.routine_with(RoutineState::Active, asking(), true);
+    for _ in 0..eos_inbox::ROUTINE_CAP {
+        bench.open(item_of(ItemKind::Notice, &routine, None, json!({})));
+    }
+    let first = bench.triggered(&routine, 1).await;
+    let second = bench.triggered(&routine, 2).await;
+    bench.supervise().await;
+
+    bench.eventually(|| bench.state(&first) == RunState::Skipped && bench.state(&second) == RunState::Skipped).await;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(bench.items_of(&routine, ItemKind::RunStart).len(), 0, "no start waits for a run that cannot start");
+}
