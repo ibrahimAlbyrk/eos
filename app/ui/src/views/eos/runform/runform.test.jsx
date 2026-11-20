@@ -7,6 +7,7 @@ import { _resetRuns, startRun } from "../../../state/eos/runsStore.js";
 import { _resetRunSheet, open, registerHost, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { _resetEosNav, eosLocation } from "../nav/eosNav.js";
 import { comboKey, withChosen } from "./CandidateCombobox.jsx";
+import { holdsEnter } from "./RunForm.jsx";
 import { firstTime, laterAt, whenWords } from "./LaterPicker.jsx";
 import { _resetKeptForms, keepForm, RunSheet, sheetEscape, sheetPlace, sheetStyle } from "./RunSheet.jsx";
 import { initialForm } from "./runFormModel.js";
@@ -145,6 +146,24 @@ describe("the run sheet", () => {
     expect(typeof body.clientRequestId).toBe("string");
     expect(eosLocation()).toBe("eos:/runs/rn-new");
     expect(current().request).toBeNull();
+  });
+});
+
+describe("the run form's keys", () => {
+  it("holds plain Enter in a field and lets ⌘↵ and the Run button through", () => {
+    const key = (target, extra = {}) => holdsEnter({ key: "Enter", metaKey: false, ctrlKey: false, target, ...extra });
+    const input = { tagName: "INPUT" };
+    expect(key(input)).toBe(true);
+    expect(key(input, { metaKey: true })).toBe(false);
+    expect(key(input, { ctrlKey: true })).toBe(false);
+    expect(key({ tagName: "BUTTON" })).toBe(false);
+    expect(holdsEnter({ key: "a", target: input })).toBe(false);
+  });
+
+  it("takes the highlighted candidate on Enter and otherwise does nothing", () => {
+    expect(comboKey({ open: true, active: 1 }, "Enter", 3)).toEqual({ open: false, active: -1, chosen: 1 });
+    expect(comboKey({ open: true, active: -1 }, "Enter", 3)).toBeNull();
+    expect(comboKey({ open: false, active: -1 }, "Enter", 3)).toBeNull();
   });
 });
 
