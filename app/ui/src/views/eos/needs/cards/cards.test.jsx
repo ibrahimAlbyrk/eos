@@ -179,7 +179,7 @@ describe("the other cards", () => {
     const setValue = (key, value) => { values[key] = value; };
     const t = recording();
     setEosTransport(t);
-    await refreshInbox();
+    await loadInboxItem(problem.item.id);
     expect(await actionsOf(problem).find((a) => a.label === "Edit and retry").run(problem, values, setValue)).toBe(false);
     expect(values.edit).toEqual(original);
     expect(actionsOf(problem, values).map((a) => a.label)).not.toContain("Edit and retry");
