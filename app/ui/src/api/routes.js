@@ -343,6 +343,8 @@ export const ROUTES = {
   runsEstimate: "/api/runs/estimate",
   // What runs:active carries, before its first event.
   runsActive: "/api/runs/active",
+  // The runs that ended since a time, counted by how and by routine.
+  runsSummary: "/api/runs/summary",
   run: (id) => `/api/runs/${id}`,
   runResult: (id) => `/api/runs/${id}/result`,
   runEvents: (id) => `/api/runs/${id}/events`,

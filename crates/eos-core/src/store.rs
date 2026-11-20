@@ -85,7 +85,7 @@ pub use routines::{
     StoredRoutineSession, StoredSpend, StoredVersion,
 };
 pub use runs::{
-    RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
+    EndedCount, RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
     StoredRunResult,
 };
 pub use session::{AgentCaller, agent_caller, session_project, session_root};

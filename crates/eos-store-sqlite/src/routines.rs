@@ -401,6 +401,15 @@ impl RoutineSpendRepo for SqliteTx<'_> {
         .map(drop)
     }
 
+    fn total(&self, routine_id: &str, kind: &str) -> Result<f64, Error> {
+        let total = self.row(
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM routine_spend WHERE routine_id = ?1 AND kind = ?2",
+            params![routine_id, kind],
+            |r| r.get::<_, f64>(0).map_err(failed),
+        )?;
+        Ok(total.unwrap_or_default())
+    }
+
     fn of_day(&self, day: &str) -> Result<Vec<StoredSpend>, Error> {
         self.rows(
             "SELECT day, routine_id, kind, cost_usd, count FROM routine_spend WHERE day = ?1 ORDER BY routine_id, kind",

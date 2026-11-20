@@ -164,6 +164,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         stop.access(user(Tier::Low)),
         pause.access(user(Tier::Low)),
         resume.access(Access::ui_token()),
+        super::numbers::summary_route(engine),
     ]
 }
 

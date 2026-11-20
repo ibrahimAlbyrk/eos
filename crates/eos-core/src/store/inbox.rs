@@ -289,6 +289,8 @@ pub trait OutcomeRepo {
     fn insert(&self, outcome: &NewOutcome) -> Result<i64, Error>;
     /// A routine's last `limit` outcomes, newest first.
     fn by_routine(&self, routine_id: &str, limit: i64) -> Result<Vec<StoredOutcome>, Error>;
+    /// A routine's outcomes from `from` up to `until` (not included), oldest first.
+    fn between(&self, routine_id: &str, from: i64, until: i64) -> Result<Vec<StoredOutcome>, Error>;
     /// Whether a routine's send `delivery_id` has an outcome `outcome`.
     fn judged(&self, routine_id: &str, delivery_id: &str, outcome: &str) -> Result<bool, Error>;
 }

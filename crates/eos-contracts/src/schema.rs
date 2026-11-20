@@ -577,6 +577,7 @@ bundle![
     RunnerDevice,
     RunnerView,
     RunsActive,
+    RunsSummary,
     Schedule,
     SchedulePreviewRequest,
     SchedulePreviewResponse,

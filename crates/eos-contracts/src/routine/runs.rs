@@ -1,5 +1,6 @@
 //! Starting runs, and the topics that say how runs move.
 
+use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +91,19 @@ pub struct RunActivity {
 }
 
 impl Validate for RunActivity {}
+
+/// `GET /api/runs/summary?since=`: the runs that ended since a time,
+/// counted by how they ended (an outcome word, or `failed`, `skipped`,
+/// `cancelled`), in all and by routine.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunsSummary {
+    pub since: i64,
+    pub by_outcome: IndexMap<String, i64>,
+    pub by_routine: IndexMap<String, IndexMap<String, i64>>,
+}
+
+impl Validate for RunsSummary {}
 
 /// `runs:active`: how many runs work, and how many wait on the user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]

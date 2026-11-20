@@ -227,7 +227,7 @@ pub(crate) fn summary(
         runs7d: counts.since,
         active_runs: counts.live,
         last_run,
-        stats: None,
+        stats: Some(super::numbers::stats_in(tx, routine, counts.since, now)?),
     }))
 }
 

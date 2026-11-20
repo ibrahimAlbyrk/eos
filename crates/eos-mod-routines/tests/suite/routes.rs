@@ -230,9 +230,8 @@ async fn a_routine_reads_back_with_its_versions_numbered_by_when_they_were_made(
     assert_eq!(row["lastRun"]["itemTitle"], "Fix the login");
     assert_eq!(row["triggerLine"], "Every weekday at 05:00");
     assert_eq!(row["usual"], json!({"usd": 0.25, "ms": 60_000}), "its one finished run");
-    for absent in ["stats", "pausedReason"] {
-        assert!(row.get(absent).is_none(), "{absent}");
-    }
+    assert!(row.get("pausedReason").is_none());
+    assert_eq!(row["stats"]["runs7d"], 2, "the row's numbers");
 
     let (status, rows) = bench.read(&format!("/api/routines/{id}/versions")).await;
     assert_eq!(status, 200);
@@ -320,4 +319,90 @@ async fn the_users_dashboard_reads_them_all_and_the_phone_only_the_list_and_one_
     for path in &versions {
         assert_eq!(bench.get(phone.clone(), path).await.0, 403, "{path}: never the phone");
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_row_carries_its_numbers() {
+    let bench = Bench::new();
+    let (id, _) = bench.routine("hand", RoutineState::Active, &[pr_review("Reviews.")]);
+    bench.run(&id, 9 * DAY, RunState::Done);
+    bench.run(&id, 2 * DAY, RunState::Done);
+    bench.run(&id, DAY, RunState::Failed);
+    let made = bench.now - 10 * DAY;
+    // The first week: one of two sent as it was; this week: three of four.
+    let outcomes = [
+        (made + DAY, "sent_unedited"),
+        (made + 2 * DAY, "sent_edited"),
+        (made + 3 * DAY, "auto_clean"),
+        (bench.now - 3 * DAY, "sent_unedited"),
+        (bench.now - 2 * DAY, "sent_unedited"),
+        (bench.now - 2 * DAY, "discarded"),
+        (bench.now - DAY, "sent_unedited"),
+        (bench.now - DAY, "expired"),
+    ];
+    let routine = id.clone();
+    bench
+        .rig
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            for (at, outcome) in outcomes {
+                tx.inbox_outcomes().insert(&eos_core::store::NewOutcome {
+                    routine_id: routine.clone(),
+                    run_id: "rn-x".into(),
+                    item_id: None,
+                    delivery_id: None,
+                    outcome: outcome.into(),
+                    rung: "draft".into(),
+                    at,
+                })?;
+            }
+            tx.routine_spend().add("2027-01-05", &routine, "architect", 1.25)?;
+            tx.routine_spend().add("2027-01-06", &routine, "architect", 0.25)?;
+            tx.routine_spend().add("2027-01-06", &routine, "run", 9.0)
+        })
+        .expect("writes");
+
+    let (_, detail) = bench.read(&format!("/api/routines/{id}")).await;
+    assert_eq!(
+        detail["routine"]["stats"],
+        json!({"sentUnedited7d": 0.75, "baselineFirstWeek": 0.5, "runs7d": 2, "cost7d": 0.5, "setupUsd": 1.5})
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_runs_summary_counts_by_how_runs_ended_and_by_routine() {
+    let bench = Bench::new();
+    let (first, _) = bench.routine("hand", RoutineState::Active, &[pr_review("Reviews.")]);
+    let (second, _) = bench.routine("hand", RoutineState::Active, &[pr_review("Reviews.")]);
+    let ended = |routine: &str, ago: i64, state: RunState, outcome: Option<&str>| {
+        let run = bench.run(routine, ago, state);
+        let outcome = outcome.map_or("NULL".to_owned(), |word| format!("'{word}'"));
+        bench
+            .rig
+            .temp
+            .exec(&format!("UPDATE runs SET ended_at = {}, outcome = {outcome} WHERE id = '{run}'", bench.now - ago));
+    };
+    ended(&first, 3 * DAY, RunState::Done, Some("sent_unedited"));
+    ended(&first, DAY, RunState::Done, Some("sent_unedited"));
+    ended(&first, DAY, RunState::Failed, None);
+    ended(&second, DAY, RunState::Done, Some("discarded"));
+    ended(&second, 5 * DAY, RunState::Done, Some("shown"));
+    bench.run(&second, DAY, RunState::Running);
+
+    let since = bench.now - 4 * DAY;
+    let (status, summary) = bench.read(&format!("/api/runs/summary?since={since}")).await;
+    assert_eq!(status, 200, "{summary}");
+    assert_eq!(summary["since"], since);
+    assert_eq!(summary["byOutcome"], json!({"sent_unedited": 2, "failed": 1, "discarded": 1}));
+    assert_eq!(summary["byRoutine"][&first], json!({"failed": 1, "sent_unedited": 2}));
+    assert_eq!(summary["byRoutine"][&second], json!({"discarded": 1}));
+    assert_eq!(bench.read("/api/runs/summary").await.0, 400, "since is required");
+    assert_eq!(
+        bench
+            .get(Caller::Phone { grant: Tier::Read, mutate: false }, &format!("/api/runs/summary?since={since}"))
+            .await
+            .0,
+        200
+    );
 }

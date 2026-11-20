@@ -139,6 +139,17 @@ impl OutcomeRepo for SqliteTx<'_> {
         )
     }
 
+    fn between(&self, routine_id: &str, from: i64, until: i64) -> Result<Vec<StoredOutcome>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {OUTCOME_COLUMNS} FROM inbox_outcomes WHERE routine_id = ?1 AND at >= ?2 AND at < ?3 \
+                 ORDER BY at, id"
+            ),
+            params![routine_id, from, until],
+            outcome,
+        )
+    }
+
     fn judged(&self, routine_id: &str, delivery_id: &str, outcome: &str) -> Result<bool, Error> {
         let found = self.row(
             "SELECT 1 FROM inbox_outcomes WHERE routine_id = ?1 AND delivery_id = ?2 AND outcome = ?3 LIMIT 1",

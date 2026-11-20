@@ -3,7 +3,7 @@
 use eos_core::Error;
 use eos_core::routine::{FinishedRun, RoutineLoad};
 use eos_core::store::{
-    RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
+    EndedCount, RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
     StoredRunResult,
 };
 use eos_domain::routine::numbers::Outcome;
@@ -300,6 +300,29 @@ impl RunRepo for SqliteTx<'_> {
             |r| Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?)),
         )?;
         Ok(counts.unwrap_or_default())
+    }
+
+    fn cost_since(&self, routine_id: &str, since: i64) -> Result<f64, Error> {
+        let cost = self.row(
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM runs WHERE routine_id = ?1 AND created_at >= ?2",
+            params![routine_id, since],
+            |r| r.get::<_, f64>(0).map_err(failed),
+        )?;
+        Ok(cost.unwrap_or_default())
+    }
+
+    fn ended_counts(&self, since: i64) -> Result<Vec<EndedCount>, Error> {
+        self.rows(
+            "SELECT routine_id, COALESCE(outcome, state), COUNT(*) FROM runs WHERE ended_at >= ?1 \
+             GROUP BY routine_id, COALESCE(outcome, state) ORDER BY routine_id, 2",
+            [since],
+            |r| {
+                let read = || -> rusqlite::Result<EndedCount> {
+                    Ok(EndedCount { routine_id: r.get(0)?, ended: r.get(1)?, count: r.get(2)? })
+                };
+                read().map_err(failed)
+            },
+        )
     }
 
     fn queued_count(&self) -> Result<i64, Error> {
