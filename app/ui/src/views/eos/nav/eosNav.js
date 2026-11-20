@@ -13,7 +13,7 @@ const START = HOME;
 const STORAGE_KEY = "eos:location";
 const BACK_LIMIT = 50;
 
-const ROUTINE_TABS = ["overview", "runs", "blueprint", "learned"];
+const ROUTINE_TABS = ["overview", "runs", "signals", "blueprint", "learned"];
 const MEMORY_TABS = ["about", "work"];
 const SURFACE_MODES = ["reshape"];
 

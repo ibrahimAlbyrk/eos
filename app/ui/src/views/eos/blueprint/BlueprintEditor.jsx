@@ -140,7 +140,7 @@ export function BlueprintEditor({ detail, versionNumber }) {
         {!version && (view.versionId || (old && !rows)) && <Loading blocks={4} />}
         {!view.versionId && (!old || rows) && <p className="eos-note">{old ? "This routine has no such version." : "This routine has no blueprint yet."}</p>}
         {version && (
-          <BlueprintCard blueprint={version.blueprint} onEdit={onEdit} changed={changed} routines={list} head={head}>
+          <BlueprintCard blueprint={version.blueprint} onEdit={onEdit} changed={changed} routines={list} head={head} routineId={id}>
             {old && (
               <OldActions
                 id={id}

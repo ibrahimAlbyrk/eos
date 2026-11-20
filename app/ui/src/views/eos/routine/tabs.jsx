@@ -2,11 +2,13 @@ import { BlueprintEditor } from "../blueprint/BlueprintEditor.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { RightNow } from "./RightNow.jsx";
 import { RunRow } from "./RoutineRuns.jsx";
+import { Triggers } from "./Triggers.jsx";
 
 // The tabs this version has; Learned waits for Memory (P4) and shows Overview.
 export const TABS = [
   { key: "overview", label: "Overview" },
   { key: "runs", label: "Runs" },
+  { key: "signals", label: "Signals" },
   { key: "blueprint", label: "Blueprint" },
 ];
 
@@ -62,7 +64,10 @@ export function OverviewTab({ detail, now }) {
           )}
         </section>
       </div>
-      {detail.routine.stats?.sentUnedited7d != null && <div><GettingBetter stats={detail.routine.stats} /></div>}
+      <div>
+        <Triggers detail={detail} now={now} />
+        <GettingBetter stats={detail.routine.stats} />
+      </div>
     </div>
   );
 }

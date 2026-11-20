@@ -38,8 +38,8 @@ function Part({ part, editable, open, setOpen, apply }) {
 // A row of the blueprint card: the slot's name and its words. With `onApply`
 // each underlined value opens its own small editor, and a value chosen there
 // becomes the slot's new value. `changed` marks a slot that differs from
-// the version it is compared with.
-export function SlotRow({ label, parts, onApply, changed = false }) {
+// the version it is compared with; `preview` goes under its words.
+export function SlotRow({ label, parts, onApply, changed = false, preview }) {
   const [open, setOpen] = useState(null);
   const editable = Boolean(onApply);
   const opened = editable && parts.find((p) => typeof p === "object" && p.key === open);
@@ -55,6 +55,7 @@ export function SlotRow({ label, parts, onApply, changed = false }) {
           <Part key={typeof p === "object" && p.key ? p.key : n} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
         ))}
         {opened && <PartEditor part={opened} done={done} />}
+        {preview}
       </dd>
     </div>
   );

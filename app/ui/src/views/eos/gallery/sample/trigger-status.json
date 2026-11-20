@@ -1,0 +1,92 @@
+{
+  "rt-4k2n8q1x7m3p": {
+    "routineId": "rt-4k2n8q1x7m3p",
+    "holder": {
+      "deviceId": "dv-studio",
+      "name": "Studio",
+      "here": true
+    },
+    "schedules": [
+      {
+        "slot": 1,
+        "nextAt": 1763539200000,
+        "lastAt": 1763452800000,
+        "lateByMs": 7200000,
+        "missed": 2,
+        "zone": "Europe/Istanbul",
+        "zoneDiffers": true
+      }
+    ],
+    "sources": [
+      {
+        "sourceId": "sg-github-pulls",
+        "kind": "capability",
+        "source": "github.pulls",
+        "state": "active",
+        "lastPollAt": 1763456400000,
+        "nextPollAt": 1763456700000,
+        "lastSignalAt": 1763456300000,
+        "catchUp": {
+          "at": 1763452800000,
+          "items": 14,
+          "gapMs": 36000000
+        }
+      }
+    ],
+    "batch": {
+      "items": 3,
+      "openedAt": 1763455800000,
+      "closesAt": 1763457600000
+    },
+    "countsToday": {
+      "handled": 4,
+      "waiting": 0,
+      "ignored": 2,
+      "heldBack": 0,
+      "failed": 0,
+      "missed": 0,
+      "late": 0
+    },
+    "counts7d": {
+      "handled": 21,
+      "waiting": 0,
+      "ignored": 9,
+      "heldBack": 3,
+      "failed": 0,
+      "missed": 2,
+      "late": 1
+    }
+  },
+  "rt-2x8k5n1q6w0r": {
+    "routineId": "rt-2x8k5n1q6w0r",
+    "schedules": [],
+    "sources": [
+      {
+        "sourceId": "sg-mail-inbox",
+        "kind": "capability",
+        "source": "mail.inbox",
+        "state": "needs-attention",
+        "errorKind": "unauthorized",
+        "lastPollAt": 1763366400000
+      }
+    ],
+    "countsToday": {
+      "handled": 0,
+      "waiting": 0,
+      "ignored": 0,
+      "heldBack": 0,
+      "failed": 0,
+      "missed": 0,
+      "late": 0
+    },
+    "counts7d": {
+      "handled": 0,
+      "waiting": 0,
+      "ignored": 0,
+      "heldBack": 5,
+      "failed": 0,
+      "missed": 0,
+      "late": 0
+    }
+  }
+}

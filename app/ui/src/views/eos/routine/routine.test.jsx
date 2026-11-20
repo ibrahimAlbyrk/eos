@@ -91,20 +91,16 @@ describe("the routine page", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run now</button>');
   });
 
-  it("says a routine with a trigger runs when the user starts it, until triggers arrive", async () => {
+  it("says what starts the routine under its summary, and no longer that triggers wait", async () => {
     const html = await page(`eos:/routines/${PR}`);
     expect(html).toContain('<p class="eos-routine__summary">Reviews each new pull request and drafts a review for you to send.</p>');
     expect(html).toContain('<p class="eos-routine__line">When a pull request opens in acme/game</p>');
-    expect(html).toContain('<p class="eos-routine__line">Runs when you start it, until triggers arrive</p>');
-
-    const noTrigger = { ...routineDetail, routine: { ...routineDetail.routine, triggerLine: undefined } };
-    const plain = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.routine(PR)]: noTrigger }));
-    expect(plain).not.toContain("until triggers arrive");
+    expect(html).not.toContain("Runs when you start it");
   });
 
   it("shows Overview first: nothing running, the recent runs, and no Getting better without stats", async () => {
     const html = await page(`eos:/routines/${PR}`);
-    expect(tabs(html)).toEqual(["Overview*", "Runs", "Blueprint"]);
+    expect(tabs(html)).toEqual(["Overview*", "Runs", "Signals", "Blueprint"]);
     expect(html).not.toContain("Learned");
     expect(html).toContain("Nothing is running.");
     expect(html).toContain('<span class="eos-run-row__title">Fix the login</span>');
@@ -130,7 +126,7 @@ describe("the routine page", () => {
     setEosTransport(fixtureTransport(reads));
     await loadRuns(PR);
     const runsTab = await page(`eos:/routines/${PR}?tab=runs`);
-    expect(tabs(runsTab)).toEqual(["Overview", "Runs*", "Blueprint"]);
+    expect(tabs(runsTab)).toEqual(["Overview", "Runs*", "Signals", "Blueprint"]);
     expect(runsTab).toContain('<span class="eos-run-row__title">Fix the login</span>');
 
     const mixed = { runs: [...runsPage.runs, { ...runsPage.runs[0], id: "rn-hand", origin: "hand" }] };
@@ -140,14 +136,14 @@ describe("the routine page", () => {
     expect([...draw().matchAll(/role="radio" aria-checked="(?:true|false)" class="eos-seg__opt">([^<]*)</g)].map((m) => m[1])).toEqual(["All", "Triggered", "By hand"]);
 
     const blueprint = await page(`eos:/routines/${MAIL}?tab=blueprint`);
-    expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Blueprint*"]);
+    expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Signals", "Blueprint*"]);
     expect(blueprint).toContain('aria-label="Conversation with the architect"');
     expect([...blueprint.matchAll(/<dt class="eos-bp-row__label">([^<]*)</g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
-    expect(blueprint).toContain("Runs when you start it, until triggers arrive");
+    expect(blueprint).not.toContain("Runs when you start it");
   });
 
   it("shows Overview for the Learned tab, which waits for Memory", async () => {
-    expect(tabs(await page(`eos:/routines/${PR}?tab=learned`))).toEqual(["Overview*", "Runs", "Blueprint"]);
+    expect(tabs(await page(`eos:/routines/${PR}?tab=learned`))).toEqual(["Overview*", "Runs", "Signals", "Blueprint"]);
   });
 
   it("bands a paused routine with its reason in words, Resume and its last run", async () => {
