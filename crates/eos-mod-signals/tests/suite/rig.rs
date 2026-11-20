@@ -81,17 +81,25 @@ impl Store for Flaky {
 pub(crate) struct SavedIntake {
     calls: AtomicUsize,
     fail_at: Option<usize>,
+    /// Every admission of this routine fails.
+    failing: Option<String>,
 }
 
 impl SavedIntake {
     pub(crate) fn new(fail_at: Option<usize>) -> Self {
-        Self { calls: AtomicUsize::new(0), fail_at }
+        Self { calls: AtomicUsize::new(0), fail_at, failing: None }
+    }
+
+    /// Fails every admission of `routine_id`.
+    pub(crate) fn failing(routine_id: &str) -> Self {
+        Self { failing: Some(routine_id.to_owned()), ..Self::new(None) }
     }
 }
 
 impl RunIntake for SavedIntake {
     fn admit(&self, _tx: &dyn Tx, out: &mut Outbox, admission: &Admission) -> Result<AdmitOutcome, Error> {
-        if Some(self.calls.fetch_add(1, Ordering::SeqCst)) == self.fail_at {
+        let failing = self.failing.as_deref() == Some(admission.routine_id.as_str());
+        if Some(self.calls.fetch_add(1, Ordering::SeqCst)) == self.fail_at || failing {
             return Err(Error::Storage("the run could not be queued".into()));
         }
         out.push(ADMITTED, &json!({ "routine": admission.routine_id, "signal": admission.signal_id }));

@@ -342,7 +342,7 @@ impl Router {
         loop {
             let waiting = self.store.read(move |tx| tx.signals().received(after, BATCH)).await?;
             let Some(last) = waiting.last() else {
-                self.close_due_batches(&routines).await?;
+                self.close_due_batches(&routines).await;
                 return Ok(routed);
             };
             after = last.id;
@@ -394,18 +394,21 @@ impl Router {
     }
 
     /// Closes the batches of the active routines held here that came due,
-    /// one write each.
-    async fn close_due_batches(&self, routines: &[RoutineTriggers]) -> Result<(), Error> {
+    /// one write each; one whose write fails is logged and tried again next
+    /// pass, while the others close.
+    async fn close_due_batches(&self, routines: &[RoutineTriggers]) {
         if !self.autostart {
-            return Ok(());
+            return;
         }
         let held = |routine: &&RoutineTriggers| matches!(self.runner.holder(&routine.id), Holder::Here { .. });
         let batching = routines.iter().filter(|routine| routine.when.batch.is_some()).filter(held);
         for routine in batching.filter(|routine| routine.state == RoutineState::Active) {
-            let (intake, routine, now) = (self.intake.clone(), routine.clone(), self.clock.now_ms());
-            self.store.write(move |tx, out| batch::close_in(tx, out, intake.as_ref(), &routine, now)).await?;
+            let (intake, closing, now) = (self.intake.clone(), routine.clone(), self.clock.now_ms());
+            let closed = self.store.write(move |tx, out| batch::close_in(tx, out, intake.as_ref(), &closing, now));
+            if let Err(error) = closed.await {
+                tracing::warn!(routine_id = %routine.id, error = error_kind(&error), "a batch could not be closed");
+            }
         }
-        Ok(())
     }
 
     /// Routes until stopped: at once (what a crash left `received`), then

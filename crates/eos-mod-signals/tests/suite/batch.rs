@@ -8,7 +8,7 @@ use eos_domain::routine::run::RunState;
 use eos_runtime::module::Module;
 use serde_json::json;
 
-use crate::rig::{Bench, SOURCE_ID, TableIntake, page, pull, routine};
+use crate::rig::{Bench, SOURCE_ID, SavedIntake, TableIntake, page, pull, routine};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_hundred_and_twenty_signals_make_runs_of_fifty_fifty_and_twenty() {
@@ -32,5 +32,30 @@ async fn a_hundred_and_twenty_signals_make_runs_of_fifty_fifty_and_twenty() {
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
     assert_eq!(bench.runs("rt-mail")[2], (RunState::Queued, 20));
+    module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_batch_that_cannot_close_leaves_the_next_routines_batch_to_close() {
+    let batched = |id: &str| {
+        let mut batching = routine(id, RoutineState::Active, &["opened"], None);
+        batching.when.batch = Some(serde_json::from_value(json!({"max": 50, "waitMinutes": 5})).expect("a batch"));
+        batching
+    };
+    let bench = Bench::new(vec![batched("rt-a"), batched("rt-b")]);
+    // rt-a's batch, closed first, never admits its run.
+    let intake = Arc::new(SavedIntake::failing("rt-a"));
+    let module = bench.module(bench.temp.port(), intake.clone(), true);
+    module.ingest(SOURCE_ID, page(vec![pull(1, "a", "opened", false, &[])], json!({}))).await.expect("kept");
+    bench.route(&module).await;
+    assert_eq!(bench.decided("batched"), 2);
+    module.stop().await;
+
+    // Both batches are due when the next router starts.
+    bench.clock.advance(5 * 60 * 1000);
+    let module = bench.module(bench.temp.port(), intake, true);
+    module.after_ready().await.expect("ready");
+    bench.until(|| !bench.admitted().is_empty()).await;
+    assert_eq!(bench.admitted(), [("rt-b".to_owned(), 1)]);
     module.stop().await;
 }
