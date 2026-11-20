@@ -128,6 +128,11 @@ impl Duty {
         duty
     }
 
+    /// Runs of routines working, as the item shows them.
+    pub(crate) fn working(&self) -> u32 {
+        self.state.lock().unwrap_or_else(|p| p.into_inner()).working
+    }
+
     fn change(&self, edit: impl FnOnce(&mut MenuState)) {
         let changed = {
             let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());

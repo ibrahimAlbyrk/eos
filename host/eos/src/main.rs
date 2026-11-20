@@ -19,7 +19,7 @@ use eos_bridge::{Bridge, Classify, Core, LateCore, NoCore, RouterCore};
 use eos_contracts::update::UpdateApply;
 use eos_core::BoxFuture;
 use eos_core::net::updates::UpdateApplier;
-use eos_shell::{Hooks, Options, Ports};
+use eos_shell::{Hooks, Options, Ports, QuitCheck};
 use eos_update::handover::{ApplierLauncher, Handover};
 
 fn env(name: &str) -> Option<String> {
@@ -411,6 +411,10 @@ impl Hooks for Eos {
                 signals.woke();
             });
         }
+    }
+
+    fn quit_check(&self) -> QuitCheck {
+        QuitCheck { active_runs: self.core.duty.get().map_or(0, |duty| duty.working()) }
     }
 
     fn shutdown(&self) {
