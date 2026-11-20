@@ -3,7 +3,7 @@
 //! what changed; a branch's new commits are one signal, a force-push says
 //! so; a folder that cannot be read says why.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 
@@ -156,16 +156,40 @@ async fn a_listing_after_a_closed_period_finds_what_changed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_folder_that_is_missing_or_inside_the_data_folder_says_why() {
-    let bench = Bench::new(Vec::new());
-    let inside = bench.home.join("pages");
-    std::fs::create_dir_all(&inside).expect("a folder");
+    let link = std::env::temp_dir().join(format!("eos-data-link-{}", std::process::id()));
+    for spelling in ["pages", "parent", "link", "case"] {
+        let bench = Bench::new(Vec::new());
+        let home = bench.home.path().to_owned();
+        std::fs::create_dir_all(home.join("pages")).expect("a folder");
+        let inside = match spelling {
+            "pages" => home.join("pages"),
+            "parent" => home.join("..").join(home.file_name().expect("a name")).join("pages"),
+            "link" => {
+                let _ = std::fs::remove_file(&link);
+                std::os::unix::fs::symlink(&home, &link).expect("a link");
+                link.join("pages")
+            }
+            _ => {
+                let upper = PathBuf::from(home.join("pages").to_string_lossy().to_uppercase());
+                if !upper.exists() {
+                    continue; // a disk that tells letter case apart
+                }
+                upper
+            }
+        };
+        bench.directory.set(vec![pdfs(&inside)]);
+        let module = started(&bench, "folder").await;
+        let row = row(&bench, "folder").expect("the row");
+        assert_eq!(
+            (row.state.as_str(), row.error_kind.as_deref()),
+            ("needs-attention", Some("inside-data")),
+            "{spelling}"
+        );
+        assert_eq!(bench.watcher.leases(&inside), 0, "never watched");
+        module.stop().await;
+    }
+    let _ = std::fs::remove_file(&link);
     let missing = std::env::temp_dir().join("eos-no-such-folder-0a1b2c");
-    bench.directory.set(vec![pdfs(&inside)]);
-    let module = started(&bench, "folder").await;
-    let row = row(&bench, "folder").expect("the row");
-    assert_eq!((row.state.as_str(), row.error_kind.as_deref()), ("needs-attention", Some("inside-data")));
-    assert_eq!(bench.watcher.leases(&inside), 0, "never watched");
-    module.stop().await;
 
     let bench = Bench::new(vec![pdfs(&missing)]);
     let module = started(&bench, "folder").await;

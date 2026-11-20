@@ -29,6 +29,7 @@ use eos_core::routine::RoutineTriggers;
 use eos_core::signals::{PollPage, SignalDraft};
 use eos_core::store::{Store, StoredSignalSource};
 use eos_core::{Clock, Error, Ids};
+use eos_domain::signals::when::inside_folder;
 use serde_json::Value;
 
 use crate::router::{Router, error_kind};
@@ -290,21 +291,27 @@ impl Local {
                 Ok(rows)
             })
             .await?;
+        let data_dir = self.real(&self.data_dir).await;
         let mut folders = 0;
-        Ok(rows
-            .into_iter()
-            .map(|(row, path)| {
-                let refused = if path.starts_with(&self.data_dir) {
-                    Some("inside-data")
-                } else if row.kind == FOLDER {
-                    folders += 1;
-                    (folders > FOLDERS_MAX).then_some("too-many-folders")
-                } else {
-                    None
-                };
-                Row { path: path.to_string_lossy().into_owned(), row, refused }
-            })
-            .collect())
+        let mut read = Vec::with_capacity(rows.len());
+        for (row, path) in rows {
+            let refused = if inside_folder(&self.real(&path).await, &data_dir) {
+                Some("inside-data")
+            } else if row.kind == FOLDER {
+                folders += 1;
+                (folders > FOLDERS_MAX).then_some("too-many-folders")
+            } else {
+                None
+            };
+            read.push(Row { path: path.to_string_lossy().into_owned(), row, refused });
+        }
+        Ok(read)
+    }
+
+    /// `path` with its links resolved, so a link into the data folder counts
+    /// as inside it; as written when it cannot be resolved.
+    async fn real(&self, path: &Path) -> PathBuf {
+        self.disk.canonical(path).await.unwrap_or_else(|_| path.to_owned())
     }
 }
 

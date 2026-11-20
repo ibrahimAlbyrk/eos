@@ -91,7 +91,7 @@ fn the_format_and_the_name() {
 #[test]
 fn a_folder_trigger_names_an_absolute_folder_outside_eos_s_data() {
     let folder = |path: &str| json!([{"folder": {"path": path, "events": ["added"]}}]);
-    for fine in ["/Users/me/Downloads", "/Users/me/.eos-old", "/Users/me"] {
+    for fine in ["/Users/me/Downloads", "/Users/me/.eos-old", "/Users/me", "/Users/me/.eos/../Downloads"] {
         let mut value = pr_review();
         value["when"]["on"] = folder(fine);
         assert_eq!(issues(&value), Vec::new(), "{fine}");
@@ -100,7 +100,15 @@ fn a_folder_trigger_names_an_absolute_folder_outside_eos_s_data() {
     for relative in ["~/Downloads", "Downloads", "./in"] {
         assert_eq!(one_issue(|v| v["when"]["on"] = folder(relative)), issue(at, "Expected an absolute path"));
     }
-    for inside in [DATA_DIR, "/Users/me/.eos/", "/Users/me/.eos/pages"] {
+    for inside in [
+        DATA_DIR,
+        "/Users/me/.eos/",
+        "/Users/me/.eos/pages",
+        "/Users/me/x/../.eos/pages",
+        "/Users/me/./.eos",
+        "/users/me/.EOS/pages",
+        "/../Users/me/.eos",
+    ] {
         assert_eq!(
             one_issue(|v| v["when"]["on"] = folder(inside)),
             issue(at, "Must not be inside Eos's data folder"),

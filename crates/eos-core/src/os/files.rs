@@ -105,4 +105,6 @@ pub trait FileSystem: Send + Sync {
     fn move_entry<'a>(&'a self, from: &'a Path, to: &'a Path, overwrite: bool) -> BoxFuture<'a, Result<(), Error>>;
     /// A delete that can be undone: the system trash, else Eos's own trash folder.
     fn trash<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<(), Error>>;
+    /// The absolute path with every link resolved; the path must exist.
+    fn canonical<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<PathBuf, Error>>;
 }
