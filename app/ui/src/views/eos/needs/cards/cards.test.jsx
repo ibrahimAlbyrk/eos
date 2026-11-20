@@ -162,6 +162,16 @@ describe("the other cards", () => {
     expect(t.send.mock.calls.every(([method, path]) => method === "POST" && path.endsWith("/answer"))).toBe(true);
   });
 
+  it("answer a delivery problem with each choice the core takes", async () => {
+    const t = recording();
+    setEosTransport(t);
+    await refreshInbox();
+    for (const label of ["Try again", "I sent it myself", "Don't send"]) await act("delivery_problem", label);
+    expect(t.send.mock.calls.map(([, , body]) => body.answer)).toEqual(
+      ["retry", "mark_sent", "discard"].map((choice) => ({ kind: "delivery_problem", choice })),
+    );
+  });
+
   it("open an alert's routine without answering it", async () => {
     const t = recording();
     setEosTransport(t);

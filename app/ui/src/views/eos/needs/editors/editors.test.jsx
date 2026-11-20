@@ -114,6 +114,14 @@ describe("editing a review", () => {
     expect(html).not.toContain(">Edit</button>");
   });
 
+  it("edits a comment as the whole text GitHub posts, with no field the core does not send", async () => {
+    const titled = { ...original, parts: original.parts.map((p) => (p.key === "c:1" ? { ...p, meta: { ...p.meta, title: "Token" } } : p)) };
+    writeEdit(REVIEW, titled, 2, Date.now());
+    const html = await screen(REVIEW);
+    expect(html).not.toContain('aria-label="Title"');
+    expect(html).toContain('aria-label="Comment"');
+  });
+
   it("offers Edit on an untouched draft and shows a revert arrow only beside a changed field", async () => {
     let html = await screen(REVIEW);
     expect(html).toContain('<button type="button" class="eos-btn">Edit</button>');
