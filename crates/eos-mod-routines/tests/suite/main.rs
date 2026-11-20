@@ -8,6 +8,7 @@ mod budget;
 mod check;
 mod control;
 mod gate;
+mod halt;
 mod intent;
 mod isolation;
 mod ports;

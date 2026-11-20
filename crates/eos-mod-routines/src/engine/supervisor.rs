@@ -7,14 +7,16 @@
 //! the brief station then starts its lead, one run after the other, before
 //! the next pass. A run from a trigger is skipped while its routine's or
 //! everything's day budget is spent, and waits while the plan has no
-//! headroom; each turn of the loop also holds working runs to their time
-//! and suspends the architects that went idle.
+//! headroom or the battery is low; nothing leaves the queue while the user
+//! has stopped everything. Each turn of the loop also holds working runs to
+//! their time and suspends the architects that went idle.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use eos_contracts::RoutineState;
 use eos_core::Error;
+use eos_core::os::PowerStatus;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 
@@ -26,6 +28,9 @@ const IDLE_WAIT_MS: i64 = 60_000;
 /// How long it sleeps at most while runs work: their time is checked and
 /// their spend written each turn.
 const WORKING_WAIT_MS: i64 = 30_000;
+
+/// Below this charge on battery, runs from triggers wait (01 G48).
+const LOW_BATTERY_PERCENT: u8 = 20;
 
 /// Started by the user: the dev guard let the act through, so such a run
 /// starts even off the network.
@@ -40,11 +45,19 @@ pub(crate) fn spawn(engine: &Arc<Engine>) {
     }
 }
 
+/// On battery below [`LOW_BATTERY_PERCENT`], or in Low Power Mode.
+fn low_battery(power: &PowerStatus) -> bool {
+    power.low_power || (power.on_battery && power.battery_percent.is_some_and(|percent| percent < LOW_BATTERY_PERCENT))
+}
+
 async fn supervise(engine: Arc<Engine>) {
     loop {
+        // Asking the system may run a tool: off the writer and the runtime's threads.
+        let power = engine.power.clone();
+        let low = tokio::task::spawn_blocking(move || low_battery(&power.status())).await.unwrap_or(false);
         let now = engine.clock.now_ms();
         let (job, day) = (engine.clone(), budget::day(&engine));
-        let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, &day, now)).await {
+        let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, &day, low, now)).await {
             Ok(Pass { next_due, left }) => {
                 for run_id in left {
                     brief::start_lead(&engine, &run_id).await;
@@ -82,7 +95,17 @@ struct Pass {
 }
 
 /// One pass over the queue.
-fn pass(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, day: &budget::Day, now: i64) -> Result<Pass, Error> {
+fn pass(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    engine: &Arc<Engine>,
+    day: &budget::Day,
+    low_battery: bool,
+    now: i64,
+) -> Result<Pass, Error> {
+    if tx.inbox_halt().get()?.on {
+        return Ok(Pass { next_due: None, left: Vec::new() });
+    }
     let autostart = engine.autostart;
     let spent = budget::spent_in(tx, &day.day)?;
     let mut busy: HashMap<String, i64> = tx.runs().working()?.into_iter().collect();
@@ -122,7 +145,7 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, day: &budget::Day, 
                 budget::day_cap_notice_in(tx, out, engine, whose, now)?;
                 continue;
             }
-            if day.plan_busy {
+            if day.plan_busy || low_battery {
                 continue;
             }
         }

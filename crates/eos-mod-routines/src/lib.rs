@@ -66,7 +66,7 @@ use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
-use eos_core::os::{TimeZone, ZoneRules};
+use eos_core::os::{Power, TimeZone, ZoneRules};
 use eos_core::routine::{
     ArchitectTools, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake,
     RunLookup, RunOutcomes, RunStarter,
@@ -128,6 +128,8 @@ pub struct RoutinesParts {
     pub headroom: Arc<dyn PlanHeadroom>,
     /// The small model that reads what a sentence typed at Home asks for.
     pub one_shot: Arc<dyn OneShot>,
+    /// The power source: runs from triggers wait on a low battery.
+    pub power: Arc<dyn Power>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -174,6 +176,7 @@ impl RoutinesModule {
             settings,
             headroom,
             one_shot,
+            power,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -203,6 +206,8 @@ impl RoutinesModule {
             bus,
             activity: Mutex::new(HashMap::new()),
             ended: Mutex::new(None),
+            halt: Mutex::new(None),
+            power,
             zones,
             zone,
             settings,
@@ -314,6 +319,8 @@ impl Module for RoutinesModule {
             self.engine.patterns.refresh().await;
             engine::end_sessions_of_ended_runs(&self.engine);
             engine::watch_usage(&self.engine);
+            // A halt switched on before Eos quit ends the runs it would pick up.
+            engine::hear_halt(&self.engine).await?;
             engine::recover(&self.engine).await?;
             engine::start_supervisor(&self.engine);
             Ok(())
