@@ -67,7 +67,7 @@ fn pause_in(
     tx.routines().set_state(routine_id, RoutineState::Paused, Some(reason), now)?;
     super::supervisor::skip_queued_in(tx, out, routine_id, RoutineState::Paused, now)?;
     tracing::info!(routine_id, reason, "a routine was paused");
-    announce(tx, out, routine_id, RoutineChangeReason::State, now, &patterns)
+    announce(tx, out, routine_id, RoutineChangeReason::State, now, patterns)
 }
 
 /// A new kept head with the head's blueprint at `rung`; nothing when the
