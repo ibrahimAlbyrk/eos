@@ -138,6 +138,15 @@ impl OutcomeRepo for SqliteTx<'_> {
             outcome,
         )
     }
+
+    fn judged(&self, routine_id: &str, delivery_id: &str, outcome: &str) -> Result<bool, Error> {
+        let found = self.row(
+            "SELECT 1 FROM inbox_outcomes WHERE routine_id = ?1 AND delivery_id = ?2 AND outcome = ?3 LIMIT 1",
+            params![routine_id, delivery_id, outcome],
+            |_| Ok(()),
+        )?;
+        Ok(found.is_some())
+    }
 }
 
 impl OfferRepo for SqliteTx<'_> {

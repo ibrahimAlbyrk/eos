@@ -79,6 +79,10 @@ async fn that_was_wrong_writes_one_outcome_row_and_leaves_the_send_as_it_is() {
     assert_eq!(sender.outcome_rows("wrong"), 1);
     assert!(sender.rig.outcomes.calls().is_empty(), "it settles no run");
     assert_eq!(sender.stepped_down(), ["wrong"]);
+    let again = sender.rig.items.wrong("dl-1").await.expect("noted once");
+    assert_eq!(again, row, "a second flag answers as the first did");
+    assert_eq!(sender.outcome_rows("wrong"), 1, "and records nothing more");
+    assert_eq!(sender.stepped_down(), ["wrong"]);
 
     let held = Held::new().await;
     let rows = held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await.expect("sent");

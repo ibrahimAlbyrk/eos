@@ -88,21 +88,26 @@ impl Items {
     }
 
     /// The user says the send `id` was wrong: one outcome row; the send
-    /// stays as it is.
+    /// stays as it is. Saying it again changes nothing and answers the same.
     pub async fn wrong(&self, id: &str) -> Result<StoredDelivery, crate::Error> {
         let (id, now, outcomes) = (id.to_owned(), self.clock.now_ms(), self.outcomes.clone());
-        let row = self
+        let (row, first) = self
             .store
             .write(move |tx, out| {
                 let row = tx.inbox_deliveries().find(&id)?.ok_or_else(|| Error::not_found("delivery", &id))?;
                 if row.state != SENT && row.state != UNDONE {
                     return Err(Error::Conflict("Only a send that went out can be wrong.".into()));
                 }
+                if tx.inbox_outcomes().judged(&row.routine_id, &row.id, Outcome::Wrong.as_str())? {
+                    return Ok((row, false));
+                }
                 after_sent_in(tx, out, outcomes.as_ref(), &row, Outcome::Wrong, now)?;
-                Ok(row)
+                Ok((row, true))
             })
             .await?;
-        self.step_down(&row, STEP_DOWN_WRONG).await?;
+        if first {
+            self.step_down(&row, STEP_DOWN_WRONG).await?;
+        }
         Ok(row)
     }
 
