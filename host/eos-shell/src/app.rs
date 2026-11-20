@@ -609,6 +609,18 @@ impl Shell {
         }
     }
 
+    /// The user asked to quit: with runs working they are asked first. Main thread.
+    fn quit_asked(&self) {
+        let check = self.hooks.quit_check();
+        if let Some(detail) = crate::quit::ask(check, self.options.quiet) {
+            log("shell", &format!("quit asked with {} runs working", check.active_runs));
+            if !appkit::confirm(crate::quit::TITLE, &detail, "Quit", "Cancel") {
+                return;
+            }
+        }
+        self.quit();
+    }
+
     /// Runs once, when the app is really quitting.
     fn shut_down(&self) {
         self.shut_down.call_once(|| {
@@ -773,7 +785,7 @@ impl Shell {
                     shell.draw_tray();
                 });
             }
-            Action::Quit => self.quit(),
+            Action::Quit => self.quit_asked(),
         }
     }
 
@@ -781,7 +793,7 @@ impl Shell {
     fn menu(&self, command: Command) {
         let (Some(views), Some(bridge)) = (self.views.get(), self.bridge.get()) else { return };
         match command {
-            Command::Quit => self.quit(),
+            Command::Quit => self.quit_asked(),
             Command::Reload => {
                 if let Some(dashboard) = views.dashboard() {
                     let _ = dashboard.webview.reload();

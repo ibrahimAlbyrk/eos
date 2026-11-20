@@ -13,6 +13,7 @@ mod log;
 mod menu;
 mod native;
 mod probe;
+mod quit;
 mod scheme;
 mod splash;
 mod tray;
@@ -122,6 +123,13 @@ impl std::fmt::Debug for Ports {
     }
 }
 
+/// What quitting now would interrupt.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct QuitCheck {
+    /// Runs of routines working now. They continue when the app opens again.
+    pub active_runs: u32,
+}
+
 /// What the app passes in. Every method is called at most a few times, from shell threads.
 pub trait Hooks: Send + Sync + 'static {
     /// Builds the core's router from the shell's ports. Called once, before the first page.
@@ -143,6 +151,12 @@ pub trait Hooks: Send + Sync + 'static {
 
     /// The system handed the app a link (`eos://pair/…`).
     fn open_url(&self, _url: &str) {}
+
+    /// What a Quit the user asked for (the app menu, the menu-bar item) would interrupt; the
+    /// shell asks before it quits when runs work. Called on the main thread: answers at once.
+    fn quit_check(&self) -> QuitCheck {
+        QuitCheck::default()
+    }
 
     /// The app is quitting: stop everything. Called once; the process exits when it returns.
     fn shutdown(&self) {}

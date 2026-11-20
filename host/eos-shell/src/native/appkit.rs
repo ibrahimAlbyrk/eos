@@ -138,6 +138,24 @@ pub(crate) fn error_alert(title: &str, detail: &str) {
     }
 }
 
+/// Asks a question in a modal alert with two buttons; whether the user chose `yes`. Blocks
+/// the main thread in the alert's own event loop until they answer.
+pub(crate) fn confirm(title: &str, detail: &str, yes: &str, no: &str) -> bool {
+    /// `NSAlertFirstButtonReturn`: the first button added.
+    const FIRST: isize = 1000;
+    // SAFETY: main thread; plain NSAlert setters, then its modal loop.
+    unsafe {
+        let alert: Option<Retained<AnyObject>> = msg_send![class!(NSAlert), new];
+        let Some(alert) = alert else { return true };
+        let _: () = msg_send![&*alert, setMessageText: &*ns(title)];
+        let _: () = msg_send![&*alert, setInformativeText: &*ns(detail)];
+        let _: *mut AnyObject = msg_send![&*alert, addButtonWithTitle: &*ns(yes)];
+        let _: *mut AnyObject = msg_send![&*alert, addButtonWithTitle: &*ns(no)];
+        let answer: isize = msg_send![&*alert, runModal];
+        answer == FIRST
+    }
+}
+
 // ---- pasteboard (any thread: NSPasteboard is documented as thread-safe) -----------
 
 fn pasteboard() -> Option<Retained<AnyObject>> {
