@@ -65,16 +65,23 @@ fn mint() -> Result<String, Error> {
 
 /// The secret in `path`, or a fresh one written there.
 fn load_or_mint(path: &Path) -> Result<String, Error> {
-    match fs::read_to_string(path) {
-        Ok(text) if !text.trim().is_empty() => return Ok(text.trim().to_owned()),
-        Ok(_) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(Error::storage(format!("{}: {e}", path.display()))),
+    if let Some(secret) = load(path)? {
+        return Ok(secret);
     }
     let secret = mint()?;
     let options = WriteOptions::with_permissions(eos_platform::host().private_file_permissions());
     atomic_write(path, format!("{secret}\n").as_bytes(), &options).map_err(Error::storage)?;
     Ok(secret)
+}
+
+/// The secret in `path`; `None` when there is none.
+fn load(path: &Path) -> Result<Option<String>, Error> {
+    match fs::read_to_string(path) {
+        Ok(text) if !text.trim().is_empty() => Ok(Some(text.trim().to_owned())),
+        Ok(_) => Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(Error::storage(format!("{}: {e}", path.display()))),
+    }
 }
 
 impl RemoteStore for RemoteFiles {
@@ -85,6 +92,17 @@ impl RemoteStore for RemoteFiles {
             bearer: load_or_mint(&self.dir.join("bearer.secret"))?,
             owner: load_or_mint(&self.dir.join("relay-owner.secret"))?,
         })
+    }
+
+    fn saved_secrets(&self) -> Result<Option<RoomSecrets>, Error> {
+        let (Some(room), Some(bearer), Some(owner)) = (
+            load(&self.dir.join("room.id"))?,
+            load(&self.dir.join("bearer.secret"))?,
+            load(&self.dir.join("relay-owner.secret"))?,
+        ) else {
+            return Ok(None);
+        };
+        Ok(Some(RoomSecrets { room, bearer, owner }))
     }
 
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error> {
@@ -138,6 +156,20 @@ mod tests {
             let mode = fs::metadata(dir.join(name)).expect("there").permissions().mode();
             assert_eq!(mode & 0o777, 0o600, "{name}");
         }
+    }
+
+    #[test]
+    fn saved_secrets_are_read_and_never_minted() {
+        let home = tempfile::tempdir().expect("a folder");
+        let dir = home.path().join("remote");
+        let files = RemoteFiles::new(&dir);
+        assert_eq!(files.saved_secrets().expect("read"), None);
+        assert!(!dir.exists(), "asking writes nothing");
+        let minted = files.secrets().expect("minted");
+        assert_eq!(files.saved_secrets().expect("read"), Some(minted));
+        fs::remove_file(dir.join("bearer.secret")).expect("removed");
+        assert_eq!(files.saved_secrets().expect("read"), None, "one missing is none");
+        assert!(!dir.join("bearer.secret").exists());
     }
 
     #[test]
