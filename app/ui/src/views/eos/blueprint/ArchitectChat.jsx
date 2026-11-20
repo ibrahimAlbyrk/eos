@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { renderMarkdown } from "../../../lib/markdown.js";
+import { buildBlocks } from "../../../lib/messageParser.js";
 import { clearNote, discardDraft, makeRoutine, NEW, sayToArchitect } from "../../../state/eos/blueprintStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
@@ -49,6 +51,21 @@ function Question({ routineId, draft }) {
   );
 }
 
+// What the architect itself wrote, oldest first, from its session's event
+// rows. Its prompts are Eos's, so only its own text is shown.
+export function architectReplies(events) {
+  return buildBlocks(events).filter((b) => b.kind === "assistant" && b.text?.trim()).map((b) => ({ key: b.blockId ?? b.rowId ?? b.ts, text: b.text }));
+}
+
+// The architect's words as its session writes them: on screen, its events
+// stream to this tab as Agents' transcript does. An agent's words, so they
+// go through the sanitised markdown.
+function Replies({ workerId }) {
+  const { events, eventsFor } = useWorkerEvents(workerId);
+  const replies = useMemo(() => (eventsFor === workerId ? architectReplies(events) : []), [events, eventsFor, workerId]);
+  return replies.map((r) => <div key={r.key} className="eos-bp-reply" dangerouslySetInnerHTML={{ __html: renderMarkdown(r.text) }} />);
+}
+
 // Too many architects at work: the core's words, and the drafts the user
 // could leave to make room.
 function Crowded({ routineId, text }) {
@@ -90,6 +107,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
     <section className="eos-bp-chat" aria-label="Conversation with the architect">
       {draft?.purpose && <div className="eos-bp-bubble">{draft.purpose}</div>}
       {said.map((words, n) => <div key={n} className="eos-bp-bubble">{words}</div>)}
+      {draft?.architectId && <Replies workerId={draft.architectId} />}
       {checkLines(draft).length > 0 && <div className="eos-bp-checks">{checkLines(draft).map((line) => <Check key={line}>{line}</Check>)}</div>}
       {working && <p className="eos-note" role="status">{working}</p>}
       {draft?.status === "abandoned" && <p className="eos-note">You left this draft. Say what to change to start again.</p>}

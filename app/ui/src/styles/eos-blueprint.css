@@ -24,6 +24,9 @@
   color: var(--fg);
   white-space: pre-wrap;
 }
+.eos-bp-reply { align-self: flex-start; max-width: 92%; font-size: var(--text-sm); color: var(--fg); }
+.eos-bp-reply p { margin: 0 0 6px; }
+.eos-bp-reply p:last-child { margin-bottom: 0; }
 .eos-bp-checks { display: flex; flex-direction: column; gap: 6px; }
 .eos-bp-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-bp-check svg { flex: none; color: var(--ok); }
