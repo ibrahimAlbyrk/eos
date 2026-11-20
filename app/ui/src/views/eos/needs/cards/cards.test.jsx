@@ -120,7 +120,7 @@ describe("the other cards", () => {
       run_start: ["Run", "Skip", "Later", "Discard"],
       routine_alert: ["Resume", "Keep paused", "Open", "Later", "Discard"],
       confirm_change: ["Confirm", "Reject", "Later", "Discard"],
-      delivery_problem: ["Try again", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
+      delivery_problem: ["Try again", "Edit and retry", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
       about_you: ["Yes, keep it", "No"],
     };
     for (const [kind, labels] of Object.entries(expected)) expect(buttons(await screen(kind)), kind).toEqual(labels);
@@ -170,6 +170,32 @@ describe("the other cards", () => {
     expect(t.send.mock.calls.map(([, , body]) => body.answer)).toEqual(
       ["retry", "mark_sent", "discard"].map((choice) => ({ kind: "delivery_problem", choice })),
     );
+  });
+
+  it("open a failed send's result in its editor with Edit and retry, and try again with the edited result", async () => {
+    const problem = byKind.delivery_problem;
+    const original = problem.payload.doc;
+    const values = {};
+    const setValue = (key, value) => { values[key] = value; };
+    const t = recording();
+    setEosTransport(t);
+    await refreshInbox();
+    expect(await actionsOf(problem).find((a) => a.label === "Edit and retry").run(problem, values, setValue)).toBe(false);
+    expect(values.edit).toEqual(original);
+    expect(actionsOf(problem, values).map((a) => a.label)).not.toContain("Edit and retry");
+
+    const { PlainCard } = await import("./PlainCard.jsx");
+    const html = renderToStaticMarkup(<PlainCard detail={problem} values={values} setValue={setValue} />);
+    expect(html).toContain("<textarea");
+    expect(html).toContain("The login fix works");
+
+    const edited = { ...original, parts: original.parts.filter((p) => p.key !== "c:2") };
+    await act("delivery_problem", "Try again", { edit: edited });
+    await act("delivery_problem", "Try again", { edit: original });
+    expect(t.send.mock.calls).toEqual([
+      ["POST", ROUTES.inboxAnswer(problem.item.id), { rev: 1, answer: { kind: "delivery_problem", choice: "retry", doc: edited } }],
+      ["POST", ROUTES.inboxAnswer(problem.item.id), { rev: 1, answer: { kind: "delivery_problem", choice: "retry" } }],
+    ]);
   });
 
   it("open an alert's routine without answering it", async () => {

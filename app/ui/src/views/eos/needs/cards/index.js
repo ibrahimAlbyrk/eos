@@ -90,7 +90,24 @@ const KINDS = {
   delivery_problem: {
     Body: PlainCard,
     actions: [
-      answer("delivery_problem", "retry", "Try again", true),
+      {
+        label: "Try again",
+        primary: true,
+        write: true,
+        // After Edit and retry, the result goes as the user edited it.
+        run: (detail, values) => {
+          const doc = docChanged(values.edit, originalDoc(detail)) ? values.edit : undefined;
+          return answerInboxItem(detail.item.id, { kind: "delivery_problem", choice: "retry", ...(doc ? { doc } : {}) });
+        },
+      },
+      {
+        label: "Edit and retry",
+        when: (detail, values) => Boolean(originalDoc(detail)) && values.edit === undefined,
+        run: (detail, values, setValue) => {
+          setValue("edit", originalDoc(detail));
+          return false;
+        },
+      },
       answer("delivery_problem", "mark_sent", "I sent it myself"),
       answer("delivery_problem", "discard", "Don't send"),
     ],
