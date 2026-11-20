@@ -17,6 +17,12 @@ const RUN_COLUMNS: &str = "id, routine_id, version_id, kind, origin, origin_ref,
                            headline, outcome, cost_usd, work_ms, lead_id, device, remote, created_at, started_at, \
                            ended_at, updated_at";
 
+/// A run that waits on the user: one waiting for the user, or one queued on
+/// its open `run_start` item ("Run it?").
+const WAITS_ON_USER: &str = "(state = 'waiting_for_user' OR (state = 'queued' AND EXISTS \
+                             (SELECT 1 FROM inbox_items i WHERE i.run_id = runs.id AND i.kind = 'run_start' \
+                             AND i.state IN ('open','later'))))";
+
 fn run(r: &rusqlite::Row<'_>) -> Result<StoredRun, Error> {
     let read = || -> rusqlite::Result<StoredRun> {
         Ok(StoredRun {
@@ -293,13 +299,19 @@ impl RunRepo for SqliteTx<'_> {
 
     fn active(&self) -> Result<(i64, i64), Error> {
         let counts = self.row(
-            "SELECT COUNT(CASE WHEN state IN ('running','checking','delivering') THEN 1 END), \
-             COUNT(CASE WHEN state = 'waiting_for_user' THEN 1 END) FROM runs \
-             WHERE state IN ('running','checking','delivering','waiting_for_user')",
+            &format!(
+                "SELECT COUNT(CASE WHEN state IN ('running','checking','delivering') THEN 1 END), \
+                 COUNT(CASE WHEN {WAITS_ON_USER} THEN 1 END) FROM runs \
+                 WHERE state IN ('running','checking','delivering','waiting_for_user','queued')"
+            ),
             [],
             |r| Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?)),
         )?;
         Ok(counts.unwrap_or_default())
+    }
+
+    fn waiting_on_user(&self) -> Result<Vec<String>, Error> {
+        self.rows(&format!("SELECT id FROM runs WHERE {WAITS_ON_USER} ORDER BY id"), [], |r| r.get(0).map_err(failed))
     }
 
     fn cost_since(&self, routine_id: &str, since: i64) -> Result<f64, Error> {

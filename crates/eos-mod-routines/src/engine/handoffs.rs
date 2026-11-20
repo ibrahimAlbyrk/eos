@@ -5,7 +5,9 @@
 //! The supervisor opens the `run_start` item in its own pass and marks the
 //! run's timeline `start_asked`; the answer "run" marks it `start_allowed`,
 //! after which the run leaves the queue as any other. Whether a queued run
-//! waits on the user is read from those marks, not stored beside the run.
+//! may start is read from those marks, not stored beside the run; whether
+//! it waits on the user is whether its `run_start` item is still open
+//! (`RunRepo::waiting_on_user`), announced as each starts and ends.
 //! A run that leaves the queue some other way withdraws its `run_start`
 //! item in that move (`move_run`).
 //!
@@ -29,7 +31,7 @@ use serde_json::json;
 use super::control::Control;
 use super::supervisor::skip_for;
 use super::versions::{Added, add_in};
-use super::{Engine, note};
+use super::{Engine, announce_waiting, note};
 use crate::routes::readable;
 
 /// Who makes the items acted on here.
@@ -87,6 +89,7 @@ pub(crate) fn may_start_in(
     };
     let item = open_in(tx, out, &at, ask)?;
     tx.runs().append_event(&run.id, now, START_ASKED, Some(&json!({ "itemId": item.id }).to_string()))?;
+    announce_waiting(tx, out, run, true)?;
     tracing::info!(run_id = %run.id, item_id = %item.id, "a run waits for the user to start it");
     Ok(false)
 }
@@ -177,6 +180,7 @@ fn run_start_in(tx: &dyn Tx, out: &mut Outbox, item: &StoredItem, now: i64) -> R
     if run.state != RunState::Queued {
         return Ok(false);
     }
+    announce_waiting(tx, out, &run, false)?;
     let answer = item.answer.as_deref().and_then(|text| serde_json::from_str::<InboxAnswer>(text).ok());
     match answer {
         Some(InboxAnswer::RunStart { choice: RunStartChoice::Run }) => {

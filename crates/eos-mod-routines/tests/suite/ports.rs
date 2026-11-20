@@ -34,7 +34,7 @@ impl Bench {
         self.temp.store.write_blocking(move |tx, out| intake.admit(tx, out, &admission))
     }
 
-    fn topic(&self, name: &str) -> Vec<Value> {
+    pub(crate) fn topic(&self, name: &str) -> Vec<Value> {
         let announced = self.temp.announced.list().into_iter().filter(|(topic, _)| *topic == name);
         announced.map(|(_, payload)| serde_json::from_str(&payload).expect("json")).collect()
     }

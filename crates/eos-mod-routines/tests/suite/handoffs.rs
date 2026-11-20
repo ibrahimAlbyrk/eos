@@ -18,6 +18,7 @@ use eos_testkit::FakeTimeZone;
 use serde_json::{Value, json};
 
 use crate::bench::{Bench, blueprint, new_run, pull_request};
+use crate::run_routes::Routes;
 
 fn asking() -> Value {
     let mut asking = blueprint(2);
@@ -89,7 +90,8 @@ fn item_of(kind: ItemKind, routine: &str, run: Option<&str>, payload: Value) -> 
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_triggered_run_at_ask_waits_for_run_and_a_hand_run_never_asks() {
-    let bench = Bench::new(true);
+    let routes = Routes::new();
+    let bench = &routes.bench;
     let routine = bench.routine_with(RoutineState::Active, asking(), true);
     let waiting = bench.triggered(&routine, 483).await;
     bench.supervise().await;
@@ -104,6 +106,14 @@ async fn a_triggered_run_at_ask_waits_for_run_and_a_hand_run_never_asks() {
         (Some(waiting.as_str()), Some("github:pr:acme/game#483"))
     );
     assert_eq!(bench.state(&waiting), RunState::Queued);
+    let waits = json!({"runId": waiting, "routineId": routine, "state": "queued", "station": null, "needsUser": true});
+    assert!(bench.topic("run:change").contains(&waits), "announced as waiting on the user");
+    assert_eq!(bench.topic("runs:active").last(), Some(&json!({"count": 0, "needsUser": 1})));
+    assert_eq!(routes.get("/api/runs/active").await, (200, json!({"count": 0, "needsUser": 1})));
+    let (_, detail) = routes.get(&format!("/api/runs/{waiting}")).await;
+    assert_eq!(detail["run"]["needsUser"], json!(true), "the run itself says it waits on the user");
+    let (_, page) = routes.get("/api/runs").await;
+    assert_eq!(page["runs"][0]["needsUser"], json!(true));
 
     let by_hand = bench.hand(&routine, Some(pull_request(484))).await;
     bench.eventually(|| bench.run(&by_hand).station == Some(Station::Work)).await;
@@ -114,6 +124,11 @@ async fn a_triggered_run_at_ask_waits_for_run_and_a_hand_run_never_asks() {
     bench.eventually(|| bench.state(&waiting) == RunState::Running).await;
     bench.eventually(|| bench.item(&ask.id).consumed_at.is_some()).await;
     assert_eq!(bench.items_of(&routine, ItemKind::RunStart).len(), 0, "asked once");
+    let answered =
+        json!({"runId": waiting, "routineId": routine, "state": "queued", "station": null, "needsUser": false});
+    assert!(bench.topic("run:change").contains(&answered), "announced as no longer waiting");
+    let (_, detail) = routes.get(&format!("/api/runs/{waiting}")).await;
+    assert_eq!(detail["run"]["needsUser"], json!(false));
 }
 
 #[tokio::test(flavor = "multi_thread")]

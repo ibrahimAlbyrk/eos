@@ -128,7 +128,7 @@ fn routine_detail(tx: &dyn Tx, id: &str, now: i64, patterns: &ItemPatterns) -> R
         routine: row,
         head: head.map(|at| with_blueprint(at, &versions[at])).transpose()?,
         draft: tx.routines().draft(id)?.map(draft),
-        runs: tx.runs().by_routine(id, RECENT_RUNS)?.iter().map(run_summary).collect(),
+        runs: run_summaries(tx, &tx.runs().by_routine(id, RECENT_RUNS)?)?,
     })
 }
 
@@ -206,7 +206,7 @@ pub(crate) fn summary(
         None => Shown::newer(&stored_json(&shown)?),
     };
     let counts = tx.runs().counts(&routine.id, now - 7 * DAY_MS)?;
-    let last_run = tx.runs().by_routine(&routine.id, 1)?.first().map(run_summary);
+    let last_run = run_summaries(tx, tx.runs().by_routine(&routine.id, 1)?.first())?.pop();
     Ok(Some(RoutineSummary {
         id: routine.id.clone(),
         slug: routine.slug.clone(),
@@ -312,7 +312,16 @@ fn draft(draft: StoredDraft) -> RoutineDraft {
     }
 }
 
-pub(crate) fn run_summary(run: &StoredRun) -> RunSummary {
+/// The rows of `runs`, each saying whether it waits on the user.
+pub(crate) fn run_summaries<'a>(
+    tx: &dyn Tx,
+    runs: impl IntoIterator<Item = &'a StoredRun>,
+) -> Result<Vec<RunSummary>, Error> {
+    let waiting = tx.runs().waiting_on_user()?;
+    Ok(runs.into_iter().map(|run| run_summary(run, waiting.contains(&run.id))).collect())
+}
+
+fn run_summary(run: &StoredRun, needs_user: bool) -> RunSummary {
     let input: Option<RunInput> = serde_json::from_str(&run.input).ok();
     let item = input.and_then(|input| input.item.or_else(|| input.items.and_then(|items| items.into_iter().next())));
     RunSummary {
@@ -326,8 +335,7 @@ pub(crate) fn run_summary(run: &StoredRun) -> RunSummary {
         outcome: run.outcome.map(|outcome| outcome.as_str().to_owned()),
         headline: run.headline.clone(),
         item_title: item.and_then(|item| item.title),
-        // A run waits on the user through Needs-you items, which these reads do not take in.
-        needs_user: false,
+        needs_user,
         cost_usd: Num(run.cost_usd),
         work_ms: run.work_ms,
         created_at: run.created_at,

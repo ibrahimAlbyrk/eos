@@ -32,7 +32,7 @@ use tokio::task::JoinHandle;
 
 use crate::ROUTINE_CHANGE;
 use crate::engine::Engine;
-use crate::routes::{run_summary, with_blueprint};
+use crate::routes::{run_summaries, with_blueprint};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 pub(crate) const RUNS_KEPT: i64 = 500;
@@ -282,7 +282,7 @@ fn export_in(tx: &dyn Tx, routine_id: &str) -> Result<Vec<u8>, Error> {
     let stored = tx.routine_versions().list(routine_id)?;
     let versions =
         stored.iter().enumerate().map(|(at, version)| with_blueprint(at, version)).collect::<Result<Vec<_>, _>>()?;
-    let runs: Vec<RunSummary> = tx.runs().by_routine(routine_id, i64::MAX)?.iter().map(run_summary).collect();
+    let runs: Vec<RunSummary> = run_summaries(tx, &tx.runs().by_routine(routine_id, i64::MAX)?)?;
     let export = json!({
         "format": 1,
         "routine": {

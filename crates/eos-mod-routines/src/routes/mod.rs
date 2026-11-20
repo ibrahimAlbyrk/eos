@@ -22,7 +22,7 @@ use eos_runtime::router::RouteDef;
 
 pub(crate) use candidates::item_ref;
 pub(crate) use estimate::usual;
-pub(crate) use routines::{BUILTIN, gone, param, readable, run_summary, showing_version, summary, with_blueprint};
+pub(crate) use routines::{BUILTIN, gone, param, readable, run_summaries, showing_version, summary, with_blueprint};
 pub(crate) use runs::start_refused;
 pub(crate) use settings::{current as current_settings, protected_settings, today};
 
