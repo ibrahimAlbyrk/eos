@@ -1,0 +1,23 @@
+[package]
+name = "eos-mod-memory"
+description = "Memory: the feature that learns notes from the user's corrections and the work's outcomes and brings them back to agents by situation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-memory.workspace = true
+eos-runtime.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

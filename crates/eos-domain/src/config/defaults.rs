@@ -14,6 +14,11 @@ impl Env {
         Self(vars.into_iter().collect())
     }
 
+    /// The variable `name`, when it is set.
+    pub fn get(&self, name: &str) -> Option<&str> {
+        self.0.get(name).map(String::as_str)
+    }
+
     fn text(&self, name: &str, fallback: &str) -> String {
         self.0.get(name).cloned().unwrap_or_else(|| fallback.to_owned())
     }

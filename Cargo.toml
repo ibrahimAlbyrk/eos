@@ -49,6 +49,7 @@ eos-mod-dreams = { path = "crates/eos-mod-dreams" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-genui = { path = "crates/eos-mod-genui" }
 eos-mod-inbox = { path = "crates/eos-mod-inbox" }
+eos-mod-memory = { path = "crates/eos-mod-memory" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-peer = { path = "crates/eos-mod-peer" }
 eos-mod-plugins = { path = "crates/eos-mod-plugins" }

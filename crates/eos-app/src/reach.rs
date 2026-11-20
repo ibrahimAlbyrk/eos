@@ -21,6 +21,7 @@
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
 //! | The channels a run's results go out through (GitHub reviews) | every send answers `DevRun`: the delivery stays `frozen`, nothing is sent |
+//! | Memory's model calls nobody asked for (reflection, night tidying) | they never run; notes come from rules only |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -141,6 +142,12 @@ impl Reach {
     /// network only the user's own starts run, which the dev guard lets
     /// through or refuses.
     pub(crate) fn autostart(self) -> bool {
+        self.network
+    }
+
+    /// Whether memory may call the model when nobody asked (reflection,
+    /// night tidying): those calls spend the user's plan.
+    pub(crate) fn background_model_calls(self) -> bool {
         self.network
     }
 

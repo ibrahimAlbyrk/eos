@@ -5,6 +5,8 @@
 //!   they are about, their words, their meaning), spreads activation along
 //!   links and ranks what applies; the vectors live in a [`VectorIndex`] in
 //!   memory, loaded once a model is (until then recall uses hooks and words).
+//! - [`settings`] reads and writes the user's Learning and Reminders
+//!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
 //!   reads at the start of each epoch.
 //!
@@ -13,6 +15,7 @@
 
 pub mod pack;
 pub mod recall;
+pub mod settings;
 pub mod vectors;
 
 pub use pack::{Pack, chat_pack};

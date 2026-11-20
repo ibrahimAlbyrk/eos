@@ -308,6 +308,7 @@ impl App {
         if callers.is_none() {
             install.retire_legacy_daemon(launchd.as_deref());
         }
+        let embed_model = crate::memory::model_dir(resources.as_deref(), &env);
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
         let current = config.current();
         let callers = callers.unwrap_or_else(|| Callers::load(paths.home(), ids.as_ref()));
@@ -605,6 +606,7 @@ impl App {
             paths: paths.clone(),
             raw_routes: Default::default(),
             pdfjs_root,
+            embed_model,
             settings: settings.clone(),
             work_hold: work_hold.clone(),
             dock_badge,
