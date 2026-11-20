@@ -86,6 +86,13 @@ pub mod memory {
             render(prompts, "memory/reflect", &[("SIGNAL", signal), ("TRANSCRIPT", transcript), ("NOTES", notes)])?;
         Ok((system, request))
     }
+
+    /// Memory's night step: `(system, request)` over the lessons, one a line.
+    pub fn generalize(prompts: &PromptService, lessons: &str) -> Result<(String, String), Error> {
+        let system = render(prompts, "memory/generalize-system", &[])?;
+        let request = render(prompts, "memory/generalize", &[("LESSONS", lessons)])?;
+        Ok((system, request))
+    }
 }
 
 /// Micro-tasks.

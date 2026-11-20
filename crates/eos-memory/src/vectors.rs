@@ -74,6 +74,14 @@ impl VectorIndex {
         }
     }
 
+    /// How alike two notes' meanings are, by cosine; `None` when either has
+    /// no vector.
+    pub fn similarity(&self, a: i64, b: i64) -> Option<f64> {
+        let (a, b) = (&self.rows[*self.at.get(&a)?], &self.rows[*self.at.get(&b)?]);
+        let dot: i64 = a.vec.iter().zip(&b.vec).map(|(&x, &y)| i64::from(x) * i64::from(y)).sum();
+        Some(dot as f64 * f64::from(a.scale) * f64::from(b.scale))
+    }
+
     /// The `k` rows most like `query` (unit length), by cosine, best first.
     pub fn nearest(&self, query: &[f32], k: usize) -> Vec<(i64, f64)> {
         let mut scored: Vec<(i64, f64)> = self

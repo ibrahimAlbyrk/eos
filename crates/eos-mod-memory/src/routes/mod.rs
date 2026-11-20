@@ -1,5 +1,5 @@
 //! Memory's routes: the screen's head, what a chat or a run was reminded
-//! of, where stated rules were said, and the two switches; the routes over
+//! of, where stated rules were said, the two switches and "Tidy now"; the routes over
 //! notes are in [`notes`].
 
 mod notes;
@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::{
     ExperienceHealth, ExperienceRecalled, ExperienceRecalledNote, ExperienceScopeCount, ExperienceSettings,
-    ExperienceStated, ExperienceStatedRule, ExperienceSummary, UserMemoryStatus,
+    ExperienceStated, ExperienceStatedRule, ExperienceSummary, ExperienceTidy, UserMemoryStatus,
 };
 use eos_core::git::ProjectKeys;
 use eos_core::profile::UserMemoryReader;
@@ -40,6 +40,8 @@ pub(crate) struct Api {
     /// Cuts secrets, e-mail addresses and the home folder from what the user types.
     pub(crate) scrubber: Arc<Scrubber>,
     pub(crate) device: String,
+    /// Night tidying, when reflection is composed.
+    pub(crate) nightly: Option<Arc<crate::night::Nightly>>,
 }
 
 async fn summary(api: Arc<Api>) -> Result<Response, ApiError> {
@@ -159,6 +161,17 @@ pub(crate) fn all(api: &Arc<Api>) -> Vec<RouteDef> {
             Ok(Response::json(200, &settings))
         }
     });
+    let at = api.clone();
+    let tidy = RouteDef::post("/api/memory/tidy", move |_req: Request| {
+        let at = at.clone();
+        async move {
+            let Some(nightly) = &at.nightly else {
+                return Err(ApiError::status_with(409, "memory is not tidied on this computer"));
+            };
+            let started = nightly.start();
+            Ok(Response::json(202, &ExperienceTidy { started }))
+        }
+    });
     let read = Access::ui_token().phone_user(Tier::Read);
     vec![
         summary.access(Access::open().phone(Tier::Read)),
@@ -166,6 +179,7 @@ pub(crate) fn all(api: &Arc<Api>) -> Vec<RouteDef> {
         stated.access(read),
         read_settings.access(Access::open().phone(Tier::Read)),
         write_settings.access(Access::ui_token()),
+        tidy.access(Access::ui_token()),
     ]
     .into_iter()
     .chain(notes::all(api))

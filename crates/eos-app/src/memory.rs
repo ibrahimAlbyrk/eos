@@ -93,6 +93,7 @@ pub(crate) fn module(
             prompts: cx.prompts.clone(),
             zone: Arc::new(crate::host::HostTimeZone),
             keeper,
+            jobs: cx.kernel.jobs.clone(),
         }),
         memories,
         home: eos_platform::home_dir(),

@@ -47,6 +47,16 @@ pub struct ExperienceSettings {
 
 impl Validate for ExperienceSettings {}
 
+/// `POST /api/memory/tidy`: whether a tidying started (`false` while one
+/// already works).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceTidy {
+    pub started: bool,
+}
+
+impl Validate for ExperienceTidy {}
+
 /// Where a note holds: a routine, a project, a kind of work, or everywhere.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
