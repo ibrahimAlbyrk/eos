@@ -184,7 +184,50 @@ pub(crate) fn action_input(action: &str, review: &PrReview) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use eos_contracts::Part;
+
     use super::*;
+
+    /// The example in the text the lead is given.
+    fn told_example(shape: &ResultShape) -> ResultDoc {
+        let text = shape.describe();
+        let json = text.split("```json\n").nth(1).and_then(|rest| rest.split("\n```").next()).expect("an example");
+        serde_json::from_str(json).expect("a result")
+    }
+
+    #[test]
+    fn the_review_the_lead_is_shown_is_one_the_check_and_the_channel_take() {
+        let shape = review_shape();
+        let example = told_example(&shape);
+        assert_eq!(shape.check(&example), Vec::<String>::new());
+        let pull = Pull { repo: "acme/game".into(), number: 7, sha: Some("abc".into()) };
+        let review = review_of(&example, &pull, "abc").expect("the channel reads it");
+        assert_eq!((review.event.as_str(), review.comments.len()), ("COMMENT", 1));
+        assert!(review.comments[0].body.contains("```suggestion"), "a suggestion is a block in the comment's text");
+        let summary_only = ResultDoc { parts: vec![example.parts[1].clone()], ..example };
+        assert_eq!(shape.check(&summary_only), Vec::<String>::new(), "a general remark alone is a review");
+        assert!(review_of(&summary_only, &pull, "abc").is_ok());
+    }
+
+    #[test]
+    fn the_results_refused_in_use_are_told_what_to_change() {
+        let shape = review_shape();
+        let mut wrong_kind = told_example(&shape);
+        wrong_kind.kind = "review".into();
+        assert_eq!(shape.check(&wrong_kind), ["body `kind` is `review`: it must be `github.review`."]);
+        assert!(review_of(&wrong_kind, &Pull { repo: "a/b".into(), number: 1, sha: None }, "c").is_err());
+
+        let mut remark = told_example(&shape);
+        remark.parts =
+            vec![Part { key: "body".into(), role: "text".into(), text: "Fine.".into(), meta: Default::default() }];
+        assert_eq!(
+            shape.check(&remark),
+            [
+                "part `summary` is missing: The review's general text. A remark with no line to point at goes here.",
+                "part `body`: a line comment needs meta.path and meta.line; put general remarks in the summary part.",
+            ]
+        );
+    }
 
     #[test]
     fn a_pull_request_is_read_from_its_key_or_its_link() {
