@@ -1915,6 +1915,7 @@ dependencies = [
  "eos-genui-media",
  "eos-git",
  "eos-github",
+ "eos-inbox",
  "eos-kit-fs",
  "eos-kit-net",
  "eos-kit-proc",
@@ -1932,6 +1933,7 @@ dependencies = [
  "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
+ "eos-mod-inbox",
  "eos-mod-pages",
  "eos-mod-peer",
  "eos-mod-plugins",
@@ -1944,6 +1946,7 @@ dependencies = [
  "eos-mod-remote",
  "eos-mod-routines",
  "eos-mod-settings",
+ "eos-mod-signals",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -2215,6 +2218,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-inbox"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-kit-fs"
 version = "0.0.1"
 dependencies = [
@@ -2451,6 +2467,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-inbox"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-inbox",
+ "eos-policy",
+ "eos-runtime",
+ "indexmap 2.14.2",
+ "serde_json",
+]
+
+[[package]]
 name = "eos-mod-pages"
 version = "0.0.1"
 dependencies = [
@@ -2599,7 +2629,12 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-inbox",
+ "eos-prompts",
  "eos-runtime",
+ "eos-sessions",
+ "eos-workers",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -2615,6 +2650,20 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "eos-mod-signals"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-inbox",
+ "eos-runtime",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
