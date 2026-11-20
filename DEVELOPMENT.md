@@ -512,6 +512,7 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
 | `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a dev run (see above) |
 | `EOS_LOG` | what is logged to stderr and `core.log`, as a `tracing` filter (default `warn,eos=info,eos_agent=warn`: Eos's own info, warnings of everything else) |
+| `EOS_EMBED_MODEL_DIR` | the folder of memory's meaning model (`tokenizer.json`, `model.safetensors`, `config.json` of potion-multilingual-128M) for a run outside the bundle; the bundle's `Resources/models/potion-multilingual-128M` otherwise. Without either, memory recalls by hooks and words only. Nothing downloads it |
 | `EOS_GITHUB_CLIENT_ID` | the OAuth App GitHub's sign-in asks for (`github.clientId` in `config.json` wins over it; default `Ov23li8QQZilyzYjPuab`, Eos's own; empty, GitHub needs setting up with `client_id_missing`) |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-run`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-run`: steps on test views (`eos/src/dev/script.rs`) |

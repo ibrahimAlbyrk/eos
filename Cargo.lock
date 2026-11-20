@@ -1506,6 +1506,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-embed",
  "eos-engine",
  "eos-fs",
  "eos-genui-media",
@@ -1531,6 +1532,7 @@ dependencies = [
  "eos-mod-fs",
  "eos-mod-genui",
  "eos-mod-inbox",
+ "eos-mod-memory",
  "eos-mod-pages",
  "eos-mod-peer",
  "eos-mod-plugins",
@@ -1917,6 +1919,7 @@ dependencies = [
 name = "eos-memory"
 version = "0.0.1"
 dependencies = [
+ "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-testkit",
@@ -2163,6 +2166,19 @@ dependencies = [
  "eos-testkit",
  "indexmap",
  "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-memory"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-memory",
+ "eos-runtime",
+ "eos-testkit",
  "tokio",
  "tracing",
 ]

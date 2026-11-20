@@ -70,6 +70,8 @@ pub(crate) struct Context {
     pub(crate) raw_routes: crate::files::RawRoutes,
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
+    /// The folder of memory's meaning model, when this run has one.
+    pub(crate) embed_model: Option<std::path::PathBuf>,
     pub(crate) settings: Arc<dyn UserSettingsStore>,
     /// Keeps the app working while routines run or wait: the window shell's, else the
     /// system's own way.
@@ -329,6 +331,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             phone: cx.reach.phone_notify(cx.remote.phone_notify()),
             badge: cx.dock_badge.clone(),
         })),
+        crate::memory::module(cx),
         pages,
         cx.peer.module(),
         profile,

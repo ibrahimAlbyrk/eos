@@ -23,6 +23,7 @@ mod headroom;
 mod host;
 mod machines;
 mod maintenance;
+mod memory;
 mod modules;
 mod notes;
 mod patches;
