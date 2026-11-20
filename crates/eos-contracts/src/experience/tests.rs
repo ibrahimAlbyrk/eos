@@ -27,3 +27,18 @@ fn the_settings_read_and_write_both_switches() {
     let read = round_trip::<ExperienceSettings>(json!({"learning": false, "reminders": true}));
     assert_eq!(read, ExperienceSettings { learning: false, reminders: true });
 }
+
+#[test]
+fn a_note_row_and_an_edit_read_and_write_in_order() {
+    round_trip::<ExperienceNoteRow>(
+        json!({"id": "mn-1", "kind": "lesson", "text": "Run lint first.", "why": "A push failed.",
+        "source": "command_fails", "state": "trying", "trust": "did", "helped": 1, "used": 2,
+        "scope": {"level": "project", "key": "k", "label": "game-client"}, "rev": 3, "updatedAt": 9}),
+    );
+    round_trip::<ExperienceEditRequest>(
+        json!({"text": "Lint first.", "scope": {"level": "work", "key": "code"}, "baseRev": 3}),
+    );
+    round_trip::<NotRightRequest>(json!({"runId": "rn-1", "note": "not here"}));
+    let empty: Result<ExperienceEditRequest, _> = crate::parse(&json!({"text": "  ", "baseRev": 1}));
+    assert!(empty.is_err(), "an empty text is refused");
+}

@@ -77,9 +77,9 @@ pub use inbox::{
     OutcomeRepo, StoredDelivery, StoredEdit, StoredHalt, StoredItem, StoredOffer, StoredOutcome, WaitingCount,
 };
 pub use mem::{
-    MEM_EVIDENCE_PER_NOTE, MEM_NOTES_MAX, MemCreditRepo, MemEvidenceRepo, MemGraphRepo, MemNoteRepo, MemVectorRepo,
-    MemVersionRepo, NoteQuery, StoredCredit, StoredEvidence, StoredHook, StoredLink, StoredNote, StoredNoteVersion,
-    StoredVector, WordHit,
+    LiveCount, MEM_EVIDENCE_PER_NOTE, MEM_NOTES_MAX, MemCreditRepo, MemEvidenceRepo, MemGraphRepo, MemNoteRepo,
+    MemVectorRepo, MemVersionRepo, NoteQuery, StoredCredit, StoredEvidence, StoredHook, StoredLink, StoredNote,
+    StoredNoteVersion, StoredVector, WordHit,
 };
 pub use mem_journal::{
     DailyCall, DailyCalls, MEM_FORGOTTEN_KEPT_MS, MEM_MOMENTS_DONE_KEPT_MS, MEM_USES_KEPT_MS, MemBookRepo,

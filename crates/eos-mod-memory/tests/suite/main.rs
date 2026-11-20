@@ -6,3 +6,4 @@ mod code;
 mod module;
 mod reminders;
 mod rig;
+mod routes;

@@ -3,8 +3,8 @@
 
 use eos_core::Error;
 use eos_core::store::{
-    MEM_EVIDENCE_PER_NOTE, MemEvidenceRepo, MemNoteRepo, MemVectorRepo, MemVersionRepo, NoteQuery, StoredEvidence,
-    StoredNote, StoredNoteVersion, StoredVector, WordHit,
+    LiveCount, MEM_EVIDENCE_PER_NOTE, MemEvidenceRepo, MemNoteRepo, MemVectorRepo, MemVersionRepo, NoteQuery,
+    StoredEvidence, StoredNote, StoredNoteVersion, StoredVector, WordHit,
 };
 use eos_domain::experience::state::Counters;
 use eos_domain::experience::{Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, Trust};
@@ -232,6 +232,35 @@ impl MemNoteRepo for SqliteTx<'_> {
         self.row("SELECT COUNT(*) FROM mem_notes WHERE state != 'closed' AND forgotten_at IS NULL", [], |r| {
             r.get(0).map_err(failed)
         })
+        .map(Option::unwrap_or_default)
+    }
+
+    fn live_counts(&self) -> Result<Vec<LiveCount>, Error> {
+        self.rows(
+            "SELECT scope_level, scope_key, kind, COUNT(*) FROM mem_notes \
+             WHERE state != 'closed' AND forgotten_at IS NULL GROUP BY scope_level, scope_key, kind \
+             ORDER BY scope_level, scope_key, kind",
+            [],
+            |r| {
+                let read = || -> rusqlite::Result<LiveCount> {
+                    Ok(LiveCount {
+                        scope: Scope { level: known(r, 0, ScopeLevel::parse)?, key: r.get(1)? },
+                        kind: known(r, 2, NoteKind::parse)?,
+                        count: r.get(3)?,
+                    })
+                };
+                read().map_err(failed)
+            },
+        )
+    }
+
+    fn learned_since(&self, since: i64) -> Result<i64, Error> {
+        self.row(
+            "SELECT COUNT(*) FROM mem_notes WHERE state != 'closed' AND forgotten_at IS NULL \
+             AND kind != 'episode' AND created_at >= ?1",
+            [since],
+            |r| r.get(0).map_err(failed),
+        )
         .map(Option::unwrap_or_default)
     }
 }

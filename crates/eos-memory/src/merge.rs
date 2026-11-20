@@ -165,7 +165,8 @@ pub fn merge_in(
     Ok(Merged { note_id: id, new: true })
 }
 
-fn version(note: &Note, rev: i64, why: &str, at: i64) -> StoredNoteVersion {
+/// A note as it stands at `rev`, kept in its history.
+pub fn version(note: &Note, rev: i64, why: &str, at: i64) -> StoredNoteVersion {
     StoredNoteVersion {
         note_id: note.id.clone(),
         rev,

@@ -392,6 +392,13 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // Stopping a send in its hold and saying a sent one was wrong change only the data folder.
     ("POST", "/api/inbox/deliveries/{id}/stop"),
     ("POST", "/api/inbox/deliveries/{id}/wrong"),
+    // Memory: editing, forgetting, bringing back and marking a note not right, and the
+    // Learning and Reminders switches change only the data folder.
+    ("PUT", "/api/memory/notes/{id}"),
+    ("DELETE", "/api/memory/notes/{id}"),
+    ("POST", "/api/memory/notes/{id}/restore"),
+    ("POST", "/api/memory/notes/{id}/not-right"),
+    ("PUT", "/api/memory/settings"),
     // "Stop everything" and resuming from it change only the data folder: resume sends
     // nothing, it asks about each held send.
     ("POST", "/api/eos/halt"),

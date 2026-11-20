@@ -380,6 +380,16 @@ pub const CAPABILITY_ROLLBACK: Route =
     Route::new("capabilityRollback", "/api/capabilities/:id/rollback", &[Post]).added();
 pub const CAPABILITY_SIGN_IN: Route =
     Route::new("capabilitySignIn", "/api/capabilities/:id/sign-in", &[Post, Get, Delete]).added();
+pub const MEMORY_SUMMARY: Route = Route::new("memorySummary", "/api/memory/summary", &[Get]).added();
+pub const MEMORY_NOTES: Route = Route::new("memoryNotes", "/api/memory/notes", &[Get]).added();
+pub const MEMORY_NOTE: Route = Route::new("memoryNote", "/api/memory/notes/:id", &[Get, Put, Delete]).added();
+pub const MEMORY_NOTE_RESTORE: Route =
+    Route::new("memoryNoteRestore", "/api/memory/notes/:id/restore", &[Post]).added();
+pub const MEMORY_NOTE_NOT_RIGHT: Route =
+    Route::new("memoryNoteNotRight", "/api/memory/notes/:id/not-right", &[Post]).added();
+pub const MEMORY_RECALLED: Route = Route::new("memoryRecalled", "/api/memory/recalled", &[Get]).added();
+pub const MEMORY_STATED: Route = Route::new("memoryStated", "/api/memory/stated", &[Get]).added();
+pub const MEMORY_SETTINGS: Route = Route::new("memorySettings", "/api/memory/settings", &[Get, Put]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -730,4 +740,12 @@ pub const ROUTES: &[Route] = &[
     CAPABILITY_CHECK,
     CAPABILITY_ROLLBACK,
     CAPABILITY_SIGN_IN,
+    MEMORY_SUMMARY,
+    MEMORY_NOTES,
+    MEMORY_NOTE,
+    MEMORY_NOTE_RESTORE,
+    MEMORY_NOTE_NOT_RIGHT,
+    MEMORY_RECALLED,
+    MEMORY_STATED,
+    MEMORY_SETTINGS,
 ];

@@ -5,10 +5,10 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use eos_contracts::{NameSource, UserProfile};
+use eos_contracts::{NameSource, UserMemory, UserProfile};
 use eos_core::BoxFuture;
 use eos_core::git::ProjectKeys;
-use eos_core::profile::UserProfileReader;
+use eos_core::profile::{UserMemoryReader, UserProfileReader};
 use eos_core::store::{NewWorker, StoredHook, StoredLink};
 use eos_domain::experience::{HookKind, Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, Trust, hook_id};
 use eos_domain::user_profile::empty_user_profile;
@@ -44,6 +44,20 @@ pub(crate) struct Profile(pub(crate) Mutex<UserProfile>);
 impl UserProfileReader for Profile {
     fn get(&self) -> Arc<UserProfile> {
         Arc::new(self.0.lock().unwrap().clone())
+    }
+}
+
+/// About you, as the test fills it.
+#[derive(Default)]
+pub(crate) struct AboutYou(pub(crate) Mutex<Vec<Arc<UserMemory>>>);
+
+impl UserMemoryReader for AboutYou {
+    fn list(&self) -> Vec<Arc<UserMemory>> {
+        self.0.lock().unwrap().clone()
+    }
+
+    fn search(&self, _query: &str, _project: Option<&str>, _limit: usize) -> Vec<Arc<UserMemory>> {
+        Vec::new()
     }
 }
 
@@ -98,6 +112,8 @@ pub(crate) fn parts(temp: &TempStore, sleeper: Arc<FakeSleeper>, embedder: Optio
         embedder,
         code: None,
         learn: None,
+        memories: Arc::new(AboutYou::default()),
+        home: Some("/Users/someone".into()),
         device: "mac-a".into(),
         background_model_calls: false,
     }
