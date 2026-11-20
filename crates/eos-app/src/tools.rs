@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use eos_mod_agents::{AgentsModule, ToolControl};
 use eos_mod_genui::GenuiModule;
+use eos_mod_memory::MemoryModule;
 use eos_mod_pages::PagesModule;
 use eos_mod_profile::ProfileModule;
 use eos_mod_routines::RoutinesModule;
@@ -14,6 +15,7 @@ use crate::host::HostTimeZone;
 use crate::modules::Context;
 
 /// The registry: Eos's own tools over the features they call.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build(
     cx: &Context,
     agents: &AgentsModule,
@@ -22,6 +24,7 @@ pub(crate) fn build(
     profile: &ProfileModule,
     transfer: &TransferModule,
     routines: &RoutinesModule,
+    memory: &MemoryModule,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
     let control = Arc::new(ToolControl::new(agents)?);
@@ -39,6 +42,7 @@ pub(crate) fn build(
         pages: pages.editor(),
         memory_search: profile.memory_search(),
         memory_suggestions: profile.memory_suggestions(),
+        experience: Some(memory.experience_search()),
         plugins: cx.plugins.clone(),
         browser: Some(cx.browser.tools()),
         visual: Some(Visual {

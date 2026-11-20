@@ -13,7 +13,6 @@ use eos_core::experience::Embedder;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_domain::config::Env;
-use eos_runtime::module::Module;
 
 use crate::modules::Context;
 
@@ -40,7 +39,11 @@ impl eos_mod_memory::NoteSink for SessionNotes {
     }
 }
 
-pub(crate) fn module(cx: &Context, runs: Arc<dyn RunLookup>, profile: Arc<dyn UserProfileReader>) -> Arc<dyn Module> {
+pub(crate) fn module(
+    cx: &Context,
+    runs: Arc<dyn RunLookup>,
+    profile: Arc<dyn UserProfileReader>,
+) -> Arc<eos_mod_memory::MemoryModule> {
     let embedder = cx.embed_model.clone().map(|dir| -> eos_mod_memory::LoadEmbedder {
         Box::new(move || {
             eos_embed::LocalEmbedder::load(&dir).map(|e| Arc::new(e) as Arc<dyn Embedder>).map_err(|e| e.to_string())

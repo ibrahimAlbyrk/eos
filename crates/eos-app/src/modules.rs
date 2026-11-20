@@ -236,7 +236,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     gate.attach(&routines.control(), &run_outcomes);
     cx.run_questions.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
-    let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines)?;
+    let memory = crate::memory::module(cx, routines.lookup(), profile.profile_reader());
+    let tools: Arc<dyn ToolSets> =
+        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory)?;
     cx.tools.attach(&tools);
     let workers = Arc::new(
         eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
@@ -331,7 +333,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             phone: cx.reach.phone_notify(cx.remote.phone_notify()),
             badge: cx.dock_badge.clone(),
         })),
-        crate::memory::module(cx, routines.lookup(), profile.profile_reader()),
+        memory,
         pages,
         cx.peer.module(),
         profile,
