@@ -155,7 +155,7 @@ impl Items {
         let typed = answer.clone();
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: now };
         let (id, run_outcomes, control) = (id.to_owned(), self.outcomes.clone(), self.control.clone());
-        let (item, requeued) = self
+        let (item, changed) = self
             .store
             .write(move |tx, out| {
                 let item = tx.inbox_items().find(&id)?.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
@@ -175,7 +175,7 @@ impl Items {
                     Ok(item) => item,
                     Err(refused) => return Ok(Err(refused)),
                 };
-                let requeued = match &typed {
+                let changed = match &typed {
                     InboxAnswer::DeliveryProblem { choice, doc } => {
                         let answered = Answered { item: &item, choice: *choice, doc: doc.as_ref(), now };
                         problems::answered_in(tx, out, run_outcomes.as_ref(), answered)?
@@ -186,10 +186,10 @@ impl Items {
                     }
                     _ => false,
                 };
-                Ok(Ok((item, requeued)))
+                Ok(Ok((item, changed)))
             })
             .await??;
-        if requeued {
+        if changed {
             self.wake.notify_one();
         }
         self.waiters.wake(&item);
