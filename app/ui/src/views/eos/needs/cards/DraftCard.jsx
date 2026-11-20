@@ -7,9 +7,12 @@ import { MailEditor } from "../editors/MailEditor.jsx";
 import { ReviewEditor } from "../editors/ReviewEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
 import { DocView, ResultView } from "../results/ResultView.jsx";
+import { staleLine } from "../words.js";
 
 // How long typing pauses before the edits are kept in the core too.
 const SAVE_AFTER_MS = 1500;
+
+const WAITING = new Set(["open", "later"]);
 
 const EDITORS = { "github.review": ReviewEditor, mail: MailEditor };
 
@@ -32,6 +35,10 @@ export function needsSave(detail, edit) {
   const kept = detail.working ?? originalDoc(detail);
   return Boolean(edit && kept) && docChanged(edit, kept);
 }
+
+// Its subject moved on since it was made (new commits): sending needs a
+// second yes.
+export const isStale = (detail) => detail.item.staleAt != null;
 
 // The newer draft that replaced this one opens, the user's edits beside it.
 export function followReplacement(detail) {
@@ -61,6 +68,7 @@ export function DraftCard({ detail, values, setValue }) {
   const Editor = EDITORS[original?.kind] ?? TextEditor;
   return (
     <div className={carried ? "eos-draft eos-draft--beside" : "eos-draft"}>
+      {isStale(detail) && WAITING.has(detail.item.state) && <p className="eos-needs-stale" role="status">{staleLine(detail.item.staleReason)}</p>}
       {edit ? <Editor original={original} doc={edit} onChange={change} /> : <ResultView detail={detail} />}
       {carried && (
         <section className="eos-draft__carried" aria-label="Your edits">

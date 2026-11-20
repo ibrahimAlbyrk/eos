@@ -48,6 +48,7 @@
 .eos-needs-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
 .eos-needs-pager { display: flex; align-items: center; gap: 12px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-needs-closed { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }
+.eos-needs-stale { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--warn); }
 .eos-needs-item__columns { display: flex; align-items: flex-start; gap: 24px; }
 .eos-needs-item__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .eos-needs-item__actions { padding-top: 4px; }

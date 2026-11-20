@@ -216,6 +216,37 @@ describe("a draft", () => {
   });
 });
 
+describe("a draft whose pull request moved", () => {
+  const stale = { ...detailOf[DRAFT], item: { ...detailOf[DRAFT].item, rev: 3, staleAt: 1763453000000, staleReason: "3 new commits" } };
+
+  it("says how far it moved above the result, and Send becomes Send anyway with a second yes", async () => {
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: stale });
+    await loadInboxItem(DRAFT);
+    const html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<p class="eos-needs-stale" role="status">3 new commits since this draft. Check it before you send it.</p>');
+    expect(html.indexOf("eos-needs-stale")).toBeLessThan(html.indexOf("eos-result__event"));
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Send anyway<span class="eos-needs-key">');
+    const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: stale });
+    setEosTransport(t);
+    press("Enter", { metaKey: true });
+    await vi.waitFor(() => expect(t.send).toHaveBeenCalled());
+    expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxSend(DRAFT), { rev: 3, confirmStale: true }]]);
+  });
+
+  it("reads the draft again when it went stale while open (409 stale), and warns instead of a toast", async () => {
+    await loaded();
+    await loadInboxItem(DRAFT);
+    const toast = vi.spyOn(notify, "error").mockImplementation(() => {});
+    const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: stale }, async () => ({ ok: false, status: 409, body: { error: "stale", staleReason: "3 new commits" } }));
+    setEosTransport(t);
+    expect(await sendInboxDraft(DRAFT)).toBe(false);
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("3 new commits since this draft."));
+    expect(at(`eos:/needs/${DRAFT}`)).toContain(">Send anyway<");
+    expect(toast).not.toHaveBeenCalled();
+    toast.mockRestore();
+  });
+});
+
 describe("an item that no longer waits", () => {
   it("says it was answered on the iPhone, without its actions", async () => {
     await loaded();
