@@ -9,7 +9,7 @@ use std::time::Duration;
 use eos_contracts::ActionClass;
 use eos_core::Clock;
 use eos_core::delivery::{ChannelTraits, Idempotency, Receipt, SendError, SendErrorKind, Undo};
-use eos_core::routine::{Confirmed, GateDecision, GateInput, RoutineControl, RunGate};
+use eos_core::routine::{Confirmed, GateDecision, GateInput, RoutineControl, RunGate, RunOutcomes};
 use eos_core::store::StoredDelivery;
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
@@ -355,6 +355,8 @@ async fn every_target_whose_send_went_stale_is_held_again_in_one_draft_about_the
     sender.pass().await;
     let subject = Some("github:pr:acme/game#482".to_owned());
     assert_eq!(sender.drafts().await, [(subject, vec!["boss".to_owned(), "pr".to_owned()])], "no target is lost");
+    let ended = sender.outcomes.calls().into_iter().any(|call| matches!(call, OutcomeCall::Finished { .. }));
+    assert!(!ended, "a draft its own run holds again does not end the run");
 }
 
 #[tokio::test]
@@ -374,8 +376,9 @@ async fn a_later_runs_draft_on_the_same_item_replaces_one_held_again() {
     );
     let rig = &sender.rig;
     let gate = Arc::new(Gate::new(Arc::new(sender.channels.clone()), rig.zone.clone(), rig.clock.clone()));
-    let control: Arc<dyn RoutineControl> = rig.control.clone();
-    gate.attach(&control);
+    let (control, outcomes): (Arc<dyn RoutineControl>, Arc<dyn RunOutcomes>) =
+        (rig.control.clone(), sender.outcomes.clone());
+    gate.attach(&control, &outcomes);
     let (ids, now) = (rig.ids.clone(), rig.clock.now_ms());
     let later = GateInput { run_id: "rn-2".into(), ..input("draft") };
     let decision = rig
@@ -389,6 +392,8 @@ async fn a_later_runs_draft_on_the_same_item_replaces_one_held_again() {
     let drafts: Vec<_> =
         items.iter().filter(|item| item.kind.as_str() == "draft").map(|item| item.run_id.clone()).collect();
     assert_eq!(drafts, [Some("rn-2".to_owned())], "one draft about the pull request waits");
+    let ended = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::Replaced };
+    assert!(sender.outcomes.calls().contains(&ended), "the run held again ends replaced");
 }
 
 #[tokio::test]

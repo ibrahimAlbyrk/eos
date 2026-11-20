@@ -7,10 +7,11 @@ use std::sync::Arc;
 use eos_contracts::{ActionClass, Freedom, Part, Recipient, ResultDoc};
 use eos_core::Clock;
 use eos_core::delivery::{ChannelTraits, Idempotency, Undo};
-use eos_core::routine::{GateDecision, GateInput, GateMode, RoutineControl, RunGate};
+use eos_core::routine::{GateDecision, GateInput, GateMode, RoutineControl, RunGate, RunOutcomes};
+use eos_domain::routine::numbers::Outcome;
 use eos_domain::run_scope::Trust;
 use eos_inbox::gate::Gate;
-use eos_testkit::{ControlCall, FakeChannels, TempStore};
+use eos_testkit::{ControlCall, FakeChannels, OutcomeCall, TempStore};
 use serde_json::{Value, json};
 
 use crate::rig::{Rig, pull_requests};
@@ -32,7 +33,8 @@ impl Gated {
         let rig = Rig::with_channels(TempStore::new(), channels.clone(), pull_requests());
         let gate = Arc::new(Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone()));
         let control: Arc<dyn RoutineControl> = rig.control.clone();
-        gate.attach(&control);
+        let outcomes: Arc<dyn RunOutcomes> = rig.outcomes.clone();
+        gate.attach(&control, &outcomes);
         rig.temp.exec(
             "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, cost_usd, headline, \
              created_at, updated_at) VALUES ('rn-1', 'rt-1', 'standing', 'hand', '{}', 'checking', 0, 'mac-1', 0.42, \
@@ -214,4 +216,25 @@ async fn while_eos_is_stopped_a_result_free_to_go_is_held() {
     gated.rig.temp.exec("INSERT INTO inbox_halt (id, \"on\", since, by, updated_at) VALUES (1, 1, 1, 'dashboard', 1)");
     held(&gated.apply(input("on_its_own")).await);
     assert_eq!(gated.rows(), 0);
+}
+
+#[tokio::test]
+async fn a_newer_runs_draft_on_the_same_subject_ends_the_run_it_replaced() {
+    let gated = Gated::new();
+    let first = held(&gated.apply(input("draft")).await);
+    gated.rig.temp.exec("UPDATE runs SET state = 'waiting_for_user' WHERE id = 'rn-1'");
+    gated.rig.temp.exec(
+        "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, created_at, updated_at) \
+         VALUES ('rn-2', 'rt-1', 'standing', 'trigger', '{}', 'checking', 0, 'mac-1', 2, 2)",
+    );
+    let second = held(&gated.apply(GateInput { run_id: "rn-2".into(), ..input("draft") }).await);
+
+    let old = gated.rig.find(&first).await;
+    assert_eq!((old.state.as_str(), old.replaced_by.as_deref()), ("replaced", Some(second.as_str())));
+    let ended = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::Replaced };
+    assert_eq!(gated.rig.outcomes.calls(), [ended]);
+    let rows = gated.rig.temp.count(&format!(
+        "SELECT COUNT(*) FROM inbox_outcomes WHERE run_id = 'rn-1' AND outcome = 'replaced' AND item_id = '{first}'"
+    ));
+    assert_eq!(rows, 1);
 }

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use eos_contracts::{ActionClass, Part, ResultDoc};
 use eos_core::Clock;
-use eos_core::routine::{Confirmed, GateDecision, RoutineControl, RunGate};
+use eos_core::routine::{Confirmed, GateDecision, RoutineControl, RunGate, RunOutcomes};
 use eos_core::store::{StoredEdit, StoredOutcome};
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
@@ -51,7 +51,8 @@ impl Held {
         let rig = Rig::with_channels(TempStore::new(), channels.clone(), confirmed);
         let gate = Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone());
         let control: Arc<dyn RoutineControl> = rig.control.clone();
-        gate.attach(&control);
+        let outcomes: Arc<dyn RunOutcomes> = rig.outcomes.clone();
+        gate.attach(&control, &outcomes);
         rig.temp.exec(
             "INSERT INTO runs (id, routine_id, kind, origin, input, state, priority, device, created_at, updated_at) \
              VALUES ('rn-1', 'rt-1', 'standing', 'hand', '{}', 'checking', 0, 'mac-1', 1, 1)",

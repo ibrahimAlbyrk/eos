@@ -214,7 +214,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         one_shot: cx.one_shot.clone(),
     }));
     cx.grants.attach(&routines.grants());
-    gate.attach(&routines.control());
+    // The delivery engine keeps the outcomes alive for the gate.
+    let run_outcomes = routines.outcomes();
+    gate.attach(&routines.control(), &run_outcomes);
     cx.run_questions.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines)?;
@@ -304,7 +306,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
                 zone: Arc::new(crate::host::HostTimeZone),
                 channels,
                 control: routines.control(),
-                outcomes: routines.outcomes(),
+                outcomes: run_outcomes,
                 wake: gate.waker(),
             },
         })),

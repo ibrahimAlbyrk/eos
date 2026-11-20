@@ -1,12 +1,14 @@
 //! What became of a held result (03 §4.8 "Run outcomes"): a row of
 //! `inbox_outcomes`, and the run told it is done, in the job that decided
 //! it. A sent draft went out unedited when what was sent equals what was
-//! held, by its kind's rule of sameness (03 §4.3).
+//! held, by its kind's rule of sameness (03 §4.3). A draft a newer run's
+//! draft replaced ends its run as `replaced`.
 
 use eos_contracts::ResultDoc;
 use eos_core::Error;
 use eos_core::routine::RunOutcomes;
 use eos_core::store::{NewOutcome, Outbox, StoredItem, Tx};
+use eos_domain::inbox::ItemKind;
 use eos_domain::result_doc::equal;
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
@@ -67,6 +69,22 @@ pub(crate) fn ended_in(
         .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering));
     if waiting {
         outcomes.finished(tx, out, &run_id, ended.outcome)?;
+    }
+    Ok(())
+}
+
+/// Ends the runs of the drafts `by` replaced, each `replaced`. A draft its
+/// own run held again is not an end: the run goes on with `by`.
+pub(crate) fn replaced_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    outcomes: &dyn RunOutcomes,
+    replaced: &[StoredItem],
+    by: &StoredItem,
+) -> Result<(), Error> {
+    let ended = replaced.iter().filter(|old| old.kind == ItemKind::Draft && old.run_id != by.run_id);
+    for item in ended {
+        ended_in(tx, out, outcomes, Ended { item, delivery_id: None, outcome: Outcome::Replaced, at: by.created_at })?;
     }
     Ok(())
 }

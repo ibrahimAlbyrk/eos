@@ -20,7 +20,8 @@ use super::{
     AUTO, FAILED, FROZEN, QUEUED, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, target_of, target_value,
 };
 use crate::gate::DRAFT_PRODUCER;
-use crate::outcomes::{Ended, ended_in, sent_outcome};
+use crate::items::open_replacing_in;
+use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
 
 /// Why a send whose subject moved on was stopped.
@@ -186,7 +187,7 @@ pub(crate) fn record_in(
         // it myself" still finishes it, and only "Don't send" fails it.
         problem_in(tx, out, at, &row, problem)?;
     } else if let Some(reason) = stale {
-        hold_again_in(tx, out, at, &row, &reason)?;
+        hold_again_in(tx, out, at, outcomes, &row, &reason)?;
     } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
         sent_in(tx, out, at.now, outcomes, &row)?;
     }
@@ -231,10 +232,12 @@ pub(crate) fn sent_in(
 /// gate's drafts are, so a later run's draft on that item replaces it. A
 /// draft this run already holds again on that item is replaced by one that
 /// also goes to its targets: every send of one run carries the same result.
+/// Another run's draft it replaces ends that run as `replaced`.
 fn hold_again_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
     row: &StoredDelivery,
     reason: &str,
 ) -> Result<(), Error> {
@@ -264,5 +267,6 @@ fn hold_again_in(
         payload: json!({ "doc": doc, "staleReason": reason, "targets": targets }),
         by_hand: false,
     };
-    open_in(tx, out, at, draft).map(drop)
+    let (item, replaced) = open_replacing_in(tx, out, at, draft)?;
+    replaced_in(tx, out, outcomes, &replaced, &item)
 }

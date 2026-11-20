@@ -76,11 +76,22 @@ fn replaced_by(waiting: &StoredItem, new: &NewItem, at: &Opening<'_>) -> bool {
 /// [`ROUTINE_CAP`] items waiting is paused with one `routine_alert`. Every
 /// item it writes is announced on `inbox:change` after the job commits.
 pub fn open_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) -> Result<StoredItem, Error> {
+    open_replacing_in(tx, out, at, new).map(|(item, _)| item)
+}
+
+/// As [`open_in`], with the items the new one replaced.
+pub(crate) fn open_replacing_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    new: NewItem,
+) -> Result<(StoredItem, Vec<StoredItem>), Error> {
     let payload = serde_json::to_string(&new.payload).map_err(|e| Error::Validation(e.to_string()))?;
     if payload.len() > PAYLOAD_MAX {
         return Err(Error::Validation("an item's payload is at most 256 KiB".into()));
     }
     let id = at.ids.inbox_id();
+    let mut replaced = Vec::new();
     if let Some(subject) = &new.subject_key {
         for mut old in tx.inbox_items().waiting_with_subject(subject)? {
             if !replaced_by(&old, &new, at) {
@@ -94,6 +105,7 @@ pub fn open_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) ->
             if tx.inbox_items().update_waiting(&old, rev)? {
                 tracing::info!(item_id = %old.id, replaced_by = %id, kind = old.kind.as_str(), "an item was replaced");
                 announce(tx, out, &old)?;
+                replaced.push(old);
             }
         }
     }
@@ -130,7 +142,7 @@ pub fn open_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) ->
     if let Some(routine_id) = item.routine_id.as_deref().filter(|_| item.kind != ItemKind::RoutineAlert) {
         cap_in(tx, out, at, routine_id)?;
     }
-    Ok(item)
+    Ok((item, replaced))
 }
 
 /// A notice that keeps count through the day (`over-limit`): the day's
