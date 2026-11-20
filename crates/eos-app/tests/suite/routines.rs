@@ -101,11 +101,15 @@ async fn a_dev_run_polls_nothing_and_holds_a_match() {
     fakes.clock.advance(11 * 60_000);
     app.woke(Duration::from_secs(0));
 
-    let held = || async { status().await["countsToday"]["heldBack"].as_i64().unwrap_or(0) > 0 };
-    eventually("the slot is held", held).await;
+    // The pass that arms the schedule may fire a slot before it makes the source's row, so
+    // both are waited for: the slot held, and the source's first poll settled as off.
+    let held = || async {
+        let status = status().await;
+        status["countsToday"]["heldBack"].as_i64().unwrap_or(0) > 0 && status["sources"][0]["state"] == "off"
+    };
+    eventually("the slot is held and the source is off", held).await;
     let status = status().await;
     assert_eq!(status["countsToday"]["handled"], 0, "{status}");
-    assert_eq!(status["sources"][0]["state"], "off", "{status}");
     assert!(fakes.source.requests().is_empty(), "the source was never read");
     assert!(runs(&app, &routine).await.is_empty(), "no run");
     app.shutdown(Duration::from_secs(5)).await;
