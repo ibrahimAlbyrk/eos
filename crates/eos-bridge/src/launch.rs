@@ -1,7 +1,65 @@
-//! Three decisions the app makes at launch: where the data is, whether it reaches the
-//! network, and where it logs.
+//! Four decisions the app makes at launch: where the data is, whether it reaches the
+//! network, where it logs, and what it shows.
 
 use std::path::{Path, PathBuf};
+
+use crate::instance::Request;
+
+/// The Apple Event the system launched the app with, as far as the launch decision cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchEvent {
+    /// `oapp`: opened, by the user or, with the login marker, as a login item.
+    OpenApplication { as_login_item: bool },
+    /// `odoc`: files dropped on the closed app.
+    OpenDocuments,
+    /// `GURL`: a link.
+    OpenUrl,
+}
+
+/// How this process was started.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchKind {
+    Plain,
+    Login,
+    Background,
+    Files,
+    Link,
+}
+
+/// What a launch shows at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LaunchPlan {
+    pub show_window: bool,
+    /// The dashboard loads with the window: a hidden start loads it on the first showing.
+    pub load_dashboard: bool,
+    /// The quick panel, holding what the launch brought.
+    pub panel: bool,
+}
+
+impl LaunchKind {
+    /// The launch's own arguments win; then the launch event. With no event, an enabled login
+    /// item means the system started the app at login: two reports disagree on whether the
+    /// login marker always arrives.
+    pub fn of(request: &Request, event: Option<LaunchEvent>, login_item_enabled: bool) -> Self {
+        match (request, event) {
+            (Request::Background, _) => LaunchKind::Background,
+            (Request::Open(_), _) | (_, Some(LaunchEvent::OpenUrl)) => LaunchKind::Link,
+            (_, Some(LaunchEvent::OpenDocuments)) => LaunchKind::Files,
+            (_, Some(LaunchEvent::OpenApplication { as_login_item: true })) => LaunchKind::Login,
+            (_, None) if login_item_enabled => LaunchKind::Login,
+            _ => LaunchKind::Plain,
+        }
+    }
+
+    pub fn plan(self) -> LaunchPlan {
+        let (show_window, panel) = match self {
+            LaunchKind::Plain | LaunchKind::Link => (true, false),
+            LaunchKind::Login | LaunchKind::Background => (false, false),
+            LaunchKind::Files => (false, true),
+        };
+        LaunchPlan { show_window, load_dashboard: show_window, panel }
+    }
+}
 
 /// Where the core keeps its data: the folder named (`EOS_HOME`) when there is one, else the
 /// user's own `~/.eos` in a release build. A development build has no default, so nothing
@@ -50,6 +108,31 @@ pub fn logs_folder(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_launch_kind_comes_from_the_arguments_then_the_event_then_the_login_item() {
+        let (activate, link) = (Request::Activate, Request::Open("eos://pair/x".into()));
+        let open = |as_login_item| Some(LaunchEvent::OpenApplication { as_login_item });
+        assert_eq!(LaunchKind::of(&activate, open(false), true), LaunchKind::Plain, "the event wins over the item");
+        assert_eq!(LaunchKind::of(&activate, open(true), false), LaunchKind::Login);
+        assert_eq!(LaunchKind::of(&activate, None, true), LaunchKind::Login, "no event, the login item on");
+        assert_eq!(LaunchKind::of(&activate, None, false), LaunchKind::Plain);
+        assert_eq!(LaunchKind::of(&Request::Background, open(false), false), LaunchKind::Background);
+        assert_eq!(LaunchKind::of(&Request::Background, None, true), LaunchKind::Background);
+        assert_eq!(LaunchKind::of(&activate, Some(LaunchEvent::OpenDocuments), false), LaunchKind::Files);
+        assert_eq!(LaunchKind::of(&activate, Some(LaunchEvent::OpenUrl), true), LaunchKind::Link);
+        assert_eq!(LaunchKind::of(&link, open(true), false), LaunchKind::Link);
+    }
+
+    #[test]
+    fn only_a_plain_launch_or_a_link_shows_the_window_and_loads_the_dashboard() {
+        let plan = |show_window, load_dashboard, panel| LaunchPlan { show_window, load_dashboard, panel };
+        assert_eq!(LaunchKind::Plain.plan(), plan(true, true, false));
+        assert_eq!(LaunchKind::Link.plan(), plan(true, true, false));
+        assert_eq!(LaunchKind::Login.plan(), plan(false, false, false));
+        assert_eq!(LaunchKind::Background.plan(), plan(false, false, false));
+        assert_eq!(LaunchKind::Files.plan(), plan(false, false, true));
+    }
 
     #[test]
     fn only_a_release_build_opens_the_users_own_data_folder_unasked() {

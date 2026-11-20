@@ -12,10 +12,12 @@ use eos_bridge::chromium::{self, Tuning};
 use eos_bridge::hosts::{HostParts, HostViews, MachineItem, machine_items};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
+use eos_bridge::launch::LaunchKind;
 use eos_bridge::panel::Panel;
 use eos_bridge::power::WakeDetector;
 use eos_bridge::recovery::{AfterCrash, Recovery};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
+use eos_bridge::window_state::WindowState;
 use eos_bridge::{Bridge, EditCommand, Parts, Service, migrate};
 use eos_platform::{SCREEN_SAVER_BUNDLE, ScreenSaver};
 use serde_json::{Value, json};
@@ -27,7 +29,7 @@ use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::activity::Activities;
-use crate::native::{appkit, notify};
+use crate::native::{appkit, launch, notify};
 use crate::splash::Splash;
 use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
@@ -121,6 +123,9 @@ impl SignInWindows {
     }
 }
 
+/// What opening the dashboard view needs: the views, the bridge it is served from, the hooks.
+type DashboardParts = (Arc<Views>, Arc<Bridge>, Arc<dyn Hooks>);
+
 struct Shell {
     options: Options,
     /// The system's proxy settings as they were at launch.
@@ -141,6 +146,10 @@ struct Shell {
     shut_down: Once,
     /// A link that arrived before the bridge existed (the link that launched the app).
     early_link: std::sync::Mutex<Option<String>>,
+    /// What this launch's arguments asked for.
+    launched_with: Request,
+    /// The window's saved frame until its first showing, which also opens the dashboard.
+    unshown: std::sync::Mutex<Option<WindowState>>,
 }
 
 pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
@@ -226,6 +235,8 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         splash: Splash::default(),
         shut_down: Once::new(),
         early_link: std::sync::Mutex::new(None),
+        launched_with: request.clone(),
+        unshown: std::sync::Mutex::new(None),
     });
 
     let for_setup = shell.clone();
@@ -269,6 +280,8 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
 impl Shell {
     fn setup(self: &Arc<Self>, app: &tauri::AppHandle) -> tauri::Result<()> {
         let options = &self.options;
+        // While AppKit still handles the event that launched the app.
+        let event = launch::current();
         if options.quiet {
             // An accessory app never activates: a test run must not take the user's focus.
             let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -279,6 +292,7 @@ impl Shell {
         let _ = self.app.set(app.clone());
         let _ = self.window.set(window.clone());
         let _ = self.keeper.set(StateKeeper::new(&options.data_dir, state.fullscreen));
+        *self.unshown.lock().unwrap_or_else(|p| p.into_inner()) = Some(state);
 
         let views = Views::new(
             app.clone(),
@@ -326,22 +340,6 @@ impl Shell {
             probe: options.probe.then(|| crate::probe::Probe::start(app.clone(), views.clone())),
             sign_in: options.artifact_origin.is_some().then(|| SignInWindows(Arc::downgrade(self))),
         };
-
-        // The dashboard may only be the dashboard: any other place opens in the system
-        // browser, and a page-opened window never opens here.
-        let policy = create::Policy {
-            popups: None,
-            navigation: Box::new(|url| {
-                let own = url.scheme() == "http" && url.host_str() == Some(APP_HOST);
-                if !own && url.scheme() != "about" {
-                    open_external(url);
-                }
-                own || url.as_str() == "about:blank"
-            }),
-            open_requested: Box::new(open_external),
-        };
-        let dashboard = window
-            .add_child(create::builder("main", (0.0, 0.0), (state.width, state.height), None, policy).auto_resize())?;
 
         let core = self.hooks.core(&ports);
         let seed = migrate::plan(&options.data_dir, options.electron_profile.as_deref(), now_ms());
@@ -392,11 +390,22 @@ impl Shell {
             }
         });
 
-        // Off the main thread: the handler must be on the view's request context before the
-        // first request for the app's origin leaves, and registering waits on the main thread.
-        let me = self.clone();
-        std::thread::spawn(move || me.load_dashboard(dashboard, bridge, ports));
+        self.hooks.bridge_ready(&bridge, &ports);
+
+        // The login item's state is not read here: the app never registers one itself.
+        let kind = LaunchKind::of(&self.launched_with, event.and_then(|(c, i, m)| launch::event_of(c, i, m)), false);
+        let plan = kind.plan();
+        let shown = if plan.show_window { "shown" } else { "hidden" };
+        log("launch", &format!("launch event {}, launch kind {kind:?}, window {shown}", launch::describe(event)));
+        if plan.show_window {
+            self.reveal();
+        }
         Ok(())
+    }
+
+    /// What opening the dashboard view needs, once the bridge exists.
+    fn dashboard_parts(&self) -> Option<DashboardParts> {
+        Some((self.views.get()?.clone(), self.bridge.get()?.clone(), self.hooks.clone()))
     }
 
     /// The claude.ai artifact views: their pool runs on the shell's runtime and tells the
@@ -471,34 +480,6 @@ impl Shell {
         self.rt.spawn(async move { hosts.refresh().await });
     }
 
-    fn load_dashboard(&self, dashboard: tauri::Webview, bridge: Arc<Bridge>, ports: Ports) {
-        let service: Arc<dyn Service> = bridge.clone();
-        let (tx, rx) = std::sync::mpsc::channel();
-        let registering = dashboard.with_cef_webview(move |w| {
-            let _ = tx.send(scheme::register(&w.browser(), &[APP_HOST, RAW_HOST], service));
-        });
-        match (registering, rx.recv_timeout(Duration::from_secs(10))) {
-            (Ok(()), Ok(Ok(()))) => log("shell", "in-process handler registered for the app's origin"),
-            (_, other) => {
-                log("shell", &format!("the in-process handler could not be registered: {other:?}"));
-                return;
-            }
-        }
-        match Cdp::attach(&dashboard, crate::probe::wants_dashboard_events, crate::probe::dashboard_event) {
-            Ok(cdp) => {
-                if let Some(views) = self.views.get() {
-                    views.set_dashboard(dashboard.clone(), cdp);
-                }
-            }
-            Err(e) => log("shell", &format!("no DevTools channel to the dashboard: {e}")),
-        }
-        match tauri::Url::parse(&format!("http://{APP_HOST}/index.html")).map(|url| dashboard.navigate(url)) {
-            Ok(Ok(())) => log("shell", "dashboard loading"),
-            other => log("shell", &format!("the dashboard did not load: {other:?}")),
-        }
-        self.hooks.started(&bridge, &ports);
-    }
-
     // ---- the window ------------------------------------------------------------
 
     fn on_main(&self, f: impl FnOnce() + Send + 'static) {
@@ -508,18 +489,36 @@ impl Shell {
     }
 
     fn show_window(&self) {
-        let Some(window) = self.window.get().cloned() else { return };
+        if !self.reveal() {
+            self.hooks.window_shown();
+        }
+    }
+
+    /// Shows the window; its first showing puts the saved frame back and opens the
+    /// dashboard. Returns whether this showing opens the dashboard.
+    fn reveal(&self) -> bool {
+        let Some(window) = self.window.get().cloned() else { return false };
+        // The first showing once the bridge exists: none can come earlier.
+        let dashboard = self.dashboard_parts();
+        let first = dashboard.as_ref().and_then(|_| self.unshown.lock().unwrap_or_else(|p| p.into_inner()).take());
+        let opens = first.is_some();
         // A quiet run never takes the user's focus, whatever asks for the window.
         let quiet = self.options.quiet;
         self.on_main(move || {
+            if let (Some(frame), Some(parts)) = (&first, dashboard) {
+                open_dashboard(&window, frame, parts);
+            }
             let _ = window.show();
             let _ = window.unminimize();
+            if let Some(frame) = &first {
+                window::restore(&window, frame, quiet);
+            }
             if !quiet {
                 let _ = window.set_focus();
                 appkit::activate_app();
             }
         });
-        self.hooks.window_shown();
+        opens
     }
 
     fn quit(&self) {
@@ -750,6 +749,8 @@ impl Shell {
                 self.open_url(&url);
                 json!({ "ok": true })
             }
+            // The app runs already; a background launch shows nothing.
+            Request::Background => json!({ "ok": true }),
             Request::Quit => {
                 self.quit();
                 json!({ "ok": true })
@@ -831,6 +832,56 @@ impl Shell {
             }
         });
     }
+}
+
+/// Opens the dashboard view, on the main thread. Its page loads off it: the handler must be
+/// on the view's request context before the first request for the app's origin leaves, and
+/// registering waits on the main thread.
+fn open_dashboard(window: &tauri::Window, frame: &WindowState, (views, bridge, hooks): DashboardParts) {
+    // The dashboard may only be the dashboard: any other place opens in the system browser,
+    // and a page-opened window never opens here.
+    let policy = create::Policy {
+        popups: None,
+        navigation: Box::new(|url| {
+            let own = url.scheme() == "http" && url.host_str() == Some(APP_HOST);
+            if !own && url.scheme() != "about" {
+                open_external(url);
+            }
+            own || url.as_str() == "about:blank"
+        }),
+        open_requested: Box::new(open_external),
+    };
+    let builder = create::builder("main", (0.0, 0.0), (frame.width, frame.height), None, policy).auto_resize();
+    match window.add_child(builder) {
+        Ok(dashboard) => drop(std::thread::spawn(move || load_dashboard(&views, hooks.as_ref(), dashboard, bridge))),
+        Err(e) => log("shell", &format!("the dashboard view could not be made: {e}")),
+    }
+}
+
+fn load_dashboard(views: &Views, hooks: &dyn Hooks, dashboard: tauri::Webview, bridge: Arc<Bridge>) {
+    let service: Arc<dyn Service> = bridge.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let registering = dashboard.with_cef_webview(move |w| {
+        let _ = tx.send(scheme::register(&w.browser(), &[APP_HOST, RAW_HOST], service));
+    });
+    match (registering, rx.recv_timeout(Duration::from_secs(10))) {
+        (Ok(()), Ok(Ok(()))) => log("shell", "in-process handler registered for the app's origin"),
+        (_, other) => {
+            log("shell", &format!("the in-process handler could not be registered: {other:?}"));
+            return;
+        }
+    }
+    match Cdp::attach(&dashboard, crate::probe::wants_dashboard_events, crate::probe::dashboard_event) {
+        Ok(cdp) => {
+            views.set_dashboard(dashboard.clone(), cdp);
+        }
+        Err(e) => log("shell", &format!("no DevTools channel to the dashboard: {e}")),
+    }
+    match tauri::Url::parse(&format!("http://{APP_HOST}/index.html")).map(|url| dashboard.navigate(url)) {
+        Ok(Ok(())) => log("shell", "dashboard loading"),
+        other => log("shell", &format!("the dashboard did not load: {other:?}")),
+    }
+    hooks.dashboard_loaded();
 }
 
 /// Reads the native view of a browser once it exists, for the menu's focus routing.

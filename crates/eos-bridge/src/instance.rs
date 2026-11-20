@@ -17,6 +17,8 @@ pub enum Request {
     Activate,
     /// Open a link the system handed over (`eos://pair/…`).
     Open(String),
+    /// Run without showing anything (`--background`): a later launch shows nothing either.
+    Background,
     /// Quit, stopping everything.
     Quit,
     /// Report the shell's state as JSON.
@@ -34,6 +36,8 @@ impl Request {
             Request::Quit
         } else if args.iter().any(|a| a.as_ref() == "--status") {
             Request::Status
+        } else if args.iter().any(|a| a.as_ref() == "--background") {
+            Request::Background
         } else {
             Request::Activate
         }
@@ -48,6 +52,7 @@ impl Request {
         let value = match self {
             Request::Activate => json!({ "cmd": "activate" }),
             Request::Open(url) => json!({ "cmd": "open", "url": url }),
+            Request::Background => json!({ "cmd": "background" }),
             Request::Quit => json!({ "cmd": "quit" }),
             Request::Status => json!({ "cmd": "status" }),
         };
@@ -59,6 +64,7 @@ impl Request {
         match value.get("cmd")?.as_str()? {
             "activate" => Some(Request::Activate),
             "open" => Some(Request::Open(value.get("url")?.as_str()?.to_string())),
+            "background" => Some(Request::Background),
             "quit" => Some(Request::Quit),
             "status" => Some(Request::Status),
             _ => None,
@@ -157,16 +163,25 @@ mod tests {
         assert_eq!(Request::from_args(&["-psn_0_12345"]), Request::Activate);
         assert_eq!(Request::from_args(&["--quit"]), Request::Quit);
         assert_eq!(Request::from_args(&["--status"]), Request::Status);
+        assert_eq!(Request::from_args(&["--background"]), Request::Background);
+        assert_eq!(Request::from_args(&["--background", "--quit"]), Request::Quit);
+        assert_eq!(Request::from_args(&["--background", "eos://pair/a"]), Request::Open("eos://pair/a".into()));
         assert_eq!(Request::from_args(&["--quit", "eos://pair/abc"]), Request::Open("eos://pair/abc".into()));
         assert_eq!(Request::from_args(&["https://example.com"]), Request::Activate, "only the app's own scheme");
         assert!(Request::Quit.is_control() && Request::Status.is_control());
         assert!(!Request::Activate.is_control() && !Request::Open(String::new()).is_control());
+        assert!(!Request::Background.is_control(), "with no app running, it becomes the app");
     }
 
     #[test]
     fn requests_survive_the_wire() {
-        for request in [Request::Activate, Request::Open("eos://pair/a b\n\"c".into()), Request::Quit, Request::Status]
-        {
+        for request in [
+            Request::Activate,
+            Request::Open("eos://pair/a b\n\"c".into()),
+            Request::Background,
+            Request::Quit,
+            Request::Status,
+        ] {
             let line = request.to_line();
             assert_eq!(line.matches('\n').count(), 1, "one line: {line:?}");
             assert_eq!(Request::from_line(&line), Some(request));
