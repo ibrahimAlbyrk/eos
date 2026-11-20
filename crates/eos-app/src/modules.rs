@@ -54,6 +54,8 @@ pub(crate) struct Context {
     /// How a project folder is named between computers.
     pub(crate) project_keys: Arc<dyn eos_core::git::ProjectKeys>,
     pub(crate) questions: eos_mod_questions::Questions,
+    /// The questions every session asks through: a routine run's in Needs you.
+    pub(crate) run_questions: eos_inbox::RunQuestions,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
     /// Each Claude sign-in's claude.ai Artifacts.
@@ -213,6 +215,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     }));
     cx.grants.attach(&routines.grants());
     gate.attach(&routines.control());
+    cx.run_questions.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines)?;
     cx.tools.attach(&tools);
@@ -292,6 +295,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             clock: cx.clock.clone(),
             questions: Arc::new(cx.questions.clone()),
             memories: profile.memory_reader(),
+            waiters: cx.run_questions.waiters(),
             delivery: eos_inbox::delivery::DeliveryParts {
                 store: cx.store.clone(),
                 clock: cx.clock.clone(),

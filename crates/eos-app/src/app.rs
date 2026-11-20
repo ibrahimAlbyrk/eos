@@ -252,6 +252,8 @@ pub struct App {
     /// The database's vacuum, from start to shutdown.
     vacuum: crate::maintenance::Vacuum,
     work_hold: Arc<dyn WorkHold>,
+    /// Told when the app shuts down, so a run's open questions stay open.
+    run_questions: eos_inbox::RunQuestions,
 }
 
 impl std::fmt::Debug for App {
@@ -449,6 +451,14 @@ impl App {
         let hooks = Arc::new(AppHooks::new(kernel.bus.clone(), leftovers.clone()));
         let questions =
             eos_mod_questions::Questions::new(store.clone(), kernel.bus.clone(), clock.clone(), ids.clone());
+        // A routine run's questions wait in Needs you; every other worker asks as before.
+        let run_questions = eos_inbox::RunQuestions::new(eos_inbox::RunQuestionParts {
+            store: store.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            zone: Arc::new(host::HostTimeZone),
+            wrapped: Arc::new(questions.clone()),
+        });
         let tools = Arc::new(LateTools::default());
         // The accounts feature picks each session's credential, unless the run names its own.
         let credentials: Arc<dyn SessionCredentials> = match &agents.credential {
@@ -465,7 +475,7 @@ impl App {
                 policy: policy.clone(),
                 tools: tools.clone(),
                 credentials: credentials.clone(),
-                questions: Arc::new(questions.clone()),
+                questions: Arc::new(run_questions.clone()),
                 clock: clock.clone(),
                 secrets: secrets.clone(),
                 compaction: Arc::new(eos_mod_compaction::Words::new(prompts.clone())),
@@ -575,6 +585,7 @@ impl App {
             ),
             projects,
             questions,
+            run_questions: run_questions.clone(),
             recents,
             accounts: accounts.clone(),
             artifacts: Arc::new(FrameApiArtifacts::new(accounts.clone())),
@@ -695,6 +706,7 @@ impl App {
             sleeper,
             vacuum: crate::maintenance::Vacuum::default(),
             work_hold,
+            run_questions,
         })
     }
 
@@ -835,6 +847,8 @@ impl App {
     /// waits for every write already queued and folds the WAL into the file.
     pub async fn shutdown(&self, deadline: Duration) -> ShutdownReport {
         drop(self.patches.lock().unwrap_or_else(|p| p.into_inner()).take());
+        // Before any session stops: a run asker cut off now keeps its question open.
+        self.run_questions.close();
         self.vacuum.stop();
         let report = self.runtime.shutdown(deadline).await;
         let store = self.store.clone();

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use eos_core::Clock;
 use eos_core::store::StoredItem;
 use eos_domain::inbox::ItemKind;
-use eos_inbox::{Items, NewItem, Opening, open_in};
-use eos_testkit::{FakeClock, FakeRoutineControl, FakeTimeZone, SeqIds, TempStore};
+use eos_inbox::{Items, ItemsParts, NewItem, Opening, QuestionWaiters, open_in};
+use eos_testkit::{FakeChannels, FakeClock, FakeRoutineControl, FakeRunOutcomes, FakeTimeZone, SeqIds, TempStore};
 use serde_json::json;
 
 pub(crate) struct Rig {
@@ -15,6 +15,8 @@ pub(crate) struct Rig {
     pub(crate) ids: Arc<SeqIds>,
     pub(crate) zone: Arc<FakeTimeZone>,
     pub(crate) control: Arc<FakeRoutineControl>,
+    pub(crate) outcomes: Arc<FakeRunOutcomes>,
+    pub(crate) wake: Arc<tokio::sync::Notify>,
     pub(crate) items: Items,
 }
 
@@ -25,14 +27,41 @@ impl Rig {
 
     /// Over a store that already exists: the app after a restart.
     pub(crate) fn on(temp: TempStore) -> Self {
+        Self::build(temp, FakeChannels::new(), Arc::default())
+    }
+
+    /// Over `temp`, sending drafts through `channels`.
+    pub(crate) fn with_channels(temp: TempStore, channels: FakeChannels) -> Self {
+        Self::build(temp, channels, Arc::default())
+    }
+
+    /// Over `temp`, waking the run askers `waiters` holds.
+    pub(crate) fn with_waiters(temp: TempStore, waiters: Arc<QuestionWaiters>) -> Self {
+        Self::build(temp, FakeChannels::new(), waiters)
+    }
+
+    fn build(temp: TempStore, channels: FakeChannels, waiters: Arc<QuestionWaiters>) -> Self {
         let clock = Arc::new(FakeClock::at(1_000_000));
-        let items = Items::new(temp.port(), clock.clone());
+        let ids = Arc::new(SeqIds::new());
+        let outcomes = Arc::new(FakeRunOutcomes::new());
+        let wake = Arc::new(tokio::sync::Notify::new());
+        let items = Items::new(ItemsParts {
+            store: temp.port(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            channels: Arc::new(channels),
+            outcomes: outcomes.clone(),
+            wake: wake.clone(),
+            waiters,
+        });
         Self {
             temp,
             clock,
-            ids: Arc::new(SeqIds::new()),
+            ids,
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
             control: Arc::new(FakeRoutineControl::new()),
+            outcomes,
+            wake,
             items,
         }
     }

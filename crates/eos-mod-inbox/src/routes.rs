@@ -5,10 +5,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eos_contracts::{
-    AnswerRequest, DiscardRequest, DraftSave, InboxCounts, InboxItem, InboxItemDetail, InboxList, LaterRequest,
-    ResultDoc,
+    AnswerRequest, Delivery, DeliveryRef, DiscardRequest, DraftSave, InboxCounts, InboxItem, InboxItemDetail,
+    InboxList, LaterRequest, ResultDoc, SendAnswer, SendRequest,
 };
-use eos_core::store::{ItemPlace, ItemQuery, StoredItem};
+use eos_core::store::{ItemPlace, ItemQuery, StoredDelivery, StoredItem};
 use eos_domain::inbox::{ItemState, order_rank};
 use eos_runtime::access::{Access, Caller, LocalCaller, Tier};
 use eos_runtime::http::path::percent_decode;
@@ -77,10 +77,51 @@ fn elsewhere(id: &str) -> Option<Response> {
     Some(Response::json(409, &json!({ "error": "answered through its own route", "routes": routes })))
 }
 
+/// A delivery as the dashboard reads it; the receipt shows only where the
+/// user sees what went out.
+fn delivery(row: StoredDelivery) -> Result<Delivery, ApiError> {
+    let body = serde_json::from_str(&row.body).map_err(|e| eos_core::Error::storage(e.to_string()))?;
+    let receipt = row.receipt.as_deref().and_then(|text| serde_json::from_str::<Value>(text).ok());
+    Ok(Delivery {
+        id: row.id,
+        item_id: row.item_id,
+        run_id: row.run_id,
+        routine_id: row.routine_id,
+        channel: row.channel,
+        action: row.action,
+        target_ref: row.target_ref,
+        class: row.class,
+        mode: row.mode,
+        state: row.state,
+        body,
+        send_at: row.send_at,
+        attempts: row.attempts,
+        last_error_kind: row.last_error_kind,
+        receipt_url: receipt.and_then(|receipt| receipt["url"].as_str().map(str::to_owned)),
+        sent_at: row.sent_at,
+        undo_until: row.undo_until,
+        undone_at: row.undone_at,
+        approved_at: row.approved_at,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    })
+}
+
+/// The deliveries a send queued.
+fn queued(rows: Vec<StoredDelivery>) -> Response {
+    let deliveries = rows.into_iter().map(|row| DeliveryRef { id: row.id, state: row.state, send_at: row.send_at });
+    Response::json(200, &SendAnswer { deliveries: deliveries.collect() })
+}
+
 /// The item as a write left it, or the 409 that says why it did not.
 fn written(result: Result<StoredItem, eos_inbox::Error>) -> Result<Response, ApiError> {
+    answered(result, |item| Response::json(200, &row(&item)))
+}
+
+/// What a write answers, or the 409 that says why it did not land.
+fn answered<T>(result: Result<T, eos_inbox::Error>, ok: impl FnOnce(T) -> Response) -> Result<Response, ApiError> {
     match result {
-        Ok(item) => Ok(Response::json(200, &row(&item))),
+        Ok(done) => Ok(ok(done)),
         Err(eos_inbox::Error::AlreadyAnswered { state, answered_by }) => {
             let mut body = json!({ "error": "already answered", "state": state.as_str() });
             if let Some(by) = answered_by {
@@ -247,6 +288,29 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
             written(at.items.answer(&id, body.rev, &body.answer, answered_by(&req.caller)).await)
         }
     });
+    let at = shared.clone();
+    let send = RouteDef::post("/api/inbox/{id}/send", move |req: Request| {
+        let at = at.clone();
+        async move {
+            let id = item_id(&req);
+            if let Some(refused) = elsewhere(&id) {
+                return Ok(refused);
+            }
+            let body: SendRequest = req.parse()?;
+            answered(at.items.send(&id, body.rev, body.doc, answered_by(&req.caller)).await, queued)
+        }
+    });
+    let at = shared.clone();
+    let delivery_read = RouteDef::get("/api/inbox/deliveries/{id}", move |req: Request| {
+        let at = at.clone();
+        async move {
+            let id = item_id(&req);
+            let lookup = id.clone();
+            let row = at.store.read(move |tx| tx.inbox_deliveries().find(&lookup)).await?;
+            let row = row.ok_or_else(|| eos_core::Error::not_found("delivery", &id))?;
+            Ok(Response::json(200, &delivery(row)?))
+        }
+    });
     let user = |tier| Access::ui_token().phone_user(tier);
     vec![
         list.access(user(Tier::Read)),
@@ -255,5 +319,7 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
         later.access(user(Tier::Low)),
         discard.access(user(Tier::Low)),
         answer.access(user(Tier::High)),
+        send.access(user(Tier::High)),
+        delivery_read.access(user(Tier::Read)),
     ]
 }

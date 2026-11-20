@@ -63,6 +63,7 @@ impl Rig {
             clock: clock.clone(),
             questions: waiting.clone(),
             memories: waiting.clone(),
+            waiters: Arc::default(),
             delivery: eos_inbox::delivery::DeliveryParts {
                 store: temp.port(),
                 clock: clock.clone(),

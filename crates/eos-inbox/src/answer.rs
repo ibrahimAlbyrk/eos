@@ -4,11 +4,17 @@
 use std::sync::Arc;
 
 use eos_contracts::{InboxAnswer, ResultDoc};
-use eos_core::Clock;
+use eos_core::delivery::Channels;
+use eos_core::routine::RunOutcomes;
 use eos_core::store::{ItemAnswer, Outbox, Store, StoredItem, Tx};
+use eos_core::{Clock, Ids};
 use eos_domain::inbox::{ItemKind, ItemState};
+use eos_domain::routine::numbers::Outcome;
+use tokio::sync::Notify;
 
-use crate::{Error, announce};
+use crate::outcomes::{self, Ended};
+use crate::questions::QuestionWaiters;
+use crate::{Error, announce, consume_in};
 
 /// The kinds answered through [`Items::answer`]. A draft is sent or
 /// discarded; a run's permission ask and an about-you suggestion are answered
@@ -26,10 +32,10 @@ const ANSWERED_HERE: [ItemKind; 6] = [
 const DISCARDED: &str = r#"{"discard":true}"#;
 
 /// What a write found when the item is not as the caller saw it.
-type Checked = Result<StoredItem, Error>;
+pub(crate) type Checked = Result<StoredItem, Error>;
 
 /// The item, if it still waits at `rev` (any rev when none is named).
-fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Checked, eos_core::Error> {
+pub(crate) fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Checked, eos_core::Error> {
     let item = tx.inbox_items().find(id)?.ok_or_else(|| eos_core::Error::not_found("item", id))?;
     if !item.state.is_waiting() {
         return Ok(Err(Error::AlreadyAnswered { state: item.state, answered_by: item.answered_by }));
@@ -41,7 +47,7 @@ fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Checked, eos_co
 }
 
 /// Answers the item in one statement guarded by state and rev.
-fn answer_in(
+pub(crate) fn answer_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     id: &str,
@@ -86,11 +92,38 @@ fn change_in(
     Ok(Ok(item))
 }
 
+/// What the user's side of Needs you is built from.
+pub struct ItemsParts {
+    pub store: Arc<dyn Store>,
+    pub clock: Arc<dyn Clock>,
+    pub ids: Arc<dyn Ids>,
+    /// The channels a sent draft goes out through, for their actions' traits.
+    pub channels: Arc<dyn Channels>,
+    /// Hears what became of each run's result.
+    pub outcomes: Arc<dyn RunOutcomes>,
+    /// Poked once a send was queued ([`Gate::waker`](crate::gate::Gate::waker)).
+    pub wake: Arc<Notify>,
+    /// The run askers waiting on their questions
+    /// ([`RunQuestions::waiters`](crate::RunQuestions::waiters)).
+    pub waiters: Arc<QuestionWaiters>,
+}
+
+impl std::fmt::Debug for ItemsParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ItemsParts").finish_non_exhaustive()
+    }
+}
+
 /// The user's side of Needs you.
 #[derive(Clone)]
 pub struct Items {
-    store: Arc<dyn Store>,
-    clock: Arc<dyn Clock>,
+    pub(crate) store: Arc<dyn Store>,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) ids: Arc<dyn Ids>,
+    pub(crate) channels: Arc<dyn Channels>,
+    pub(crate) outcomes: Arc<dyn RunOutcomes>,
+    pub(crate) wake: Arc<Notify>,
+    waiters: Arc<QuestionWaiters>,
 }
 
 impl std::fmt::Debug for Items {
@@ -100,8 +133,9 @@ impl std::fmt::Debug for Items {
 }
 
 impl Items {
-    pub fn new(store: Arc<dyn Store>, clock: Arc<dyn Clock>) -> Self {
-        Self { store, clock }
+    pub fn new(parts: ItemsParts) -> Self {
+        let ItemsParts { store, clock, ids, channels, outcomes, wake, waiters } = parts;
+        Self { store, clock, ids, channels, outcomes, wake, waiters }
     }
 
     /// Answers the item as it was at `rev`. `by` is who answered:
@@ -112,7 +146,8 @@ impl Items {
         let kind = text["kind"].as_str().and_then(ItemKind::parse);
         let answer = ItemAnswer { by: by.to_owned(), answer: Some(text.to_string()), at: self.clock.now_ms() };
         let id = id.to_owned();
-        self.store
+        let item = self
+            .store
             .write(move |tx, out| {
                 let item = tx.inbox_items().find(&id)?.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
                 if item.state.is_waiting() && !ANSWERED_HERE.contains(&item.kind) {
@@ -129,7 +164,9 @@ impl Items {
                 }
                 answer_in(tx, out, &id, rev, &answer)
             })
-            .await?
+            .await??;
+        self.waiters.wake(&item);
+        Ok(item)
     }
 
     /// Puts the item aside until `until`, or until the next digest.
@@ -147,10 +184,28 @@ impl Items {
     }
 
     /// Discards the item as it was at `rev`: its producer hears a discard.
+    /// A discarded draft ends its run as `discarded`, in the same job.
     pub async fn discard(&self, id: &str, rev: i64, by: &str) -> Result<StoredItem, Error> {
-        let answer = ItemAnswer { by: by.to_owned(), answer: Some(DISCARDED.to_owned()), at: self.clock.now_ms() };
-        let id = id.to_owned();
-        self.store.write(move |tx, out| answer_in(tx, out, &id, rev, &answer)).await?
+        let now = self.clock.now_ms();
+        let answer = ItemAnswer { by: by.to_owned(), answer: Some(DISCARDED.to_owned()), at: now };
+        let (id, run_outcomes) = (id.to_owned(), self.outcomes.clone());
+        let item = self
+            .store
+            .write(move |tx, out| {
+                let item = match answer_in(tx, out, &id, rev, &answer)? {
+                    Ok(item) => item,
+                    Err(refused) => return Ok(Err(refused)),
+                };
+                if item.kind == ItemKind::Draft {
+                    consume_in(tx, &item.id, now)?;
+                    let ended = Ended { item: &item, delivery_id: None, outcome: Outcome::Discarded, at: now };
+                    outcomes::ended_in(tx, out, run_outcomes.as_ref(), ended)?;
+                }
+                Ok(Ok(item))
+            })
+            .await??;
+        self.waiters.wake(&item);
+        Ok(item)
     }
 
     /// Keeps the user's edits of a draft made on `rev`.

@@ -7,7 +7,11 @@
 //! - `GET /api/inbox/:id`: one item with what its kind carries;
 //! - `PUT /api/inbox/:id/draft {rev, doc}`: the user's edits of a draft;
 //! - `POST /api/inbox/:id/later {until?}` and `…/discard {rev}`;
-//! - `POST /api/inbox/:id/answer {rev, answer}`: an answer of the item's kind.
+//! - `POST /api/inbox/:id/answer {rev, answer}`: an answer of the item's
+//!   kind; a run's question is answered to its waiting asker;
+//! - `POST /api/inbox/:id/send {rev, doc?, confirmStale?}`: sends a held
+//!   draft, one delivery per target (`{deliveries: [{id, state, sendAt}]}`);
+//! - `GET /api/inbox/deliveries/:id`: one delivery and where it stands.
 //!
 //! A routine run's permission asks (`perm:<pending id>`) and the memory
 //! suggestions about the user (`sugg:<memory id>`) are listed among the items
@@ -31,8 +35,8 @@ use eos_core::agent::OpenQuestions;
 use eos_core::profile::UserMemoryReader;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock};
-use eos_inbox::Items;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
+use eos_inbox::{Items, ItemsParts, QuestionWaiters};
 use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
@@ -48,7 +52,10 @@ pub struct InboxParts {
     pub questions: Arc<dyn OpenQuestions>,
     /// The memories, the suggestions about the user among them.
     pub memories: Arc<dyn UserMemoryReader>,
-    /// What the delivery engine sends with.
+    /// The run askers waiting on their questions
+    /// ([`RunQuestions::waiters`](eos_inbox::RunQuestions::waiters)).
+    pub waiters: Arc<QuestionWaiters>,
+    /// What the delivery engine sends with, and a sent draft is queued with.
     pub delivery: DeliveryParts,
 }
 
@@ -79,8 +86,16 @@ impl std::fmt::Debug for InboxModule {
 
 impl InboxModule {
     pub fn new(parts: InboxParts) -> Self {
-        let InboxParts { store, clock, questions, memories, delivery } = parts;
-        let items = Items::new(store.clone(), clock);
+        let InboxParts { store, clock, questions, memories, waiters, delivery } = parts;
+        let items = Items::new(ItemsParts {
+            store: store.clone(),
+            clock,
+            ids: delivery.ids.clone(),
+            channels: delivery.channels.clone(),
+            outcomes: delivery.outcomes.clone(),
+            wake: delivery.wake.clone(),
+            waiters,
+        });
         Self {
             parts: Arc::new(Shared { store, items, questions, memories }),
             delivery: Arc::new(Delivery::new(delivery)),
