@@ -90,6 +90,14 @@ fn count(value: Option<&Value>) -> u32 {
     value.and_then(Value::as_i64).map_or(0, |n| u32::try_from(n.max(0)).unwrap_or(u32::MAX))
 }
 
+/// Whether a routine of the user's is there: one in Recently deleted, archived (hidden) or a
+/// one-off that was not kept does not count. `routines` from `GET /api/routines`.
+fn routine_exists(routines: &[Value]) -> bool {
+    routines.iter().any(|routine| {
+        !matches!(routine.get("state").and_then(Value::as_str), Some("deleted" | "archived" | "transient"))
+    })
+}
+
 /// The routine that runs soonest, by its name: `routines` from `GET /api/routines`, `next`
 /// from `GET /api/signals/routines`.
 fn next_run(routines: &Value, next: &Value) -> Option<NextRun> {
@@ -227,7 +235,7 @@ impl Duty {
                 state.needs_you = count(inbox.pointer("/counts/open"));
             }
             if let Some(listed) = routines.as_ref().and_then(Value::as_array) {
-                self.routines.store(!listed.is_empty(), Ordering::SeqCst);
+                self.routines.store(routine_exists(listed), Ordering::SeqCst);
             }
             if let (Some(routines), Some(next)) = (&routines, &next) {
                 state.next = next_run(routines, next);
@@ -241,6 +249,18 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn only_a_routine_still_there_shows_the_item() {
+        let listed = |states: &[&str]| -> Vec<Value> {
+            states.iter().map(|state| json!({"id": "r", "name": "PR Review", "state": state})).collect()
+        };
+        assert!(!routine_exists(&listed(&[])), "a fresh home");
+        assert!(!routine_exists(&listed(&["deleted", "archived", "transient"])), "none of these is there");
+        for state in ["draft", "active", "paused"] {
+            assert!(routine_exists(&listed(&["deleted", state])), "{state}");
+        }
+    }
 
     #[test]
     fn the_next_run_is_the_soonest_by_its_routine_name() {
