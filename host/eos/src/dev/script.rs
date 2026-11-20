@@ -26,6 +26,9 @@
 //! switcher as the dashboard sees it. `{"splash": "Updating · …"}` shows the update splash,
 //! `{"splash": null}` closes it.
 //! `{"badge": 3}` puts a number on the Dock icon as the core does (`null` clears it).
+//! `{"ticks": {"count": 10, "every_ms": 60000, "hold": true}}` waits `count` timers of
+//! `every_ms` in a row, with a `Run` work hold taken when `hold` is true, and returns how
+//! late each fired: `{"held", "lateMs": [..], "wallLateMs": [..]}` (the App Nap drift check).
 //! The output file gets one result per step, in order.
 //!
 //! A responsiveness run (`tests/responsiveness.py`, with the shell's probe on) also has
@@ -45,10 +48,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 
 use eos_bridge::Bridge;
 
+use eos_core::os::HoldReason;
 use eos_core::shell::{CaptureTarget, ImageFormat, Rect, ViewId, ViewSpec};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
@@ -246,9 +250,28 @@ impl Run {
                 self.ports.dock_badge.set(arg.as_u64().map(|n| u32::try_from(n).unwrap_or(u32::MAX)));
                 Ok(Value::Null)
             }
+            "ticks" => Ok(ticks(&self.ports, arg).await),
             other => Err(format!("unknown step {other:?}")),
         }
     }
+}
+
+/// Timers in a row, as a routine's schedule waits on them; how late each one fired, by the
+/// monotonic clock and by the wall clock.
+async fn ticks(ports: &Ports, arg: &Value) -> Value {
+    let count = arg.get("count").and_then(Value::as_u64).unwrap_or(1);
+    let every = Duration::from_millis(arg.get("every_ms").and_then(Value::as_u64).unwrap_or(1000));
+    let held = arg.get("hold").and_then(Value::as_bool) == Some(true);
+    let _hold = held.then(|| ports.work_hold.begin(HoldReason::Run)).flatten();
+    let (mut late, mut wall_late) = (Vec::new(), Vec::new());
+    for _ in 0..count {
+        let (began, wall) = (Instant::now(), SystemTime::now());
+        tokio::time::sleep(every).await;
+        let ms = |taken: Duration| taken.saturating_sub(every).as_millis() as u64;
+        late.push(ms(began.elapsed()));
+        wall_late.push(ms(wall.elapsed().unwrap_or_default()));
+    }
+    json!({ "held": held, "lateMs": late, "wallLateMs": wall_late })
 }
 
 pub(crate) async fn run(steps: PathBuf, out: PathBuf, bridge: Arc<Bridge>, ports: Ports, router: Option<Arc<Router>>) {
