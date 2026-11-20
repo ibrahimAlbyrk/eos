@@ -42,11 +42,19 @@ fn blueprint(value: &Value) -> Blueprint {
     eos_contracts::read(value).unwrap()
 }
 
+/// Eos's data folder in these tests.
+const DATA_DIR: &str = "/Users/me/.eos";
+
 /// The issues of `value` as routine `rt-a`, whose fellow routine `rt-b` runs
 /// after `rt-a`.
 fn issues(value: &Value) -> Vec<(String, String)> {
     let chains = [("rt-b".to_owned(), vec!["rt-a".to_owned()])];
-    let context = Context { routine: "rt-a", chains: &chains, known_zone: &|zone| zone == "Europe/Istanbul" };
+    let context = Context {
+        routine: "rt-a",
+        chains: &chains,
+        known_zone: &|zone| zone == "Europe/Istanbul",
+        data_dir: Some(Path::new(DATA_DIR)),
+    };
     validate(&blueprint(value), &context)
         .into_iter()
         .map(|issue| {
@@ -78,6 +86,33 @@ fn a_valid_blueprint_has_no_issues() {
 fn the_format_and_the_name() {
     assert_eq!(one_issue(|v| v["format"] = json!(2)), issue("format", "Expected format 1"));
     assert_eq!(one_issue(|v| v["name"] = json!("  ")), issue("name", "String must contain at least 1 character(s)"));
+}
+
+#[test]
+fn a_folder_trigger_names_an_absolute_folder_outside_eos_s_data() {
+    let folder = |path: &str| json!([{"folder": {"path": path, "events": ["added"]}}]);
+    for fine in ["/Users/me/Downloads", "/Users/me/.eos-old", "/Users/me"] {
+        let mut value = pr_review();
+        value["when"]["on"] = folder(fine);
+        assert_eq!(issues(&value), Vec::new(), "{fine}");
+    }
+    let at = "when.on.0.folder.path";
+    for relative in ["~/Downloads", "Downloads", "./in"] {
+        assert_eq!(one_issue(|v| v["when"]["on"] = folder(relative)), issue(at, "Expected an absolute path"));
+    }
+    for inside in [DATA_DIR, "/Users/me/.eos/", "/Users/me/.eos/pages"] {
+        assert_eq!(
+            one_issue(|v| v["when"]["on"] = folder(inside)),
+            issue(at, "Must not be inside Eos's data folder"),
+            "{inside}"
+        );
+    }
+
+    // Without the data folder known, the folder source refuses it at run time.
+    let mut value = pr_review();
+    value["when"]["on"] = folder("/Users/me/.eos/pages");
+    let context = Context { routine: "rt-a", chains: &[], known_zone: &|_| true, data_dir: None };
+    assert!(validate(&blueprint(&value), &context).is_empty());
 }
 
 #[test]
@@ -160,7 +195,7 @@ fn an_after_trigger_may_not_close_a_loop() {
         ("rt-y".to_owned(), vec!["rt-x".to_owned()]),
         ("rt-b".to_owned(), vec!["rt-a".to_owned()]),
     ];
-    let context = Context { routine: "rt-a", chains: &chains, known_zone: &|_| true };
+    let context = Context { routine: "rt-a", chains: &chains, known_zone: &|_| true, data_dir: None };
     let found: Vec<_> = validate(&blueprint(&value), &context).into_iter().map(|issue| issue.path.join(".")).collect();
     assert_eq!(found, ["when.on.1.after.routine"]);
 }

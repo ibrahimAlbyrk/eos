@@ -179,6 +179,7 @@ fn to_start(tx: &dyn Tx, routine_id: &str, state: RoutineState) -> Result<Option
 /// routine's head, the routine active, and its architect is suspended.
 pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial: bool) -> Result<Started, Error> {
     let (id, now, zones) = (routine_id.to_owned(), engine.clock.now_ms(), engine.zones.clone());
+    let data_dir = engine.data_dir.clone();
     let patterns = engine.patterns.clone();
     let started = engine
         .store
@@ -192,7 +193,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
             let version = tx.routine_versions().find(&id, &version_id)?;
             let version = version.ok_or_else(|| Error::not_found("version", version_id.clone()))?;
             let blueprint = readable(&version)?.ok_or_else(|| Error::Conflict(NEWER_FORMAT.into()))?;
-            let issues = check_in(tx, &id, &blueprint, zones.as_ref())?;
+            let issues = check_in(tx, &id, &blueprint, zones.as_ref(), &data_dir)?;
             if blocks(&issues) {
                 return Ok((Started::Refused(issues), None));
             }

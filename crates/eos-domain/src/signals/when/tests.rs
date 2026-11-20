@@ -5,7 +5,7 @@ use super::*;
 fn issues(when: Value) -> Vec<String> {
     let when: When = serde_json::from_value(when).expect("a when");
     let mut cx = Issues::default();
-    validate(&when, &|zone| ["Europe/Istanbul", "UTC"].contains(&zone), &mut cx);
+    validate(&when, &|zone| ["Europe/Istanbul", "UTC"].contains(&zone), None, &mut cx);
     cx.into_vec().iter().map(ToString::to_string).collect()
 }
 

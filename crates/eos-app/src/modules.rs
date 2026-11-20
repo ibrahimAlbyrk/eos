@@ -207,6 +207,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         prompts: cx.prompts.clone(),
         scratch: cx.scratch.clone(),
         folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
+        data_dir: cx.paths.home().to_owned(),
         reads: cx.capabilities.clone(),
         gate: gate.clone(),
         config: cx.config.clone(),

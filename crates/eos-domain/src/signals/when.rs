@@ -2,6 +2,7 @@
 //! triggers make between routines, and the slot in plain English.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use eos_contracts::{Issues, Trigger, When};
 
@@ -12,11 +13,12 @@ mod describe;
 pub use describe::describe;
 
 /// Checks a When slot: each trigger, the limits and the batch. `known` says
-/// whether this computer knows a zone's name.
-pub fn validate(when: &When, known: &dyn Fn(&str) -> bool, cx: &mut Issues) {
+/// whether this computer knows a zone's name; `data_dir` is Eos's own data
+/// folder, when the caller knows it.
+pub fn validate(when: &When, known: &dyn Fn(&str) -> bool, data_dir: Option<&Path>, cx: &mut Issues) {
     cx.at("on", |cx| {
         for (i, trigger) in when.on.iter().enumerate() {
-            cx.idx(i, |cx| trigger_issues(trigger, known, cx));
+            cx.idx(i, |cx| trigger_issues(trigger, known, data_dir, cx));
         }
     });
     cx.at("limits", |cx| {
@@ -36,7 +38,7 @@ fn within(cx: &mut Issues, value: i64, min: i64, max: i64) {
     cx.int_max(value, max, true);
 }
 
-fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issues) {
+fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, data_dir: Option<&Path>, cx: &mut Issues) {
     match trigger {
         Trigger::Schedule { schedule, .. } => cx.at("schedule", |cx| schedule::validate(schedule, known, cx)),
         Trigger::Source { source, events, .. } => {
@@ -49,7 +51,7 @@ fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issu
             });
         }
         Trigger::Folder { folder, .. } => cx.at("folder", |cx| {
-            cx.at("path", |cx| cx.str_min(&folder.path, 1));
+            cx.at("path", |cx| folder_path(&folder.path, data_dir, cx));
             if let Some(names) = &folder.names {
                 cx.at("names", |cx| cx.str_min(names, 1));
             }
@@ -62,6 +64,21 @@ fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issu
         Trigger::After { after, .. } => {
             cx.at("after", |cx| cx.at("routine", |cx| cx.starts_with(&after.routine, "rt-")))
         }
+    }
+}
+
+/// A watched folder is named by its absolute path (`~` is the editor's to
+/// expand), and is never Eos's own data folder or inside it.
+fn folder_path(path: &str, data_dir: Option<&Path>, cx: &mut Issues) {
+    cx.str_min(path, 1);
+    if path.is_empty() {
+        return;
+    }
+    let path = Path::new(path);
+    if !path.is_absolute() {
+        cx.push("Expected an absolute path");
+    } else if data_dir.is_some_and(|data_dir| path.starts_with(data_dir)) {
+        cx.push("Must not be inside Eos's data folder");
     }
 }
 

@@ -388,6 +388,7 @@ fn module(
         prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
         scratch: Arc::new(FakeScratch::default()),
         folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
+        data_dir: temp.home.path().to_owned(),
         reads: reads.clone(),
         gate: gate.clone(),
         config: Arc::new(FakeConfig::new(json!({"prices": {"sonnet": {"in": 3, "out": 15, "cacheRead": 0.3}}}))),

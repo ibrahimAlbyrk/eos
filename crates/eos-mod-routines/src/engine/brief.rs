@@ -115,7 +115,7 @@ pub(crate) async fn no_clone(engine: &Engine, run_id: &str) -> Result<(), Error>
 /// model, a capability) is the rules' to find. Chains and zones were checked
 /// when the version was kept.
 fn passes(routine_id: &str, blueprint: &Blueprint) -> bool {
-    let context = Context { routine: routine_id, chains: &[], known_zone: &|_| true };
+    let context = Context { routine: routine_id, chains: &[], known_zone: &|_| true, data_dir: None };
     !validate(blueprint, &context).iter().any(|issue| issue.severity == Severity::Error)
 }
 

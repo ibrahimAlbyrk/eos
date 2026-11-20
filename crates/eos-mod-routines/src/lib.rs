@@ -60,6 +60,7 @@ mod routes;
 mod trial;
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
@@ -106,6 +107,8 @@ pub struct RoutinesParts {
     pub scratch: Arc<dyn ScratchFolders>,
     /// The runs' folders under the data folder's `routines`.
     pub folders: Arc<dyn RunFolders>,
+    /// Eos's data folder, which no folder trigger may watch.
+    pub data_dir: PathBuf,
     /// The capabilities there are: what a run session may call of them.
     pub reads: Arc<dyn CapabilityReads>,
     /// Where a checked result goes: Needs you's gate.
@@ -165,6 +168,7 @@ impl RoutinesModule {
             prompts,
             scratch,
             folders,
+            data_dir,
             reads,
             gate,
             config,
@@ -209,6 +213,7 @@ impl RoutinesModule {
             halt: Mutex::new(None),
             power,
             zones,
+            data_dir,
             zone,
             settings,
             headroom,
