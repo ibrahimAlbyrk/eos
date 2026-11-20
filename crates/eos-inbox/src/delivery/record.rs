@@ -227,7 +227,10 @@ pub(crate) fn sent_in(
 }
 
 /// A send whose subject moved on goes back to the user as a draft (03 G1):
-/// never a stale send in silence.
+/// never a stale send in silence. Its subject is the run's item, as the
+/// gate's drafts are, so a later run's draft on that item replaces it. A
+/// draft this run already holds again on that item is replaced by one that
+/// also goes to its targets: every send of one run carries the same result.
 fn hold_again_in(
     tx: &dyn Tx,
     out: &mut Outbox,
@@ -237,16 +240,28 @@ fn hold_again_in(
 ) -> Result<(), Error> {
     let doc: Value = serde_json::from_str(&row.body).unwrap_or(Value::Null);
     let run = tx.runs().find(&row.run_id)?;
+    let subject_key = run.as_ref().and_then(|run| run.item_key.clone());
+    let mut targets = Vec::new();
+    if let Some(subject) = &subject_key {
+        let held = tx.inbox_items().waiting_with_subject(subject)?;
+        let held = held
+            .into_iter()
+            .filter(|item| item.kind == ItemKind::Draft && item.run_id.as_deref() == Some(row.run_id.as_str()));
+        for item in held {
+            let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
+            targets.extend(payload["targets"].as_array().into_iter().flatten().cloned());
+        }
+    }
+    targets.extend(target_of(&row.target).map(|target| target_value(&target)));
     let draft = NewItem {
         kind: ItemKind::Draft,
         producer: DRAFT_PRODUCER.to_owned(),
         routine_id: Some(row.routine_id.clone()),
         run_id: Some(row.run_id.clone()),
-        // One held-again draft per target: a second target's draft must not replace the first's.
-        subject_key: run.as_ref().and_then(|run| run.item_key.as_ref()).map(|key| format!("{key}|{}", row.target_ref)),
+        subject_key,
         title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
         summary: "What it is about changed since it was made. Look at it again before you send it.".to_owned(),
-        payload: json!({ "doc": doc, "staleReason": reason, "targets": target_of(&row.target).map(|t| vec![target_value(&t)]) }),
+        payload: json!({ "doc": doc, "staleReason": reason, "targets": targets }),
         by_hand: false,
     };
     open_in(tx, out, at, draft).map(drop)
