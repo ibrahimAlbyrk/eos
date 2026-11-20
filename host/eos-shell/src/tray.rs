@@ -12,6 +12,9 @@ use tauri::tray::TrayIconBuilder;
 /// What the menu-bar item shows. Plain data: the app hands a new one in on every change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MenuState {
+    /// The Eos preview is on or a routine exists: the item, and the Quit confirm, show only
+    /// then.
+    pub shown: bool,
     /// Runs of routines working now.
     pub working: u32,
     /// Items open in Needs you.
@@ -167,10 +170,22 @@ impl Tray {
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = Some(state);
     }
 
-    /// Draws the item for the state last handed in, making it on the first call; nothing
-    /// before the first state. Main thread.
+    /// Whether the item shows: the Eos preview is on or a routine exists.
+    pub(crate) fn shown(&self) -> bool {
+        self.state.lock().unwrap_or_else(|p| p.into_inner()).as_ref().is_some_and(|state| state.shown)
+    }
+
+    /// Draws the item for the state last handed in, making it on its first showing, or hides
+    /// it; nothing before the first state. Main thread.
     pub(crate) fn draw(&self, app: &tauri::AppHandle, dev: bool, login: LoginItem) -> tauri::Result<()> {
         let Some(state) = self.state.lock().unwrap_or_else(|p| p.into_inner()).clone() else { return Ok(()) };
+        if !state.shown {
+            if let Some(tray) = app.tray_by_id(ID) {
+                tray.set_visible(false)?;
+            }
+            *self.titles.lock().unwrap_or_else(|p| p.into_inner()) = None;
+            return Ok(());
+        }
         let hour_minute = |at_ms: i64| eos_platform::local_hour_minute(at_ms).unwrap_or_default();
         let entries = entries(&state, dev, login, hour_minute);
         let menu = menu(app, &entries)?;
@@ -179,6 +194,7 @@ impl Tray {
             Some(tray) => {
                 tray.set_menu(Some(menu))?;
                 tray.set_icon_with_as_template(Some(icon), true)?;
+                tray.set_visible(true)?;
             }
             None => {
                 TrayIconBuilder::with_id(ID)
@@ -194,7 +210,7 @@ impl Tray {
         Ok(())
     }
 
-    /// For `--status`: the menu's titles and where the icon is, or `null` while there is none.
+    /// For `--status`: the menu's titles and where the icon is, or `null` while it is hidden.
     pub(crate) fn status(&self, app: Option<&tauri::AppHandle>) -> serde_json::Value {
         let Some(titles) = self.titles.lock().unwrap_or_else(|p| p.into_inner()).clone() else {
             return serde_json::Value::Null;

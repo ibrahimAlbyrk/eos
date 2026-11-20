@@ -14,7 +14,10 @@ What it checks:
   6. the logs: both files beside this run's data, the story told, nothing private in them;
   7. a number set on the Dock icon is what the icon shows;
   8. a window kept hidden releases the dashboard's view (after a shortened time), keeps the
-     other child views, and showing it again makes the view again.
+     other child views, and showing it again makes the view again;
+  9. the menu-bar item shows only while the Eos preview is on (the data copy has no routine),
+     follows the setting and the working runs live, and `--quit` with runs working quits
+     without asking.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -241,12 +244,66 @@ def released(run):
     check("--quit stops the released run", run.stop_app())
 
 
+def menu_bar(run):
+    """9. The menu-bar item and quitting with runs working, on a shell data folder thrown away
+    afterwards. The data copy's Eos preview setting is put back as it was."""
+    subprocess.run(["rm", "-rf", SHELL_DATA], check=True)
+    os.makedirs(SHELL_DATA)
+    settings_file = os.path.join(DEV_HOME, "settings.json")
+    before = read_json(settings_file)
+    steps_file, steps_out = os.path.join(OUT, "menu-steps.jsonl"), os.path.join(OUT, "menu-out.jsonl")
+
+    def step(value):
+        with open(steps_file, "a") as f:
+            f.write(json.dumps(value) + "\n")
+
+    open(steps_file, "w").close()
+    step({"preview": False})
+    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none",
+               EOS_DEV_SCRIPT=steps_file, EOS_DEV_SCRIPT_OUT=steps_out, EOS_DEV_SCRIPT_FOLLOW="1")
+    subprocess.run([os.path.join(HOST, "scripts", "launch.sh"), APP, "--quiet"], check=True, env=env)
+    try:
+        st = wait_for("ready", lambda: (lambda s: s if bridge_of(s).get("ready") else None)(ctl("--status")), 40)
+        if not check("the menu-bar run comes up", st, "" if st else "not within 40 s"):
+            return
+        # The item's first reads, and a preview read after the setting went off.
+        time.sleep(7)
+        tray = lambda: ctl("--status").get("tray")
+        check("no menu-bar item without the preview or a routine", tray() is None, tray())
+        step({"preview": True})
+        shown = wait_for("item", tray, 15)
+        items = (shown or {}).get("items") or []
+        check("the menu-bar item shows with the preview on, its icon in the menu bar",
+              shown and (shown.get("rect") or [0, 0, 0])[2] > 0 and items[:2] == ["Eos (dev)", "Nothing running"]
+              and "Stop all routines" in items and items[-1] == "Quit Eos", shown)
+        step({"runs": 2})
+        working = wait_for("working", lambda: (lambda t: t if t and "2 runs working" in t["items"] else None)(tray()), 10)
+        check("... and counts the runs working", working, tray())
+        step({"preview": False})
+        check("... and goes when the preview is turned off", wait_for("gone", lambda: tray() is None, 15), tray())
+        step({"preview": True})
+        check("... and comes back when it is on again", wait_for("back", tray, 15), tray())
+        pid = ctl("--status").get("pid")
+        quit = ctl("--quit")
+        gone = wait_for("exit", lambda: not alive(pid), 15)
+        log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+        check("--quit with runs working quits without asking",
+              quit.get("ok") is True and gone and "quit asked" not in log, quit)
+        wait_for("helpers", lambda: not helpers(), 10)
+    finally:
+        run.stop_app()
+        if before is not None:
+            with open(settings_file, "w") as f:
+                json.dump(before, f, indent=2)
+
+
 def checks(run):
     bundle_contents()
     subprocess.run(["rm", "-rf", OUT], check=True)
     os.makedirs(SHELL_DATA)
     hidden_start(run)
     released(run)
+    menu_bar(run)
     # ---- a fresh shell profile, and an "Electron profile" holding the layout to restore:
     # one chat selected with the Browser tab open in its side panel.
     subprocess.run(["rm", "-rf", SHELL_DATA], check=True)

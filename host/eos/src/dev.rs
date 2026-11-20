@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use eos_bridge::dev::Guarded;
 use eos_bridge::{Bridge, Core, RouterCore};
+use eos_runtime::bus::Bus;
 use eos_runtime::router::Router;
 use eos_shell::Ports;
 
@@ -30,10 +31,11 @@ pub(crate) fn guarded(rust: Arc<RouterCore>) -> Arc<dyn Core> {
     }
 }
 
-/// `router`: the Rust core's, when it runs, for the script's browser steps.
-pub(crate) fn started(bridge: &Arc<Bridge>, ports: &Ports, router: Option<Arc<Router>>) {
+/// `core`: the Rust core's router and event bus, when it runs, for the script's steps that
+/// reach it.
+pub(crate) fn started(bridge: &Arc<Bridge>, ports: &Ports, core: Option<(Arc<Router>, Bus)>) {
     if let (Some(steps), Some(out)) = (env("EOS_DEV_SCRIPT"), env("EOS_DEV_SCRIPT_OUT")) {
-        let run = script::run(PathBuf::from(steps), PathBuf::from(out), bridge.clone(), ports.clone(), router);
+        let run = script::run(PathBuf::from(steps), PathBuf::from(out), bridge.clone(), ports.clone(), core);
         ports.rt.spawn(run);
     }
 }

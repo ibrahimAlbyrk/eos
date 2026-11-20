@@ -612,7 +612,7 @@ impl Shell {
     /// The user asked to quit: with runs working they are asked first. Main thread.
     fn quit_asked(&self) {
         let check = self.hooks.quit_check();
-        if let Some(detail) = crate::quit::ask(check, self.options.quiet) {
+        if let Some(detail) = crate::quit::ask(check, self.tray.shown(), self.options.quiet) {
             log("shell", &format!("quit asked with {} runs working", check.active_runs));
             if !appkit::confirm(crate::quit::TITLE, &detail, "Quit", "Cancel") {
                 return;
