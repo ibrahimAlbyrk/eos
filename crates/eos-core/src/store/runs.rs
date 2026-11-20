@@ -67,6 +67,15 @@ pub struct RunCounts {
     pub live: i64,
 }
 
+/// How many of a routine's runs ended one way.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EndedCount {
+    pub routine_id: String,
+    /// An outcome word, or a state word for a run without an outcome.
+    pub ended: String,
+    pub count: i64,
+}
+
 /// A row of `run_events`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredRunEvent {
@@ -161,6 +170,11 @@ pub trait RunRepo {
     fn active(&self) -> Result<(i64, i64), Error>;
     /// Every routine's queued runs.
     fn queued_count(&self) -> Result<i64, Error>;
+    /// What a routine's runs made at or after `since` cost.
+    fn cost_since(&self, routine_id: &str, since: i64) -> Result<f64, Error>;
+    /// Runs that ended at or after `since`, counted by routine and by how
+    /// they ended: the outcome of a run that has one, else its state.
+    fn ended_counts(&self, since: i64) -> Result<Vec<EndedCount>, Error>;
     fn load(&self, routine_id: &str, since: i64) -> Result<RoutineLoad, Error>;
     /// A routine's runs whose last state change, an end, has an event id
     /// above `after_seq`, in that order.

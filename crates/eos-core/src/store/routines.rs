@@ -145,4 +145,6 @@ pub trait RoutineSpendRepo {
     fn add(&self, day: &str, routine_id: &str, kind: &str, cost_usd: f64) -> Result<(), Error>;
     /// One day's spend, by routine and kind.
     fn of_day(&self, day: &str) -> Result<Vec<StoredSpend>, Error>;
+    /// What a routine spent on `kind` over every day kept.
+    fn total(&self, routine_id: &str, kind: &str) -> Result<f64, Error>;
 }

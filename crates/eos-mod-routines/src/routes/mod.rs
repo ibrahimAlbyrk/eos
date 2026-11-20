@@ -6,6 +6,7 @@ mod architect;
 mod candidates;
 mod estimate;
 mod intent;
+mod numbers;
 mod routines;
 mod run_agents;
 mod run_view;

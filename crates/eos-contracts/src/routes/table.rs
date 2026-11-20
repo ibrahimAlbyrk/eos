@@ -326,6 +326,7 @@ pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/rout
 pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
 pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
 pub const RUNS_ACTIVE: Route = Route::new("runsActive", "/api/runs/active", &[Get]).added();
+pub const RUNS_SUMMARY: Route = Route::new("runsSummary", "/api/runs/summary", &[Get]).added();
 pub const RUN: Route = Route::new("run", "/api/runs/:id", &[Get]).added();
 pub const RUN_RESULT: Route = Route::new("runResult", "/api/runs/:id/result", &[Get]).added();
 pub const RUN_EVENTS: Route = Route::new("runEvents", "/api/runs/:id/events", &[Get]).added();
@@ -685,6 +686,7 @@ pub const ROUTES: &[Route] = &[
     RUNS,
     RUNS_ESTIMATE,
     RUNS_ACTIVE,
+    RUNS_SUMMARY,
     RUN,
     RUN_RESULT,
     RUN_EVENTS,
