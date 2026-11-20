@@ -147,3 +147,16 @@ async fn needs_you_reports_what_became_of_a_result_inside_its_own_writes() {
     failing.temp.store.write_blocking(move |tx, out| outcomes.delivery_failed(tx, out, &id, "auth")).expect("writes");
     assert_eq!(failing.run(&run).reason, Some(Reason::Delivery));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_send_held_again_puts_its_delivering_run_back_to_waiting_for_the_user() {
+    let bench = Bench::new(true);
+    bench.gate.decide(GateDecision::Delivering { delivery_ids: vec!["dl-1".into()] });
+    let (run, lead) = working(&bench, unchecked()).await;
+    bench.module.tools().submit_result(&lead, review()).await.expect("handed in");
+    bench.eventually(|| bench.state(&run) == RunState::Delivering).await;
+    let (id, outcomes) = (run.clone(), bench.module.outcomes());
+    bench.temp.store.write_blocking(move |tx, out| outcomes.held(tx, out, &id, "in-2")).expect("writes");
+    let held = bench.run(&run);
+    assert_eq!((held.state, held.station), (RunState::WaitingForUser, Some(Station::Gate)));
+}

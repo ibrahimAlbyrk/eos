@@ -323,6 +323,8 @@ async fn a_result_whose_subject_moved_on_goes_back_to_the_user_as_a_draft() {
     assert_eq!(items.iter().map(|item| item.kind.as_str()).collect::<Vec<_>>(), ["draft"]);
     let payload: Value = serde_json::from_str(&items[0].payload).expect("json");
     assert_eq!(payload["staleReason"], "new commits");
+    let waits = OutcomeCall::Held { run_id: "rn-1".into(), item_id: items[0].id.clone() };
+    assert_eq!(sender.outcomes.calls(), [waits], "the run waits for the user again");
 }
 
 impl Sender {
