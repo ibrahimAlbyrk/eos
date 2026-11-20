@@ -7,7 +7,7 @@ use eos_contracts::{ActionClass, Facts, Freedom, ResultDoc, Rung};
 use eos_core::Error;
 use eos_core::Ids;
 use eos_core::delivery::ChannelTraits;
-use eos_core::routine::{GateDecision, GateInput, GateMode};
+use eos_core::routine::{GateDecision, GateInput, GateMode, RunOutcomes};
 use eos_core::store::{Outbox, Tx};
 use eos_domain::freedom::{Caps, effective_rung};
 use eos_domain::inbox::{ItemKind, ItemState};
@@ -18,7 +18,8 @@ use serde_json::{Map, Value, json};
 use super::Gate;
 use super::targets::{Chosen, Targets, choose, with_recipients};
 use crate::delivery::{NewDelivery, queue_in, target_value};
-use crate::items::ALERT_PRODUCER;
+use crate::items::{ALERT_PRODUCER, open_replacing_in};
+use crate::outcomes::replaced_in;
 use crate::{NewItem, Opening, announce, open_in};
 
 /// Why a routine whose result went to an unconfirmed recipient is paused,
@@ -68,7 +69,8 @@ pub(crate) fn apply_in(
     let traits = match traits {
         Some(traits) if input.result_mode == GateMode::AsUsual && rung > Rung::Draft => traits,
         _ => {
-            let item_id = hold_in(tx, out, &at, input, Held { doc: &doc, chosen: &chosen, flags: &flags, rung })?;
+            let held = Held { doc: &doc, chosen: &chosen, flags: &flags, rung };
+            let item_id = hold_in(tx, out, &at, gate.outcomes()?.as_ref(), input, held)?;
             tracing::info!(run_id = %input.run_id, item_id, rung = ?rung, flags = flags.len(), "a result was held");
             return Ok(GateDecision::Held { item_id });
         }
@@ -144,11 +146,13 @@ struct Held<'a> {
 
 /// The result as a `draft` item, with what the run cost and what its check
 /// said, and what its send needs: the targets the gate checked, the rung it
-/// was held at and whether outside text made it; its id.
+/// was held at and whether outside text made it; its id. The run of a
+/// draft it replaced ends as `replaced`, in the same job.
 fn hold_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
     input: &GateInput,
     held: Held<'_>,
 ) -> Result<String, Error> {
@@ -174,7 +178,9 @@ fn hold_in(
         }),
         by_hand: input.origin == "hand",
     };
-    Ok(open_in(tx, out, at, draft)?.id)
+    let (item, replaced) = open_replacing_in(tx, out, at, draft)?;
+    replaced_in(tx, out, outcomes, &replaced, &item)?;
+    Ok(item.id)
 }
 
 /// Takes back the run's draft that waits (01 G18): the user told the team

@@ -18,12 +18,12 @@ use std::sync::Arc;
 
 use eos_core::delivery::Channels;
 use eos_core::os::TimeZone;
-use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate};
+use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate, RunOutcomes};
 use eos_core::store::{Outbox, Tx};
 use eos_core::{Clock, Error, Ids};
 use tokio::sync::Notify;
 
-use crate::control::LateControl;
+use crate::control::{LateControl, LateOutcomes};
 
 /// Needs you's gate.
 pub struct Gate {
@@ -31,6 +31,7 @@ pub struct Gate {
     zone: Arc<dyn TimeZone>,
     clock: Arc<dyn Clock>,
     control: LateControl,
+    outcomes: LateOutcomes,
     /// Pokes the delivery engine once a decision queued deliveries.
     wake: Arc<Notify>,
 }
@@ -43,13 +44,22 @@ impl std::fmt::Debug for Gate {
 
 impl Gate {
     pub fn new(channels: Arc<dyn Channels>, zone: Arc<dyn TimeZone>, clock: Arc<dyn Clock>) -> Self {
-        Self { channels, zone, clock, control: LateControl::default(), wake: Arc::new(Notify::new()) }
+        Self {
+            channels,
+            zone,
+            clock,
+            control: LateControl::default(),
+            outcomes: LateOutcomes::default(),
+            wake: Arc::new(Notify::new()),
+        }
     }
 
     /// The routines' control, which pauses a routine whose result was
-    /// refused. The caller keeps it alive.
-    pub fn attach(&self, control: &Arc<dyn RoutineControl>) {
+    /// refused, and its run outcomes, which end the run whose draft a newer
+    /// one replaced. The caller keeps both alive.
+    pub fn attach(&self, control: &Arc<dyn RoutineControl>, outcomes: &Arc<dyn RunOutcomes>) {
         self.control.attach(control);
+        self.outcomes.attach(outcomes);
     }
 
     /// What wakes the delivery engine when the gate queued deliveries.
@@ -59,6 +69,10 @@ impl Gate {
 
     fn control(&self) -> Result<Arc<dyn RoutineControl>, Error> {
         self.control.get()
+    }
+
+    fn outcomes(&self) -> Result<Arc<dyn RunOutcomes>, Error> {
+        self.outcomes.get()
     }
 }
 
