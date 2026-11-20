@@ -42,6 +42,10 @@ impl Sender {
     }
 
     fn on(rig: Rig) -> Self {
+        Self::sleeping_on(rig, Arc::new(FakeSleeper::default()))
+    }
+
+    fn sleeping_on(rig: Rig, sleeper: Arc<FakeSleeper>) -> Self {
         let channels = FakeChannels::new()
             .with("github", traits(Idempotency::Marker))
             .with("native", traits(Idempotency::Native))
@@ -51,7 +55,7 @@ impl Sender {
         let engine = Arc::new(Delivery::new(DeliveryParts {
             store: rig.temp.port(),
             clock: rig.clock.clone(),
-            sleeper: Arc::new(FakeSleeper::default()),
+            sleeper,
             ids: rig.ids.clone(),
             zone: rig.zone.clone(),
             channels: Arc::new(channels.clone()),
@@ -312,4 +316,43 @@ async fn nothing_is_claimed_while_eos_is_stopped() {
     sender.pass().await;
     assert!(sender.sent().is_empty());
     assert_eq!(sender.row("dl-1").await.state, "queued");
+}
+
+#[tokio::test]
+async fn the_loop_sleeps_until_the_send_that_may_go_next_not_for_one_held_behind_its_target() {
+    let rig = Rig::new();
+    let sleeper = Arc::new(FakeSleeper::default());
+    let sender = Sender::sleeping_on(rig, sleeper.clone());
+    let now = sender.rig.clock.now_ms();
+    // The older send to the target waits on the retry ladder; a newer one
+    // to the same target is due, but goes only after it.
+    sender.queue("dl-old", "github", "pr", "queued", "auto", now - 10).await;
+    sender.rig.temp.exec(&format!(
+        "UPDATE inbox_deliveries SET attempts = 1, next_attempt_at = {} WHERE id = 'dl-old'",
+        now + 30_000
+    ));
+    sender.queue("dl-new", "github", "pr", "queued", "auto", now - 5).await;
+    sender.engine.start();
+    let mut waited = 0;
+    while sleeper.pending().is_empty() && waited < 200 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        waited += 1;
+    }
+    assert_eq!(sleeper.pending(), [30_000], "it waits for the older send's retry");
+    assert!(sender.sent().is_empty());
+    sender.engine.stop().await;
+}
+
+#[tokio::test]
+async fn many_sends_held_behind_their_target_never_starve_one_that_may_go() {
+    let sender = Sender::new();
+    let now = sender.rig.clock.now_ms();
+    sender.queue("dl-0", "github", "pr", "queued", "auto", now - 100).await;
+    sender.rig.temp.exec(&format!("UPDATE inbox_deliveries SET next_attempt_at = {} WHERE id = 'dl-0'", now + 30_000));
+    for n in 1..=25 {
+        sender.queue(&format!("dl-{n}"), "github", "pr", "queued", "auto", now - 100 + n).await;
+    }
+    sender.queue("dl-other", "github", "boss", "queued", "auto", now).await;
+    sender.pass().await;
+    assert_eq!(sender.sent(), ["dl-other"]);
 }

@@ -19,10 +19,10 @@ use eos_core::{Clock, Error, Ids, Sleeper};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
-use super::claim::claim_in;
+use super::claim::{claim_in, next_due_in};
 use super::reconcile::{Found, found, launch_in, settle_in};
 use super::record::{Attempt, record_in};
-use super::{QUEUED, UNCERTAIN, target_of};
+use super::{UNCERTAIN, target_of};
 use crate::Opening;
 
 /// The longest the loop sleeps with nothing due: a row written by another
@@ -195,22 +195,11 @@ impl Delivery {
         }
     }
 
-    /// How long until the next row comes due, at most [`IDLE_MS`]; the
-    /// longest while halt holds every send.
+    /// How long until the next row that may go comes due, at most
+    /// [`IDLE_MS`]; the longest while halt holds every send.
     async fn next_wait(&self) -> i64 {
         let now = self.parts.clock.now_ms();
-        let next = self
-            .parts
-            .store
-            .read(|tx| {
-                if tx.inbox_halt().get()?.on {
-                    return Ok(None);
-                }
-                let queued = tx.inbox_deliveries().next_due(QUEUED)?;
-                let uncertain = tx.inbox_deliveries().next_due(UNCERTAIN)?;
-                Ok(queued.into_iter().chain(uncertain).min())
-            })
-            .await;
+        let next = self.parts.store.read(next_due_in).await;
         match next {
             Ok(Some(at)) => (at - now).clamp(0, IDLE_MS),
             Ok(None) => IDLE_MS,
