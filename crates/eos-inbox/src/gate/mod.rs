@@ -23,12 +23,19 @@ pub(crate) fn subject_of(item_key: &str, version: Option<&str>) -> String {
     bare.unwrap_or(item_key).to_owned()
 }
 
+/// A stored run's subject: its item without the version its input was made
+/// on, as [`subject_of`] reads it.
+pub(crate) fn run_subject(run: &StoredRun) -> Option<String> {
+    let input: serde_json::Value = serde_json::from_str(&run.input).unwrap_or_default();
+    run.item_key.as_deref().map(|key| subject_of(key, input["item"]["version"].as_str()))
+}
+
 use std::sync::Arc;
 
 use eos_core::delivery::Channels;
 use eos_core::os::TimeZone;
 use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate, RunOutcomes};
-use eos_core::store::{Outbox, Tx};
+use eos_core::store::{Outbox, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids};
 use tokio::sync::Notify;
 

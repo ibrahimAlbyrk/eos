@@ -1,6 +1,7 @@
 //! The claim (03 §4.8 "Engine"): one write job takes the rows that are due
 //! and may go now, oldest first, at most one at a time per place a send
-//! goes to (the routine, the recipient and the run's item), while halt is
+//! goes to (the routine, the recipient and the run's subject: its item at
+//! any version), while halt is
 //! off; each becomes `sending` with one more attempt. A row the
 //! user approved over an hour ago and never tried (Eos was closed) is not
 //! sent but told (03 G5), and an automatic one made over a day ago goes
@@ -18,6 +19,7 @@ use eos_domain::freedom::rung::APPROVED_FRESH_MS;
 use super::record::{Again, Problem, hold_again_in, problem_in};
 use super::{APPROVED, FAILED, HOLDING, QUEUED, SENDING, STOPPED, UNCERTAIN, WAITING_CAPABILITY, announce, automatic};
 use crate::Opening;
+use crate::gate::run_subject;
 
 /// The most rows one claim takes.
 const CLAIM_MAX: usize = 20;
@@ -25,36 +27,36 @@ const CLAIM_MAX: usize = 20;
 pub(crate) const AUTO_HELD_AFTER_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Where a send really goes: two sends to the same pull request go one at
-/// a time, sends to different items or of different routines do not wait
-/// for each other.
+/// a time, whichever of its versions they are about; sends to different
+/// items or of different routines do not wait for each other.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Place {
     routine_id: String,
     recipient_id: String,
-    item_key: Option<String>,
+    subject: Option<String>,
 }
 
-/// The place of each row, its run's item key read once per run.
+/// The place of each row, its run's subject read once per run.
 struct Places<'a> {
     tx: &'a dyn Tx,
-    item_keys: HashMap<String, Option<String>>,
+    subjects: HashMap<String, Option<String>>,
 }
 
 impl<'a> Places<'a> {
     fn new(tx: &'a dyn Tx) -> Self {
-        Self { tx, item_keys: HashMap::new() }
+        Self { tx, subjects: HashMap::new() }
     }
 
     fn of(&mut self, row: &StoredDelivery) -> Result<Place, Error> {
-        let item_key = match self.item_keys.get(&row.run_id) {
-            Some(key) => key.clone(),
+        let subject = match self.subjects.get(&row.run_id) {
+            Some(subject) => subject.clone(),
             None => {
-                let key = self.tx.runs().find(&row.run_id)?.and_then(|run| run.item_key);
-                self.item_keys.insert(row.run_id.clone(), key.clone());
-                key
+                let subject = self.tx.runs().find(&row.run_id)?.as_ref().and_then(run_subject);
+                self.subjects.insert(row.run_id.clone(), subject.clone());
+                subject
             }
         };
-        Ok(Place { routine_id: row.routine_id.clone(), recipient_id: row.target_ref.clone(), item_key })
+        Ok(Place { routine_id: row.routine_id.clone(), recipient_id: row.target_ref.clone(), subject })
     }
 }
 

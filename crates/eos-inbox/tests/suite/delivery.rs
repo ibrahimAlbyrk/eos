@@ -235,12 +235,15 @@ async fn one_send_at_a_time_goes_to_a_target_in_the_order_they_were_made() {
 }
 
 impl Sender {
-    /// Run `run` of `routine` on `item`, its row `id` to the recipient `pr`
-    /// made `at`, waiting on the retry ladder until `next`.
+    /// Run `run` of `routine` on `item` (made on the version after its `@`,
+    /// as real runs are), its row `id` to the recipient `pr` made `at`,
+    /// waiting on the retry ladder until `next`.
     async fn queue_on(&self, id: &str, run: &str, routine: &str, item: &str, at: i64, next: i64) {
+        let version = item.rsplit_once('@').map(|(_, version)| version);
+        let input = json!({ "item": { "version": version } });
         self.rig.temp.exec(&format!(
             "INSERT OR IGNORE INTO runs (id, routine_id, kind, origin, input, state, priority, device, item_key, \
-             created_at, updated_at) VALUES ('{run}', '{routine}', 'standing', 'hand', '{{}}', 'delivering', 0, \
+             created_at, updated_at) VALUES ('{run}', '{routine}', 'standing', 'hand', '{input}', 'delivering', 0, \
              'mac-1', '{item}', 1, 1)"
         ));
         self.queue(id, "github", "pr", "queued", "auto", at).await;
@@ -260,6 +263,20 @@ async fn a_send_on_the_retry_ladder_holds_back_the_next_send_to_the_same_pull_re
     sender.pass().await;
     assert!(sender.sent().is_empty(), "the same pull request waits for the older send");
     assert_eq!(sender.row("dl-same").await.state, "queued");
+}
+
+#[tokio::test]
+async fn sends_about_two_versions_of_one_pull_request_go_one_after_the_other() {
+    let sender = Sender::new();
+    let now = sender.rig.clock.now_ms();
+    sender.queue_on("dl-first", "rn-a", "rt-1", "github:pr:acme/game#482@aaa111", now - 10, now).await;
+    sender.queue_on("dl-second", "rn-b", "rt-1", "github:pr:acme/game#482@bbb222", now - 5, now).await;
+    sender.queue_on("dl-other-pr", "rn-c", "rt-1", "github:pr:acme/game#483@aaa111", now - 4, now).await;
+    sender.pass().await;
+    assert_eq!(sender.sent(), ["dl-first", "dl-other-pr"], "the newer version waits, another pull request does not");
+    assert_eq!(sender.row("dl-second").await.state, "queued");
+    sender.pass().await;
+    assert_eq!(sender.sent(), ["dl-first", "dl-other-pr", "dl-second"]);
 }
 
 #[tokio::test]
