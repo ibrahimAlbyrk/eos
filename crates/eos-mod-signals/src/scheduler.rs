@@ -143,10 +143,10 @@ impl Scheduler {
             }
         }
         drop(catch_up);
-        if let Some((routine_id, late_by)) = late {
-            if let Err(error) = self.awake.offer(&self.router, &routine_id, late_by).await {
-                tracing::warn!(error = error_kind(&error), "keeping the computer awake could not be offered");
-            }
+        if let Some((routine_id, late_by)) = late
+            && let Err(error) = self.awake.offer(&self.router, &routine_id, late_by).await
+        {
+            tracing::warn!(error = error_kind(&error), "keeping the computer awake could not be offered");
         }
         self.follow(&held).await;
         let now = self.clock.now_ms();
