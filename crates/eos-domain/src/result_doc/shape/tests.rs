@@ -99,7 +99,7 @@ fn each_misfit_names_the_part_what_is_wrong_and_what_is_expected() {
         [
             "part `n:1`: two parts have this key; give each part its own key.",
             "part `top` is missing: The top part.",
-            "part `mood`: `MAYBE` is not one of `GOOD`, `BAD`.",
+            "part `mood`: its text must be one of `GOOD`, `BAD`.",
             "part `n:1`: meta.at must be a line number, a whole number from 1.",
             "part `n:1`: meta.side must be one of `L`, `R`.",
         ]

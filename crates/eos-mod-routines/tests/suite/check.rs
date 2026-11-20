@@ -147,7 +147,13 @@ async fn a_result_the_rules_refuse_goes_back_without_a_checker() {
     bench.eventually(|| bench.state(&run) == RunState::Running).await;
     assert_eq!(bench.run(&run).attempt, 2);
     bench
-        .eventually(|| bench.agents.sent(&lead).iter().any(|t| t.contains("this routine makes a github.review")))
+        .eventually(|| {
+            bench
+                .agents
+                .sent(&lead)
+                .iter()
+                .any(|t| t.contains("kind `mail`: this routine makes `github.review`; hand in kind `github.review`."))
+        })
         .await;
     assert!(!bench.agents.started().iter().any(is_checker));
 }

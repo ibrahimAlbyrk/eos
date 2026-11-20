@@ -180,7 +180,7 @@ impl PartShape {
     fn check(&self, part: &Part, found: &mut Vec<String>) {
         let key = &part.key;
         if !self.values.is_empty() && !self.values.contains(&part.text) {
-            found.push(format!("part `{key}`: `{}` is not {}.", part.text, one_of(&self.values)));
+            found.push(format!("part `{key}`: its text must be {}.", one_of(&self.values)));
         }
         let missing: Vec<String> = self
             .meta

@@ -20,7 +20,7 @@ pub(crate) fn text(engine: &Engine, makes: &str) -> String {
 pub(crate) fn misfits(engine: &Engine, kind: &str, makes: &str, doc: &ResultDoc) -> Vec<String> {
     let mut found = Vec::new();
     if kind != makes {
-        found.push(format!("The result is a {kind}; this routine makes a {makes}."));
+        found.push(format!("kind `{kind}`: this routine makes `{makes}`; hand in kind `{makes}`."));
     }
     if let Some(shape) = engine.reads.result_shape(makes) {
         found.extend(shape.check(doc));

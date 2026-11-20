@@ -132,7 +132,7 @@ pub(crate) fn review_shape() -> ResultShape {
 /// `commit_id`; the text of what is wrong when it is no review.
 pub(crate) fn review_of(doc: &ResultDoc, pull: &Pull, commit_id: &str) -> Result<PrReview, String> {
     if doc.kind != GITHUB_REVIEW {
-        return Err(format!("a {} result is not a review", doc.kind));
+        return Err(format!("kind `{}`: a review is kind `{GITHUB_REVIEW}`", doc.kind));
     }
     let text = |key: &str| doc.parts.iter().find(|part| part.key == key).map(|part| part.text.clone());
     let event = text(EVENT).unwrap_or_else(|| "COMMENT".to_owned());
@@ -142,8 +142,14 @@ pub(crate) fn review_of(doc: &ResultDoc, pull: &Pull, commit_id: &str) -> Result
         .filter(|part| part.key != EVENT && part.key != SUMMARY)
         .map(|part| {
             let meta = |field: &str| part.meta.get(field);
-            let path = meta("path").and_then(Value::as_str).ok_or_else(|| format!("{} has no path", part.key))?;
-            let line = meta("line").and_then(Value::as_u64).ok_or_else(|| format!("{} has no line", part.key))?;
+            let misses = |field: &str| {
+                format!(
+                    "part `{}`: a line comment needs meta.{field}; put general remarks in the summary part",
+                    part.key
+                )
+            };
+            let path = meta("path").and_then(Value::as_str).ok_or_else(|| misses("path"))?;
+            let line = meta("line").and_then(Value::as_u64).ok_or_else(|| misses("line"))?;
             Ok(PrReviewComment {
                 path: path.to_owned(),
                 line,
