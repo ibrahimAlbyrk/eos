@@ -3,6 +3,7 @@
 //! - [`FakeClock`]: time that moves when the test says so.
 //! - [`SeqIds`]: ids in today's shapes that count up (`w-00000001`).
 //! - [`TempHome`]: a data folder that is removed when dropped.
+//! - [`BusyDatabase`]: `state.db` open and busy as the app holds it, opened again by another program.
 //! - [`TempStore`]: the real store over a migrated `state.db`, in a [`TempHome`];
 //!   [`Announced`] keeps what its writes announced.
 //! - [`fixtures`]: the recorded wire and the invented seed rows.
@@ -63,6 +64,7 @@
 mod accounts;
 pub mod agent;
 mod browser;
+mod busy_db;
 mod capabilities;
 mod capability_files;
 mod capability_reads;
@@ -109,6 +111,7 @@ pub use agent::{
     RecordingSink, ScriptedRuntime, Turn,
 };
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
+pub use busy_db::BusyDatabase;
 pub use capabilities::{BuiltinCall, FakeActionRunner, FakeBuiltin, FakeCapabilityRegistry, RunnerCall};
 pub use capability_files::FakeCapabilityFiles;
 pub use capability_reads::{FakeCapabilityHealth, FakeCapabilityReads};

@@ -14,6 +14,7 @@
 mod access;
 mod backup;
 mod copy;
+mod database;
 mod error;
 mod host;
 mod location;

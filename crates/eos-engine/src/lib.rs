@@ -23,6 +23,7 @@ mod accounts;
 mod commands;
 mod compaction;
 mod confine;
+mod database_guard;
 mod endpoints;
 mod engine;
 mod gate;

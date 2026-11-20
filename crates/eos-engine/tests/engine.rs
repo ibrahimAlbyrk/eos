@@ -20,6 +20,8 @@ use serde_json::Value;
 mod confine;
 #[path = "engine/confine_api.rs"]
 mod confine_api;
+#[path = "engine/database.rs"]
+mod database;
 #[path = "engine/isolation.rs"]
 mod isolation;
 #[path = "engine/ports.rs"]
@@ -93,6 +95,7 @@ impl Bench {
             claude_home: Some(dir.path().join("home")),
             mcp: false,
             protected: eos_platform::DataPaths::new(dir.path()).agent_protected(),
+            data: Some(eos_platform::DataPaths::new(dir.path())),
             ..EngineOptions::new(dir.path().join("engine"))
         };
         // Providers reached with a key: the mock, as `deep`, and as the

@@ -23,6 +23,7 @@ use eos_core::agent::{
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
+use eos_platform::DataPaths;
 use tokio::sync::mpsc;
 
 use crate::accounts::{Accounts, ArtifactLogin, Failover, NewSession, NotSignedIn};
@@ -71,6 +72,8 @@ pub struct EngineOptions {
     /// Paths no file tool writes, whatever the policy allows (the app's own
     /// state); the engine's folder is always one.
     pub protected: Vec<PathBuf>,
+    /// The data folder whose database files no tool opens; `None` guards none.
+    pub data: Option<DataPaths>,
 }
 
 impl EngineOptions {
@@ -83,6 +86,7 @@ impl EngineOptions {
             mcp: true,
             plugin_dirs: Vec::new(),
             protected: Vec::new(),
+            data: None,
         }
     }
 }
@@ -216,7 +220,7 @@ impl Engine {
             .artifacts(true)
             .artifact_opener(Arc::new(Opener(artifacts)))
             .auth_failover(Arc::new(failover))
-            .permissions(Arc::new(EosGate { policy, sessions: sessions.clone() }))
+            .permissions(Arc::new(EosGate { policy, sessions: sessions.clone(), data: options.data.clone() }))
             .prompter(Arc::new(Prompter { questions, sessions: sessions.clone() }))
             .store(Arc::new(store.clone()) as Arc<dyn TranscriptStore>)
             .data_dir(options.dir.join("data"))

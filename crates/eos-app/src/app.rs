@@ -333,6 +333,10 @@ impl App {
         if !migrations.unknown.is_empty() {
             tracing::info!(ids = ?migrations.unknown, "the database records migrations this build does not know; left alone");
         }
+        // A walk from a folder above the data folder (an agent's Grep, the user's `rg`) must not open the database's files.
+        if let Err(error) = paths.ignore_database_files() {
+            tracing::warn!(%error, "the data folder's .ignore could not be written");
+        }
 
         let kernel = Kernel::new(KernelOptions {
             clock: clock.clone(),

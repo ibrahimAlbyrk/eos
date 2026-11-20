@@ -32,13 +32,17 @@ use eos_agent_core::{
 use eos_agent_sdk::ReadOnly;
 use eos_contracts::{ExternalDecision, UnknownRecord};
 use eos_core::policy::{AgentMode, PolicyDecider, SubagentModes, ToolCall};
+use eos_platform::DataPaths;
 use serde_json::value::RawValue;
 
+use crate::database_guard;
 use crate::registry::Registry;
 
 pub(crate) struct EosGate {
     pub(crate) policy: Arc<dyn PolicyDecider>,
     pub(crate) sessions: Arc<Registry>,
+    /// The data folder whose database files no tool opens.
+    pub(crate) data: Option<DataPaths>,
 }
 
 /// An engine mode as Eos decides calls in it (the table above).
@@ -66,6 +70,9 @@ fn chain_modes(chain: &[DeclaredMode], looks_only: bool) -> Option<SubagentModes
 impl PermissionGate for EosGate {
     fn decide<'a>(&'a self, call: EngineCall<'a>) -> BoxFuture<'a, Permission> {
         Box::pin(async move {
+            if let Some(refusal) = self.data.as_ref().and_then(|data| database_guard::refusal(data, &call)) {
+                return Permission::Deny(refusal);
+            }
             // The session is the tree's top-level agent; a subagent's call
             // names itself, so the policy can keep Eos's control tools from it.
             let worker_id = call.root_id().to_owned();
