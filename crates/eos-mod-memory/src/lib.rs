@@ -8,21 +8,30 @@
 //! - `start` loads the meaning model off the async threads: until it is
 //!   loaded, or when there is none (a test, a dev run without
 //!   `EOS_EMBED_MODEL_DIR`), recall seeds by hooks and words only.
+//! - Capture reads a worker's conversation for moments at its idle edge
+//!   (idle hook `memory`, order 90, never taking the worker), every ten
+//!   minutes while it keeps working, and when its session ends.
 //! - Model work nobody asked for (reflection, night tidying) runs only when
 //!   the host lets it ([`MemoryParts::background_model_calls`]).
 //!
 //! Note text, cues and hook keys are the user's: logged by id, kind and
 //! count only.
 
+mod hooks;
+
 use std::sync::{Arc, Mutex, PoisonError};
 
-use eos_contracts::{ExperienceChange, ExperienceRecalledEvent, ExperienceSettings};
+use eos_contracts::{AgentEvent, ExperienceChange, ExperienceRecalledEvent, ExperienceSettings};
 use eos_core::experience::Embedder;
+use eos_core::routine::RunLookup;
 use eos_core::store::Store;
-use eos_core::{BoxFuture, Clock, Error};
-use eos_memory::Recall;
+use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
+use eos_memory::{Capture, Recall};
 use eos_runtime::bus::{Topic, TopicDecl};
+use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
+
+use crate::hooks::Capturer;
 
 pub const MEMORY_CHANGE: Topic<ExperienceChange> = Topic::new("memory:change");
 pub const MEMORY_RECALLED: Topic<ExperienceRecalledEvent> = Topic::new("memory:recalled");
@@ -53,6 +62,10 @@ impl EmbedderHealth {
 pub struct MemoryParts {
     pub store: Arc<dyn Store>,
     pub clock: Arc<dyn Clock>,
+    pub sleeper: Arc<dyn Sleeper>,
+    pub ids: Arc<dyn Ids>,
+    /// Which run a worker belongs to, when routines are composed.
+    pub runs: Option<Arc<dyn RunLookup>>,
     /// The meaning model, when the host has one.
     pub embedder: Option<LoadEmbedder>,
     /// Whether model calls nobody asked for may run: only in the installed
@@ -69,6 +82,8 @@ impl std::fmt::Debug for MemoryParts {
 pub struct MemoryModule {
     store: Arc<dyn Store>,
     recall: Arc<Recall>,
+    capturer: Arc<Capturer>,
+    sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
     health: Arc<Mutex<EmbedderHealth>>,
     background_model_calls: bool,
@@ -84,10 +99,12 @@ impl std::fmt::Debug for MemoryModule {
 
 impl MemoryModule {
     pub fn new(parts: MemoryParts) -> Self {
-        let MemoryParts { store, clock, embedder, background_model_calls } = parts;
+        let MemoryParts { store, clock, sleeper, ids, runs, embedder, background_model_calls } = parts;
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
         Self {
-            recall: Arc::new(Recall::new(store.clone(), clock)),
+            recall: Arc::new(Recall::new(store.clone(), clock.clone())),
+            capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs)),
+            sleeper,
             store,
             embedder: Mutex::new(embedder),
             health: Arc::new(Mutex::new(health)),
@@ -139,12 +156,35 @@ impl Module for MemoryModule {
         vec![MEMORY_CHANGE.decl(), MEMORY_RECALLED.decl()]
     }
 
+    fn idle_hooks(&self) -> Vec<IdleHook> {
+        let capturer = self.capturer.clone();
+        vec![IdleHook::new("memory", 90, move |worker_id| {
+            let capturer = capturer.clone();
+            let worker_id = worker_id.to_owned();
+            tokio::spawn(async move { capturer.look(&worker_id).await });
+            std::future::ready(false)
+        })]
+    }
+
+    fn on_agent_event(&self, worker_id: &str, _event: &AgentEvent) {
+        self.capturer.saw(worker_id);
+    }
+
+    fn on_session_exit(&self, worker_id: &str) {
+        self.capturer.ended(worker_id);
+        let capturer = self.capturer.clone();
+        let worker_id = worker_id.to_owned();
+        tokio::spawn(async move { capturer.look(&worker_id).await });
+    }
+
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
+        let mut tasks = self.tasks.lock().unwrap_or_else(PoisonError::into_inner);
         let load = self.embedder.lock().unwrap_or_else(PoisonError::into_inner).take();
         if let Some(load) = load {
-            let task = tokio::spawn(load_meaning(load, self.recall.clone(), self.health.clone()));
-            self.tasks.lock().unwrap_or_else(PoisonError::into_inner).push(task);
+            tasks.push(tokio::spawn(load_meaning(load, self.recall.clone(), self.health.clone())));
         }
+        tasks.push(tokio::spawn(self.capturer.clone().tick(self.sleeper.clone())));
+        drop(tasks);
         Box::pin(std::future::ready(Ok(())))
     }
 

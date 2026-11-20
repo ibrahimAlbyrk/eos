@@ -333,7 +333,7 @@ impl PolicyGateway {
         for waiter in released {
             let _ = waiter.release.send(denied("worker exited before permission was resolved"));
         }
-        self.sweep_expired("expired (swept on worker exit)").await
+        self.sweep_expired(eos_domain::pending::SWEPT_ON_EXIT).await
     }
 
     /// Closes, as denied with `reason`, every open ask past its `expires_at`

@@ -2,6 +2,11 @@
 
 use eos_contracts::PendingPermissionRow;
 
+/// Why the app itself denied an open ask at start-up.
+pub const SWEPT_AT_START: &str = "daemon restart sweep";
+/// Why the app itself denied the open asks of a worker that ended.
+pub const SWEPT_ON_EXIT: &str = "expired (swept on worker exit)";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingPermission {
     pub id: String,

@@ -16,6 +16,14 @@ pub struct NewPending {
     pub expires_at: i64,
 }
 
+/// A tool call the user denied (not one the app closed by itself).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserDenial {
+    /// The ask's row in its table.
+    pub row: i64,
+    pub tool: String,
+}
+
 pub trait PendingRepo {
     fn insert(&self, new: &NewPending) -> Result<(), Error>;
     fn find(&self, id: &str) -> Result<Option<PendingPermission>, Error>;
@@ -33,4 +41,7 @@ pub trait PendingRepo {
     /// Denies every open ask that expired before `now`; returns how many.
     fn sweep_expired(&self, now: i64, reason: &str) -> Result<usize, Error>;
     fn delete_by_worker(&self, worker_id: &str) -> Result<(), Error>;
+    /// The worker's asks the user denied after row `after`, oldest first, at
+    /// most `limit`.
+    fn user_denials(&self, worker_id: &str, after: i64, limit: i64) -> Result<Vec<UserDenial>, Error>;
 }

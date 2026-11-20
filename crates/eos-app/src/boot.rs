@@ -49,7 +49,7 @@ pub(crate) fn settle(
         let pruned = tx.events().prune_all(events_max_per_worker)?;
         // Reactions whose message a build that does not know their table removed.
         tx.reactions().sweep_orphans()?;
-        Ok((pruned, tx.pending().sweep_expired(now, "daemon restart sweep")?))
+        Ok((pruned, tx.pending().sweep_expired(now, eos_domain::pending::SWEPT_AT_START)?))
     })?;
     if pruned > 0 {
         tracing::info!(rows = pruned, keep_per_worker = events_max_per_worker, "pruned events at start-up");

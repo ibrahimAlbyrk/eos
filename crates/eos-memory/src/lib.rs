@@ -5,6 +5,8 @@
 //!   they are about, their words, their meaning), spreads activation along
 //!   links and ranks what applies; the vectors live in a [`VectorIndex`] in
 //!   memory, loaded once a model is (until then recall uses hooks and words).
+//! - [`Capture`] reads a worker's rows after its cursor for the moments
+//!   memory learns from.
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
@@ -13,11 +15,13 @@
 //! Note text, cues and hook keys are the user's data: logged by count and
 //! kind only, never by content.
 
+pub mod capture;
 pub mod pack;
 pub mod recall;
 pub mod settings;
 pub mod vectors;
 
+pub use capture::{Capture, Captured};
 pub use pack::{Pack, chat_pack};
 pub use recall::{Cues, Recall, Recalled, Situation};
 pub use vectors::VectorIndex;
