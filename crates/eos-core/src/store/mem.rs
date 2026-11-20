@@ -44,6 +44,14 @@ pub struct NoteQuery {
     pub forgotten: bool,
 }
 
+/// How many live notes hold in one scope, of one kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiveCount {
+    pub scope: eos_domain::experience::Scope,
+    pub kind: NoteKind,
+    pub count: i64,
+}
+
 /// A match of the search by words: lower `rank` is better (bm25).
 #[derive(Debug, Clone, PartialEq)]
 pub struct WordHit {
@@ -117,6 +125,11 @@ pub trait MemNoteRepo {
     fn ids(&self) -> Result<Vec<String>, Error>;
     /// Notes neither closed nor forgotten.
     fn live_count(&self) -> Result<i64, Error>;
+    /// Notes neither closed nor forgotten, counted by scope and kind.
+    fn live_counts(&self) -> Result<Vec<LiveCount>, Error>;
+    /// Notes neither closed nor forgotten, of every kind but episode, made at
+    /// or after `since`.
+    fn learned_since(&self, since: i64) -> Result<i64, Error>;
 }
 
 pub trait MemVectorRepo {

@@ -325,3 +325,29 @@ fn evidence_keeps_the_newest_fifty_and_uses_cursors_forgotten_settings_and_days_
         })
         .expect("writes");
 }
+
+#[test]
+fn live_notes_count_by_scope_and_kind_and_the_week_counts_what_was_learned() {
+    let temp = TempStore::new();
+    let (counts, week) = temp
+        .store
+        .write_blocking(|tx, _| {
+            let notes = tx.mem_notes();
+            notes.insert(&note("mn-000000000001", "a", 10), "")?;
+            notes.insert(&note("mn-000000000002", "b", 100), "")?;
+            let mut episode = note("mn-000000000003", "c", 100);
+            episode.kind = NoteKind::Episode;
+            notes.insert(&episode, "")?;
+            let mut closed = note("mn-000000000004", "d", 100);
+            closed.state = NoteState::Closed;
+            notes.insert(&closed, "")?;
+            notes.insert(&note("mn-000000000005", "e", 100), "")?;
+            notes.set_forgotten("mn-000000000005", Some(200))?;
+            Ok((notes.live_counts()?, notes.learned_since(50)?))
+        })
+        .expect("writes");
+    let counts: Vec<(String, &str, i64)> =
+        counts.iter().map(|c| (c.scope.key.clone(), c.kind.as_str(), c.count)).collect();
+    assert_eq!(counts, vec![("game-client".into(), "episode", 1), ("game-client".into(), "lesson", 2)]);
+    assert_eq!(week, 1, "neither the old note, the episode, the closed nor the forgotten one");
+}

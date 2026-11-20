@@ -401,4 +401,16 @@ export const ROUTES = {
   capabilityCheck: (id) => `/api/capabilities/${id}/check`,
   capabilityRollback: (id) => `/api/capabilities/${id}/rollback`,
   capabilitySignIn: (id) => `/api/capabilities/${id}/sign-in`,
+  // Memory (eos-contracts `experience.rs`): the screen's head, the notes,
+  // one note (editing and forgetting it), bringing a forgotten one back,
+  // saying one is not right, what a chat or a run was reminded of, where
+  // stated rules were said, and the Learning and Reminders switches.
+  memorySummary: "/api/memory/summary",
+  memoryNotes: "/api/memory/notes",
+  memoryNote: (id) => `/api/memory/notes/${id}`,
+  memoryNoteRestore: (id) => `/api/memory/notes/${id}/restore`,
+  memoryNoteNotRight: (id) => `/api/memory/notes/${id}/not-right`,
+  memoryRecalled: "/api/memory/recalled",
+  memoryStated: "/api/memory/stated",
+  memorySettings: "/api/memory/settings",
 };

@@ -14,6 +14,7 @@
 //!   them beside the notes they meet, in one job.
 //! - [`credit`] moves notes' counters and states by what followed their
 //!   recall: acted on, a good end, a surprise, "Not right".
+//! - [`forget`] forgets a note and brings it back within 30 days.
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
@@ -25,6 +26,7 @@
 pub mod capture;
 pub mod credit;
 pub mod deliver;
+pub mod forget;
 pub mod merge;
 pub mod pack;
 pub mod recall;

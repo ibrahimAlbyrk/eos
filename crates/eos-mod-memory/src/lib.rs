@@ -19,6 +19,9 @@
 //! - Moments become notes ([`reflection`]): the small model where the host
 //!   allows model calls, the user has a Claude plan and usage is under their
 //!   line; the rules elsewhere.
+//! - Routes ([`routes`]): the Memory screen's summary, notes (edit, forget,
+//!   bring back, "Not right"), what a chat or run was reminded of, where
+//!   stated rules were said, and the Learning and Reminders switches.
 //! - Model work nobody asked for (reflection, night tidying) runs only when
 //!   the host lets it ([`MemoryParts::background_model_calls`]).
 //!
@@ -29,6 +32,7 @@ mod code;
 mod hooks;
 mod reflection;
 mod reminders;
+mod routes;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -40,7 +44,7 @@ use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
 use eos_core::experience::{Embedder, ExperienceSearch, FoundNote};
 use eos_core::git::ProjectKeys;
 use eos_core::os::TimeZone;
-use eos_core::profile::{UserMemoryKeeper, UserProfileReader};
+use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
 use eos_core::routine::RunLookup;
 use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
@@ -51,6 +55,7 @@ use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
 
 use crate::code::CodePanes;
@@ -105,8 +110,6 @@ pub struct LearnParts {
     /// The prompt library, for the reflection prompt.
     pub prompts: Arc<PromptService>,
     pub zone: Arc<dyn TimeZone>,
-    /// The user's home folder, cut from what is stored.
-    pub home: Option<PathBuf>,
     /// Where a rule the user states in a chat is kept (About you).
     pub keeper: Arc<dyn UserMemoryKeeper>,
 }
@@ -137,6 +140,10 @@ pub struct MemoryParts {
     pub code: Option<CodeParts>,
     /// Reflection: without it, moments are captured and wait.
     pub learn: Option<LearnParts>,
+    /// About you, counted on the Memory screen.
+    pub memories: Arc<dyn UserMemoryReader>,
+    /// The user's home folder, cut from what is stored.
+    pub home: Option<PathBuf>,
     /// This Mac, as notes and their counters name the device that wrote them.
     pub device: String,
     /// Whether model calls nobody asked for may run: only in the installed
@@ -160,6 +167,7 @@ pub struct MemoryModule {
     sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
     health: Arc<Mutex<EmbedderHealth>>,
+    api: Arc<routes::Api>,
     background_model_calls: bool,
     /// What runs from `start` to `stop`.
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
@@ -185,16 +193,20 @@ impl MemoryModule {
             embedder,
             code,
             learn,
+            memories,
+            home,
             device,
             background_model_calls,
         } = parts;
         let credit = Arc::new(Credit::new(store.clone(), clock.clone(), device.clone()));
+        let scrubber = Arc::new(Scrubber::new(home.as_deref()));
         let wake = Arc::new(Notify::new());
         let code = code.map(|c| {
             let capture = Capture::new(store.clone(), clock.clone(), ids.clone());
             Arc::new(CodePanes::new(&c.bus, capture, c.transcripts, clock.clone(), wake.clone()))
         });
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
+        let health = Arc::new(Mutex::new(health));
         let recall = Arc::new(Recall::new(store.clone(), clock.clone()));
         let reflecting = learn.map(|learn| {
             let reflector = Reflector::new(ReflectParts {
@@ -212,7 +224,7 @@ impl MemoryModule {
                 }),
                 prompt: Arc::new(LibraryPrompt(learn.prompts)),
                 recall: recall.clone(),
-                scrubber: Arc::new(Scrubber::new(learn.home.as_deref())),
+                scrubber: scrubber.clone(),
                 device: device.clone(),
                 keeper: learn.keeper,
             });
@@ -224,11 +236,22 @@ impl MemoryModule {
             clock.clone(),
             ids.clone(),
             sink,
-            project_keys,
+            project_keys.clone(),
             profile,
             runs.clone(),
             credit.clone(),
         );
+        let api = Arc::new(routes::Api {
+            store: store.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            credit: credit.clone(),
+            memories,
+            project_keys,
+            health: health.clone(),
+            scrubber,
+            device,
+        });
         Self {
             recall,
             reminders: Arc::new(reminders),
@@ -238,7 +261,8 @@ impl MemoryModule {
             sleeper,
             store,
             embedder: Mutex::new(embedder),
-            health: Arc::new(Mutex::new(health)),
+            health,
+            api,
             background_model_calls,
             tasks: Mutex::new(Vec::new()),
         }
@@ -303,6 +327,10 @@ impl Module for MemoryModule {
 
     fn topics(&self) -> Vec<TopicDecl> {
         vec![MEMORY_CHANGE.decl(), MEMORY_RECALLED.decl()]
+    }
+
+    fn routes(&self) -> Vec<RouteDef> {
+        routes::all(&self.api)
     }
 
     fn idle_hooks(&self) -> Vec<IdleHook> {

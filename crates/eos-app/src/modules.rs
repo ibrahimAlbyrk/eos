@@ -236,7 +236,13 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     gate.attach(&routines.control(), &run_outcomes);
     cx.run_questions.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
-    let memory = crate::memory::module(cx, routines.lookup(), profile.profile_reader(), profile.memory_keeper());
+    let memory = crate::memory::module(
+        cx,
+        routines.lookup(),
+        profile.profile_reader(),
+        profile.memory_keeper(),
+        profile.memory_reader(),
+    );
     let tools: Arc<dyn ToolSets> =
         crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory)?;
     cx.tools.attach(&tools);
