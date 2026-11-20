@@ -178,6 +178,9 @@ pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: R
     }
     let before = tx.runs().active()?;
     let event = tx.runs().move_to(&run.id, &change)?;
+    if run.state == RunState::Queued && change.state != RunState::Queued {
+        eos_inbox::withdraw_run_start_in(tx, out, change.at, &run.routine_id, &run.id)?;
+    }
     budget::recount_in(tx, &run.id)?;
     announce(out, &run.id, &run.routine_id, &change);
     let after = tx.runs().active()?;

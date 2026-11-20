@@ -1,5 +1,5 @@
 //! Opening items inside a producer's write job, and withdrawing a deleted
-//! routine's.
+//! routine's and those of a run's start that no longer waits.
 
 use eos_core::Error;
 use eos_core::Ids;
@@ -216,4 +216,30 @@ pub fn withdraw_routine_in(tx: &dyn Tx, out: &mut Outbox, now: i64, routine_id: 
     }
     tracing::info!(routine_id, withdrawn, "a deleted routine's items were withdrawn");
     Ok(withdrawn)
+}
+
+/// A run's start that waits becomes `withdrawn` once its run leaves the
+/// queue some other way (skipped, stopped, started without it), inside the
+/// job that moves the run: no answer can act on it any more.
+pub fn withdraw_run_start_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    now: i64,
+    routine_id: &str,
+    run_id: &str,
+) -> Result<(), Error> {
+    for mut item in tx.inbox_items().waiting_of_routine(routine_id)? {
+        if item.kind != ItemKind::RunStart || item.run_id.as_deref() != Some(run_id) {
+            continue;
+        }
+        let rev = item.rev;
+        item.state = ItemState::Withdrawn;
+        item.rev += 1;
+        item.updated_at = now;
+        if tx.inbox_items().update_waiting(&item, rev)? {
+            tracing::info!(item_id = %item.id, run_id, "a run's start that waited was withdrawn");
+            announce(tx, out, &item)?;
+        }
+    }
+    Ok(())
 }

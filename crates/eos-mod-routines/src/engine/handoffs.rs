@@ -6,6 +6,8 @@
 //! run's timeline `start_asked`; the answer "run" marks it `start_allowed`,
 //! after which the run leaves the queue as any other. Whether a queued run
 //! waits on the user is read from those marks, not stored beside the run.
+//! A run that leaves the queue some other way withdraws its `run_start`
+//! item in that move (`move_run`).
 //!
 //! Answered items the routines made and have not acted on are handled at
 //! start and on every `inbox:change`, each in a write job of its own that
