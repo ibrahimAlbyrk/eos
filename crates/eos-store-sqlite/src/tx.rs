@@ -6,11 +6,12 @@ use std::sync::Mutex;
 use eos_core::Error;
 use eos_core::store::{
     CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
-    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
-    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo,
-    RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo,
-    SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo,
-    WorkerRepo, WorktreeRemovalQueue,
+    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MemBookRepo, MemCreditRepo,
+    MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo, MemVectorRepo,
+    MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
+    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo,
+    SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
+    SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -85,6 +86,46 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn inbox_outcomes(&self) -> &dyn OutcomeRepo {
+        self
+    }
+
+    fn mem_book(&self) -> &dyn MemBookRepo {
+        self
+    }
+
+    fn mem_credit(&self) -> &dyn MemCreditRepo {
+        self
+    }
+
+    fn mem_cursors(&self) -> &dyn MemCursorRepo {
+        self
+    }
+
+    fn mem_evidence(&self) -> &dyn MemEvidenceRepo {
+        self
+    }
+
+    fn mem_graph(&self) -> &dyn MemGraphRepo {
+        self
+    }
+
+    fn mem_moments(&self) -> &dyn MemMomentRepo {
+        self
+    }
+
+    fn mem_notes(&self) -> &dyn MemNoteRepo {
+        self
+    }
+
+    fn mem_uses(&self) -> &dyn MemUseRepo {
+        self
+    }
+
+    fn mem_vectors(&self) -> &dyn MemVectorRepo {
+        self
+    }
+
+    fn mem_versions(&self) -> &dyn MemVersionRepo {
         self
     }
 

@@ -135,6 +135,21 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("dl-", Alphabet::Hex, 12)
     }
 
+    /// `mn-` + 12: a memory note, the same id on every Mac it syncs to.
+    fn note_id(&self) -> String {
+        self.prefixed("mn-", Alphabet::Hex, 12)
+    }
+
+    /// `mm-` + 12: a moment memory may learn from.
+    fn moment_id(&self) -> String {
+        self.prefixed("mm-", Alphabet::Hex, 12)
+    }
+
+    /// `me-` + 12: a note's evidence, or a use of a note.
+    fn memory_row_id(&self) -> String {
+        self.prefixed("me-", Alphabet::Hex, 12)
+    }
+
     /// 16 hex characters: one sign-in attempt.
     fn sign_in_id(&self) -> String {
         self.token(Alphabet::Hex, 16)
@@ -236,6 +251,9 @@ mod tests {
             (ids.signal_source_id(), "src-"),
             (ids.inbox_id(), "nd-"),
             (ids.delivery_id(), "dl-"),
+            (ids.note_id(), "mn-"),
+            (ids.moment_id(), "mm-"),
+            (ids.memory_row_id(), "me-"),
         ] {
             assert!(shaped(&id, prefix, Alphabet::Hex, 12), "{id}");
         }
