@@ -19,11 +19,11 @@ use serde_json::{Value, json};
 use crate::gate::{input, review_traits};
 use crate::rig::{Rig, pull_requests};
 
-struct Held {
-    rig: Rig,
+pub(crate) struct Held {
+    pub(crate) rig: Rig,
     engine: Arc<Delivery>,
     channels: FakeChannels,
-    item_id: String,
+    pub(crate) item_id: String,
     _control: Arc<dyn RoutineControl>,
 }
 
@@ -41,7 +41,7 @@ fn commented() -> ResultDoc {
 
 impl Held {
     /// Run `rn-1`'s review, held as a draft at rung Draft; the run waits on it.
-    async fn new() -> Self {
+    pub(crate) async fn new() -> Self {
         Self::confirming(pull_requests()).await
     }
 
@@ -84,7 +84,7 @@ impl Held {
 
     /// The routines move the run on as they hear it delivering; then the
     /// engine sends.
-    async fn deliver(&self) {
+    pub(crate) async fn deliver(&self) {
         self.rig.temp.exec("UPDATE runs SET state = 'delivering' WHERE id = 'rn-1'");
         self.engine.pass().await.expect("a pass");
     }
