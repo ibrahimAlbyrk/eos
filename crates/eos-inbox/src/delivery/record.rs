@@ -22,6 +22,9 @@ use crate::gate::DRAFT_PRODUCER;
 use crate::outcomes::{Ended, ended_in, sent_outcome};
 use crate::{NewItem, Opening, open_in};
 
+/// Why a send whose subject moved on was stopped.
+const STALE: &str = "stale";
+
 /// Waits after the 1st to 5th failed attempt (03 G5); the 6th is the last.
 const RETRY_MS: [i64; 5] = [30_000, 120_000, 600_000, 3_600_000, 14_400_000];
 pub(crate) const MAX_ATTEMPTS: i64 = 6;
@@ -167,7 +170,7 @@ pub(crate) fn record_in(
         Attempt::Stale(reason) => {
             stale = Some(reason);
             row.state = STOPPED.to_owned();
-            row.last_error_kind = Some("stale".to_owned());
+            row.last_error_kind = Some(STALE.to_owned());
         }
         Attempt::NoChannel => {
             row.state = WAITING_CAPABILITY.to_owned();
@@ -184,13 +187,23 @@ pub(crate) fn record_in(
         }
     } else if let Some(reason) = stale {
         hold_again_in(tx, out, at, &row, &reason)?;
-    } else if row.state == SENT && delivering(tx, &row.run_id)? {
-        let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
-        if rows.iter().all(|other| other.state == SENT) {
-            sent_in(tx, out, at, outcomes, &row)?;
-        }
+    } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
+        sent_in(tx, out, at, outcomes, &row)?;
     }
     Ok(())
+}
+
+/// Whether every send of `row`'s run went out. A send stopped as stale was
+/// held again as a draft: the draft's own send replaces it, so the run is
+/// not done while that draft waits.
+fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error> {
+    let superseded = |other: &StoredDelivery| other.state == STOPPED && other.last_error_kind.as_deref() == Some(STALE);
+    let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
+    if !rows.iter().all(|other| other.state == SENT || superseded(other)) {
+        return Ok(false);
+    }
+    let waiting = tx.inbox_items().waiting_of_routine(&row.routine_id)?;
+    Ok(!waiting.iter().any(|item| item.kind == ItemKind::Draft && item.run_id.as_deref() == Some(row.run_id.as_str())))
 }
 
 /// The run's last delivery went out: one Freedom sent ends `auto_sent`; a

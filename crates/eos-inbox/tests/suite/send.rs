@@ -8,7 +8,7 @@ use eos_contracts::{ActionClass, Part, ResultDoc};
 use eos_core::Clock;
 use eos_core::routine::{GateDecision, RoutineControl, RunGate};
 use eos_core::store::{StoredEdit, StoredOutcome};
-use eos_domain::inbox::ItemState;
+use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::Error;
 use eos_inbox::delivery::{Delivery, DeliveryParts};
@@ -22,6 +22,7 @@ use crate::rig::Rig;
 struct Held {
     rig: Rig,
     engine: Arc<Delivery>,
+    channels: FakeChannels,
     item_id: String,
     _control: Arc<dyn RoutineControl>,
 }
@@ -67,12 +68,12 @@ impl Held {
             sleeper: Arc::new(FakeSleeper::default()),
             ids: rig.ids.clone(),
             zone: rig.zone.clone(),
-            channels: Arc::new(channels),
+            channels: Arc::new(channels.clone()),
             control: control.clone(),
             outcomes: rig.outcomes.clone(),
             wake: rig.wake.clone(),
         }));
-        Self { rig, engine, item_id, _control: control }
+        Self { rig, engine, channels, item_id, _control: control }
     }
 
     /// The routines move the run on as they hear it delivering; then the
@@ -169,4 +170,21 @@ async fn a_discarded_draft_ends_its_run_discarded() {
     assert_eq!(held.outcomes().await[0].outcome.outcome, "discarded");
     assert_eq!(held.rig.temp.count("SELECT COUNT(*) FROM inbox_deliveries"), 0);
     assert!(held.rig.items.unconsumed("inbox").await.expect("reads").is_empty());
+}
+
+#[tokio::test]
+async fn a_send_that_went_stale_and_was_sent_again_finishes_the_run() {
+    let held = Held::new().await;
+    held.rig.items.send(&held.item_id, 1, None, "dashboard").await.expect("sent");
+    held.channels.stale("new commits");
+    held.deliver().await;
+    let waiting = held.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+    let again = waiting.into_iter().find(|item| item.kind == ItemKind::Draft).expect("held again");
+
+    held.rig.items.send(&again.id, again.rev, None, "dashboard").await.expect("sent again");
+    held.deliver().await;
+    let finished = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::SentUnedited };
+    assert_eq!(held.rig.outcomes.calls().last(), Some(&finished));
+    let outcomes = held.outcomes().await;
+    assert_eq!(outcomes.iter().map(|row| row.outcome.outcome.as_str()).collect::<Vec<_>>(), ["sent_unedited"]);
 }
