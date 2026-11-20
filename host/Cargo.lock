@@ -3006,6 +3006,7 @@ name = "eos-platform"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "eos-domain",
  "if-addrs",
  "jiff",
  "libc",
@@ -3277,6 +3278,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-kit-fs",
+ "eos-platform",
  "indexmap 2.14.2",
  "rustix",
  "serde_json",
