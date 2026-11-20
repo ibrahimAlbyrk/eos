@@ -6,6 +6,8 @@ use std::sync::{Arc, OnceLock, Weak};
 use eos_capabilities::{CapabilityPorts, CapabilityService};
 use eos_core::BoxFuture;
 use eos_core::capability::{BuiltinCapability, CapabilityGrants, CapabilitySecrets, Grant};
+use eos_core::delivery::Channels;
+use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{Clock, Ids, Sleeper};
 use eos_github::{GitHub, Transport};
@@ -28,6 +30,10 @@ pub struct CapabilityOptions {
     /// the host's [`Options::github`](crate::Options::github), and nothing
     /// off the network.
     pub github: Option<Arc<dyn Transport>>,
+    /// The signal sources routines read, in place of the built-ins'.
+    pub sources: Option<Arc<dyn SignalSources>>,
+    /// The channels results go out through, in place of the built-ins'.
+    pub channels: Option<Arc<dyn Channels>>,
 }
 
 impl std::fmt::Debug for CapabilityOptions {

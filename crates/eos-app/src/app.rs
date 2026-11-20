@@ -380,6 +380,7 @@ impl App {
             sessions: Arc::new(NoLiveSessions),
         });
         let grants = Arc::new(crate::capabilities::LateGrants::default());
+        let (given_sources, given_channels) = (capability_options.sources.clone(), capability_options.channels.clone());
         let capabilities = crate::capabilities::service(crate::capabilities::Parts {
             reach,
             paths: &paths,
@@ -602,6 +603,8 @@ impl App {
             media,
             location,
             policy,
+            signal_sources: given_sources.unwrap_or_else(|| capabilities.signal_sources()),
+            channels: given_channels.unwrap_or_else(|| capabilities.channels()),
             capabilities,
             grants,
             profile_prompt,
