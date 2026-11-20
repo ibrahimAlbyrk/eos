@@ -378,8 +378,10 @@ impl Hooks for Eos {
         }
     }
 
-    fn woke(&self, _away: Duration) {
+    fn woke(&self, away: Duration) {
         if let Some((app, rt)) = self.core.app.get() {
+            // Schedules catch up on what the sleep skipped.
+            app.woke(away);
             // A link that died in the computer's sleep is probed at once.
             app.peering().kick();
             let signals = app.update_signals();
