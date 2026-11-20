@@ -51,7 +51,7 @@ impl MomentSource for Rows {
                 rows,
                 anthropic,
                 untrusted,
-                place: Place { routine: Some("rt-1".into()).filter(|_| in_run), project: Some("key:/repo".into()) },
+                place: Place { routine: in_run.then(|| "rt-1".into()), project: Some("key:/repo".into()) },
                 project_path: Some("/repo".into()),
             }))
         })
