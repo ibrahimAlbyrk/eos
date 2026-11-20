@@ -60,7 +60,27 @@
     "createdAt": 1763366400000,
     "hash": "sha256:5be1c0de",
     "blueprint": {
-      "format": 1
+      "format": 1,
+      "when": {
+        "on": [
+          {
+            "source": "github.pulls",
+            "scope": {
+              "repo": "acme/game"
+            },
+            "events": [
+              "opened"
+            ]
+          },
+          {
+            "schedule": {
+              "daily": "05:00",
+              "days": "weekdays",
+              "zone": "Europe/Istanbul"
+            }
+          }
+        ]
+      }
     }
   },
   "runs": [

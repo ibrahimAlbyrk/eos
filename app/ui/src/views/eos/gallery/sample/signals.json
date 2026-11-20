@@ -1,0 +1,104 @@
+[
+  {
+    "id": 41,
+    "sourceId": "sg-github-pulls",
+    "kind": "opened",
+    "subject": "github:pr:acme/game#470",
+    "version": "a41b2c3d",
+    "occurredAt": 1763455255000,
+    "receivedAt": 1763455259000,
+    "state": "routed",
+    "item": {
+      "kind": "github.pull_request",
+      "key": "github:pr:acme/game#470@a41b2c3d",
+      "title": "Rework shop carousel paging",
+      "url": "https://github.com/acme/game/pull/470"
+    },
+    "decisions": [
+      {
+        "routineId": "rt-4k2n8q1x7m3p",
+        "routineVersion": "rv-8d2f6h0j4k1l",
+        "decision": "over-limit",
+        "modelAsked": false,
+        "decidedAt": 1763455260000
+      }
+    ]
+  },
+  {
+    "id": 40,
+    "sourceId": "sg-github-pulls",
+    "kind": "opened",
+    "subject": "github:pr:acme/game#469",
+    "version": "a40b2c3d",
+    "occurredAt": 1763455195000,
+    "receivedAt": 1763455199000,
+    "state": "routed",
+    "item": {
+      "kind": "github.pull_request",
+      "key": "github:pr:acme/game#469@a40b2c3d",
+      "title": "Bump the build tools",
+      "url": "https://github.com/acme/game/pull/469"
+    },
+    "decisions": [
+      {
+        "routineId": "rt-4k2n8q1x7m3p",
+        "routineVersion": "rv-8d2f6h0j4k1l",
+        "decision": "unmatched",
+        "reason": "0",
+        "modelAsked": false,
+        "decidedAt": 1763455200000
+      }
+    ]
+  },
+  {
+    "id": 39,
+    "sourceId": "sg-github-pulls",
+    "kind": "opened",
+    "subject": "github:pr:acme/game#468",
+    "version": "a39b2c3d",
+    "occurredAt": 1763455135000,
+    "receivedAt": 1763455139000,
+    "state": "routed",
+    "item": {
+      "kind": "github.pull_request",
+      "key": "github:pr:acme/game#468@a39b2c3d",
+      "title": "Fix the login",
+      "url": "https://github.com/acme/game/pull/468"
+    },
+    "decisions": [
+      {
+        "routineId": "rt-4k2n8q1x7m3p",
+        "routineVersion": "rv-8d2f6h0j4k1l",
+        "decision": "run",
+        "runId": "rn-9c1v5b0z2w8e",
+        "modelAsked": false,
+        "decidedAt": 1763455140000
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "sourceId": "sg-github-pulls",
+    "kind": "opened",
+    "subject": "github:pr:acme/game#431",
+    "version": "a12b2c3d",
+    "occurredAt": 1763453515000,
+    "receivedAt": 1763453519000,
+    "state": "routed",
+    "item": {
+      "kind": "github.pull_request",
+      "key": "github:pr:acme/game#431@a12b2c3d",
+      "title": "Add the inventory screen",
+      "url": "https://github.com/acme/game/pull/431"
+    },
+    "decisions": [
+      {
+        "routineId": "rt-4k2n8q1x7m3p",
+        "routineVersion": "rv-8d2f6h0j4k1l",
+        "decision": "baseline",
+        "modelAsked": false,
+        "decidedAt": 1763453520000
+      }
+    ]
+  }
+]

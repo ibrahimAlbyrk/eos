@@ -3,6 +3,7 @@ import { FreedomLadder } from "./FreedomLadder.jsx";
 import { SlotRow } from "./SlotRow.jsx";
 import { TextEditor } from "./slots/editors.jsx";
 import { SLOTS } from "./slots/index.js";
+import { SchedulePreview, WhichPreview } from "./slots/Previews.jsx";
 
 function Glyph() {
   return (
@@ -38,10 +39,15 @@ function HeadText({ as: Tag, className, label, value, empty, put }) {
 // slots. With `onEdit` every underlined value opens its editor and the
 // changed blueprint goes to `onEdit`; without it the card is read-only.
 // `changed` holds the slot keys to mark; `head` is the card's header line
-// (the version menu), `children` what goes under the slots.
-export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head, children }) {
+// (the version menu), `children` what goes under the slots. With
+// `routineId` the When and Which slots show their previews.
+export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head, routineId, children }) {
   const bp = blueprint ?? {};
   const put = (key) => (onEdit ? (value) => onEdit({ ...bp, [key]: value }) : undefined);
+  const previews = routineId && {
+    when: <SchedulePreview when={bp.when} />,
+    which: <WhichPreview routineId={routineId} which={bp.which} />,
+  };
   return (
     <section className="eos-card eos-bp-card" aria-label="Blueprint">
       {head && <div className="eos-bp-card__head">{head}</div>}
@@ -54,7 +60,7 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
       </div>
       <dl className="eos-bp-rows">
         {SLOTS.map((slot) => (
-          <SlotRow key={slot.key} label={slot.label} parts={slot.parts(bp, { routines })} onApply={put(slot.key)} changed={changed.includes(slot.key)} />
+          <SlotRow key={slot.key} label={slot.label} parts={slot.parts(bp, { routines })} onApply={put(slot.key)} changed={changed.includes(slot.key)} preview={previews?.[slot.key]} />
         ))}
         <FreedomLadder blueprint={bp} onApply={put("freedom")} changed={changed.includes("freedom")} />
       </dl>

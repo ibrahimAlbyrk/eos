@@ -1,0 +1,16 @@
+/* ── What starts a routine, and what it did with what came ───────────────── */
+.eos-triggers, .eos-signals { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-trigger, .eos-signal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; font-size: var(--text-sm); }
+.eos-trigger + .eos-trigger, .eos-signal + .eos-signal { border-top: 1px solid var(--line); }
+.eos-trigger__name, .eos-signal__title { flex: 1 1 100%; min-width: 0; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-trigger__facts, .eos-signal__line { color: var(--fg-dim); }
+.eos-trigger__state { color: var(--fg-mid); }
+.eos-trigger__state--warn { color: var(--warn); }
+.eos-trigger__hint { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 0; color: var(--fg-mid); }
+.eos-signal__decision { color: var(--fg-mid); }
+.eos-signal__replay { color: var(--fg-dim); }
+.eos-bp-preview { margin: 4px 0 0; font-size: var(--text-xs); color: var(--fg-dim); }
+
+/* ── Eos is stopped, and who must be confirmed before a routine resumes ──── */
+.eos-recipients { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.eos-recipients li { padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--fg); font-size: var(--text-xs); }

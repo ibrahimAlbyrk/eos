@@ -9,6 +9,7 @@ import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
 import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
+import { applySignalsChange, resyncSignals } from "./signalsStore.js";
 
 const ignored = () => {};
 const both = (a, b) => (payload) => {
@@ -21,7 +22,7 @@ const HANDLERS = {
   "run:change": both(applyRunChange, applyTrialChange),
   "runs:active": applyRunsActive,
   "run:activity": applyRunActivity,
-  "signals:change": ignored,
+  "signals:change": applySignalsChange,
   "inbox:change": applyInboxChange,
   "inbox:delivery": applyInboxDelivery,
   "inbox:freedom": ignored,
@@ -53,4 +54,5 @@ export function resyncEos() {
   resyncBlueprints();
   resyncInbox();
   resyncCapabilities();
+  resyncSignals();
 }

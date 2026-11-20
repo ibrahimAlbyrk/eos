@@ -1,0 +1,225 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ROUTES } from "../../../api/routes.js";
+import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
+import { _resetBlueprints } from "../../../state/eos/blueprintStore.js";
+import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
+import { applyEosEvent } from "../../../state/eos/live.js";
+import { _resetRoutines, loadRoutine, refreshRoutines } from "../../../state/eos/routinesStore.js";
+import {
+  _resetSignals, loadSchedulePreview, loadSignals, loadTriggerStatus, loadWhichPreview, replaySignals, setSignalFilter,
+} from "../../../state/eos/signalsStore.js";
+import { notify } from "../../../lib/notify.js";
+import { EosMain } from "../EosMain.jsx";
+import { localZone } from "../blueprint/slots/when.js";
+import { _resetEosNav, openLocation } from "../nav/eosNav.js";
+import { onLocalZone } from "./Triggers.jsx";
+import { timeAt, zoneName } from "./words.js";
+import routines from "../gallery/sample/routines.json";
+import routineDetail from "../gallery/sample/routine-detail.json";
+import routinePaused from "../gallery/sample/routine-paused.json";
+import inbox from "../gallery/sample/inbox.json";
+import triggerStatus from "../gallery/sample/trigger-status.json";
+import signals from "../gallery/sample/signals.json";
+
+vi.mock("../../../api/client.js", () => ({ api: { setStreamFocus: async () => ({ ok: true, body: { live: [] } }) } }));
+
+const PR = routineDetail.routine.id;
+const MAIL = routinePaused.routine.id;
+const status = triggerStatus[PR];
+const LIST = `${ROUTES.signals}?routine=${PR}`;
+const reads = {
+  [ROUTES.routines]: routines,
+  [ROUTES.inbox]: inbox,
+  [ROUTES.routine(PR)]: routineDetail,
+  [ROUTES.routine(MAIL)]: routinePaused,
+  [ROUTES.signalsRoutine(PR)]: status,
+  [ROUTES.signalsRoutine(MAIL)]: triggerStatus[MAIL],
+  [LIST]: signals,
+};
+
+function stubStorage() {
+  const data = new Map();
+  return { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)) };
+}
+
+function recording(sent, paths = reads) {
+  const fixture = fixtureTransport(paths);
+  return { get: vi.fn(fixture.get), send: vi.fn(sent) };
+}
+
+async function page(location, transport = fixtureTransport(reads)) {
+  setEosTransport(transport);
+  await refreshRoutines();
+  await refreshInbox();
+  const id = location.split("/")[2].split("?")[0];
+  await loadRoutine(id);
+  await loadTriggerStatus(id);
+  await loadSignals(id);
+  openLocation(location);
+  return renderToStaticMarkup(<EosMain />);
+}
+
+const draw = () => renderToStaticMarkup(<EosMain />);
+const section = (html, label) => html.slice(html.indexOf(`aria-label="${label}"`));
+const lines = (html, cls) => [...html.matchAll(new RegExp(`class="${cls}">([^<]*)<`, "g"))].map((m) => m[1].replaceAll("&#x27;", "'"));
+
+beforeEach(() => {
+  globalThis.localStorage = stubStorage();
+  _resetRoutines();
+  _resetInbox();
+  _resetSignals();
+  _resetBlueprints();
+  _resetEosNav();
+});
+afterEach(() => {
+  delete globalThis.localStorage;
+  setEosTransport(null);
+});
+
+describe("what starts a routine", () => {
+  it("says each schedule with its next and last time, how late and how many missed, each source and the open batch", async () => {
+    const html = section(await page(`eos:/routines/${PR}`), "What starts it");
+    expect(html).toContain('<h2 class="eos-label">What starts it</h2>');
+    expect(lines(html, "eos-trigger__name")).toEqual([
+      expect.stringMatching(/^Runs on weekdays at 05:00/),
+      "github.pulls",
+      `3 items wait to run together, until ${timeAt(status.batch.closesAt)}`,
+    ]);
+    expect(lines(html, "eos-trigger__facts")).toEqual([
+      `Next ${timeAt(status.schedules[0].nextAt)} · last ${timeAt(status.schedules[0].lastAt)} · ran 2 h late · 2 missed while the Mac slept or Eos was closed, run as one`,
+      expect.stringMatching(new RegExp(`^Last looked .* ago · next ${timeAt(status.sources[0].nextPollAt)}$`)),
+      "14 items from while Eos was closed",
+    ]);
+    expect(html).toContain('<span class="eos-trigger__state eos-trigger__state--ok">Working</span>');
+  });
+
+  it("hints at a schedule in another zone and moves it to this Mac's zone through the blueprint", async () => {
+    const t = recording(async () => ({ ok: true, status: 200, body: { row: routineDetail.routine, versionId: "rv-new", warnings: [] } }));
+    const html = await page(`eos:/routines/${PR}`, t);
+    const here = zoneName(localZone());
+    expect(html).toContain(`<span>05:00 Istanbul time; you are on ${here} time</span><button type="button" class="eos-btn">Use ${here} time</button>`);
+
+    const moved = onLocalZone(routineDetail.head.blueprint, 1);
+    expect(moved.when.on).toEqual([routineDetail.head.blueprint.when.on[0], { schedule: { daily: "05:00", days: "weekdays", zone: localZone() } }]);
+
+    const same = { ...status, schedules: [{ ...status.schedules[0], zoneDiffers: false }] };
+    _resetSignals();
+    setEosTransport(fixtureTransport({ ...reads, [ROUTES.signalsRoutine(PR)]: same }));
+    await loadTriggerStatus(PR);
+    expect(draw()).not.toContain("time; you are on");
+  });
+
+  it("says each source's state and why", async () => {
+    const sources = [
+      { sourceId: "a", kind: "capability", source: "github.pulls", state: "off" },
+      { sourceId: "b", kind: "capability", source: "github.pulls", state: "needs-attention", errorKind: "unauthorized" },
+      { sourceId: "c", kind: "capability", source: "github.pulls", state: "backing-off", errorKind: "rate-limited" },
+      { sourceId: "d", kind: "folder", state: "backing-off", errorKind: "unreachable" },
+      { sourceId: "e", kind: "capability", source: "github.pulls", state: "needs-attention", errorKind: "gone" },
+      { sourceId: "f", kind: "git", state: "needs-attention", errorKind: "no-access" },
+      { sourceId: "g", kind: "after", state: "stopped" },
+    ];
+    const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.signalsRoutine(PR)]: { ...status, schedules: [], batch: undefined, sources } }));
+    expect(lines(html, "eos-trigger__name")).toEqual(["github.pulls", "github.pulls", "github.pulls", "A folder", "github.pulls", "A git repository", "Another routine's runs"]);
+    expect([...html.matchAll(/eos-trigger__state--(?:ok|warn)">([^<]*)</g)].map((m) => m[1])).toEqual([
+      "Off: Polling is off in a development run",
+      "Needs you: Needs a sign-in",
+      "Trying again later: Asked to slow down",
+      "Trying again later: Could not reach it",
+      "Needs you: What it watched is gone",
+      "Needs you: The sign-in may not read it",
+      "Stopped: Nothing reads it any more",
+    ]);
+  });
+
+  it("reads the status again on signals:change for its routine, and for every routine when it names none", async () => {
+    const t = recording(async () => ({ ok: true, status: 200, body: {} }));
+    await page(`eos:/routines/${PR}`, t);
+    t.get.mockClear();
+    applyEosEvent("signals:change", { routineId: MAIL, what: "source" });
+    expect(t.get).not.toHaveBeenCalled();
+    applyEosEvent("signals:change", { routineId: PR, what: "source" });
+    expect(t.get.mock.calls.map((c) => c[0])).toEqual([ROUTES.signalsRoutine(PR), LIST]);
+    t.get.mockClear();
+    applyEosEvent("signals:change", { what: "settings" });
+    expect(t.get.mock.calls.map((c) => c[0])).toEqual([ROUTES.signalsRoutine(PR), LIST]);
+  });
+});
+
+describe("the signal list", () => {
+  it("shows each signal with what became of it, the rule that turned one away, and filters by decision", async () => {
+    const t = recording(async () => ({ ok: true, status: 200, body: {} }), { ...reads, [`${LIST}&decision=unmatched`]: [signals[1]] });
+    let html = await page(`eos:/routines/${PR}?tab=signals`, t);
+    expect(html).toContain('role="radiogroup" aria-label="Show signals"');
+    expect(lines(html, "eos-signal__title")).toEqual(["Rework shop carousel paging", "Bump the build tools", "Fix the login", "Add the inventory screen"]);
+    expect(lines(html, "eos-signal__decision")).toEqual(["Over its limit", "Turned away by rule 1", "Ran", "There before it started"]);
+    expect(html.match(/>Run it anyway</g)).toHaveLength(3);
+    expect(html).toContain(">Open the run</button>");
+    expect(html).not.toContain(">Run them<");
+
+    await setSignalFilter(PR, "unmatched");
+    expect(t.get).toHaveBeenLastCalledWith(`${LIST}&decision=unmatched`);
+    html = draw();
+    expect(html).toContain('role="radio" aria-checked="true" class="eos-seg__opt">Turned away</button>');
+    expect(lines(html, "eos-signal__title")).toEqual(["Bump the build tools"]);
+  });
+
+  it("runs one anyway and says what the core answered", async () => {
+    const t = recording(async () => ({ ok: true, status: 200, body: [{ ...signals[1].decisions[0], decision: "run", runId: "rn-new" }] }));
+    await page(`eos:/routines/${PR}?tab=signals`, t);
+    expect(await replaySignals(PR, [40])).toBe(true);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.signalsReplay, { routineId: PR, signalIds: [40] });
+    const html = draw();
+    expect(html).toContain('<span class="eos-signal__replay" role="status">Running it now.</span>');
+    expect(html.match(/>Run it anyway</g)).toHaveLength(2);
+  });
+
+  it("says a dev run refused it, and a toast for any other refusal", async () => {
+    await page(`eos:/routines/${PR}?tab=signals`, recording(async () => ({ ok: false, status: 403, body: { error: "refused in a dev run: POST /api/signals/replay" } })));
+    expect(await replaySignals(PR, [41])).toBe(false);
+    expect(draw()).toContain('<span class="eos-signal__replay" role="status">Not run: this is a dev run.</span>');
+
+    const toast = vi.spyOn(notify, "error").mockImplementation(() => {});
+    setEosTransport(recording(async () => ({ ok: false, status: 409, body: { error: "signal 39 started a run already" } })));
+    expect(await replaySignals(PR, [39])).toBe(false);
+    expect(toast).toHaveBeenCalledWith("signal 39 started a run already", { title: "Signals" });
+    toast.mockRestore();
+  });
+
+  it("runs the over-limit, paused and baseline groups at once", async () => {
+    const over = [signals[0], { ...signals[0], id: 43 }];
+    const t = recording(async () => ({ ok: true, status: 200, body: over.map((s) => ({ ...s.decisions[0], decision: "run" })) }), { ...reads, [`${LIST}&decision=over-limit`]: over });
+    await page(`eos:/routines/${PR}?tab=signals`, t);
+    await setSignalFilter(PR, "over-limit");
+    expect(draw()).toContain('<button type="button" class="eos-btn eos-btn--primary">Run them</button>');
+    await replaySignals(PR, [41, 43]);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.signalsReplay, { routineId: PR, signalIds: [41, 43] });
+    const html = draw();
+    expect(html.match(/Running it now\./g)).toHaveLength(2);
+    expect(html).not.toContain(">Run them<");
+  });
+});
+
+describe("the blueprint's previews", () => {
+  it("asks for a schedule's next times and shows them beside the When slot", async () => {
+    const next = [1763532000000, 1763618400000, 1763704800000];
+    const schedule = routineDetail.head.blueprint.when.on[1].schedule;
+    const t = recording(async () => ({ ok: true, status: 200, body: { next } }));
+    await page(`eos:/routines/${PR}?tab=blueprint`, t);
+    await loadSchedulePreview(schedule, 3);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.signalsSchedulePreview, { schedule, count: 3 });
+    expect(draw()).toContain(`<p class="eos-bp-preview">Next: ${next.map(timeAt).join(", ")}</p>`);
+  });
+
+  it("asks what the Which makes of recent signals and shows it beside the Which slot", async () => {
+    const which = { rule: { all: [{ fact: "draft", is: false }, { fact: "files", gte: 2 }] }, ask: "Is it a real change?" };
+    const withWhich = { ...routineDetail, head: { ...routineDetail.head, blueprint: { ...routineDetail.head.blueprint, which } } };
+    const answer = { matched: [41, 39], unmatched: [{ rule: 0, signalIds: [40] }, { rule: 1, signalIds: [12, 11] }], undecided: [9], wouldAsk: 2 };
+    const t = recording(async () => ({ ok: true, status: 200, body: answer }), { ...reads, [ROUTES.routine(PR)]: withWhich });
+    await page(`eos:/routines/${PR}?tab=blueprint`, t);
+    await loadWhichPreview(PR, which, 50);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.signalsWhichPreview, { routineId: PR, which, limit: 50 });
+    expect(draw()).toContain('<p class="eos-bp-preview">Of the last 6 signals: 2 taken, 1 turned away by rule 1, 2 turned away by rule 2, 1 missing a fact, 2 would be asked about.</p>');
+  });
+});

@@ -11,7 +11,8 @@ import { RoutineMenu } from "./RoutineMenu.jsx";
 import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
-import { hasTrigger, pausedLine, UNTIL_TRIGGERS } from "./words.js";
+import { SignalList } from "./SignalList.jsx";
+import { pausedLine } from "./words.js";
 
 // Hand runs start in these states; a draft runs only trials.
 const RUNNABLE = new Set(["active", "paused"]);
@@ -59,7 +60,7 @@ function FailedBand({ run }) {
 }
 
 // eos:/routines/<id> — one routine: its state and what can be done with it,
-// then its tabs: Overview, Runs, Blueprint. eos:/routines/<id>/versions/<n>
+// then its tabs: Overview, Runs, Signals, Blueprint. eos:/routines/<id>/versions/<n>
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
   const { details, failed, list } = useRoutines();
@@ -98,12 +99,12 @@ export function RoutinePage({ id, tab, version }) {
             <div>
               <p className="eos-routine__summary">{routine.summary}</p>
               {routine.triggerLine && <p className="eos-routine__line">{routine.triggerLine}</p>}
-              {hasTrigger(detail) && <p className="eos-routine__line">{UNTIL_TRIGGERS}</p>}
             </div>
             <RoutineTabs routineId={id} tab={shown} />
             <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
+              {shown === "signals" && <SignalList routineId={id} />}
               {shown === "blueprint" && <BlueprintTab detail={detail} version={version} />}
             </div>
           </>
