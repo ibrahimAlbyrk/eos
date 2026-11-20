@@ -365,11 +365,12 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // What a sentence asks for and which routines take a thing, by the rules only.
     ("POST", "/api/routines/intent"),
     ("POST", "/api/routines/match-item"),
-    // Runs: the estimate, the list, one run, its result and timeline, and a worker's run are
-    // read from the data copy; stopping and pausing a run only stop its agents.
+    // Runs: the estimate, the list, the counts, one run, its result and timeline, and a
+    // worker's run are read from the data copy; stopping and pausing a run only stop its agents.
     ("POST", "/api/runs/estimate"),
     ("GET", "/api/runs"),
     ("GET", "/api/runs/active"),
+    ("GET", "/api/runs/summary"),
     ("GET", "/api/runs/{id}"),
     ("GET", "/api/runs/{id}/result"),
     ("GET", "/api/runs/{id}/events"),
