@@ -4,6 +4,9 @@
 //! - [`RemoteModule`]: Settings › Remote (`/api/remote/*`), and arming: while
 //!   `config.remote.enabled` and a relay URL is set, the gateway owns this
 //!   computer's room on the relay and the computer is kept awake.
+//! - [`RemoteModule::phone_notify`]: wakes the paired phone with a kind and a
+//!   count, over the room's connection while armed, else over the relay's
+//!   HTTP API (`push`).
 //! - the gateway (`gateway`): a session per phone — the snapshot on join,
 //!   `hello` / `focus` / `sub` / `control` frames, events and row patches out.
 //!
@@ -18,12 +21,13 @@ mod device;
 mod dispatch;
 mod frames;
 mod gateway;
+mod push;
 mod routes;
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 
 use eos_contracts::{EosPairLit, PairingQr};
-use eos_core::net::relay::{Relay, RoomClaim};
+use eos_core::net::relay::{PhoneNotify, Relay, RoomClaim, RoomHosting};
 use eos_core::os::{AwakeHold, KeepAwake};
 use eos_core::store::{ConfigSource, RemoteStore, RoomSecrets};
 use eos_core::workers::ListedWorkers;
@@ -66,6 +70,8 @@ impl std::fmt::Debug for RemoteParts {
 struct Armed {
     relay_url: String,
     secrets: RoomSecrets,
+    /// The room the gateway serves, for pushes on its connection.
+    room: Arc<dyn RoomHosting>,
     gateway: Gateway,
     /// Sleep is held off for exactly as long as the room is owned.
     _awake: Option<Box<dyn AwakeHold>>,
@@ -142,7 +148,7 @@ impl Shared {
             allow: Arc::new(move || allowed.clone()),
         });
         let gateway = Gateway::start(GatewayParts {
-            room,
+            room: room.clone(),
             router,
             kernel: self.parts.kernel.clone(),
             clock: self.parts.clock.clone(),
@@ -152,7 +158,7 @@ impl Shared {
             worker_rows: self.worker_rows.get().cloned(),
         });
         tracing::info!(relay = %relay_url, "remote gateway armed");
-        Some(Armed { relay_url, secrets, gateway, _awake: self.parts.keep_awake.hold() })
+        Some(Armed { relay_url, secrets, room, gateway, _awake: self.parts.keep_awake.hold() })
     }
 
     /// The pairing code: the whole credential, minted from the armed room.
@@ -210,6 +216,11 @@ impl RemoteModule {
     /// async runtime: arming starts the connection's tasks.
     pub fn reconcile(&self) -> ArmState {
         self.shared.reconcile()
+    }
+
+    /// Wakes the paired phone through this module's room.
+    pub fn phone_notify(&self) -> Arc<dyn PhoneNotify> {
+        Arc::new(push::RemotePush(self.shared.clone()))
     }
 
     pub fn is_armed(&self) -> bool {

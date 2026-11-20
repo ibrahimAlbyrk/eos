@@ -292,7 +292,7 @@ async fn a_phone_pairs_reads_chats_follows_one_talks_to_an_agent_and_drives_a_te
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     assert_eq!(mac.remote.devices(), 0, "the relay announces a phone that left");
-    assert_eq!(mac.relay.push_intents(), 0, "the app asks the relay for no wake-up push");
+    assert_eq!(mac.relay.pushes().len(), 0, "the app asks the relay for no wake-up push");
 
     mac.runtime.shutdown(Duration::from_secs(5)).await;
     assert!(!mac.remote.is_armed());

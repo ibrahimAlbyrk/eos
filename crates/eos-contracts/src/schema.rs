@@ -484,6 +484,7 @@ bundle![
     PushPlanKind,
     PushResult,
     PushStateResponse,
+    PushTestResponse,
     PutViewStateRequest,
     Question,
     QuestionAnswerRequest,

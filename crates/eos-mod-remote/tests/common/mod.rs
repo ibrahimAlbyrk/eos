@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use base64::Engine;
+use eos_core::net::relay::Relay;
 use eos_mod_remote::{GatewayOptions, RemoteModule, RemoteParts};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::bus::BusOptions;
@@ -155,6 +156,19 @@ pub(crate) fn enabled() -> Value {
 impl Harness {
     /// Builds the app's routes and the module; nothing is armed yet.
     pub(crate) fn new(routes_json: &Value, config: Value, options: GatewayOptions, with_relay: bool) -> Self {
+        let relay = Arc::new(FakeRelayPort::new());
+        let port = with_relay.then(|| relay.clone() as Arc<dyn Relay>);
+        Self::on(routes_json, config, options, relay, port)
+    }
+
+    /// As [`new`](Self::new), the module dialling `port`; `relay` is kept for the test.
+    pub(crate) fn on(
+        routes_json: &Value,
+        config: Value,
+        options: GatewayOptions,
+        relay: Arc<FakeRelayPort>,
+        port: Option<Arc<dyn Relay>>,
+    ) -> Self {
         let clock = Arc::new(FakeClock::at(NOW));
         let kernel = Kernel::new(KernelOptions {
             clock: clock.clone(),
@@ -165,14 +179,13 @@ impl Harness {
         });
         let answers = routes_json.as_object().expect("routes").iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         let script = Arc::new(Script { answers: Mutex::new(answers), seen: Mutex::default(), calls: Mutex::default() });
-        let relay = Arc::new(FakeRelayPort::new());
         let store = Arc::new(FakeRemoteStore::new(ROOM));
         let awake = Arc::new(FakeKeepAwake::new());
         let config = Arc::new(FakeConfig::new(config));
         let module = Arc::new(RemoteModule::new(RemoteParts {
             config: config.clone(),
             store: store.clone(),
-            relay: with_relay.then(|| relay.clone() as Arc<dyn eos_core::net::relay::Relay>),
+            relay: port,
             keep_awake: awake.clone(),
             kernel: kernel.clone(),
             clock: clock.clone(),

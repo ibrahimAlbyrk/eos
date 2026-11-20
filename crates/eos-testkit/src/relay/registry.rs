@@ -180,11 +180,22 @@ impl RoomRegistry {
         Ok((client, mac))
     }
 
+    /// Whether `socket` is the room's current owner: only it may change who
+    /// may join, or push.
+    pub fn owns_room(&self, room: &str, socket: &SocketRef) -> bool {
+        let is_owner = matches!(self.meta.get(&key(socket)), Some(ConnMeta::Mac { room: own }) if own == room);
+        is_owner && self.rooms.get(room).is_some_and(|r| r.mac.as_ref().is_some_and(|mac| same(mac, socket)))
+    }
+
+    /// The hash of the secret that owns `room`, kept while the owner is away.
+    pub fn owner_hash(&self, room: &str) -> Option<&str> {
+        self.rooms.get(room).map(|r| r.owner_hash.as_str())
+    }
+
     /// Only the room's owner, on its current socket, changes who may join.
     pub fn update_allow(&mut self, room: &str, add: bool, hash: &str, from: &SocketRef) -> Result<(), RelayErrorCode> {
-        let is_owner = matches!(self.meta.get(&key(from)), Some(ConnMeta::Mac { room: own }) if own == room);
-        let found = self.rooms.get_mut(room).filter(|r| is_owner && r.mac.as_ref().is_some_and(|mac| same(mac, from)));
-        let Some(found) = found else { return Err(RelayErrorCode::OwnerMismatch) };
+        let owns = self.owns_room(room, from);
+        let Some(found) = self.rooms.get_mut(room).filter(|_| owns) else { return Err(RelayErrorCode::OwnerMismatch) };
         if add {
             found.allow.insert(hash.to_lowercase());
         } else {

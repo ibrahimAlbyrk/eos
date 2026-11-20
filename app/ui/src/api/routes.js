@@ -224,6 +224,8 @@ export const ROUTES = {
   remoteConfig: "/api/remote/config",
   remoteArm: "/api/remote/arm",
   remotePair: "/api/remote/pair",
+  // Wakes the paired phone with a test push through the relay.
+  remotePushTest: "/api/remote/push-test",
   // Eos ↔ Eos peering (eos-contracts `peer.rs`).
   hostInfo: "/api/host",
   peer: "/api/peer",

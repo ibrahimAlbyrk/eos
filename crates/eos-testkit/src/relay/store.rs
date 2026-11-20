@@ -45,6 +45,10 @@ impl FakeRemoteStore {
         &self.secrets.bearer
     }
 
+    pub fn owner(&self) -> &str {
+        &self.secrets.owner
+    }
+
     /// Every audited request, oldest first.
     pub fn audited(&self) -> Vec<RemoteAuditEntry> {
         lock(&self.audit).clone()

@@ -1,7 +1,9 @@
 //! A relay inside the test process: `relay/server.ts` on a loopback port.
 //!
 //! It forwards as the real one does, including what the real one lacks: a
-//! frame for a slow socket is queued without limit. Tests that need a relay
+//! frame for a slow socket is queued without limit. It takes pushes from a
+//! room's owner, over its socket or over HTTP on the same port, and answers
+//! them as [`FakeRelay::set_push_tokens`] and its siblings say. Tests that need a relay
 //! which stops answering use [`FakeRelay::freeze`].
 
 use std::collections::HashMap;
@@ -21,6 +23,7 @@ use tokio::time::{Instant, MissedTickBehavior, interval_at};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
+use super::push::{self, PushDesk, PushVia, Pushed};
 use super::registry::{Dropped, RelayErrorCode, RelaySocket, RoomRegistry, SocketRef};
 
 #[derive(Debug, Clone, Default)]
@@ -66,7 +69,7 @@ struct State {
     frozen: watch::Sender<bool>,
     heartbeat: Option<Duration>,
     registrations: Mutex<Vec<Registration>>,
-    push_intents: AtomicUsize,
+    push: PushDesk,
     forwarded: AtomicUsize,
 }
 
@@ -114,7 +117,7 @@ impl FakeRelay {
             frozen: watch::channel(false).0,
             heartbeat: options.heartbeat,
             registrations: Mutex::default(),
-            push_intents: AtomicUsize::new(0),
+            push: PushDesk::default(),
             forwarded: AtomicUsize::new(0),
         });
         let accepting = state.clone();
@@ -158,9 +161,24 @@ impl FakeRelay {
         lock(&self.state.registrations).clone()
     }
 
-    /// `pushIntent` messages received: requests to wake a phone through APNs.
-    pub fn push_intents(&self) -> usize {
-        self.state.push_intents.load(Ordering::SeqCst)
+    /// Every push the relay took, over a socket or over HTTP, oldest first.
+    pub fn pushes(&self) -> Vec<Pushed> {
+        self.state.push.pushes()
+    }
+
+    /// Phones with a stored push token: a push reaches this many. None at first.
+    pub fn set_push_tokens(&self, tokens: u32) {
+        self.state.push.set_tokens(tokens);
+    }
+
+    /// Without an APNs key every push answers `not-configured`.
+    pub fn set_push_configured(&self, configured: bool) {
+        self.state.push.set_configured(configured);
+    }
+
+    /// Past the room's rate: every push answers `throttled` (HTTP 429).
+    pub fn set_push_throttled(&self, throttled: bool) {
+        self.state.push.set_throttled(throttled);
     }
 
     /// Data frames forwarded so far.
@@ -220,6 +238,12 @@ impl Drop for Leaving {
 }
 
 async fn serve(state: Arc<State>, id: u64, tcp: TcpStream) {
+    if starts_with_post(&tcp).await {
+        let owner_hash = |room: &str| lock(&state.registry).owner_hash(room).map(str::to_owned);
+        push::serve_http(tcp, &state.push, owner_hash).await;
+        lock(&state.conns).remove(&id);
+        return;
+    }
     let config =
         WebSocketConfig::default().max_message_size(Some(MAX_MESSAGE_BYTES)).max_frame_size(Some(MAX_MESSAGE_BYTES));
     let Ok(ws) = tokio_tungstenite::accept_async_with_config(tcp, Some(config)).await else {
@@ -270,6 +294,19 @@ async fn serve(state: Arc<State>, id: u64, tcp: TcpStream) {
                 Some(Ok(Message::Close(_)) | Err(_)) | None => return,
                 Some(Ok(_)) => {}
             },
+        }
+    }
+}
+
+/// Whether the request on `tcp` is an HTTP `POST` (a push) rather than a
+/// WebSocket upgrade.
+async fn starts_with_post(tcp: &TcpStream) -> bool {
+    let mut start = [0u8; 5];
+    loop {
+        match tcp.peek(&mut start).await {
+            Ok(5) => return &start == b"POST ",
+            Ok(n) if n > 0 && b"POST "[..n] == start[..n] => tokio::task::yield_now().await,
+            _ => return false,
         }
     }
 }
@@ -355,8 +392,19 @@ fn handle_message(state: &State, socket: &SocketRef, raw: Bytes) {
                     send_error(socket, &room, code, "allowlist update rejected");
                 }
             }
-            Some("pushIntent") => {
-                state.push_intents.fetch_add(1, Ordering::SeqCst);
+            Some("push") if !room.is_empty() => {
+                if !lock(&state.registry).owns_room(&room, socket) {
+                    send_error(socket, &room, RelayErrorCode::OwnerMismatch, "only the room's owner may push");
+                    return;
+                }
+                let Some((kind, count)) = PushDesk::valid(&body) else {
+                    send_error(socket, &room, RelayErrorCode::BadRequest, "push needs a known kind + a whole count");
+                    return;
+                };
+                let answer = state.push.answer(&room, kind, count, PushVia::Socket);
+                if let Ok(frame) = control::push_result(&room, &answer) {
+                    socket.send(frame);
+                }
             }
             _ => {}
         },

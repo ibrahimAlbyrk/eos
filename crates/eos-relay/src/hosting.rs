@@ -3,15 +3,16 @@
 //! dead one is redialled with a doubling pause, and at once after the computer
 //! wakes.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use bytes::Bytes;
-use eos_core::net::relay::{RelayClientId, RelayError, RoomClaim, RoomEvent, RoomHosting};
+use eos_core::net::relay::{PhonePush, PushResult, RelayClientId, RelayError, RoomClaim, RoomEvent, RoomHosting};
 use eos_core::{BoxFuture, Clock};
 use futures_util::StreamExt;
-use tokio::sync::{Notify, mpsc, watch};
+use tokio::sync::{Notify, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{Instant, MissedTickBehavior, interval_at};
 use tokio_tungstenite::tungstenite::Message;
@@ -30,12 +31,31 @@ struct Shared {
     out: Mutex<Option<Outbound>>,
     stop: watch::Sender<bool>,
     refresh: Notify,
+    /// Pushes sent on the live connection, waiting for their `push-result`.
+    /// The relay answers each in turn on the socket it came from.
+    pushes: Mutex<VecDeque<oneshot::Sender<PushResult>>>,
 }
 
 impl Shared {
     fn out(&self) -> MutexGuard<'_, Option<Outbound>> {
         // Holds one `Option` swap at a time: a poisoned lock is still valid.
         self.out.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn pushes(&self) -> MutexGuard<'_, VecDeque<oneshot::Sender<PushResult>>> {
+        // Holds a queue of senders: valid after any panic.
+        self.pushes.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Hands a `push-result` to the oldest push still waiting for one.
+    fn push_answered(&self, result: PushResult) {
+        let mut pushes = self.pushes();
+        while let Some(waiting) = pushes.pop_front() {
+            // A push whose caller gave up has no one to tell.
+            if waiting.send(result.clone()).is_ok() {
+                return;
+            }
+        }
     }
 
     fn register(&self) -> Option<Bytes> {
@@ -76,6 +96,7 @@ impl Hosting {
             out: Mutex::new(None),
             stop,
             refresh: Notify::new(),
+            pushes: Mutex::default(),
         });
         if shared.register().is_some() {
             tokio::spawn(run(shared.clone(), events_tx));
@@ -120,6 +141,19 @@ impl RoomHosting for Hosting {
 
     fn close(&self) {
         self.shared.stop.send_replace(true);
+    }
+
+    fn push(&self, push: PhonePush) -> BoxFuture<'_, Result<PushResult, RelayError>> {
+        Box::pin(async move {
+            let out = self.shared.out().clone().ok_or(RelayError::Offline)?;
+            // The room was checked when the hosting was made.
+            let frame = control::push(&self.shared.claim.room, push).map_err(|_| RelayError::Closed)?;
+            let (answered, answer) = oneshot::channel();
+            self.shared.pushes().push_back(answered);
+            out.send(frame).await?;
+            // The connection ended before the relay answered.
+            answer.await.map_err(|_| RelayError::Offline)
+        })
     }
 }
 
@@ -278,6 +312,7 @@ impl Session<'_> {
 
         self.shared.online.store(false, Ordering::SeqCst);
         *self.shared.out() = None;
+        self.shared.pushes().clear();
         out.close();
         writer.abort();
         if end != End::Stop {
@@ -340,6 +375,10 @@ impl Session<'_> {
                 match (notice.kind(), notice.client_id()) {
                     (Some("joined"), Some(client)) => RoomEvent::Joined(client),
                     (Some("left"), Some(client)) => RoomEvent::Left(client),
+                    (Some("push-result"), _) => {
+                        self.shared.push_answered(notice.push_result());
+                        return true;
+                    }
                     _ => return true,
                 }
             }

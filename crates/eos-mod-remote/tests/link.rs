@@ -6,13 +6,17 @@ mod common;
 use std::time::Duration;
 
 use common::{Harness, NOW, RELAY_URL, ROOM, base_routes, enabled};
-use eos_core::net::relay::{RelayClientId, RoomEvent};
+use std::sync::Arc;
+
+use eos_core::net::relay::{PhonePush, PushKind, PushOutcome, PushResult, RelayClientId, RoomEvent};
+use eos_core::store::ConfigSource;
 use eos_mod_remote::GatewayOptions;
+use eos_relay::RelayClient;
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::module::Module;
 use eos_testkit::fixtures::recorded_response;
-use eos_testkit::relay::inner_json;
+use eos_testkit::relay::{FakeRelay, FakeRelayPort, PushVia, inner_json};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -302,4 +306,107 @@ async fn phones_of_a_dead_connection_and_silent_phones_are_forgotten() {
     h.room().push(RoomEvent::Registered);
     h.settle().await;
     assert_eq!(h.module.devices(), 0);
+}
+
+// ---- pushes to the phone (07 §4.6, G38) ----------------------------------------
+
+async fn push_test(h: &Harness) -> (u16, Value) {
+    call(h, Method::Post, "/api/remote/push-test", Caller::DASHBOARD, "").await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_push_goes_on_the_room_s_connection_while_armed_and_over_http_otherwise() {
+    let h = Harness::armed(&base_routes());
+    assert_eq!(push_test(&h).await, (200, json!({ "sent": 1, "failed": 0 })));
+    assert_eq!(h.room().phone_pushes(), [PhonePush { kind: PushKind::Test, count: 1 }]);
+    assert!(h.relay.http_pushes().is_empty());
+
+    // The room's connection is down: the relay is still reached over HTTP.
+    h.room().set_online(false);
+    let notify = h.module.phone_notify();
+    let push = PhonePush { kind: PushKind::NeedsYou, count: 3 };
+    assert_eq!(notify.push(push).await, Ok(PushOutcome::Sent { devices: 1, failed: 0 }));
+    let (target, sent) = h.relay.http_pushes().pop().expect("an HTTP push");
+    assert_eq!((target.url.as_str(), target.room.as_str(), target.owner.as_str()), (RELAY_URL, ROOM, h.store.owner()));
+    assert_eq!(sent, push);
+
+    // Switched off but set: no socket, and no keep-awake for it.
+    let off = Harness::new(
+        &base_routes(),
+        json!({ "remote": { "enabled": false, "relay": { "url": RELAY_URL } } }),
+        GatewayOptions::default(),
+        true,
+    );
+    off.module.start().await.expect("starts");
+    assert_eq!(push_test(&off).await, (200, json!({ "sent": 1, "failed": 0 })));
+    assert_eq!((off.relay.http_pushes().len(), off.relay.claims().len(), off.awake.taken()), (1, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_push_test_answers_each_reason() {
+    let h = Harness::new(
+        &base_routes(),
+        json!({ "remote": { "enabled": false, "relay": { "url": RELAY_URL } } }),
+        GatewayOptions::default(),
+        true,
+    );
+    let answers = [
+        (Ok(PushResult::default()), json!({ "sent": 0, "failed": 0, "reason": "no-devices" })),
+        (
+            Ok(PushResult { reason: Some("throttled".into()), ..PushResult::default() }),
+            json!({ "sent": 0, "failed": 0, "reason": "throttled" }),
+        ),
+        (
+            Ok(PushResult { failed: 2, reason: Some("not-configured".into()), ..PushResult::default() }),
+            json!({ "sent": 0, "failed": 2, "reason": "not-configured" }),
+        ),
+        (Ok(PushResult { sent: 1, failed: 1, gone: 1, reason: None }), json!({ "sent": 1, "failed": 2 })),
+        (Err(eos_core::Error::not_found("relay room", "x")), json!({ "sent": 0, "failed": 0, "reason": "link-off" })),
+    ];
+    for (answer, expected) in answers {
+        h.relay.answer_http_pushes(answer);
+        assert_eq!(push_test(&h).await, (200, expected));
+    }
+    h.relay.answer_http_pushes(Err(eos_core::Error::Unreachable("relay".into())));
+    assert_eq!(push_test(&h).await.0, 502, "a relay that does not answer is an error: banners take over");
+
+    // This app reaches no relay: no phone can be woken from it.
+    let no_relay = Harness::new(&base_routes(), enabled(), GatewayOptions::default(), false);
+    assert_eq!(push_test(&no_relay).await, (200, json!({ "sent": 0, "failed": 0, "reason": "link-off" })));
+    assert!(no_relay.relay.http_pushes().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_push_reaches_the_test_relay_over_the_socket_while_armed_and_over_http_when_not() {
+    let server = FakeRelay::start().await;
+    server.set_push_tokens(2);
+    let client = RelayClient::new(Arc::new(eos_core::SystemClock));
+    let url = server.url();
+    let h = Harness::on(
+        &base_routes(),
+        json!({ "remote": { "enabled": true, "relay": { "url": url } } }),
+        GatewayOptions::default(),
+        Arc::new(FakeRelayPort::new()),
+        Some(Arc::new(client)),
+    );
+    h.module.start().await.expect("starts");
+    for _ in 0..500 {
+        if server.room_count() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(push_test(&h).await, (200, json!({ "sent": 2, "failed": 0 })));
+
+    let off = json!({ "enabled": false }).as_object().cloned().expect("an object");
+    h.config.patch("remote", off).expect("saved");
+    h.module.reconcile();
+    assert!(!h.module.is_armed());
+    server.set_push_configured(false);
+    assert_eq!(push_test(&h).await, (200, json!({ "sent": 0, "failed": 2, "reason": "not-configured" })));
+    server.set_push_throttled(true);
+    assert_eq!(push_test(&h).await, (200, json!({ "sent": 0, "failed": 0, "reason": "throttled" })));
+    let via: Vec<PushVia> = server.pushes().iter().map(|p| p.via).collect();
+    assert_eq!(via, [PushVia::Socket, PushVia::Http, PushVia::Http]);
+    assert!(server.pushes().iter().all(|p| p.kind == "test" && p.count == 1));
 }

@@ -9,7 +9,8 @@ use bytes::Bytes;
 use eos_core::BoxFuture;
 use eos_core::net::peer::{ConnectedDevice, PeerEvents};
 use eos_core::net::relay::{
-    PipeListener, Relay, RelayError, RelayJoinError, RelayPipe, RoomClaim, RoomHosting, RoomJoin,
+    PhonePush, PipeListener, PushResult, PushTarget, Relay, RelayError, RelayJoinError, RelayPipe, RoomClaim,
+    RoomHosting, RoomJoin,
 };
 use sha2::{Digest, Sha256};
 use tokio::sync::{Mutex as AsyncMutex, mpsc};
@@ -164,6 +165,10 @@ impl Relay for InMemoryRelay {
             self.joins.fetch_add(1, Ordering::Relaxed);
             Ok(Box::new(device) as Box<dyn RelayPipe>)
         })
+    }
+
+    fn push(&self, _target: PushTarget, _push: PhonePush) -> BoxFuture<'_, Result<PushResult, eos_core::Error>> {
+        Box::pin(async { Err(eos_core::Error::Unreachable("InMemoryRelay carries pipes, not pushes".into())) })
     }
 }
 
