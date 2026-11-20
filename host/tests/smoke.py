@@ -11,7 +11,8 @@ What it checks:
      included), and through the core's browser route for the panel's tab;
   4. the Rust core answers every request behind the dev guard, the event stream included;
   5. a second launch hands over, `--quit` stops everything;
-  6. the logs: both files beside this run's data, the story told, nothing private in them.
+  6. the logs: both files beside this run's data, the story told, nothing private in them;
+  7. a number set on the Dock icon is what the icon shows.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -256,6 +257,7 @@ def checks(run):
         {"browser": {"method": "GET", "path": f"/browser/tabs?session={chat}", "tab": "p", "retry_ms": 30000}},
         {"browser": {"method": "POST", "path": "/browser/tabs/{p}/navigate?session=" + chat, "body": {"action": "url", "url": panel_page}}},
         {"browser": {"method": "POST", "path": "/browser/tabs/{p}/snapshot?session=" + chat, "body": {"interactiveOnly": False}}},
+        {"badge": 3},
     ]
     steps_file, steps_out = os.path.join(OUT, "steps.json"), os.path.join(OUT, "steps-out.json")
     with open(steps_file, "w") as f:
@@ -301,6 +303,7 @@ def checks(run):
         check("a parked view can be captured", r[4].get("ok") and os.path.getsize(shot) > 1000, f"{os.path.getsize(shot) if os.path.exists(shot) else 0} bytes")
         check("a parked view still answers", r[8].get("value", {}).get("result", {}).get("value") == 2)
         check("the dashboard was captured", r[11].get("ok") and os.path.exists(dashboard_shot), "kept in the private output folder")
+        check("the Dock icon shows the number set on it", r[15].get("ok") and ctl("--status").get("dockBadge") == "3", ctl("--status").get("dockBadge"))
 
     # ---- 2. the dashboard's own browser panel. The restored layout has the Browser tab
     # open, so the dashboard opens a tab by itself (a child view) and reports it as active.

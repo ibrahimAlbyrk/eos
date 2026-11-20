@@ -10,6 +10,7 @@
 //! - `activity`: the work hold's `NSProcessInfo` activity, whose token moves between threads
 //!   and is handed back to end it.
 //! - `launch`: the Apple Event the app was launched with, read from `NSAppleEventManager`.
+//! - `dock`: the number on the Dock icon, through `NSApp.dockTile`.
 //!
 //! Each function states what the caller must hold (usually: the main thread).
 #![allow(unsafe_code)]
@@ -17,5 +18,6 @@
 pub(crate) mod activity;
 pub(crate) mod appkit;
 pub(crate) mod buffer;
+pub(crate) mod dock;
 pub(crate) mod launch;
 pub(crate) mod notify;

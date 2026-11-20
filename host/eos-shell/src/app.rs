@@ -29,7 +29,8 @@ use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::activity::Activities;
-use crate::native::{appkit, launch, notify};
+use crate::native::dock::DockTile;
+use crate::native::{appkit, dock, launch, notify};
 use crate::splash::Splash;
 use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
@@ -313,6 +314,7 @@ impl Shell {
             previewer: Arc::new(Previewer::new(views.clone())),
             opener: Arc::new(Opener),
             work_hold: Arc::new(Activities::default()),
+            dock_badge: Arc::new(DockTile(app.clone())),
             rt: self.rt.handle().clone(),
             quit: {
                 let shell = Arc::downgrade(self);
@@ -797,6 +799,7 @@ impl Shell {
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
+            "dockBadge": self.dock_label(),
             "logs": self.options.logs.as_ref().map(|dir| json!({
                 "folder": dir,
                 "files": [eos_kit_log::CORE_LOG, eos_kit_log::SHELL_LOG],
@@ -806,6 +809,13 @@ impl Shell {
                 },
             })),
         })
+    }
+
+    /// The Dock icon's label, read on the main thread.
+    fn dock_label(&self) -> Option<String> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.on_main(move || drop(tx.send(dock::label())));
+        rx.recv_timeout(Duration::from_secs(2)).ok().flatten()
     }
 
     /// Tells the app when the Mac comes back from sleep, and follows the system's proxy

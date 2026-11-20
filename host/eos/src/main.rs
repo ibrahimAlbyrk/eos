@@ -253,6 +253,7 @@ fn start_core(
             picker: ports.picker.clone(),
             opener: ports.opener.clone(),
             work_hold: ports.work_hold.clone(),
+            dock_badge: ports.dock_badge.clone(),
         }),
         sweep_leftovers: real_data,
         relay: Some(eos_app::relay()),

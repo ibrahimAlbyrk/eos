@@ -74,6 +74,8 @@ pub(crate) struct Context {
     /// Keeps the app working while routines run or wait: the window shell's, else the
     /// system's own way.
     pub(crate) work_hold: Arc<dyn eos_core::os::WorkHold>,
+    /// The Dock icon's number: the window shell's, else none.
+    pub(crate) dock_badge: Arc<dyn eos_core::os::DockBadge>,
     /// The plan usage the accounts feature last fetched.
     pub(crate) usage_cache: Arc<dyn eos_core::accounts::UsageSnapshotStore>,
     /// What visual answers fetch: images, the map, geocoding, place search.
@@ -325,7 +327,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             },
             config: cx.config.clone(),
             phone: cx.reach.phone_notify(cx.remote.phone_notify()),
-            badge: Arc::new(crate::host::NoDockBadge),
+            badge: cx.dock_badge.clone(),
         })),
         pages,
         cx.peer.module(),
