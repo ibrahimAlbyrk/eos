@@ -3,7 +3,7 @@
 //! a repository, a project here that is its clone. A start that lacks one
 //! is refused with what is missing, so no run is spent finding out.
 
-use eos_contracts::{AgentWorkspace, Blueprint, RunInput};
+use eos_contracts::{AgentWorkspace, Blueprint, RoutineAgent, RunInput, WhoDepth};
 use eos_core::capability::MissingNeed;
 use eos_core::routine::{StartError, Unready};
 use eos_domain::capability::health::HealthState;
@@ -28,13 +28,24 @@ fn unready(need: MissingNeed) -> Unready {
     }
 }
 
+/// Whether the agent works in the repository. A team's specialist that
+/// shares works in the lead's folder, which needs a repository only when
+/// the lead's own workspace does.
+fn in_repository(blueprint: &Blueprint, agent: &RoutineAgent) -> bool {
+    match agent.workspace {
+        AgentWorkspace::None => false,
+        AgentWorkspace::Read | AgentWorkspace::Worktree => true,
+        AgentWorkspace::Shared => blueprint.who.depth != WhoDepth::Team || agent.lead,
+    }
+}
+
 /// Refuses the start when its runs would fail for something not set up here.
 pub(crate) async fn check(engine: &Engine, blueprint: &Blueprint, inputs: &[RunInput]) -> Result<(), StartError> {
     let needs: Vec<String> = blueprint.needs.iter().filter_map(need_id).collect();
     if let Some(need) = engine.reads.missing(&needs).await?.into_iter().next() {
         return Err(StartError::Unready(unready(need)));
     }
-    if blueprint.who.agents.iter().all(|agent| agent.workspace == AgentWorkspace::None) {
+    if !blueprint.who.agents.iter().any(|agent| in_repository(blueprint, agent)) {
         return Ok(());
     }
     for input in inputs {
