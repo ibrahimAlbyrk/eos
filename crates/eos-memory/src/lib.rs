@@ -7,6 +7,8 @@
 //!   memory, loaded once a model is (until then recall uses hooks and words).
 //! - [`Capture`] reads a worker's rows after its cursor for the moments
 //!   memory learns from.
+//! - [`deliver`] builds a reminder and records each note that reached a
+//!   model (`mem_uses`, announced on `memory:recalled`).
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
@@ -16,6 +18,7 @@
 //! kind only, never by content.
 
 pub mod capture;
+pub mod deliver;
 pub mod pack;
 pub mod recall;
 pub mod settings;

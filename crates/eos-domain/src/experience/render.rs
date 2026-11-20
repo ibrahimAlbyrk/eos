@@ -10,6 +10,13 @@ const CLOSE: &str = "</system-reminder>";
 /// What the pack says before its notes.
 pub const PACK_HEADER: &str = "Eos memory: notes from earlier work that match this situation. \"hint\" notes were learned without\nasking; check them before relying on them.";
 
+/// What a reminder says before its notes, by the moment that brought them.
+pub const BEFORE_PUSH: &str = "Before this push:";
+pub const ERROR_SEEN: &str = "This error was seen before:";
+pub const ABOUT_FILE: &str = "About this file:";
+pub const BEFORE_STEP: &str = "Before this step:";
+pub const ON_REQUEST: &str = "On this request:";
+
 /// One note as the model reads it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rendered<'a> {

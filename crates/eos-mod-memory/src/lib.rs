@@ -11,6 +11,9 @@
 //! - Capture reads a worker's conversation for moments at its idle edge
 //!   (idle hook `memory`, order 90, never taking the worker), every ten
 //!   minutes while it keeps working, and when its session ends.
+//! - Notes reach agents ([`reminders`]): a pack at the first turn of each
+//!   epoch of a chat, and reminders when a message, a tool call or an error
+//!   matches what was learned.
 //! - Model work nobody asked for (reflection, night tidying) runs only when
 //!   the host lets it ([`MemoryParts::background_model_calls`]).
 //!
@@ -18,11 +21,15 @@
 //! count only.
 
 mod hooks;
+mod reminders;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::{AgentEvent, ExperienceChange, ExperienceRecalledEvent, ExperienceSettings};
+use eos_core::agent::{CompactionNotice, NoteTurn};
 use eos_core::experience::Embedder;
+use eos_core::git::ProjectKeys;
+use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
@@ -32,9 +39,11 @@ use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
 
 use crate::hooks::Capturer;
+pub use crate::reminders::NoteSink;
+use crate::reminders::Reminders;
 
 pub const MEMORY_CHANGE: Topic<ExperienceChange> = Topic::new("memory:change");
-pub const MEMORY_RECALLED: Topic<ExperienceRecalledEvent> = Topic::new("memory:recalled");
+pub const MEMORY_RECALLED: Topic<ExperienceRecalledEvent> = Topic::new(eos_memory::deliver::MEMORY_RECALLED);
 
 /// Loads the meaning model: slow (about 130 MB read), so it runs on a
 /// blocking thread.
@@ -66,6 +75,12 @@ pub struct MemoryParts {
     pub ids: Arc<dyn Ids>,
     /// Which run a worker belongs to, when routines are composed.
     pub runs: Option<Arc<dyn RunLookup>>,
+    /// Where reminders are handed to live sessions.
+    pub sink: Arc<dyn NoteSink>,
+    /// How a project folder is named in notes' scopes.
+    pub project_keys: Arc<dyn ProjectKeys>,
+    /// The profile, for the backend kinds the user withholds it from.
+    pub profile: Arc<dyn UserProfileReader>,
     /// The meaning model, when the host has one.
     pub embedder: Option<LoadEmbedder>,
     /// Whether model calls nobody asked for may run: only in the installed
@@ -83,6 +98,7 @@ pub struct MemoryModule {
     store: Arc<dyn Store>,
     recall: Arc<Recall>,
     capturer: Arc<Capturer>,
+    reminders: Arc<Reminders>,
     sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
     health: Arc<Mutex<EmbedderHealth>>,
@@ -99,10 +115,33 @@ impl std::fmt::Debug for MemoryModule {
 
 impl MemoryModule {
     pub fn new(parts: MemoryParts) -> Self {
-        let MemoryParts { store, clock, sleeper, ids, runs, embedder, background_model_calls } = parts;
+        let MemoryParts {
+            store,
+            clock,
+            sleeper,
+            ids,
+            runs,
+            sink,
+            project_keys,
+            profile,
+            embedder,
+            background_model_calls,
+        } = parts;
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
+        let recall = Arc::new(Recall::new(store.clone(), clock.clone()));
+        let reminders = Reminders::new(
+            recall.clone(),
+            store.clone(),
+            clock.clone(),
+            ids.clone(),
+            sink,
+            project_keys,
+            profile,
+            runs.clone(),
+        );
         Self {
-            recall: Arc::new(Recall::new(store.clone(), clock.clone())),
+            recall,
+            reminders: Arc::new(reminders),
             capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs)),
             sleeper,
             store,
@@ -166,11 +205,24 @@ impl Module for MemoryModule {
         })]
     }
 
-    fn on_agent_event(&self, worker_id: &str, _event: &AgentEvent) {
+    fn on_agent_event(&self, worker_id: &str, event: &AgentEvent) {
         self.capturer.saw(worker_id);
+        self.reminders.on_event(worker_id, event);
+    }
+
+    fn turn_notes(&self, turn: &NoteTurn) -> BoxFuture<'_, Vec<String>> {
+        let turn = turn.clone();
+        Box::pin(async move { self.reminders.turn_notes(&turn.worker_id, turn.message.as_deref(), turn.start).await })
+    }
+
+    fn on_compaction(&self, worker_id: &str, notice: &CompactionNotice) {
+        if matches!(notice, CompactionNotice::Completed { .. }) {
+            self.reminders.reset(worker_id);
+        }
     }
 
     fn on_session_exit(&self, worker_id: &str) {
+        self.reminders.reset(worker_id);
         self.capturer.ended(worker_id);
         let capturer = self.capturer.clone();
         let worker_id = worker_id.to_owned();

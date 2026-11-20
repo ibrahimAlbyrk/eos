@@ -10,14 +10,16 @@ publish.workspace = true
 [dependencies]
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-domain.workspace = true
 eos-memory.workspace = true
 eos-runtime.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, features = ["rt", "sync"] }
 tracing.workspace = true
 
 [dev-dependencies]
+eos-memory.workspace = true
 eos-testkit.workspace = true
-serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
