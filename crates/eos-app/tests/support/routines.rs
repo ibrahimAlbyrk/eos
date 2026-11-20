@@ -189,7 +189,7 @@ pub async fn hand_in(app: &App, agents: &ScriptedRuntime, run_id: &str, headline
     assert!(!reply.is_error, "{}", reply.text);
     if checked {
         eventually("a checker starts", || async { checkers().count() > before }).await;
-        let checker = checkers().last().expect("a checker").worker_id;
+        let checker = checkers().next_back().expect("a checker").worker_id;
         let verdict = json!({"pass": true, "checks": [], "mustFix": []});
         let reply = call_tool(app, agents, &checker, "submit_verdict", verdict).await;
         assert!(!reply.is_error, "{}", reply.text);
