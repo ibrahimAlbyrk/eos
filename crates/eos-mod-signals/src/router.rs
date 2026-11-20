@@ -26,7 +26,7 @@ use eos_core::os::TimeZone;
 use eos_core::routine::{
     Admission, AdmitOutcome, AdmitRefusal, RoutineControl, RoutineDirectory, RoutineTriggers, RunIntake,
 };
-use eos_core::signals::{Holder, Runner};
+use eos_core::signals::{Holder, Runner, SignalSources};
 use eos_core::store::{Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::signals::decision::Decision;
@@ -47,6 +47,11 @@ pub(crate) const CLOCK: &str = "clock";
 const BATCH: i64 = 100;
 /// A signal whose write failed is tried again at most this often.
 const RETRY_MS: i64 = 60_000;
+
+/// Whether Needs you's stop switch is on.
+pub(crate) fn halted_in(tx: &dyn Tx) -> Result<bool, Error> {
+    Ok(tx.inbox_halt().get()?.on)
+}
 
 /// What kind of failure an error is, for the log: its text may name the
 /// user's things.
@@ -138,6 +143,8 @@ pub(crate) struct Router {
     pub(crate) runner: Arc<dyn Runner>,
     pub(crate) intake: Arc<dyn RunIntake>,
     pub(crate) directory: Arc<dyn RoutineDirectory>,
+    /// What says which events end their subject.
+    pub(crate) sources: Arc<dyn SignalSources>,
     pub(crate) autostart: bool,
     /// Rings when there may be signals to route.
     pub(crate) kick: Notify,
@@ -211,6 +218,9 @@ impl Routing {
         baseline: bool,
     ) -> Result<(), Error> {
         let Some(signal) = tx.signals().find(id)?.filter(|signal| !signal.routed) else { return Ok(()) };
+        if !baseline && halted_in(tx)? {
+            return Ok(());
+        }
         let source = tx.signal_sources().find(&signal.signal.source_id)?;
         let facts: Facts =
             signal.signal.facts_json.as_deref().and_then(|json| serde_json::from_str(json).ok()).unwrap_or_default();
@@ -282,6 +292,9 @@ impl Router {
     /// signal whose write fails is logged and left for a later pass, at most
     /// once every [`RETRY_MS`], while the ones after it are routed.
     pub(crate) async fn pass(&self) -> Result<usize, Error> {
+        if self.store.read(halted_in).await? {
+            return Ok(0);
+        }
         let routines = Arc::new(self.directory.triggers().await?);
         let mut routed = 0;
         let mut after = 0;

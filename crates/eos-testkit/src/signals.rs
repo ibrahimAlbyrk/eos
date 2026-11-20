@@ -23,6 +23,7 @@ pub struct FakeSource {
     facts: Vec<FactDecl>,
     interval_ms: Option<i64>,
     wait_ms: u64,
+    closing: Vec<String>,
     polls: Mutex<VecDeque<Result<PollPage, SourceError>>>,
     pushes: Mutex<VecDeque<Result<PushOutcome, SourceError>>>,
     requests: Mutex<Vec<PollRequest>>,
@@ -38,6 +39,12 @@ impl FakeSource {
     pub fn timed(mut self, interval_ms: Option<i64>, wait_ms: u64) -> Self {
         self.interval_ms = interval_ms;
         self.wait_ms = wait_ms;
+        self
+    }
+
+    /// Events of these kinds end their subject.
+    pub fn closing(mut self, kinds: &[&str]) -> Self {
+        self.closing = kinds.iter().map(|kind| (*kind).to_owned()).collect();
         self
     }
 
@@ -72,6 +79,10 @@ impl SignalSource for FakeSource {
 
     fn wait_ms(&self) -> u64 {
         self.wait_ms
+    }
+
+    fn closes(&self, kind: &str) -> bool {
+        self.closing.iter().any(|closing| closing == kind)
     }
 
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {

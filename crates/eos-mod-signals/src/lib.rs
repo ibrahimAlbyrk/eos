@@ -27,7 +27,12 @@
 //! signals, replay some through the run intake and preview a schedule or a
 //! Which.
 //!
-//! Changes are announced on `signals:change`. Keys, subjects, scopes and
+//! While Needs you's stop switch is on (`inbox:halt`) no source polls, no
+//! schedule fires and the router decides nothing: signals wait `received`.
+//! Switched off, the next pass catches up as after a wake.
+//!
+//! Changes are announced on `signals:change`; each new version of a
+//! subject on `signals:subject`. Keys, subjects, scopes and
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
 
 mod after;
@@ -44,8 +49,8 @@ mod sources;
 use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_contracts::SignalChange;
 use eos_contracts::stream::topics::SYSTEM_WAKE;
+use eos_contracts::{HaltState, SignalChange, SignalSubject};
 use eos_core::capability::CapabilityHealth;
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
@@ -70,6 +75,10 @@ pub use runner::SoloRunner;
 pub use scheduler::SCHEDULER_MAX_SLEEP_MS;
 
 pub const SIGNALS_CHANGE: Topic<SignalChange> = Topic::new("signals:change");
+/// A new version of a subject came in, or it ended.
+pub const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
+/// Needs you's stop switch, heard by name.
+const INBOX_HALT: &str = "inbox:halt";
 
 /// Past this many signals waiting to be routed, ingest refuses pages…
 pub const BACKED_UP: i64 = 5_000;
@@ -112,7 +121,7 @@ impl std::fmt::Debug for SignalsParts {
 }
 
 /// What starts a pass of the scheduler at once.
-const KICKS: [&str; 3] = [SYSTEM_WAKE, "routine:change", "run:change"];
+const KICKS: [&str; 4] = [SYSTEM_WAKE, "routine:change", "run:change", INBOX_HALT];
 
 pub struct SignalsModule {
     parts: SignalsParts,
@@ -137,6 +146,7 @@ impl SignalsModule {
             runner: parts.runner.clone(),
             intake: parts.intake.clone(),
             directory: parts.directory.clone(),
+            sources: parts.sources.clone(),
             autostart: parts.autostart,
             kick: Notify::new(),
             ids: parts.ids.clone(),
@@ -195,7 +205,7 @@ impl Module for SignalsModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![SIGNALS_CHANGE.decl()]
+        vec![SIGNALS_CHANGE.decl(), SIGNALS_SUBJECT.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {
@@ -214,8 +224,10 @@ impl Module for SignalsModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         let kicks = KICKS.map(|topic| {
             let scheduler = self.scheduler.clone();
-            self.parts.bus.on(topic, move |_| {
-                if topic == SYSTEM_WAKE {
+            self.parts.bus.on(topic, move |event| {
+                // Resuming catches up as a wake does.
+                let resumed = topic == INBOX_HALT && event.payload_as::<HaltState>().is_ok_and(|halt| !halt.on);
+                if topic == SYSTEM_WAKE || resumed {
                     scheduler.polls.woke();
                 }
                 scheduler.kick.notify_one();
@@ -248,5 +260,5 @@ impl Module for SignalsModule {
 /// What runs between `after_ready` and `stop`.
 struct Running {
     tasks: [JoinHandle<()>; 2],
-    _kicks: [Subscription; 3],
+    _kicks: [Subscription; 4],
 }

@@ -13,6 +13,8 @@ async fn the_manifest_passes_the_built_in_check() {
     let rig = rig();
     assert_eq!(check_builtin(rig.github.manifest()), []);
     assert_eq!(rig.github.manifest().id, "github");
+    let pulls = rig.github.manifest().sources.iter().find(|source| source.name == "pulls").expect("pulls");
+    assert_eq!(pulls.closing, ["closed"], "a merged or closed pull request ends its subject");
 }
 
 #[tokio::test]

@@ -111,6 +111,11 @@ pub trait SignalSource: Send + Sync {
     fn wait_ms(&self) -> u64 {
         0
     }
+    /// Whether an event of kind `kind` ends its subject (a pull request
+    /// merged or closed).
+    fn closes(&self, _kind: &str) -> bool {
+        false
+    }
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>>;
     /// A verified push: a hint to poll now, a signal (a source with no list
     /// to poll), or refused.

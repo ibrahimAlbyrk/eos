@@ -34,7 +34,7 @@ use tokio::sync::Notify;
 
 use crate::after::follow_in;
 use crate::polls::Polls;
-use crate::router::{CLOCK, Router, Routing, error_kind, run_in};
+use crate::router::{CLOCK, Router, Routing, error_kind, halted_in, run_in};
 use crate::sources::{SourceSpec, source_in};
 
 /// The loop never sleeps longer: a sleep of the computer, a changed clock
@@ -91,6 +91,9 @@ impl Scheduler {
     /// One pass over every schedule of the routines held here, then their
     /// sources; answers the next slot or poll of any.
     async fn pass(&self) -> Result<Option<i64>, Error> {
+        if self.store.read(halted_in).await? {
+            return Ok(None);
+        }
         let routines = self.router.directory.triggers().await?;
         let held: Vec<Arc<RoutineTriggers>> = routines
             .into_iter()
@@ -171,6 +174,9 @@ impl Slot {
     /// due slot, inside one write; answers its next slot.
     fn fire_in(self, tx: &dyn Tx, out: &mut Outbox) -> Result<Option<i64>, Error> {
         let routine_id = self.routine.id.as_str();
+        if halted_in(tx)? {
+            return Ok(None);
+        }
         let stored = tx.signal_schedules().of_routine(routine_id)?.into_iter().find(|row| row.slot == self.slot);
         if self.routine.state != RoutineState::Active {
             if let Some(row) = stored.filter(|row| row.spec_hash != NOT_ARMED) {
