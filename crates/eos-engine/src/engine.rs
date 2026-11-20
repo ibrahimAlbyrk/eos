@@ -351,6 +351,10 @@ impl Engine {
             )))
             .auto_compact(spec.compact_at.is_some())
             .plugin_dirs(inner.options.plugin_dirs.clone());
+        // Eos's model list knows models newer than the engine's own table.
+        if let Some(window) = spec.context_window {
+            options = options.context_window(window);
+        }
         if let Some(at) = spec.compact_at {
             options = options.compact_at(at);
         }

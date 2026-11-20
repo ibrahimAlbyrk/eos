@@ -9,7 +9,9 @@ use std::time::Duration;
 use eos_agent_mock_api::{MockApi, Output, Reply};
 use eos_core::Error;
 use eos_core::accounts::{AfterMove, PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
-use eos_core::agent::{AgentRuntime, AgentSession, BackendCatalog, CompactionNotice, LaunchSpec, SessionError};
+use eos_core::agent::{
+    AgentRuntime, AgentSession, BackendCatalog, CompactionNotice, LaunchSpec, ModelSwitch, SessionError,
+};
 use eos_engine::{Engine, EngineDeps, EngineOptions, LazyEngine};
 use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets, FakeUser, RecordingSink};
 use serde_json::Value;
@@ -152,6 +154,11 @@ fn key_of(request: &eos_agent_mock_api::Recorded) -> Option<String> {
     request.headers.get("x-api-key").and_then(|v| v.to_str().ok()).map(str::to_owned)
 }
 
+/// A change to `model` with nothing else said, summarizing when it must.
+fn switch(model: &str) -> ModelSwitch {
+    ModelSwitch { model: model.into(), effort: None, context_window: None, compact_at: None, summarize: true }
+}
+
 fn tags(events: &[Value]) -> Vec<String> {
     let s = |e: &Value, key: &str| e[key].as_str().unwrap_or_default().to_owned();
     events
@@ -210,10 +217,10 @@ async fn a_model_of_another_provider_moves_the_conversation_there_and_back() {
     let session = bench.start(LaunchSpec { prompt: Some("one".into()), ..bench.spec("w-1") }).await;
     bench.after_turns("w-1", 1).await;
 
-    session.set_model("gpt-5", None, None).await.expect("onto OpenAI");
+    session.set_model(switch("gpt-5")).await.expect("onto OpenAI");
     session.send("two".into()).await.expect("sent");
     bench.after_turns("w-1", 2).await;
-    session.set_model("mock-model", None, None).await.expect("back onto Claude");
+    session.set_model(switch("mock-model")).await.expect("back onto Claude");
     session.send("three".into()).await.expect("sent");
     let events = bench.after_turns("w-1", 3).await;
 
@@ -288,15 +295,15 @@ async fn a_session_runs_on_a_provider_reached_with_a_key() {
     // A Claude chat moves there, and is told when the key is gone.
     let session = bench.start(LaunchSpec { prompt: Some("two".into()), ..bench.spec("w-2") }).await;
     bench.after_turns("w-2", 1).await;
-    session.set_model("deep/chat-1", None, None).await.expect("onto the provider");
+    session.set_model(switch("deep/chat-1")).await.expect("onto the provider");
     session.send("three".into()).await.expect("sent");
     let events = bench.after_turns("w-2", 2).await;
     assert!(events.iter().any(|e| e["blocks"][0]["text"] == "deep again"), "{:?}", tags(&events));
     assert!(bench.request_text(2).contains("hello from Claude"), "the conversation went along");
 
-    session.set_model("mock-model", None, None).await.expect("back onto Claude");
+    session.set_model(switch("mock-model")).await.expect("back onto Claude");
     bench.keychain.delete_secret("eos-deep");
-    let refused = session.set_model("deep/chat-1", None, None).await;
+    let refused = session.set_model(switch("deep/chat-1")).await;
     assert_eq!(refused, Err(SessionError::Failed("no key for deep · add one under Settings › Accounts".into())));
 }
 
@@ -1016,6 +1023,59 @@ async fn a_rewind_to_the_first_message_after_a_compaction_keeps_the_summary() {
     assert!(*after_tokens > 0);
     let said = bench.sink.json("w-1").iter().filter(|e| e.to_string().contains("SUMMARY: a.py")).count();
     assert_eq!(said, 0, "the summary is no event of the conversation");
+}
+
+/// A model change the conversation does not fit is refused when it was to
+/// be, and otherwise summarized first as `/compact` is, in no turn: the sink
+/// hears how each summary ended, and the new model goes on from it. A summary
+/// that was stopped leaves the model as it was.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_model_change_the_conversation_does_not_fit_is_refused_or_summarized_first() {
+    let replies = [
+        Reply::text("hello there"),
+        Reply::text("never finished").slowed(Duration::from_secs(10)),
+        Reply::text("<summary>SUMMARY: hello was said</summary>"),
+        Reply::text("after"),
+    ];
+    let bench = Bench::new(replies).await;
+    // About 7,000 tokens: more than the new model holds; its summary is far less.
+    let prompt = format!("say hello {}", "filler ".repeat(4_000));
+    let session = bench.start(LaunchSpec { prompt: Some(prompt), ..bench.spec("w-1") }).await;
+    bench.after_turns("w-1", 1).await;
+    let small = |summarize| ModelSwitch { context_window: Some(3_000), summarize, ..switch("mock-model") };
+
+    let refused = session.set_model(small(false)).await;
+    assert!(matches!(refused, Err(SessionError::TooLong { fits: 3_000, .. })), "{refused:?}");
+    assert_eq!(bench.mock.requests().len(), 1, "nothing was summarized");
+
+    let stop = async {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        session.interrupt().await;
+    };
+    let (stopped, ()) = tokio::join!(session.set_model(small(true)), stop);
+    assert_eq!(stopped, Err(SessionError::NotSummarized));
+
+    session.set_model(small(true)).await.expect("summarized, then changed");
+    session.send("next".into()).await.expect("sends");
+    bench.after_turns("w-1", 2).await;
+    let sent = bench.request_text(3);
+    assert!(sent.contains("SUMMARY: hello was said") && !sent.contains("filler"), "{sent}");
+
+    let notices: Vec<String> = bench
+        .sink
+        .compactions
+        .lock()
+        .expect("notices")
+        .iter()
+        .map(|(_, _, n)| match n {
+            CompactionNotice::Started { .. } => "started".to_owned(),
+            CompactionNotice::Completed { .. } => "completed".to_owned(),
+            CompactionNotice::Failed { error, .. } => format!("failed:{error}"),
+        })
+        .collect();
+    assert_eq!(notices, ["started", "failed:stopped", "started", "completed"]);
+    let turns = bench.sink.json("w-1").iter().filter(|e| e["type"] == "turn" && e["phase"] == "started").count();
+    assert_eq!(turns, 2, "a summary for a model change runs in no turn");
 }
 
 /// A session that summarizes on its own does it inside the turn and the turn

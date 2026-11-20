@@ -216,6 +216,34 @@ async fn a_chat_is_created_talked_to_interrupted_and_removed() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_model_change_the_chat_does_not_fit_asks_first_when_asked_to() {
+    let bench = Bench::new(TempStore::new());
+    bench.agents.runs_other_model("gpt-5", 100_000);
+    bench.agents.conversation_holds(150_000);
+    bench.agents.script(Turn::reply("hello!"));
+    let created =
+        bench.post("/orchestrators", json!({"mode": "focused", "cwd": "/sandbox/alpha", "prompt": "hi"})).await;
+    assert_eq!(created.0, 201, "{}", created.1);
+    bench.agents.settled().await;
+    let model = || Some(json!({"model": "gpt-5"}));
+
+    let asked = bench.call(Method::Put, "/workers/w-00000001/model?summary=ask", model()).await;
+    assert_eq!(
+        asked,
+        (
+            409,
+            json!({"error": "the conversation (about 150000 tokens) does not fit the new model (100000 tokens)",
+                   "code": "needs-summary"})
+        )
+    );
+    assert_ne!(bench.row("w-00000001").await.model.as_deref(), Some("gpt-5"), "nothing changed");
+
+    let set = bench.call(Method::Put, "/workers/w-00000001/model", model()).await;
+    assert_eq!(set, (200, json!({"ok": true, "model": "gpt-5", "effort": null, "runtimeApplied": true})));
+    assert!(bench.kinds("w-00000001").await.contains(&"compaction_completed".to_owned()), "summarized first");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_chat_at_rest_is_continued_by_the_first_message_to_it() {
     // The seeded chats are at rest, as the app finds them at start-up.
     let bench = Bench::new(TempStore::seeded("/"));

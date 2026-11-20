@@ -12,7 +12,7 @@ use eos_domain::envelope::Envelope;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
-use eos_sessions::{Dispatched, MessageInput};
+use eos_sessions::{Dispatched, MessageInput, ModelOutcome};
 use serde_json::json;
 
 use crate::AgentsModule;
@@ -119,13 +119,25 @@ fn permission(m: AgentsModule) -> RouteDef {
     .access(Access::open().phone(Tier::High))
 }
 
+/// What a model change answers, with `?summary=ask`, when the conversation
+/// does not fit the new model: nothing changed, and the dashboard asks the
+/// user before sending the change again without it.
+const NEEDS_SUMMARY: &str = "needs-summary";
+
 fn model(m: AgentsModule) -> RouteDef {
     RouteDef::put("/workers/{id}/model", move |req: Request| {
         let m = m.clone();
         async move {
             let body: SetModelRequest = req.parse()?;
-            let set = match m.sessions.set_model(&id_of(&req), &body.model, body.effort.as_deref()).await {
-                Ok(set) => set,
+            let ask_first = req.query().get("summary").as_deref() == Some("ask");
+            let changed = m.sessions.set_model(&id_of(&req), &body.model, body.effort.as_deref(), ask_first).await;
+            let set = match changed {
+                Ok(ModelOutcome::Set(set)) => set,
+                Ok(ModelOutcome::TooLong { held, fits }) => {
+                    let why =
+                        format!("the conversation (about {held} tokens) does not fit the new model ({fits} tokens)");
+                    return Err(ApiError::coded(409, why, NEEDS_SUMMARY));
+                }
                 // A model the provider does not have is the request's fault, with today's status.
                 Err(Error::Validation(why)) => return Err(ApiError::status_with(422, why)),
                 Err(e) => return Err(e.into()),

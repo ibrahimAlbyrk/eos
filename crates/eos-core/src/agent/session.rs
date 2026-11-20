@@ -50,6 +50,9 @@ pub struct LaunchSpec {
     /// conversation by itself and carries on from the summary. `None`: only
     /// on `/compact`.
     pub compact_at: Option<u64>,
+    /// The model's context window in tokens, as Eos's model list knows it.
+    /// `None`: the runtime's own figure.
+    pub context_window: Option<u64>,
 }
 
 impl LaunchSpec {
@@ -70,6 +73,7 @@ impl LaunchSpec {
             resume: None,
             credential: None,
             compact_at: None,
+            context_window: None,
         }
     }
 
@@ -100,6 +104,32 @@ pub enum SessionError {
     /// that id; the text says which.
     #[error("{0}")]
     TaskEnded(String),
+    /// The conversation (about `held` tokens) does not fit the model it was
+    /// to move to (`fits`), and was not to be summarized: nothing changed.
+    #[error("the conversation (about {held} tokens) does not fit the new model ({fits} tokens)")]
+    TooLong { held: u64, fits: u64 },
+    /// The summary a model change needed did not happen (it was stopped, or
+    /// failed): the model was not changed.
+    #[error("the conversation was not summarized, so the model was not changed")]
+    NotSummarized,
+}
+
+/// A live session moving to another model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelSwitch {
+    /// A model id or alias the runtime resolves.
+    pub model: String,
+    /// `None` keeps the effort the session has.
+    pub effort: Option<String>,
+    /// The model's context window in tokens, as Eos's model list knows it.
+    /// `None`: the runtime's own figure.
+    pub context_window: Option<u64>,
+    /// Where it summarizes by itself from then on (`None`: never).
+    pub compact_at: Option<u64>,
+    /// A conversation too long for the model is summarized first (as
+    /// `/compact` does); `false` refuses the switch with
+    /// [`SessionError::TooLong`] instead.
+    pub summarize: bool,
 }
 
 /// How a background task ended.
@@ -252,17 +282,13 @@ pub trait AgentSession: Send + Sync + 'static {
     /// Does nothing on a session that is already over.
     fn stop(&self) -> BoxFuture<'_, ()>;
 
-    /// Runs later turns on `model` (and `effort`, when given), summarizing
-    /// by itself at `compact_at` from then on (`None`: never). A model of another provider
-    /// moves the conversation there, on the credential a new session of
-    /// that provider would start on; a conversation too long for the model
-    /// is summarized first.
-    fn set_model<'a>(
-        &'a self,
-        model: &'a str,
-        effort: Option<&'a str>,
-        compact_at: Option<u64>,
-    ) -> BoxFuture<'a, Result<(), SessionError>>;
+    /// Runs later turns on the switch's model (and effort, when given),
+    /// summarizing by itself at its `compact_at` from then on. A model of
+    /// another provider moves the conversation there, on the credential a
+    /// new session of that provider would start on. A conversation too long
+    /// for the model is summarized first, or the switch refused, as the
+    /// switch says; a summary that does not happen leaves the model as it was.
+    fn set_model(&self, switch: ModelSwitch) -> BoxFuture<'_, Result<(), SessionError>>;
 
     /// Summarizes by itself at `compact_at` from the next turn on (`None`:
     /// never); resolves once that holds, after any running turn.

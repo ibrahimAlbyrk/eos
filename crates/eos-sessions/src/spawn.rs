@@ -117,7 +117,7 @@ async fn system_prompt(prompts: &Arc<dyn PromptAssembler>, facts: &SpawnFacts) -
     }
 }
 
-fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, compact_at: Option<u64>) -> LaunchSpec {
+fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, fit: ModelFit) -> LaunchSpec {
     LaunchSpec {
         worker_id: facts.worker_id.clone(),
         cwd,
@@ -132,8 +132,15 @@ fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, com
         prompt: None,
         resume: None,
         credential: None,
-        compact_at,
+        compact_at: fit.compact_at,
+        context_window: fit.context_window,
     }
+}
+
+/// How much conversation a model holds, as a session is told it.
+pub(crate) struct ModelFit {
+    pub(crate) compact_at: Option<u64>,
+    pub(crate) context_window: Option<u64>,
 }
 
 fn base36(mut n: i64) -> String {
@@ -161,13 +168,21 @@ impl Sessions {
         Ok(())
     }
 
+    /// The context window of `model` in tokens: its provider's for a model
+    /// outside the model catalog, else the catalog's.
+    fn context_window(&self, model: &str) -> i64 {
+        let deps = &self.0.deps;
+        deps.runtime.other_provider_window(model).unwrap_or_else(|| deps.models.context_window_for(Some(model)))
+    }
+
     /// Where a session on `model` summarizes its conversation by itself.
     pub(crate) fn compact_at(&self, model: &str) -> Option<u64> {
-        let deps = &self.0.deps;
-        let compaction = &deps.config.current().compaction;
-        let other = deps.runtime.other_provider_window(model);
-        let window = other.unwrap_or_else(|| deps.models.context_window_for(Some(model)));
-        compact_at(compaction.enabled, compaction.threshold, window)
+        let compaction = &self.0.deps.config.current().compaction;
+        compact_at(compaction.enabled, compaction.threshold, self.context_window(model))
+    }
+
+    pub(crate) fn fit_of(&self, model: &str) -> ModelFit {
+        ModelFit { compact_at: self.compact_at(model), context_window: u64::try_from(self.context_window(model)).ok() }
     }
 
     /// The effort `model` can apply for what was asked.
@@ -374,7 +389,7 @@ impl Sessions {
             backend_profile: request.backend_profile.clone(),
         };
         let system_prompt = system_prompt(&deps.prompts, &facts).await;
-        let mut launch = launch_of(&facts, cwd, system_prompt, self.compact_at(&facts.model));
+        let mut launch = launch_of(&facts, cwd, system_prompt, self.fit_of(&facts.model));
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
             tracing::warn!(worker_id = %id, error = %e, "a worker's session did not start");
@@ -462,8 +477,8 @@ impl Sessions {
         // The row stays at rest while the session comes up: a start with no
         // input is no turn. A message accepted meanwhile moves it (`dispatch.rs`).
         let facts = facts_of(&row);
-        let compact_at = self.compact_at(&facts.model);
-        let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await, compact_at);
+        let fit = self.fit_of(&facts.model);
+        let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await, fit);
         launch.resume = Some(session_id.clone());
         let started = deps.runtime.start(launch, self.sink()).await;
         let (id, now) = (worker_id.to_owned(), self.now());

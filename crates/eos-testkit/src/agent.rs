@@ -28,7 +28,8 @@ use eos_contracts::{
 use eos_core::accounts::{AfterMove, SessionCredential};
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, BackgroundTaskUpdate,
-    CompactionNotice, CompactionWords, LaunchSpec, ModelSource, Rewound, SessionError, SessionSink, ToolInputDelta,
+    CompactionNotice, CompactionWords, LaunchSpec, ModelSource, ModelSwitch, Rewound, SessionError, SessionSink,
+    ToolInputDelta,
 };
 use eos_core::{BoxFuture, Error};
 use tokio::sync::{Notify, watch};
@@ -194,18 +195,46 @@ impl Release {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
     Start(Box<LaunchSpec>),
-    Send { worker_id: String, text: String },
+    Send {
+        worker_id: String,
+        text: String,
+    },
     Interrupt(String),
     Stop(String),
-    SetModel { worker_id: String, model: String, effort: Option<String>, compact_at: Option<u64> },
-    SetCompactAt { worker_id: String, compact_at: Option<u64> },
+    SetModel {
+        worker_id: String,
+        model: String,
+        effort: Option<String>,
+        compact_at: Option<u64>,
+        context_window: Option<u64>,
+    },
+    SetCompactAt {
+        worker_id: String,
+        compact_at: Option<u64>,
+    },
     ClearContext(String),
-    Compact { worker_id: String, instructions: Option<String> },
-    Rewind { worker_id: String, uuid: String },
+    Compact {
+        worker_id: String,
+        instructions: Option<String>,
+    },
+    Rewind {
+        worker_id: String,
+        uuid: String,
+    },
     Recall(String),
-    StopTask { worker_id: String, task_id: String },
-    AskSide { worker_id: String, question: String },
-    SwitchAccount { worker_id: String, credential: SessionCredential, after: AfterMove },
+    StopTask {
+        worker_id: String,
+        task_id: String,
+    },
+    AskSide {
+        worker_id: String,
+        question: String,
+    },
+    SwitchAccount {
+        worker_id: String,
+        credential: SessionCredential,
+        after: AfterMove,
+    },
 }
 
 /// Makes the turn for a message no scripted turn is left for: (worker, text).
@@ -229,6 +258,8 @@ struct Shared {
     ended_tasks: Mutex<Vec<String>>,
     /// Models of a provider outside the model catalog, with their context windows.
     other_models: Mutex<HashMap<String, i64>>,
+    /// How many tokens every session's conversation holds, for a model change.
+    conversation_tokens: Mutex<u64>,
     /// Turns started and not yet ended.
     running: watch::Sender<usize>,
 }
@@ -311,6 +342,7 @@ impl ScriptedRuntime {
             forgotten: Mutex::default(),
             ended_tasks: Mutex::default(),
             other_models: Mutex::default(),
+            conversation_tokens: Mutex::default(),
             running: watch::Sender::new(0),
         }))
     }
@@ -359,6 +391,12 @@ impl ScriptedRuntime {
         let gate = Arc::new(Notify::new());
         *self.0.start_hold.lock().expect("start hold") = Some(gate.clone());
         Release(gate)
+    }
+
+    /// Every session's conversation holds `tokens` from now on: a model
+    /// change to a smaller context window needs a summary first.
+    pub fn conversation_holds(&self, tokens: u64) {
+        *self.0.conversation_tokens.lock().expect("conversation") = tokens;
     }
 
     /// The next summary of a conversation waits, once started, to be released.
@@ -481,13 +519,14 @@ impl ScriptedSession {
 
     /// Replaces the conversation with [`COMPACT_SUMMARY`], telling the sink
     /// as the engine does.
-    async fn summarize(&self, trigger: CompactionTrigger, instructions: Option<String>) {
+    /// True when the conversation was summarized.
+    async fn summarize(&self, trigger: CompactionTrigger, instructions: Option<String>) -> bool {
         let id = self.worker_id.as_str();
         let turns = std::mem::take(&mut *self.said.lock().expect("said"));
         if turns.is_empty() {
             let error = "nothing to compact yet".to_owned();
             self.sink.compaction(id, CompactionNotice::Failed { trigger, error }).await;
-            return;
+            return false;
         }
         let before_tokens = COMPACT_BEFORE_TOKENS;
         let started = CompactionNotice::Started { trigger, before_tokens, instructions: instructions.clone() };
@@ -506,6 +545,7 @@ impl ScriptedSession {
             duration_ms: 0,
         };
         self.sink.compaction(id, completed).await;
+        true
     }
 
     fn begin(&self, text: String) {
@@ -547,7 +587,9 @@ impl ScriptedSession {
             match effect {
                 Effect::Background(update) => self.sink.background_task(id, update),
                 Effect::Workflow(progress) => self.sink.workflow_progress(progress),
-                Effect::Compaction => self.summarize(CompactionTrigger::Auto, None).await,
+                Effect::Compaction => {
+                    self.summarize(CompactionTrigger::Auto, None).await;
+                }
             }
         }
         if turn.hold.is_some() || turn.takes.is_some() {
@@ -611,20 +653,23 @@ impl AgentSession for ScriptedSession {
         })
     }
 
-    fn set_model<'a>(
-        &'a self,
-        model: &'a str,
-        effort: Option<&'a str>,
-        compact_at: Option<u64>,
-    ) -> BoxFuture<'a, Result<(), SessionError>> {
+    fn set_model(&self, switch: ModelSwitch) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
             self.gone()?;
-            self.shared.record(Call::SetModel {
-                worker_id: self.worker_id.clone(),
-                model: model.to_owned(),
-                effort: effort.map(str::to_owned),
-                compact_at,
-            });
+            let held = *self.shared.conversation_tokens.lock().expect("conversation");
+            if let Some(fits) = switch.context_window.filter(|fits| held >= *fits) {
+                if !switch.summarize {
+                    return Err(SessionError::TooLong { held, fits });
+                }
+                self.shared.record(Call::Compact { worker_id: self.worker_id.clone(), instructions: None });
+                let _order = self.order.lock().await;
+                if !self.summarize(CompactionTrigger::Manual, None).await {
+                    return Err(SessionError::NotSummarized);
+                }
+            }
+            let ModelSwitch { model, effort, context_window, compact_at, .. } = switch;
+            let worker_id = self.worker_id.clone();
+            self.shared.record(Call::SetModel { worker_id, model, effort, compact_at, context_window });
             Ok(())
         })
     }

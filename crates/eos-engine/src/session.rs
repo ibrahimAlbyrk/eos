@@ -15,7 +15,10 @@ use std::time::Duration;
 
 use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TokenSource, TurnError};
 use eos_agent_engine::JsonlStore;
-use eos_agent_sdk::{AutoCompact, InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
+use eos_agent_sdk::{
+    AutoCompact, ControlError, InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind,
+    TooLong,
+};
 use eos_contracts::{
     AgentEvent, CommandItem, CommandItemSource, RewindMode, RewindTarget, SessionEvent, SessionEventOutcome,
     SessionEventPhase,
@@ -23,7 +26,9 @@ use eos_contracts::{
 use eos_core::BoxFuture;
 use eos_core::Clock;
 use eos_core::accounts::{AfterMove, SessionCredential, SessionCredentials};
-use eos_core::agent::{AgentCapabilities, AgentSession, CompactionNotice, Rewound, SessionError, SessionSink};
+use eos_core::agent::{
+    AgentCapabilities, AgentSession, CompactionNotice, ModelSwitch, Rewound, SessionError, SessionSink,
+};
 use futures_util::FutureExt;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::{mpsc, oneshot};
@@ -58,8 +63,9 @@ enum Command {
     Turn(String),
     /// Run the turn the conversation stopped in again, with no new input.
     Rerun,
-    /// Summarize the conversation now (`/compact`), with what the user typed after it.
-    Compact(Option<String>, oneshot::Sender<()>),
+    /// Summarize the conversation now (`/compact`), with what the user typed
+    /// after it; `done` hears whether it was summarized.
+    Compact(Option<String>, oneshot::Sender<bool>),
     Stop(oneshot::Sender<()>),
 }
 
@@ -75,7 +81,7 @@ enum TurnDone {
     Declined { notice: &'static str },
     /// A `/compact` returned (`Ok(false)`: stopped, or nothing to summarize);
     /// `done` hears it once the sink has.
-    Compacted { outcome: Result<bool, String>, done: oneshot::Sender<()> },
+    Compacted { outcome: Result<bool, String>, done: oneshot::Sender<bool> },
     /// The agent is gone.
     Gone,
 }
@@ -163,6 +169,14 @@ impl EngineSession {
             return Err(SessionError::Gone);
         }
         self.commands.send(command).await.map_err(|_| SessionError::Gone)
+    }
+
+    /// Summarizes the conversation as `/compact` does, once the sink has
+    /// heard how it went: true when it was summarized.
+    async fn summarize(&self, instructions: Option<String>) -> Result<bool, SessionError> {
+        let (done, finished) = oneshot::channel();
+        self.command(Command::Compact(instructions, done)).await?;
+        finished.await.map_err(|_| SessionError::Gone)
     }
 
     async fn prompts(&self) -> Result<(Arc<SdkAgent>, Vec<transcript::Prompt>), SessionError> {
@@ -301,7 +315,7 @@ async fn run_turn(agent: Arc<SdkAgent>, text: String, worker_id: String) -> Turn
     }
 }
 
-async fn compact(agent: Arc<SdkAgent>, instructions: Option<String>, done: oneshot::Sender<()>) -> TurnDone {
+async fn compact(agent: Arc<SdkAgent>, instructions: Option<String>, done: oneshot::Sender<bool>) -> TurnDone {
     let outcome = match agent.compact(instructions).await {
         Ok(Ok(summarized)) => Ok(summarized),
         Ok(Err(error)) => Err(error.to_string()),
@@ -466,11 +480,12 @@ impl Pump {
                             out.extend(self.mapper.turn_declined(notice, &side));
                         }
                         TurnDone::Compacted { outcome, done } => {
+                            let summarized = outcome == Ok(true);
                             out.extend(self.mapper.compact_done(outcome));
                             self.note_compactions(&out);
                             let notices = std::mem::take(&mut self.notices);
                             emit(&self.session, &*self.sink, self.mapper.live(), std::mem::take(&mut out), notices).await;
-                            let _ = done.send(());
+                            let _ = done.send(summarized);
                         }
                         TurnDone::Gone => break End::Lost,
                     }
@@ -591,14 +606,10 @@ impl AgentSession for EngineSession {
         })
     }
 
-    fn set_model<'a>(
-        &'a self,
-        model: &'a str,
-        effort: Option<&'a str>,
-        compact_at: Option<u64>,
-    ) -> BoxFuture<'a, Result<(), SessionError>> {
+    fn set_model(&self, switch: ModelSwitch) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
             let agent = self.agent()?;
+            let model = switch.model.as_str();
             let provider = provider_of(model);
             // Onto another provider: on what a new session there would start on.
             let moved = agent.model().is_none_or(|current| provider_of(&current) != provider);
@@ -616,14 +627,32 @@ impl AgentSession for EngineSession {
                 None
             };
             let auth = credential.as_ref().map(|c| self.shared.accounts.of(c) as Arc<dyn TokenSource>);
-            let change = ModelChange { auth, compaction: Some(auto_compact(compact_at)) };
-            agent.set_model_with(model, change).await.map_err(failed)?;
+            // The engine never summarizes on its own here: a summary Eos asks
+            // for runs as `/compact` does, so the sink always hears how it ended.
+            let change = || ModelChange {
+                auth: auth.clone(),
+                compaction: Some(auto_compact(switch.compact_at)),
+                context_window: switch.context_window,
+                too_long: TooLong::Refuse,
+            };
+            match agent.set_model_with(model, change()).await {
+                Err(ControlError::TooLong { .. }) if switch.summarize => {
+                    if !self.summarize(None).await? {
+                        return Err(SessionError::NotSummarized);
+                    }
+                    agent.set_model_with(model, change()).await.map_err(failed)?;
+                }
+                Err(ControlError::TooLong { held, fits }) => return Err(SessionError::TooLong { held, fits }),
+                other => {
+                    other.map_err(failed)?;
+                }
+            }
             if moved {
                 self.shared.credentials.launched(self.id(), credential.as_ref());
                 self.set_credential(credential);
             }
-            if effort.is_some() {
-                agent.set_effort(effort).await.map_err(|_| SessionError::Gone)?;
+            if switch.effort.is_some() {
+                agent.set_effort(switch.effort.as_deref()).await.map_err(|_| SessionError::Gone)?;
             }
             Ok(())
         })
@@ -646,11 +675,7 @@ impl AgentSession for EngineSession {
     }
 
     fn compact(&self, instructions: Option<String>) -> BoxFuture<'_, Result<(), SessionError>> {
-        Box::pin(async move {
-            let (done, finished) = oneshot::channel();
-            self.command(Command::Compact(instructions, done)).await?;
-            finished.await.map_err(|_| SessionError::Gone)
-        })
+        Box::pin(async move { self.summarize(instructions).await.map(drop) })
     }
 
     fn rewind_targets(&self) -> BoxFuture<'_, Result<Vec<RewindTarget>, SessionError>> {

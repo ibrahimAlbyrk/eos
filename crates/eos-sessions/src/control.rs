@@ -4,6 +4,7 @@
 use eos_contracts::stream::topics::{MESSAGE_RECALLED, WORKER_CHANGE, WORKER_REMOVED};
 use eos_contracts::{PermissionMode, UiBackendDescriptorCatalog, WorkerEventType, WorkerState};
 use eos_core::Error;
+use eos_core::agent::{ModelSwitch, SessionError};
 use eos_core::store::{Outbox, Tx, WorktreeRemoval};
 use eos_domain::Worker;
 use eos_domain::worker::state_name;
@@ -39,6 +40,18 @@ pub struct ModelSet {
     pub effort: Option<String>,
     /// The live session took the change (else it holds from the next start).
     pub runtime_applied: bool,
+}
+
+/// What a model change came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelOutcome {
+    Set(ModelSet),
+    /// The conversation (about `held` tokens) does not fit the new model
+    /// (`fits`) and the caller asked to be told first: nothing changed.
+    TooLong {
+        held: u64,
+        fits: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -271,8 +284,17 @@ impl Sessions {
         Ok(Removed { id: root.id, name: root.name, was_state: state_name(root.state).to_owned() })
     }
 
-    /// Changes the worker's model (and effort) for its later turns.
-    pub async fn set_model(&self, worker_id: &str, model: &str, effort: Option<&str>) -> Result<ModelSet, Error> {
+    /// Changes the worker's model (and effort) for its later turns. A live
+    /// conversation too long for the new model is summarized first; with
+    /// `ask_first` the change is refused instead, so the user can agree to
+    /// the summary. A summary that does not happen changes nothing.
+    pub async fn set_model(
+        &self,
+        worker_id: &str,
+        model: &str,
+        effort: Option<&str>,
+        ask_first: bool,
+    ) -> Result<ModelOutcome, Error> {
         let row = self.find(worker_id).await?;
         self.check_model(model, role_of(row.is_orchestrator, row.agent_role.as_deref()))?;
         let descriptor = self.0.deps.runtime.descriptor();
@@ -281,10 +303,27 @@ impl Sessions {
             return Err(Error::Validation(format!("model \"{model}\" is not valid for provider {}", descriptor.label)));
         }
         let effort = effort.and_then(|e| self.effort_for_model(model, e));
+        // Only a live conversation can tell whether it fits: one at rest is continued first.
+        if ask_first
+            && self.session(worker_id).is_none()
+            && let Err(e) = self.revive(worker_id).await
+        {
+            tracing::warn!(worker_id, error = %e, "a chat's session could not be continued for a model change");
+        }
         let mut runtime_applied = false;
         if let Some(session) = self.session(worker_id).filter(|s| s.capabilities().runtime_model_switch) {
-            match session.set_model(model, effort.as_deref(), self.compact_at(model)).await {
+            let fit = self.fit_of(model);
+            let switch = ModelSwitch {
+                model: model.to_owned(),
+                effort: effort.clone(),
+                context_window: fit.context_window,
+                compact_at: fit.compact_at,
+                summarize: !ask_first,
+            };
+            match session.set_model(switch).await {
                 Ok(()) => runtime_applied = true,
+                Err(SessionError::TooLong { held, fits }) => return Ok(ModelOutcome::TooLong { held, fits }),
+                Err(e @ SessionError::NotSummarized) => return Err(Error::Conflict(e.to_string())),
                 Err(e) => tracing::warn!(worker_id, error = %e, "the live session did not take the model change"),
             }
         }
@@ -299,7 +338,7 @@ impl Sessions {
                 Ok(())
             })
             .await?;
-        Ok(ModelSet { model: model.to_owned(), effort, runtime_applied })
+        Ok(ModelOutcome::Set(ModelSet { model: model.to_owned(), effort, runtime_applied }))
     }
 
     fn effort_for_model(&self, model: &str, requested: &str) -> Option<String> {

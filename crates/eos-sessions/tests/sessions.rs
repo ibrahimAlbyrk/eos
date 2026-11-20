@@ -11,7 +11,8 @@ use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
 use eos_sessions::{
-    CommandAnswer, Dispatched, MessageInput, Reported, SessionDeps, SessionHooks, Sessions, SpawnRequest,
+    CommandAnswer, Dispatched, MessageInput, ModelOutcome, ModelSet, Reported, SessionDeps, SessionHooks, Sessions,
+    SpawnRequest,
 };
 use eos_testkit::agent::Call;
 use eos_testkit::{
@@ -836,10 +837,10 @@ async fn a_worker_gets_its_worktree_its_parents_tag_and_goes_with_its_parent() {
 async fn a_model_change_is_checked_saved_and_applied_to_the_live_session() {
     let bench = Bench::new();
     let id = bench.chat("").await;
-    let refused = bench.sessions.set_model(&id, "gpt-5", None).await;
+    let refused = set_model(&bench, &id, "gpt-5", None).await;
     assert_eq!(refused, Err(Error::Validation("model \"gpt-5\" is not valid for provider Claude".into())));
 
-    let set = bench.sessions.set_model(&id, "sonnet", Some("high")).await.expect("sets");
+    let set = set_model(&bench, &id, "sonnet", Some("high")).await.expect("sets");
     assert_eq!((set.model.as_str(), set.effort.as_deref(), set.runtime_applied), ("sonnet", Some("high"), true));
     let worker = bench.worker(&id).await.expect("the row");
     assert_eq!((worker.model.as_deref(), worker.effort.as_deref()), (Some("sonnet"), Some("high")));
@@ -853,8 +854,59 @@ async fn a_model_change_is_checked_saved_and_applied_to_the_live_session() {
 
     // A worker whose session is over keeps the choice for its next start.
     bench.sessions.suspend(&id, "idle suspend").await.expect("suspends");
-    let later = bench.sessions.set_model(&id, "claude-opus-5-5", None).await.expect("sets");
+    let later = set_model(&bench, &id, "claude-opus-5-5", None).await.expect("sets");
     assert!(!later.runtime_applied);
+}
+
+/// A model change that summarizes when it must, as the phone sends it.
+async fn set_model(bench: &Bench, id: &str, model: &str, effort: Option<&str>) -> Result<ModelSet, Error> {
+    match bench.sessions.set_model(id, model, effort, false).await? {
+        ModelOutcome::Set(set) => Ok(set),
+        other => panic!("the change was not made: {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_model_too_small_for_the_conversation_asks_first_then_summarizes() {
+    let bench = Bench::new();
+    bench.agents.runs_other_model("gpt-5", 100_000);
+    bench.agents.conversation_holds(150_000);
+    let id = bench.chat("hello").await;
+
+    let asked = bench.sessions.set_model(&id, "gpt-5", None, true).await.expect("answers");
+    assert_eq!(asked, ModelOutcome::TooLong { held: 150_000, fits: 100_000 });
+    assert_ne!(bench.worker(&id).await.expect("the row").model.as_deref(), Some("gpt-5"), "nothing changed");
+    let compacts = || bench.agents.calls().iter().filter(|c| matches!(c, Call::Compact { .. })).count();
+    assert_eq!(compacts(), 0, "nothing was summarized");
+
+    let set = set_model(&bench, &id, "gpt-5", None).await.expect("summarized, then changed");
+    assert!(set.runtime_applied);
+    assert_eq!(compacts(), 1);
+    assert_eq!(bench.worker(&id).await.expect("the row").model.as_deref(), Some("gpt-5"));
+    let told = bench.agents.calls().into_iter().find_map(|c| match c {
+        Call::SetModel { model, context_window, .. } if model == "gpt-5" => Some(context_window),
+        _ => None,
+    });
+    assert_eq!(told, Some(Some(100_000)), "the session hears the window Eos knows");
+    assert!(bench.agents.started().iter().all(|s| s.context_window.is_some()), "and so does every start");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_summary_that_does_not_happen_leaves_the_model() {
+    let bench = Bench::new();
+    bench.agents.runs_other_model("gpt-5", 100_000);
+    bench.agents.conversation_holds(150_000);
+    // Nothing said yet: the summary fails.
+    let id = bench.chat("").await;
+    let before = bench.worker(&id).await.expect("the row").model;
+
+    let refused = bench.sessions.set_model(&id, "gpt-5", None, false).await;
+    assert_eq!(
+        refused,
+        Err(Error::Conflict("the conversation was not summarized, so the model was not changed".into()))
+    );
+    assert_eq!(bench.worker(&id).await.expect("the row").model, before);
+    assert!(!bench.agents.calls().iter().any(|c| matches!(c, Call::SetModel { .. })));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -883,7 +935,7 @@ async fn a_model_of_another_provider_is_a_focused_chats_only() {
     bench.agents.runs_other_model("gpt-5", 100_000);
     let id = bench.chat("").await;
 
-    let set = bench.sessions.set_model(&id, "gpt-5", None).await.expect("a focused chat moves");
+    let set = set_model(&bench, &id, "gpt-5", None).await.expect("a focused chat moves");
     assert!(set.runtime_applied);
     assert_eq!(bench.worker(&id).await.expect("the row").model.as_deref(), Some("gpt-5"));
     let moved = bench.agents.calls().into_iter().find_map(|c| match c {

@@ -57,7 +57,7 @@ mod turns;
 pub use archive::{Archived, Restored};
 pub use boot::{Reconciled, reconcile_workers_on_boot};
 pub use commands::{CommandAnswer, SlashCommand, SlashContext};
-pub use control::{KILL_GRACE_MS, ModeSet, ModelSet, Recalled, Removed};
+pub use control::{KILL_GRACE_MS, ModeSet, ModelOutcome, ModelSet, Recalled, Removed};
 pub use dispatch::{Dispatched, MessageInput};
 pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
 pub use report::Reported;
