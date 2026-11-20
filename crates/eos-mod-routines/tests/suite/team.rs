@@ -206,6 +206,18 @@ async fn a_start_whose_repository_has_no_local_clone_is_refused_before_any_run()
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn specialists_sharing_a_scratch_lead_need_no_clone_to_start() {
+    let mut scratch = team_blueprint();
+    scratch["who"]["agents"][0]["workspace"] = json!("none");
+    scratch["who"]["agents"][2]["workspace"] = json!("none");
+    let repo = repo();
+    let bench = Bench::with_reads(true, reads(&repo));
+    let routine = bench.routine(RoutineState::Active, scratch);
+    let started = bench.start(new_run(&routine, RunOrigin::Hand, Some(pull_request(1)))).await;
+    assert!(started.is_ok(), "the tester shares the lead's scratch folder: {started:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_run_whose_clone_went_after_its_start_fails_as_invalid() {
     let repo = repo();
     let bench = Bench::with_reads(true, reads(&repo));
