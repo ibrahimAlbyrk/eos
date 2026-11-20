@@ -494,6 +494,7 @@ impl Pump {
         }
         let side = side_of(&self.sink, &self.session);
         let closing = self.mapper.stop_live(&side);
+        self.note_compactions(&closing);
         let notices = std::mem::take(&mut self.notices);
         emit(&self.session, &*self.sink, self.mapper.live(), closing, notices).await;
         let Pump { session, agent, turns, sink, .. } = self;

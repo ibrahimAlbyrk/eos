@@ -1100,4 +1100,9 @@ fn a_summary_that_never_finishes_fails_and_leaves_the_conversation_alone() {
         compaction_tags(&run.mapper.take_compactions()),
         ["started:Auto:900", "failed:Auto:The request failed: overloaded."]
     );
+
+    // The session ending stops the summary it was writing.
+    run.agent(EngineEvent::Compacting { before_tokens: 900 });
+    run.stop_live();
+    assert_eq!(compaction_tags(&run.mapper.take_compactions()), ["started:Auto:900", "failed:Auto:stopped"]);
 }

@@ -485,8 +485,10 @@ impl Mapper {
 
     /// The session is going away: every background subagent and workflow run
     /// still running is reported stopped, once, and every background command
-    /// closed, so none is left showing as running.
+    /// closed, so none is left showing as running. A summary being written
+    /// ends as stopped.
     pub(crate) fn stop_live(&mut self, side: &Side<'_>) -> Vec<AgentEvent> {
+        self.compactions.fail("stopped");
         let mut out: Vec<AgentEvent> = std::mem::take(&mut self.held).into_iter().map(|(_, e)| e).collect();
         let mut runs: Vec<(Arc<str>, SubRun)> = self.runs.drain().filter(|(_, r)| r.background).collect();
         runs.sort_by(|a, b| a.0.cmp(&b.0));
