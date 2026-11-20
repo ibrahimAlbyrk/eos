@@ -271,6 +271,39 @@ fn deliveries_come_due_by_state_and_time() {
 }
 
 #[test]
+fn a_delivery_moves_in_place_and_is_read_by_state_run_and_next_time() {
+    let temp = TempStore::new();
+    let mut moved = delivery("dl-a", "queued", Some(300), 1);
+    let rows = [moved.clone(), delivery("dl-b", "queued", Some(200), 2), delivery("dl-c", "frozen", None, 3)];
+    moved.state = "sending".into();
+    moved.attempts = 1;
+    moved.receipt = Some(r#"{"id":"r-1"}"#.into());
+    moved.updated_at = 9;
+    let written = moved.clone();
+    let (found, queued, of_run, next, none) = temp
+        .store
+        .write_blocking(move |tx, _| {
+            for row in &rows {
+                tx.inbox_deliveries().insert(row)?;
+            }
+            let deliveries = tx.inbox_deliveries();
+            deliveries.update(&written)?;
+            Ok((
+                deliveries.find("dl-a")?,
+                deliveries.in_state("queued")?,
+                deliveries.of_run(&written.run_id)?,
+                deliveries.next_due("queued")?,
+                deliveries.next_due("frozen")?,
+            ))
+        })
+        .expect("writes");
+    assert_eq!(found, Some(moved), "every field it moves is written");
+    assert_eq!(queued.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(), ["dl-b"]);
+    assert_eq!(of_run.len(), 3, "oldest first: {of_run:?}");
+    assert_eq!((next, none), (Some(200), None));
+}
+
+#[test]
 fn the_switch_is_one_row_and_off_until_first_used() {
     let temp = TempStore::new();
     let before = temp.store.read_blocking(|tx| tx.inbox_halt().get()).expect("reads");

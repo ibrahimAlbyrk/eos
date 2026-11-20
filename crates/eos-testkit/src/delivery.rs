@@ -16,7 +16,8 @@ fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// Every send and undo is recorded. A send answers what the test scripted
 /// for it, in order, and otherwise succeeds with receipt `rc-<n>` (`n`
 /// counting sends from 1); a lookup finds what a successful send with that
-/// key left. Results are always fresh, and every undo succeeds.
+/// key left, or what the test says one left. Results are fresh unless the
+/// test makes the next ones stale, and every undo succeeds.
 #[derive(Debug, Default, Clone)]
 pub struct FakeChannels(Arc<Shared>);
 
@@ -27,6 +28,7 @@ struct Shared {
     sent: Mutex<Vec<SendRequest>>,
     receipts: Mutex<HashMap<String, Receipt>>,
     undone: Mutex<Vec<Receipt>>,
+    stale: Mutex<VecDeque<String>>,
 }
 
 impl FakeChannels {
@@ -43,6 +45,16 @@ impl FakeChannels {
     /// What the next send not scripted yet answers.
     pub fn script(&self, outcome: Result<Receipt, SendError>) {
         locked(&self.0.outcomes).push_back(outcome);
+    }
+
+    /// What a send with `key` left at the service, though its answer was lost.
+    pub fn left(&self, key: &str, receipt: Receipt) {
+        locked(&self.0.receipts).insert(key.to_owned(), receipt);
+    }
+
+    /// The next precondition not scripted yet finds the result stale.
+    pub fn stale(&self, reason: &str) {
+        locked(&self.0.stale).push_back(reason.to_owned());
     }
 
     /// Every send asked of any channel, in order, whatever it answered.
@@ -74,7 +86,11 @@ impl Channel for FakeChannel {
     }
 
     fn precondition<'a>(&'a self, _req: &'a SendRequest) -> BoxFuture<'a, Result<Fresh, SendError>> {
-        Box::pin(std::future::ready(Ok(Fresh::Fresh)))
+        let fresh = match locked(&self.shared.stale).pop_front() {
+            Some(reason) => Fresh::Stale { reason },
+            None => Fresh::Fresh,
+        };
+        Box::pin(std::future::ready(Ok(fresh)))
     }
 
     fn send<'a>(&'a self, req: &'a SendRequest) -> BoxFuture<'a, Result<Receipt, SendError>> {

@@ -96,6 +96,54 @@ impl DeliveryRepo for SqliteTx<'_> {
             delivery,
         )
     }
+
+    fn update(&self, delivery: &StoredDelivery) -> Result<(), Error> {
+        self.exec(
+            "UPDATE inbox_deliveries SET item_id = ?2, state = ?3, send_at = ?4, attempts = ?5, \
+             next_attempt_at = ?6, last_error_kind = ?7, partial = ?8, receipt = ?9, sent_at = ?10, \
+             undo_until = ?11, undone_at = ?12, approved_at = ?13, updated_at = ?14 WHERE id = ?1",
+            params![
+                delivery.id,
+                delivery.item_id,
+                delivery.state,
+                delivery.send_at,
+                delivery.attempts,
+                delivery.next_attempt_at,
+                delivery.last_error_kind,
+                delivery.partial,
+                delivery.receipt,
+                delivery.sent_at,
+                delivery.undo_until,
+                delivery.undone_at,
+                delivery.approved_at,
+                delivery.updated_at,
+            ],
+        )
+        .map(drop)
+    }
+
+    fn in_state(&self, state: &str) -> Result<Vec<StoredDelivery>, Error> {
+        self.rows(
+            &format!("SELECT {DELIVERY_COLUMNS} FROM inbox_deliveries WHERE state = ?1 ORDER BY created_at, rowid"),
+            [state],
+            delivery,
+        )
+    }
+
+    fn of_run(&self, run_id: &str) -> Result<Vec<StoredDelivery>, Error> {
+        self.rows(
+            &format!("SELECT {DELIVERY_COLUMNS} FROM inbox_deliveries WHERE run_id = ?1 ORDER BY created_at, rowid"),
+            [run_id],
+            delivery,
+        )
+    }
+
+    fn next_due(&self, state: &str) -> Result<Option<i64>, Error> {
+        let at = self.row("SELECT MIN(next_attempt_at) FROM inbox_deliveries WHERE state = ?1", [state], |r| {
+            r.get::<_, Option<i64>>(0).map_err(failed)
+        })?;
+        Ok(at.flatten())
+    }
 }
 
 /// The id of the switch's one row.
