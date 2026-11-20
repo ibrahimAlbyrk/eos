@@ -22,6 +22,10 @@ export function isPushKind(value: unknown): value is PushKind {
   return typeof value === "string" && (PUSH_KINDS as readonly string[]).includes(value);
 }
 
+export function isPushCount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
 export function pushPayload(room: string, kind: PushKind, count: number): string {
   return JSON.stringify({
     aps: {
@@ -50,7 +54,7 @@ export class ApnsSender {
   /** Throws on an unknown kind or a count that is not a whole number, before anything is sent. */
   async send(room: string, kind: string, count: number, targets: PushTarget[]): Promise<"not-configured" | TokenResult[]> {
     if (!isPushKind(kind)) throw new RangeError("unknown push kind");
-    if (!Number.isSafeInteger(count) || count < 0) throw new RangeError("push count must be a whole number");
+    if (!isPushCount(count)) throw new RangeError("push count must be a whole number");
     const apns = this.config.apns;
     if (!this.token || !apns) return "not-configured";
     const payload = pushPayload(room, kind, count);

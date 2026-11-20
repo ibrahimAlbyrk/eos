@@ -23,7 +23,7 @@ echo ">> shipping relay/ (excluding node_modules, deploy) -> $HOST:$REMOTE_DIR"
 tar czf - -C "$SRC" \
   --exclude='node_modules' --exclude='deploy' --exclude='._*' \
   package.json package-lock.json tsconfig.json Dockerfile README.md \
-  server.ts envelope.ts admission.ts errors.ts apns.ts config.ts RoomRegistry.ts vault __tests__ \
+  server.ts envelope.ts admission.ts errors.ts config.ts RoomRegistry.ts vault push __tests__ \
   | "${SSH[@]}" "$HOST" "tar xzf - -C $REMOTE_DIR && find $REMOTE_DIR -name '._*' -delete"
 
 echo ">> build image + (re)create container on network $NETWORK (no host port published; vault on volume eos-relay-data)"

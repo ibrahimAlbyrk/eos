@@ -1,13 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, verify, type KeyObject } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { once } from "node:events";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import http2, { type IncomingHttpHeaders } from "node:http2";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../config.ts";
+import { WebSocket } from "ws";
+import { sha256Hex } from "../admission.ts";
+import { Dir, encodeJsonEnvelope, FrameType } from "../envelope.ts";
 import { ApnsSender } from "../push/apns.ts";
+import { PUSHES_PER_HOUR, PUSHES_PER_MINUTE, PushRate } from "../push/rate.ts";
+import type { PushTokens } from "../push/tokens.ts";
+import { createRelay } from "../server.ts";
+import { Inbox, body } from "./ws-inbox.ts";
 
 const ROOM = "room-0123456789";
 const TOKEN = "ab".repeat(32);
@@ -187,5 +195,229 @@ test("a connection dropped before Apple answers is failed as unreachable", async
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+});
+
+// ── Rooms: stored tokens, the owner's push, the HTTP route, the rate ──
+
+const OWNER = "owner-secret";
+const PHONE = "phone-bearer";
+const OTHER_PHONE = "other-phone-bearer";
+const OTHER_TOKEN = "cd".repeat(32);
+
+type Relay = { url: string; http: string; tokens: PushTokens; db: string };
+
+// A relay on a temp SQLite file, its APNs pointed at the fake (unconfigured with keyPath null).
+async function withRelay(keyPath: string | null, origin: string, fn: (relay: Relay) => Promise<void>, db?: string) {
+  const dir = mkdtempSync(join(tmpdir(), "relay-push-"));
+  const vaultPath = db ?? join(dir, "relay.db");
+  const env = keyPath ? { APNS_KEY: keyPath, APNS_KEY_ID: "KEY1234567", APNS_TEAM_ID: "TEAM123456", APNS_BUNDLE_ID: "com.example.eos" } : {};
+  const config = { ...loadConfig(env), port: 0, vaultPath, apnsOrigins: { production: origin, sandbox: origin } };
+  const { httpServer, wss, tokens } = createRelay(config);
+  await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
+  const port = (httpServer.address() as AddressInfo).port;
+  try {
+    await fn({ url: `ws://127.0.0.1:${port}`, http: `http://127.0.0.1:${port}`, tokens, db: vaultPath });
+  } finally {
+    for (const ws of wss.clients) ws.terminate();
+    wss.close();
+    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function connect(url: string) {
+  const ws = new WebSocket(url);
+  await once(ws, "open");
+  return { ws, inbox: new Inbox(ws) };
+}
+
+function frame(type: FrameType, json: Record<string, unknown>): Buffer {
+  return encodeJsonEnvelope({ type, room: ROOM, dir: Dir.c2s, json: { room: ROOM, ...json } });
+}
+
+async function register(url: string, allow = [sha256Hex(PHONE), sha256Hex(OTHER_PHONE)], owner = OWNER) {
+  const mac = await connect(url);
+  mac.ws.send(frame(FrameType.register, { t: "register", owner, allow }));
+  return { ...mac, answer: body(await mac.inbox.next()) };
+}
+
+// Joins a phone and waits for the ack; the Mac's own "joined" notice is read off its inbox.
+async function joinPhone(url: string, mac: Inbox, json: Record<string, unknown>) {
+  const phone = await connect(url);
+  phone.ws.send(frame(FrameType.join, { t: "join", ...json }));
+  assert.equal(body(await phone.inbox.next()).t, "joined");
+  assert.equal(body(await mac.next()).t, "joined");
+  return phone;
+}
+
+async function pushOver(mac: { ws: WebSocket; inbox: Inbox }, json: Record<string, unknown> = { kind: "needs_you", count: 2 }) {
+  mac.ws.send(frame(FrameType.relayctl, { t: "push", ...json }));
+  return body(await mac.inbox.next());
+}
+
+function postPush(http: string, bearer: string, json: unknown, room = ROOM) {
+  return fetch(`${http}/push/v1/${room}`, { method: "POST", headers: { authorization: `Bearer ${bearer}` }, body: JSON.stringify(json) });
+}
+
+test("a join stores the token with its env; a phone that names no env is production", async () => {
+  await withRelay(null, "http://127.0.0.1:9", async ({ url, tokens }) => {
+    const mac = await register(url);
+    await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN, apnsEnv: "sandbox", later: "ignored" });
+    await joinPhone(url, mac.inbox, { bearer: OTHER_PHONE, apnsToken: OTHER_TOKEN });
+    assert.deepEqual(
+      tokens.targets(ROOM).sort((a, b) => a.token.localeCompare(b.token)),
+      [
+        { deviceHash: sha256Hex(PHONE), token: TOKEN, env: "sandbox" },
+        { deviceHash: sha256Hex(OTHER_PHONE), token: OTHER_TOKEN, env: "production" },
+      ],
+    );
+  });
+});
+
+test("only the owner socket pushes; the payload reaching Apple is exactly the table", async () => {
+  await withKey(async (keyPath) => {
+    await withFakeApns({}, async (origin, seen) => {
+      await withRelay(keyPath, origin, async ({ url }) => {
+        const mac = await register(url);
+        const phone = await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+        phone.ws.send(frame(FrameType.relayctl, { t: "push", kind: "needs_you", count: 2 }));
+        assert.deepEqual(body(await phone.inbox.next()), { t: "error", code: "OWNER_MISMATCH", message: "only the room's owner may push" });
+        assert.equal(seen.length, 0);
+
+        assert.deepEqual(await pushOver(mac), { t: "push-result", sent: 1, failed: 0, gone: 0 });
+        const m = createHash("sha256").update(ROOM).digest("hex").slice(0, 8);
+        assert.equal(seen.length, 1);
+        assert.equal(seen[0].headers[":path"], `/3/device/${TOKEN}`);
+        assert.equal(
+          seen[0].body,
+          `{"aps":{"alert":{"title-loc-key":"push.needs_you.title","loc-key":"push.needs_you.body","loc-args":["2"]},"badge":2,"sound":"default","thread-id":"needs_you"},"m":"${m}"}`,
+        );
+
+        assert.equal((await pushOver(mac, { kind: "hello", count: 1 })).code, "BAD_REQUEST");
+        assert.equal(seen.length, 1);
+      });
+    });
+  });
+});
+
+test("unset APNs config answers not-configured", async () => {
+  await withFakeApns({}, async (origin, seen) => {
+    await withRelay(null, origin, async ({ url }) => {
+      const mac = await register(url);
+      await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+      assert.deepEqual(await pushOver(mac), { t: "push-result", sent: 0, failed: 1, gone: 0, reason: "not-configured" });
+      assert.equal(seen.length, 0);
+    });
+  });
+});
+
+test("the HTTP route sends with the owner's bearer while the Mac is away, and after a restart", async () => {
+  await withKey(async (keyPath) => {
+    await withFakeApns({}, async (origin, seen) => {
+      const dir = mkdtempSync(join(tmpdir(), "relay-restart-"));
+      const db = join(dir, "relay.db");
+      try {
+        await withRelay(keyPath, origin, async ({ url, http }) => {
+          const mac = await register(url);
+          await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+          mac.ws.close();
+          await once(mac.ws, "close");
+          const ok = await postPush(http, OWNER, { kind: "run_failed", count: 1 });
+          assert.equal(ok.status, 200);
+          assert.deepEqual(await ok.json(), { sent: 1, failed: 0, gone: 0 });
+        }, db);
+        await withRelay(keyPath, origin, async ({ url, http }) => {
+          const ok = await postPush(http, OWNER, { kind: "ready", count: 4 });
+          assert.deepEqual(await ok.json(), { sent: 1, failed: 0, gone: 0 });
+          assert.equal((await postPush(http, "someone-else", { kind: "ready", count: 4 })).status, 401);
+          assert.equal((await fetch(`${http}/push/v1/${ROOM}`, { method: "POST", body: "{}" })).status, 401);
+          assert.equal((await postPush(http, OWNER, { kind: "ready", count: 4 }, "BBBBBBBBBBBBBBBBBBBBBB")).status, 404);
+          assert.equal((await postPush(http, OWNER, { kind: "ready" })).status, 400);
+          assert.equal((await postPush(http, OWNER, "not an object")).status, 400);
+          // The owner kept from the earlier run still holds the room against a newcomer.
+          assert.equal((await register(url, [], "impostor")).answer.code, "OWNER_MISMATCH");
+        }, db);
+        assert.equal(seen.length, 2);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+});
+
+test("31 pushes in a minute: the 31st is throttled, over the socket and over HTTP", async () => {
+  await withKey(async (keyPath) => {
+    await withFakeApns({}, async (origin, seen) => {
+      await withRelay(keyPath, origin, async ({ url, http }) => {
+        const mac = await register(url);
+        await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+        for (let i = 0; i < 30; i++) assert.equal((await pushOver(mac, { kind: "test", count: i })).sent, 1);
+        assert.deepEqual(await pushOver(mac, { kind: "test", count: 30 }), { t: "push-result", sent: 0, failed: 0, gone: 0, reason: "throttled" });
+        const throttled = await postPush(http, OWNER, { kind: "test", count: 30 });
+        assert.equal(throttled.status, 429);
+        assert.equal(seen.length, 30);
+      });
+    });
+  });
+});
+
+test("the rate allows 30 a minute and 300 an hour per room", () => {
+  let nowMs = 0;
+  const rate = new PushRate(() => nowMs);
+  for (let minute = 0; minute < 10; minute++) {
+    nowMs = minute * 60_000;
+    for (let i = 0; i < PUSHES_PER_MINUTE; i++) assert.ok(rate.take(ROOM));
+    assert.equal(rate.take(ROOM), false);
+  }
+  nowMs = 59 * 60_000;
+  assert.equal(rate.take(ROOM), false, "300 in the hour");
+  assert.ok(rate.take("another-room"));
+  nowMs = 60 * 60_000;
+  assert.ok(rate.take(ROOM), "the first minute's pushes left the hour");
+  assert.equal(PUSHES_PER_HOUR, 300);
+});
+
+test("a token Apple calls gone is deleted", async () => {
+  await withKey(async (keyPath) => {
+    await withFakeApns({ [OTHER_TOKEN]: { status: 410, body: '{"reason":"Unregistered"}' } }, async (origin) => {
+      await withRelay(keyPath, origin, async ({ url, tokens }) => {
+        const mac = await register(url);
+        await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+        await joinPhone(url, mac.inbox, { bearer: OTHER_PHONE, apnsToken: OTHER_TOKEN });
+        assert.deepEqual(await pushOver(mac), { t: "push-result", sent: 1, failed: 0, gone: 1 });
+        assert.deepEqual(tokens.targets(ROOM).map((t) => t.token), [TOKEN]);
+      });
+    });
+  });
+});
+
+test("removing a device deletes its token, by allow-remove or by a register that leaves it out", async () => {
+  await withRelay(null, "http://127.0.0.1:9", async ({ url, tokens }) => {
+    const mac = await register(url);
+    await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+    await joinPhone(url, mac.inbox, { bearer: OTHER_PHONE, apnsToken: OTHER_TOKEN });
+    mac.ws.send(frame(FrameType.relayctl, { t: "allow-remove", hash: sha256Hex(PHONE).toUpperCase() }));
+    // The push after it is answered only once the removal was handled.
+    await pushOver(mac);
+    assert.deepEqual(tokens.targets(ROOM).map((t) => t.token), [OTHER_TOKEN]);
+
+    assert.equal((await register(url, [])).answer.t, "registered");
+    assert.deepEqual(tokens.targets(ROOM), []);
+  });
+});
+
+test("the provisional pushIntent is gone: it reaches nobody", async () => {
+  assert.equal(existsSync(new URL("../apns.ts", import.meta.url)), false);
+  await withKey(async (keyPath) => {
+    await withFakeApns({}, async (origin, seen) => {
+      await withRelay(keyPath, origin, async ({ url }) => {
+        const mac = await register(url);
+        await joinPhone(url, mac.inbox, { bearer: PHONE, apnsToken: TOKEN });
+        mac.ws.send(frame(FrameType.relayctl, { t: "pushIntent", title: "hello", body: "world" }));
+        assert.equal((await pushOver(mac)).sent, 1);
+        assert.equal(seen.length, 1, "only the push frame reached Apple");
+      });
+    });
   });
 });

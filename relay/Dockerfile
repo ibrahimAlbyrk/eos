@@ -6,8 +6,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY envelope.ts admission.ts errors.ts apns.ts config.ts RoomRegistry.ts server.ts ./
+COPY envelope.ts admission.ts errors.ts config.ts RoomRegistry.ts server.ts ./
 COPY vault/ ./vault/
+COPY push/ ./push/
 
 # Sync vault database (node:sqlite, unflagged since Node 22.13) on a named volume.
 RUN mkdir -p /data
