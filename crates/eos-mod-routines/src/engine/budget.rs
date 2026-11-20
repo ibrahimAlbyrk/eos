@@ -20,7 +20,7 @@ use eos_core::store::{Outbox, RUN_STATE_EVENT, StoredRun, StoredRunEvent, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::limits::{Budget, budget};
 use eos_domain::routine::run::{Reason, RunState};
-use eos_inbox::{NewItem, Opening, open_in};
+use eos_inbox::{NewItem, Opening, notice_in, open_in};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -35,6 +35,10 @@ const GRACE_MS: i64 = 2 * 60_000;
 const MINUTE_MS: i64 = 60_000;
 /// The subject of the notice that a day budget is spent.
 const DAY_CAP: &str = "day_cap";
+/// The subject of the notice that most of today's budget is spent.
+const DAY_BUDGET: &str = "day-budget";
+/// The share of today's budget whose spending is told (01 §4.10).
+const DAY_NOTICE_SHARE: f64 = 0.9;
 
 const WRAP_UP_COST: &str = "This run has used 90% of what it may spend. Wrap up now: hand in your result with \
                             what you have, and say what is left undone.";
@@ -153,11 +157,16 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
     if delta <= 0.0 {
         return Ok(());
     }
-    let day = today(engine);
+    let Day { day, cap_usd, .. } = self::day(engine);
+    let job = engine.clone();
     let spending = engine
         .store
-        .write(move |tx, _| {
+        .write(move |tx, out| {
+            let before = spent_in(tx, &day)?.total;
             let Some(session) = tx.routine_sessions().find(&worker_id)? else { return Ok(None) };
+            if before < DAY_NOTICE_SHARE * cap_usd && before + delta >= DAY_NOTICE_SHARE * cap_usd {
+                day_share_notice_in(tx, out, &job, before + delta, cap_usd)?;
+            }
             let Some(run) = session.run_id.as_ref().map(|id| tx.runs().find(id)).transpose()?.flatten() else {
                 // The architect's setup spend (G32).
                 tx.routine_spend().add(&day, &session.routine_id, "architect", delta)?;
@@ -329,6 +338,28 @@ pub(crate) fn spent_in(tx: &dyn Tx, day: &str) -> Result<Spent, Error> {
         }
     }
     Ok(spent)
+}
+
+/// A notice, once a local day, that routines spent [`DAY_NOTICE_SHARE`] of
+/// what they may spend today.
+fn day_share_notice_in(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, spent: f64, cap: f64) -> Result<(), Error> {
+    let now = engine.clock.now_ms();
+    let control = Control(engine.clone());
+    let at = Opening { now, ids: engine.ids.as_ref(), zone: engine.zone.as_ref(), control: &control };
+    let item = NewItem {
+        kind: ItemKind::Notice,
+        producer: "routines".into(),
+        routine_id: None,
+        run_id: None,
+        subject_key: Some(DAY_BUDGET.into()),
+        // Whole dollars, never more than was spent.
+        title: format!("Routines have spent ${:.0} of today's ${cap:.0}", spent.floor()),
+        summary: "Runs from triggers stop once today's budget is spent.".into(),
+        payload: json!({"actionLabel": "Raise today's cap"}),
+        by_hand: false,
+    };
+    tracing::info!(spent_usd = spent, cap_usd = cap, "routines spent most of today's budget");
+    notice_in(tx, out, &at, item).map(drop)
 }
 
 /// One notice that a day budget is spent: the routine's, or with no

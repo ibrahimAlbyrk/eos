@@ -244,6 +244,7 @@ pub(crate) async fn judged(
                         at: now,
                     };
                     move_run(tx, out, &run, failed)?;
+                    super::failures::ended_in(&job, tx, out, &id, now)?;
                     Ok(Some(Next::Failed))
                 }
             }

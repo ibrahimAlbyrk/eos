@@ -2,6 +2,8 @@
 //! run's own write job so the decision, the run's state and its event
 //! commit together.
 
+use std::sync::Arc;
+
 use eos_core::Error;
 use eos_core::routine::{GateDecision, GateInput, GateMode};
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
@@ -11,13 +13,13 @@ use serde_json::json;
 
 use super::check::{NOTHING, result_doc};
 use super::control::confirmed_in;
-use super::{Engine, move_run};
+use super::{Engine, failures, move_run};
 use crate::routes::readable;
 
 /// Hands the passed result of `run` to the gate and moves the run by its
 /// decision. A result with nothing to send skips the gate (01 G20).
 pub(crate) fn hand_over(
-    engine: &Engine,
+    engine: &Arc<Engine>,
     tx: &dyn Tx,
     out: &mut Outbox,
     run: &StoredRun,
@@ -26,13 +28,13 @@ pub(crate) fn hand_over(
     let result = tx.run_results().by_run(&run.id)?.into_iter().find(|r| r.attempt == run.attempt);
     let result = result.ok_or_else(|| Error::not_found("run result", run.id.clone()))?;
     if result.kind == NOTHING {
-        return done(tx, out, run, Outcome::Nothing, now);
+        return done(engine, tx, out, run, Outcome::Nothing, now);
     }
     let input = gate_input(tx, run, &result)?;
     let decision = engine.gate.apply_in(tx, out, now, engine.ids.as_ref(), &input)?;
     let at = |state, station, reason| RunMove { state, station: Some(station), reason, at: now };
     match decision {
-        GateDecision::Shown => done(tx, out, run, Outcome::Shown, now),
+        GateDecision::Shown => done(engine, tx, out, run, Outcome::Shown, now),
         GateDecision::Held { item_id } => {
             tx.runs().append_event(&run.id, now, "held", Some(&json!({"itemId": item_id}).to_string()))?;
             move_run(tx, out, run, at(RunState::WaitingForUser, Station::Gate, None)).map(drop)
@@ -43,15 +45,24 @@ pub(crate) fn hand_over(
             move_run(tx, out, run, at(RunState::Delivering, Station::Deliver, None)).map(drop)
         }
         GateDecision::Refused => {
-            move_run(tx, out, run, at(RunState::Failed, Station::Gate, Some(Reason::Delivery))).map(drop)
+            move_run(tx, out, run, at(RunState::Failed, Station::Gate, Some(Reason::Delivery)))?;
+            failures::ended_in(engine, tx, out, &run.id, now)
         }
     }
 }
 
-pub(crate) fn done(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, outcome: Outcome, now: i64) -> Result<(), Error> {
+pub(crate) fn done(
+    engine: &Arc<Engine>,
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    run: &StoredRun,
+    outcome: Outcome,
+    now: i64,
+) -> Result<(), Error> {
     tx.runs().set_outcome(&run.id, outcome)?;
     let done = RunMove { state: RunState::Done, station: run.station, reason: None, at: now };
-    move_run(tx, out, run, done).map(drop)
+    move_run(tx, out, run, done)?;
+    failures::ended_in(engine, tx, out, &run.id, now)
 }
 
 fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunResult) -> Result<GateInput, Error> {

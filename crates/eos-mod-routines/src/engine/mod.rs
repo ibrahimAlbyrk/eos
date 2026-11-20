@@ -14,6 +14,7 @@ mod cancel;
 mod check;
 mod control;
 mod exec;
+mod failures;
 mod gate;
 mod grants;
 mod halt;
@@ -179,8 +180,13 @@ pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: R
 
 /// Ends a run that has not ended as failed, with `headline` as what the
 /// user reads first; a run that ended meanwhile stays as it is.
-pub(crate) async fn fail(engine: &Engine, run_id: &str, reason: Reason, headline: Option<String>) -> Result<(), Error> {
-    let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+pub(crate) async fn fail(
+    engine: &Arc<Engine>,
+    run_id: &str,
+    reason: Reason,
+    headline: Option<String>,
+) -> Result<(), Error> {
+    let (id, now, job) = (run_id.to_owned(), engine.clock.now_ms(), engine.clone());
     let failed = engine
         .store
         .write(move |tx, out| {
@@ -191,7 +197,9 @@ pub(crate) async fn fail(engine: &Engine, run_id: &str, reason: Reason, headline
                 tx.runs().set_headline(&id, headline)?;
             }
             let failed = RunMove { state: RunState::Failed, station: run.station, reason: Some(reason), at: now };
-            move_run(tx, out, &run, failed).map(|_| true)
+            move_run(tx, out, &run, failed)?;
+            failures::ended_in(&job, tx, out, &id, now)?;
+            Ok(true)
         })
         .await?;
     if failed {
