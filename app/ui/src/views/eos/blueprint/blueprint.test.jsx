@@ -214,11 +214,11 @@ describe("a routine being made", () => {
   it("starts, starts without a trial, and runs the trial again", async () => {
     const t = recording(async (method, path) => (path === ROUTES.routineTrial(DOCS)
       ? { ok: true, status: 201, body: { runs: [] } }
-      : { ok: false, status: 409, body: { error: "try the routine first, or start it without a trial", code: "trial_needed" } }));
+      : { ok: false, status: 409, body: { error: "Version 1 has not been tried. Try it first, or start it without a trial.", code: "trial_needed", version: 1 } }));
     await editor(DOCS, t);
     expect(await startRoutine(DOCS)).toBe(false);
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineStart(DOCS), { withoutTrial: false });
-    expect(draw()).toContain('<span class="eos-band__text">Try it first, or start it without a trial.</span>');
+    expect(draw()).toContain('<span class="eos-band__text">Version 1 has not been tried. Try it first, or start it without a trial.</span>');
 
     expect(await runTrial(DOCS)).toBe(true);
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineTrial(DOCS), {});
@@ -228,6 +228,31 @@ describe("a routine being made", () => {
     expect(await startRoutine(DOCS, true)).toBe(true);
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineStart(DOCS), { withoutTrial: true });
     expect(draw()).not.toContain("Try it first");
+  });
+
+  it("says which version was tried and puts trying the shown one again first when an edit came after the trial", async () => {
+    const [first] = SAMPLE_READS[ROUTES.routineVersions(DOCS)];
+    const edited = { ...first, id: "rv-edited000001", number: 2, author: "user" };
+    const trial = {
+      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline: "One review drafted",
+      itemTitle: "Fix the docs links", needsUser: false, costUsd: 0.2, workMs: 60000, createdAt: 1763452800000,
+    };
+    const paths = {
+      ...reads,
+      [ROUTES.routineVersions(DOCS)]: [first, edited],
+      [ROUTES.routineVersion(DOCS, edited.id)]: { ...reads[ROUTES.routineVersion(DOCS, first.id)], ...edited },
+      [ROUTES.routineDraft(DOCS)]: { ...drafts[DOCS], trialRuns: [trial] },
+    };
+    const t = recording(async () => ({ ok: false, status: 409, body: { error: "acme/docs is not a project in Eos. Add your local clone of it as a project, then start again.", code: "no_local_clone", repo: "acme/docs" } }), paths);
+    await editor(DOCS, t);
+    await loadVersion(DOCS, edited.id);
+    const html = draw();
+    expect(html).toContain('<p class="eos-note" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run the trial again</button>');
+
+    expect(await runTrial(DOCS)).toBe(false);
+    expect(draw()).toContain('<span class="eos-band__text">acme/docs is not a project in Eos. Add your local clone of it as a project, then start again.</span>');
   });
 
   it("asks for a change of a routine without a draft, which brings its architect back", async () => {

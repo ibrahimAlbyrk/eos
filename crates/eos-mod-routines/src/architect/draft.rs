@@ -151,7 +151,45 @@ pub(crate) enum Started {
     Refused(Vec<BlueprintIssue>),
     /// No trial of the draft went well, and the user did not choose to
     /// start without one (G45).
-    NeedsTrial,
+    NeedsTrial(Untried),
+}
+
+/// The version a start would keep that no trial went well on, by its
+/// number among the routine's versions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Untried {
+    pub(crate) version: i64,
+    /// The version the newest trial that went well ran on.
+    pub(crate) tried: Option<i64>,
+    /// A trial of this version ran, and none went well yet.
+    pub(crate) trial_ran: bool,
+}
+
+impl Untried {
+    pub(crate) fn message(&self) -> String {
+        let version = self.version;
+        match self.tried {
+            _ if self.trial_ran => format!("No trial of version {version} went well yet."),
+            Some(tried) => format!("Version {version} has not been tried. The trial ran on version {tried}."),
+            None => format!("Version {version} has not been tried. Try it first, or start it without a trial."),
+        }
+    }
+}
+
+fn untried(tx: &dyn Tx, routine_id: &str, version_id: &str) -> Result<Untried, Error> {
+    let versions = tx.routine_versions().list(routine_id)?;
+    let number = |id: &str| versions.iter().position(|version| version.id == id).map(|at| at as i64 + 1);
+    let runs = tx.runs().by_routine(routine_id, RECENT_RUNS)?;
+    let trials: Vec<_> = runs.iter().filter(|run| run.kind == "trial").collect();
+    let tried = trials
+        .iter()
+        .filter(|run| run.state == RunState::Done)
+        .find_map(|run| run.version_id.as_deref().and_then(number));
+    Ok(Untried {
+        version: number(version_id).unwrap_or_default(),
+        tried,
+        trial_ran: trials.iter().any(|run| run.version_id.as_deref() == Some(version_id)),
+    })
 }
 
 /// Whether a trial run of `version_id` ended done.
@@ -198,7 +236,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
                 return Ok((Started::Refused(issues), None));
             }
             if !without_trial && !tried(tx, &id, &version_id)? {
-                return Ok((Started::NeedsTrial, None));
+                return Ok((Started::NeedsTrial(untried(tx, &id, &version_id)?), None));
             }
             tx.routine_versions().keep(&id, &version_id, without_trial)?;
             tx.routines().set_head(&id, &version_id, now)?;

@@ -197,3 +197,36 @@ async fn a_trial_in_a_repository_that_is_no_project_is_refused_before_any_run() 
     let (status, started) = routes.post(&format!("/api/routines/{routine}/trial"), json!({})).await;
     assert_eq!(status, 201, "{started}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn start_names_the_version_shown_and_the_one_the_trial_ran_on() {
+    let routes = Routes::over(Bench::new(false));
+    let bench = &routes.bench;
+    let (routine, architect) = routes.made("Write the week's notes").await;
+    routes.propose(&architect, blueprint(1)).await;
+    let (status, started) = routes.post(&format!("/api/routines/{routine}/trial"), json!({})).await;
+    assert_eq!(status, 201, "{started}");
+    let (status, refused) = routes.post(&format!("/api/routines/{routine}/start"), json!({})).await;
+    assert_eq!(
+        (status, refused),
+        (409, json!({"error": "No trial of version 2 went well yet.", "code": "trial_needed", "version": 2}))
+    );
+
+    // The trial went well; then an edit made the version after it.
+    let mut done = bench.run(started["runs"][0]["id"].as_str().expect("id"));
+    (done.id, done.state) = ("run-done".into(), RunState::Done);
+    bench.temp.store.write_blocking(move |tx, _| tx.runs().insert(&done)).expect("writes");
+    let mut edited = blueprint(1);
+    edited["summary"] = json!("Writes the week's notes, shorter.");
+    routes.propose(&architect, edited).await;
+
+    let (status, refused) = routes.post(&format!("/api/routines/{routine}/start"), json!({})).await;
+    assert_eq!(
+        (status, refused),
+        (
+            409,
+            json!({"error": "Version 3 has not been tried. The trial ran on version 2.", "code": "trial_needed",
+                   "version": 3, "triedVersion": 2})
+        )
+    );
+}

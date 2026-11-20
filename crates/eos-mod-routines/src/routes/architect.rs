@@ -12,8 +12,9 @@ use eos_contracts::{
     ArchitectRequest, BlueprintRefused, ChangeRequest, DraftMessage, StartRoutineRequest, StartRunResponse, StartedRun,
 };
 use eos_runtime::access::Access;
-use eos_runtime::http::{ApiError, Request, Response};
+use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
+use serde_json::json;
 
 use super::{param, refusal, start_refused};
 use crate::architect::{self, Started};
@@ -37,8 +38,13 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
             let body: StartRoutineRequest = req.parse()?;
             match architect::start(&engine, &param(&req, "id"), body.without_trial).await.map_err(refusal)? {
                 Started::Kept(row) => Ok(Response::json(200, &*row)),
-                Started::NeedsTrial => {
-                    Err(ApiError::coded(409, "try the routine first, or start it without a trial", "trial_needed"))
+                Started::NeedsTrial(untried) => {
+                    let mut body = json!({"error": untried.message(), "code": "trial_needed",
+                                          "version": untried.version});
+                    if let Some(tried) = untried.tried {
+                        body["triedVersion"] = json!(tried);
+                    }
+                    Ok(Response::json(409, &body))
                 }
                 Started::Refused(issues) => Ok(Response::json(
                     400,
