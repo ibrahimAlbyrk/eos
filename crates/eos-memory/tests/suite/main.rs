@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used)]
 
 mod capture;
+mod credit;
 mod notes;
 mod recall;
 mod reflect;

@@ -278,3 +278,28 @@ async fn a_rule_stated_in_a_run_is_a_firm_note_for_its_routine() {
         ("From now on keep the summary short", "said", "firm", "routine:rt-1")
     );
 }
+
+#[tokio::test]
+async fn a_note_acted_on_before_a_surprise_is_shown_again_and_hurt_when_contradicted() {
+    let b = bench(Gate::Model, true, false);
+    crate::notes::put(&b.temp, crate::notes::note("mn-old", "Summaries are long.", crate::notes::project("x")), &[]);
+    let used = eos_core::store::StoredUse {
+        id: "me-1".into(),
+        note_id: "mn-old".into(),
+        worker_id: Some("w-1".into()),
+        run_id: None,
+        how: "pack".into(),
+        epoch: 0,
+        at: FakeClock::START_MS - 1,
+        acted: true,
+        outcome: Some("surprised".into()),
+    };
+    b.temp.store.write_blocking(move |tx, _| tx.mem_uses().insert(&used)).unwrap();
+    correction(&b, "No, that's wrong: keep the summary to two lines").await;
+    b.model.data(json!({"skip": null, "kind": "lesson", "text": "PR review summaries stay at two lines.",
+        "contradicts": ["mn-old", "mn-invented"]}));
+    b.reflector.pass().await.unwrap();
+    assert!(b.model.asked()[0].prompt.contains("- mn-old (firm): Summaries are long."));
+    assert_eq!(b.temp.count("SELECT COUNT(*) FROM mem_credit WHERE note_id = 'mn-old' AND hurt = 1"), 1);
+    assert_eq!(b.temp.count("SELECT COUNT(*) FROM mem_credit WHERE note_id = 'mn-invented'"), 0);
+}

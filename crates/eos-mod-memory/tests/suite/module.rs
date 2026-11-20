@@ -144,4 +144,33 @@ mod capture {
         module(&temp, Arc::new(FakeSleeper::default())).on_session_exit("w-1");
         assert_eq!(moments(&temp, 1).await, 1);
     }
+
+    #[tokio::test]
+    async fn a_correction_at_the_idle_edge_settles_the_notes_recalled_as_a_surprise() {
+        let temp = TempStore::new();
+        let used = eos_core::store::StoredUse {
+            id: "me-1".into(),
+            note_id: "mn-1".into(),
+            worker_id: Some("w-1".into()),
+            run_id: None,
+            how: "pack".into(),
+            epoch: 0,
+            at: 1,
+            acted: true,
+            outcome: None,
+        };
+        temp.store.write_blocking(move |tx, _| tx.mem_uses().insert(&used)).unwrap();
+        correct(&temp);
+        let memory = module(&temp, Arc::new(FakeSleeper::default()));
+        IdleHooks::new(memory.idle_hooks()).run("w-1").await;
+        assert_eq!(moments(&temp, 1).await, 1);
+        for _ in 0..100 {
+            if temp.count("SELECT COUNT(*) FROM mem_uses WHERE outcome = 'surprised'") == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(temp.count("SELECT COUNT(*) FROM mem_uses WHERE outcome = 'surprised'"), 1);
+        assert_eq!(temp.count("SELECT COUNT(*) FROM mem_credit"), 0, "a surprise helps nothing");
+    }
 }

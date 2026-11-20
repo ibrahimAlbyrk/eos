@@ -7,7 +7,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_core::Sleeper;
 use eos_core::routine::RunLookup;
-use eos_memory::Capture;
+use eos_domain::experience::moments::Signal;
+use eos_memory::credit::{ChatOutcome, Credit, surprises};
+use eos_memory::{Capture, Captured};
 use tokio::sync::Notify;
 
 /// How often a worker still working is looked at.
@@ -20,6 +22,7 @@ const LOOKS_MAX: usize = 10;
 pub(crate) struct Capturer {
     capture: Capture,
     runs: Option<Arc<dyn RunLookup>>,
+    credit: Arc<Credit>,
     /// Workers that did something since the last tick.
     active: Mutex<HashSet<String>>,
     /// Wakes reflection when a look stored moments.
@@ -27,8 +30,13 @@ pub(crate) struct Capturer {
 }
 
 impl Capturer {
-    pub(crate) fn new(capture: Capture, runs: Option<Arc<dyn RunLookup>>, reflect: Arc<Notify>) -> Self {
-        Self { capture, runs, active: Mutex::new(HashSet::new()), reflect }
+    pub(crate) fn new(
+        capture: Capture,
+        runs: Option<Arc<dyn RunLookup>>,
+        credit: Arc<Credit>,
+        reflect: Arc<Notify>,
+    ) -> Self {
+        Self { capture, runs, credit, active: Mutex::new(HashSet::new()), reflect }
     }
 
     pub(crate) fn saw(&self, worker_id: &str) {
@@ -51,6 +59,7 @@ impl Capturer {
         for _ in 0..LOOKS_MAX {
             match self.capture.look(worker_id, run.clone()).await {
                 Ok(captured) => {
+                    self.settle(worker_id, &captured).await;
                     if !captured.stored.is_empty() {
                         self.reflect.notify_one();
                     }
@@ -64,6 +73,22 @@ impl Capturer {
                     return;
                 }
             }
+        }
+    }
+
+    /// Credits the notes recalled in the conversation by how the look found
+    /// it ending: a surprise outweighs an acceptance in the same look.
+    async fn settle(&self, worker_id: &str, captured: &Captured) {
+        let surprised = captured.stored.iter().any(|m| Signal::parse(&m.signal).is_some_and(surprises));
+        let outcome = if surprised {
+            ChatOutcome::Surprised
+        } else if !captured.accepted.is_empty() {
+            ChatOutcome::Good
+        } else {
+            return;
+        };
+        if let Err(e) = self.credit.chat_ended(worker_id, outcome).await {
+            tracing::warn!(worker_id, error = %e, "memory: the chat's outcome was not credited");
         }
     }
 

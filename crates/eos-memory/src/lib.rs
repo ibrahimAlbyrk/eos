@@ -12,6 +12,8 @@
 //! - [`reflect`] turns pending moments into notes (the small model where
 //!   the host lets it ask one, the rules elsewhere) and [`merge`] writes
 //!   them beside the notes they meet, in one job.
+//! - [`credit`] moves notes' counters and states by what followed their
+//!   recall: acted on, a good end, a surprise, "Not right".
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
@@ -21,6 +23,7 @@
 //! kind only, never by content.
 
 pub mod capture;
+pub mod credit;
 pub mod deliver;
 pub mod merge;
 pub mod pack;
@@ -32,6 +35,7 @@ pub mod transcript;
 pub mod vectors;
 
 pub use capture::{Capture, Captured};
+pub use credit::{ChatOutcome, Credit};
 pub use pack::{Pack, chat_pack};
 pub use recall::{Cues, Recall, Recalled, Situation};
 pub use reflect::{Gate, ModelGate, MomentContext, MomentSource, ReflectParts, ReflectPrompt, Reflector};

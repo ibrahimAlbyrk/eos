@@ -98,6 +98,7 @@ pub(crate) fn parts(temp: &TempStore, sleeper: Arc<FakeSleeper>, embedder: Optio
         embedder,
         code: None,
         learn: None,
+        device: "mac-a".into(),
         background_model_calls: false,
     }
 }

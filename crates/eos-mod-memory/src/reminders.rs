@@ -19,13 +19,13 @@ use eos_core::profile::UserProfileReader;
 use eos_core::routine::{RunLookup, RunRef};
 use eos_core::store::{Store, agent_caller};
 use eos_core::{Clock, Ids};
-use eos_domain::experience::HookKind;
 use eos_domain::experience::budget::REMINDER_NOTES_PER_TURN;
 use eos_domain::experience::cues::{self, Cue};
 use eos_domain::experience::rank::PACK_THRESHOLD;
 use eos_domain::experience::render::{ABOUT_FILE, BEFORE_PUSH, BEFORE_STEP, ERROR_SEEN, ON_REQUEST};
+use eos_domain::experience::{HookKind, hook_id};
 use eos_memory::deliver::{How, Receiver, record, reminder};
-use eos_memory::{Cues, Recall, Situation, chat_pack};
+use eos_memory::{Credit, Cues, Recall, Situation, chat_pack};
 use tokio::sync::Semaphore;
 
 /// Chats whose state is kept; past it the oldest-started is dropped.
@@ -40,9 +40,22 @@ pub trait NoteSink: Send + Sync {
     fn note(&self, worker_id: &str, text: String) -> bool;
 }
 
+/// A note delivered in this turn, watched for whether the agent acts on it:
+/// a tool call touching one of its `do` hooks, or a turn that ends without
+/// touching its `avoid` hooks (G23).
+struct Watch {
+    note_id: String,
+    do_hooks: Vec<String>,
+    avoid_hooks: Vec<String>,
+    strayed: bool,
+}
+
 /// One conversation's epoch.
 struct Chat {
     epoch: i64,
+    /// The folder it works in: tool calls' paths are read against it.
+    root: Option<String>,
+    watching: Vec<Watch>,
     packed: bool,
     delivered: HashSet<String>,
     /// Reminders given since the user's last message.
@@ -78,6 +91,7 @@ pub(crate) struct Reminders {
     pub(crate) project_keys: Arc<dyn ProjectKeys>,
     pub(crate) profile: Arc<dyn UserProfileReader>,
     pub(crate) runs: Option<Arc<dyn RunLookup>>,
+    pub(crate) credit: Arc<Credit>,
     chats: Mutex<HashMap<String, Chat>>,
     in_flight: Semaphore,
 }
@@ -112,6 +126,7 @@ impl Reminders {
         project_keys: Arc<dyn ProjectKeys>,
         profile: Arc<dyn UserProfileReader>,
         runs: Option<Arc<dyn RunLookup>>,
+        credit: Arc<Credit>,
     ) -> Self {
         Self {
             recall,
@@ -122,6 +137,7 @@ impl Reminders {
             project_keys,
             profile,
             runs,
+            credit,
             chats: Mutex::new(HashMap::new()),
             in_flight: Semaphore::new(IN_FLIGHT_MAX),
         }
@@ -226,12 +242,15 @@ impl Reminders {
             }
             let chat = chats.entry(worker_id.to_owned()).or_insert_with(|| Chat {
                 epoch: now,
+                root: place.root.clone(),
+                watching: Vec::new(),
                 packed: false,
                 delivered: HashSet::new(),
                 this_turn: 0,
                 recalling: false,
             });
             chat.this_turn = 0;
+            chat.watching.clear();
             let first = !chat.packed;
             chat.packed = true;
             first
@@ -255,6 +274,7 @@ impl Reminders {
         let picked = if first { chat_pack(&recalled) } else { self.pick(worker_id, ON_REQUEST, &recalled) };
         let Some(pack) = picked else { return Vec::new() };
         let how = if first { How::Pack } else { How::Reminder };
+        self.watch(worker_id, &recalled, &pack.note_ids);
         self.deliver(worker_id, &place, how, &pack.note_ids).await;
         vec![pack.text]
     }
@@ -268,6 +288,80 @@ impl Reminders {
         chat.this_turn += pack.note_ids.len();
         chat.delivered.extend(pack.note_ids.iter().cloned());
         Some(pack)
+    }
+
+    /// Watches the delivered notes among `recalled` for the agent acting on them.
+    fn watch(&self, worker_id: &str, recalled: &[eos_memory::Recalled], note_ids: &[String]) {
+        let mut chats = self.chats();
+        let Some(chat) = chats.get_mut(worker_id) else { return };
+        for found in recalled.iter().filter(|r| note_ids.contains(&r.note.note.id)) {
+            let note = &found.note.note;
+            if note.do_hooks.is_empty() && note.avoid_hooks.is_empty() {
+                continue;
+            }
+            chat.watching.push(Watch {
+                note_id: note.id.clone(),
+                do_hooks: note.do_hooks.clone(),
+                avoid_hooks: note.avoid_hooks.clone(),
+                strayed: false,
+            });
+        }
+    }
+
+    /// A tool call by the root agent: the watched notes whose `do` hooks it
+    /// touches were acted on; touching an `avoid` hook strays from a note.
+    fn acted_by(&self, worker_id: &str, activity: &ActivityEvent) {
+        let acted = {
+            let mut chats = self.chats();
+            let Some(chat) = chats.get_mut(worker_id) else { return };
+            if chat.watching.is_empty() {
+                return;
+            }
+            let (Some(name), Some(input)) = (activity.tool_name.as_deref(), activity.input.as_ref()) else { return };
+            let Ok(input) = serde_json::to_value(input) else { return };
+            let touched: HashSet<String> =
+                cues::from_tool(name, &input, chat.root.as_deref()).iter().map(|c| hook_id(c.kind, &c.key)).collect();
+            let mut acted = Vec::new();
+            chat.watching.retain_mut(|w| {
+                if w.do_hooks.iter().any(|h| touched.contains(h)) {
+                    acted.push(w.note_id.clone());
+                    return false;
+                }
+                w.strayed |= w.avoid_hooks.iter().any(|h| touched.contains(h));
+                true
+            });
+            (chat.epoch, acted)
+        };
+        self.credit_acted(worker_id, acted);
+    }
+
+    /// The turn ended: a watched note the agent kept clear of was acted on.
+    pub(crate) fn turn_ended(&self, worker_id: &str) {
+        let acted = {
+            let mut chats = self.chats();
+            let Some(chat) = chats.get_mut(worker_id) else { return };
+            let kept_clear = chat
+                .watching
+                .drain(..)
+                .filter(|w| w.do_hooks.is_empty() && !w.avoid_hooks.is_empty() && !w.strayed)
+                .map(|w| w.note_id)
+                .collect();
+            (chat.epoch, kept_clear)
+        };
+        self.credit_acted(worker_id, acted);
+    }
+
+    fn credit_acted(&self, worker_id: &str, (epoch, note_ids): (i64, Vec<String>)) {
+        if note_ids.is_empty() {
+            return;
+        }
+        let credit = self.credit.clone();
+        let worker_id = worker_id.to_owned();
+        tokio::spawn(async move {
+            if let Err(e) = credit.acted(&worker_id, epoch, note_ids).await {
+                tracing::warn!(worker_id, error = %e, "memory: the notes acted on were not counted");
+            }
+        });
     }
 
     async fn deliver(&self, worker_id: &str, place: &Place, how: How, note_ids: &[String]) {
@@ -292,6 +386,9 @@ impl Reminders {
         let AgentEvent::Activity(activity) = event else { return };
         if activity.parent_call_id.as_ref().is_some_and(Option::is_some) {
             return;
+        }
+        if activity.kind == ActivityEventKind::ToolStarted {
+            self.acted_by(worker_id, activity);
         }
         let interesting = match activity.kind {
             ActivityEventKind::ToolStarted => activity.tool_name.is_some(),
@@ -340,6 +437,7 @@ impl Reminders {
         };
         let Some(pack) = self.pick(worker_id, header, &recalled) else { return };
         if self.sink.note(worker_id, pack.text) {
+            self.watch(worker_id, &recalled, &pack.note_ids);
             self.deliver(worker_id, &place, How::Reminder, &pack.note_ids).await;
         }
     }
