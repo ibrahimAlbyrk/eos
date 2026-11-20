@@ -11,6 +11,7 @@ pub mod moments;
 pub mod note;
 pub mod rank;
 pub mod render;
+pub mod spread;
 pub mod state;
 
 pub use note::{HookKind, Note, NoteBody, NoteKind, NoteState, PlaybookLine, Scope, ScopeLevel, Trust, hook_id};

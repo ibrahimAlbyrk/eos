@@ -1,0 +1,28 @@
+[package]
+name = "eos-memory"
+description = "Memory: recall of notes by situation (hooks, words, meaning, spreading), packs for the model, capture, reflection, credit and night tidying."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-core.workspace = true
+eos-domain.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+# `cargo bench` runs only benches/recall.rs, not the unit tests in bench mode.
+[lib]
+bench = false
+
+[[bench]]
+name = "recall"
+harness = false
+
+[lints]
+workspace = true

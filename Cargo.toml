@@ -21,12 +21,12 @@ eos-config = { path = "crates/eos-config" }
 eos-contracts = { path = "crates/eos-contracts" }
 eos-core = { path = "crates/eos-core" }
 eos-domain = { path = "crates/eos-domain" }
+eos-embed = { path = "crates/eos-embed" }
 eos-engine = { path = "crates/eos-engine" }
 eos-fs = { path = "crates/eos-fs" }
 eos-genui = { path = "crates/eos-genui" }
 eos-genui-media = { path = "crates/eos-genui-media" }
 eos-git = { path = "crates/eos-git" }
-eos-embed = { path = "crates/eos-embed" }
 eos-github = { path = "crates/eos-github" }
 eos-inbox = { path = "crates/eos-inbox" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
@@ -34,6 +34,7 @@ eos-kit-log = { path = "crates/eos-kit-log" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-memory = { path = "crates/eos-memory" }
 eos-mod-accounts = { path = "crates/eos-mod-accounts" }
 eos-mod-agent-jobs = { path = "crates/eos-mod-agent-jobs" }
 eos-mod-agents = { path = "crates/eos-mod-agents" }

@@ -1914,6 +1914,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-memory"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-mod-accounts"
 version = "0.0.1"
 dependencies = [
