@@ -85,12 +85,16 @@ fn working_line(working: u32) -> String {
     }
 }
 
-/// The second status line: stopped, or the next run; none when nothing is scheduled.
-fn duty_line(state: &MenuState, hour_minute: impl Fn(i64) -> String) -> Option<String> {
+/// The second status line: stopped, or on duty with the next scheduled run when there is
+/// one. A routine started only by a poll or a folder has no next time and is on duty too.
+fn duty_line(state: &MenuState, hour_minute: impl Fn(i64) -> String) -> String {
     if state.halted {
-        return Some("All routines stopped".to_owned());
+        return "All routines stopped".to_owned();
     }
-    state.next.as_ref().map(|next| format!("On duty · next {} {}", next.name, hour_minute(next.at_ms)))
+    match &state.next {
+        Some(next) => format!("On duty · next {} {}", next.name, hour_minute(next.at_ms)),
+        None => "On duty".to_owned(),
+    }
 }
 
 /// The menu for `state`. `dev`: a development or test run, beside the installed app's item.
@@ -100,7 +104,7 @@ fn entries(state: &MenuState, dev: bool, login: LoginItem, hour_minute: impl Fn(
         entries.push(Entry::Line("Eos (dev)".to_owned()));
     }
     entries.push(Entry::Line(working_line(state.working)));
-    entries.extend(duty_line(state, hour_minute).map(Entry::Line));
+    entries.push(Entry::Line(duty_line(state, hour_minute)));
     entries.push(Entry::Separator);
     let needs = if state.needs_you > 0 { format!("Needs you ({})", state.needs_you) } else { "Needs you".to_owned() };
     entries.push(Entry::Command(Action::NeedsYou, needs));
@@ -259,10 +263,10 @@ mod tests {
         assert_eq!(working_line(2), "2 runs working");
         let next = Some(NextRun { name: "PR Review".into(), at_ms: 0 });
         let state = MenuState { next, ..MenuState::default() };
-        assert_eq!(duty_line(&state, at).as_deref(), Some("On duty · next PR Review 05:00"));
-        assert_eq!(duty_line(&MenuState::default(), at), None, "nothing scheduled");
+        assert_eq!(duty_line(&state, at), "On duty · next PR Review 05:00");
+        assert_eq!(duty_line(&MenuState::default(), at), "On duty", "a routine started by a poll has no next time");
         let stopped = MenuState { halted: true, ..state };
-        assert_eq!(duty_line(&stopped, at).as_deref(), Some("All routines stopped"));
+        assert_eq!(duty_line(&stopped, at), "All routines stopped");
     }
 
     #[test]
@@ -271,7 +275,15 @@ mod tests {
         let shown = titles(&entries(&state, false, LoginItem::On, at));
         assert_eq!(
             shown,
-            ["2 runs working", "Needs you (3)", "Open Eos", "Stop all routines", "Start at Login ✓", "Quit Eos"]
+            [
+                "2 runs working",
+                "On duty",
+                "Needs you (3)",
+                "Open Eos",
+                "Stop all routines",
+                "Start at Login ✓",
+                "Quit Eos"
+            ]
         );
         let halted = MenuState { halted: true, ..MenuState::default() };
         let shown = titles(&entries(&halted, true, LoginItem::Off, at));
