@@ -7,7 +7,7 @@
 use eos_contracts::ResultDoc;
 use eos_core::Error;
 use eos_core::routine::RunOutcomes;
-use eos_core::store::{NewOutcome, Outbox, StoredItem, Tx};
+use eos_core::store::{NewOutcome, Outbox, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::result_doc::equal;
 use eos_domain::routine::numbers::Outcome;
@@ -85,6 +85,49 @@ pub(crate) fn replaced_in(
     let ended = replaced.iter().filter(|old| old.kind == ItemKind::Draft && old.run_id != by.run_id);
     for item in ended {
         ended_in(tx, out, outcomes, Ended { item, delivery_id: None, outcome: Outcome::Replaced, at: by.created_at })?;
+    }
+    Ok(())
+}
+
+/// What the user said of a send after it went out: an outcome row of the
+/// delivery, at the rung its draft was held at (an automatic send's mode).
+/// An undo settles its run as `undone`; "that was wrong" settles nothing.
+pub(crate) fn after_sent_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    outcomes: &dyn RunOutcomes,
+    row: &StoredDelivery,
+    outcome: Outcome,
+    at: i64,
+) -> Result<(), Error> {
+    let item = match &row.item_id {
+        Some(id) => tx.inbox_items().find(id)?,
+        None => None,
+    };
+    let rung = match item {
+        Some(item) => {
+            let payload: Value = serde_json::from_str(&item.payload).unwrap_or_default();
+            payload["rung"].as_str().unwrap_or(HELD_RUNG).to_owned()
+        }
+        None => row.mode.clone(),
+    };
+    let outcome_row = NewOutcome {
+        routine_id: row.routine_id.clone(),
+        run_id: row.run_id.clone(),
+        item_id: row.item_id.clone(),
+        delivery_id: Some(row.id.clone()),
+        outcome: outcome.as_str().to_owned(),
+        rung,
+        at,
+    };
+    tx.inbox_outcomes().insert(&outcome_row)?;
+    tracing::info!(delivery_id = %row.id, run_id = %row.run_id, outcome = outcome.as_str(), "a sent result was judged");
+    let settled = tx
+        .runs()
+        .find(&row.run_id)?
+        .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering | RunState::Done));
+    if outcome == Outcome::Undone && settled {
+        outcomes.finished(tx, out, &row.run_id, outcome)?;
     }
     Ok(())
 }

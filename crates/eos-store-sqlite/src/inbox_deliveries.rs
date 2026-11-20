@@ -97,6 +97,11 @@ impl DeliveryRepo for SqliteTx<'_> {
         )
     }
 
+    fn rewrite_body(&self, id: &str, body: &str, body_hash: &str) -> Result<(), Error> {
+        self.exec("UPDATE inbox_deliveries SET body = ?2, body_hash = ?3 WHERE id = ?1", params![id, body, body_hash])
+            .map(drop)
+    }
+
     fn update(&self, delivery: &StoredDelivery) -> Result<(), Error> {
         self.exec(
             "UPDATE inbox_deliveries SET item_id = ?2, state = ?3, send_at = ?4, attempts = ?5, \

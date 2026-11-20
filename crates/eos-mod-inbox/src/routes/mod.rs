@@ -1,15 +1,18 @@
-//! The routes over the items, each item turned into its wire row.
+//! The routes over the items, each item turned into its wire row; the
+//! routes over one delivery are in [`deliveries`].
+
+mod deliveries;
 
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use eos_contracts::{
-    AnswerRequest, Delivery, DeliveryRef, DiscardRequest, DraftSave, InboxCounts, InboxItem, InboxItemDetail,
+    AnswerRequest, DeliveryRef, DiscardRequest, DraftDelivery, DraftSave, InboxCounts, InboxItem, InboxItemDetail,
     InboxList, LaterRequest, ResultDoc, SendAnswer, SendRequest,
 };
-use eos_core::store::{ItemPlace, ItemQuery, StoredDelivery, StoredItem};
-use eos_domain::inbox::{ItemState, order_rank};
+use eos_core::store::{ItemPlace, ItemQuery, StoredDelivery, StoredItem, Tx};
+use eos_domain::inbox::{ItemKind, ItemState, order_rank};
 use eos_runtime::access::{Access, Caller, LocalCaller, Tier};
 use eos_runtime::http::path::percent_decode;
 use eos_runtime::http::{ApiError, Request, Response};
@@ -43,7 +46,7 @@ fn row(item: &StoredItem) -> InboxItem {
     }
 }
 
-fn detail(item: &StoredItem) -> InboxItemDetail {
+fn detail(item: &StoredItem, deliveries: Vec<DraftDelivery>) -> InboxItemDetail {
     let json = |text: &str| serde_json::from_str::<Value>(text).ok();
     InboxItemDetail {
         item: row(item),
@@ -53,11 +56,22 @@ fn detail(item: &StoredItem) -> InboxItemDetail {
         answered_by: item.answered_by.clone(),
         answer: item.answer.as_deref().and_then(json),
         replaced_by: item.replaced_by.clone(),
+        deliveries,
     }
 }
 
+/// A draft's sends, newest last; none for an item of another kind.
+fn sends_in(tx: &dyn Tx, item: &StoredItem) -> Result<Vec<DraftDelivery>, eos_core::Error> {
+    let Some(run_id) = item.run_id.as_deref().filter(|_| item.kind == ItemKind::Draft) else { return Ok(Vec::new()) };
+    let rows = tx.inbox_deliveries().of_run(run_id)?;
+    let own = rows.into_iter().filter(|row| row.item_id.as_deref() == Some(item.id.as_str()));
+    Ok(own
+        .map(|row| DraftDelivery { id: row.id, state: row.state, send_at: row.send_at, undo_until: row.undo_until })
+        .collect())
+}
+
 /// Who answered, as an item keeps it.
-fn answered_by(caller: &Caller) -> &'static str {
+pub(super) fn answered_by(caller: &Caller) -> &'static str {
     match caller {
         Caller::Local(LocalCaller::Dashboard | LocalCaller::HostView { .. } | LocalCaller::Untrusted) => "dashboard",
         Caller::Phone { .. } => "phone",
@@ -66,7 +80,7 @@ fn answered_by(caller: &Caller) -> &'static str {
     }
 }
 
-fn item_id(req: &Request) -> String {
+pub(super) fn item_id(req: &Request) -> String {
     let raw = req.param("id").unwrap_or_default();
     percent_decode(raw).map(|id| id.into_owned()).unwrap_or_else(|| raw.to_owned())
 }
@@ -75,36 +89,6 @@ fn item_id(req: &Request) -> String {
 fn elsewhere(id: &str) -> Option<Response> {
     let routes = own_routes(id)?;
     Some(Response::json(409, &json!({ "error": "answered through its own route", "routes": routes })))
-}
-
-/// A delivery as the dashboard reads it; the receipt shows only where the
-/// user sees what went out.
-fn delivery(row: StoredDelivery) -> Result<Delivery, ApiError> {
-    let body = serde_json::from_str(&row.body).map_err(|e| eos_core::Error::storage(e.to_string()))?;
-    let receipt = row.receipt.as_deref().and_then(|text| serde_json::from_str::<Value>(text).ok());
-    Ok(Delivery {
-        id: row.id,
-        item_id: row.item_id,
-        run_id: row.run_id,
-        routine_id: row.routine_id,
-        channel: row.channel,
-        action: row.action,
-        target_ref: row.target_ref,
-        class: row.class,
-        mode: row.mode,
-        state: row.state,
-        body,
-        send_at: row.send_at,
-        attempts: row.attempts,
-        last_error_kind: row.last_error_kind,
-        receipt_url: receipt.and_then(|receipt| receipt["url"].as_str().map(str::to_owned)),
-        sent_at: row.sent_at,
-        undo_until: row.undo_until,
-        undone_at: row.undone_at,
-        approved_at: row.approved_at,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-    })
 }
 
 /// The deliveries a send queued.
@@ -119,21 +103,32 @@ fn written(result: Result<StoredItem, eos_inbox::Error>) -> Result<Response, Api
 }
 
 /// What a write answers, or the 409 that says why it did not land.
-fn answered<T>(result: Result<T, eos_inbox::Error>, ok: impl FnOnce(T) -> Response) -> Result<Response, ApiError> {
+pub(super) fn answered<T>(
+    result: Result<T, eos_inbox::Error>,
+    ok: impl FnOnce(T) -> Response,
+) -> Result<Response, ApiError> {
     match result {
         Ok(done) => Ok(ok(done)),
-        Err(eos_inbox::Error::AlreadyAnswered { state, answered_by }) => {
+        Err(error) => refused(error),
+    }
+}
+
+/// The 409 that says why a write did not land.
+pub(super) fn refused(error: eos_inbox::Error) -> Result<Response, ApiError> {
+    match error {
+        eos_inbox::Error::AlreadyAnswered { state, answered_by } => {
             let mut body = json!({ "error": "already answered", "state": state.as_str() });
             if let Some(by) = answered_by {
                 body["answeredBy"] = Value::String(by);
             }
             Ok(Response::json(409, &body))
         }
-        Err(eos_inbox::Error::Changed { rev }) => Ok(Response::json(409, &json!({ "error": "changed", "rev": rev }))),
-        Err(eos_inbox::Error::Stale { reason }) => {
+        eos_inbox::Error::Changed { rev } => Ok(Response::json(409, &json!({ "error": "changed", "rev": rev }))),
+        eos_inbox::Error::Stale { reason } => {
             Ok(Response::json(409, &json!({ "error": "stale", "staleReason": reason })))
         }
-        Err(eos_inbox::Error::Core(e)) => Err(e.into()),
+        eos_inbox::Error::CannotUndo => Ok(Response::json(409, &json!({ "error": "cannot_undo" }))),
+        eos_inbox::Error::Core(e) => Err(e.into()),
     }
 }
 
@@ -233,9 +228,16 @@ async fn one(shared: Arc<Shared>, req: Request) -> Result<Response, ApiError> {
         return Ok(Response::json(200, &found));
     }
     let lookup = id.clone();
-    let item = shared.store.read(move |tx| tx.inbox_items().find(&lookup)).await?;
-    let item = item.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
-    Ok(Response::json(200, &detail(&item)))
+    let found = shared
+        .store
+        .read(move |tx| {
+            let Some(item) = tx.inbox_items().find(&lookup)? else { return Ok(None) };
+            let sends = sends_in(tx, &item)?;
+            Ok(Some(detail(&item, sends)))
+        })
+        .await?;
+    let found = found.ok_or_else(|| eos_core::Error::not_found("item", &id))?;
+    Ok(Response::json(200, &found))
 }
 
 pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
@@ -304,17 +306,6 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
             answered(at.items.send(&id, body.rev, body.doc, answered_by(&req.caller), confirm_stale).await, queued)
         }
     });
-    let at = shared.clone();
-    let delivery_read = RouteDef::get("/api/inbox/deliveries/{id}", move |req: Request| {
-        let at = at.clone();
-        async move {
-            let id = item_id(&req);
-            let lookup = id.clone();
-            let row = at.store.read(move |tx| tx.inbox_deliveries().find(&lookup)).await?;
-            let row = row.ok_or_else(|| eos_core::Error::not_found("delivery", &id))?;
-            Ok(Response::json(200, &delivery(row)?))
-        }
-    });
     let user = |tier| Access::ui_token().phone_user(tier);
     vec![
         list.access(user(Tier::Read)),
@@ -324,6 +315,8 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
         discard.access(user(Tier::Low)),
         answer.access(user(Tier::High)),
         send.access(user(Tier::High)),
-        delivery_read.access(user(Tier::Read)),
     ]
+    .into_iter()
+    .chain(deliveries::all(shared))
+    .collect()
 }

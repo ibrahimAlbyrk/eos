@@ -38,7 +38,7 @@ async fn a_send_answers_its_deliveries_and_each_reads_back() {
     assert_eq!(status, 200, "{sent}");
     let deliveries = sent["deliveries"].as_array().expect("deliveries");
     assert_eq!(deliveries.len(), 1);
-    assert_eq!(deliveries[0]["state"], "queued");
+    assert_eq!(deliveries[0]["state"], "holding", "no channel can take it back: it waits out its hold");
     assert!(deliveries[0]["sendAt"].is_i64());
 
     let id = deliveries[0]["id"].as_str().expect("an id");
@@ -89,5 +89,5 @@ async fn a_draft_whose_pull_request_moved_is_flagged_and_sent_only_anyway() {
     assert_eq!((status, refused), (409, json!({"error": "stale", "staleReason": "1 new commit"})));
     let (status, sent) = rig.ask(Method::Post, &send, Some(json!({"rev": rev, "confirmStale": true}))).await;
     assert_eq!(status, 200, "{sent}");
-    assert_eq!(sent["deliveries"][0]["state"], "queued");
+    assert_eq!(sent["deliveries"][0]["state"], "holding");
 }

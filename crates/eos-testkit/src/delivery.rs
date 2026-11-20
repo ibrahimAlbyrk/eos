@@ -17,7 +17,8 @@ fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// for it, in order, and otherwise succeeds with receipt `rc-<n>` (`n`
 /// counting sends from 1); a lookup finds what a successful send with that
 /// key left, or what the test says one left. Results are fresh unless the
-/// test makes the next ones stale, and every undo succeeds.
+/// test makes the next ones stale, and an undo answers what the test
+/// scripted for undos, else succeeds.
 #[derive(Debug, Default, Clone)]
 pub struct FakeChannels(Arc<Shared>);
 
@@ -29,6 +30,7 @@ struct Shared {
     receipts: Mutex<HashMap<String, Receipt>>,
     undone: Mutex<Vec<Receipt>>,
     stale: Mutex<VecDeque<String>>,
+    undos: Mutex<VecDeque<UndoOutcome>>,
 }
 
 impl FakeChannels {
@@ -55,6 +57,11 @@ impl FakeChannels {
     /// The next precondition not scripted yet finds the result stale.
     pub fn stale(&self, reason: &str) {
         locked(&self.0.stale).push_back(reason.to_owned());
+    }
+
+    /// What the next undo not scripted yet answers.
+    pub fn undoes(&self, outcome: UndoOutcome) {
+        locked(&self.0.undos).push_back(outcome);
     }
 
     /// Every send asked of any channel, in order, whatever it answered.
@@ -114,7 +121,8 @@ impl Channel for FakeChannel {
 
     fn undo<'a>(&'a self, receipt: &'a Receipt) -> BoxFuture<'a, Result<UndoOutcome, SendError>> {
         locked(&self.shared.undone).push(receipt.clone());
-        Box::pin(std::future::ready(Ok(UndoOutcome::Undone)))
+        let outcome = locked(&self.shared.undos).pop_front().unwrap_or(UndoOutcome::Undone);
+        Box::pin(std::future::ready(Ok(outcome)))
     }
 }
 

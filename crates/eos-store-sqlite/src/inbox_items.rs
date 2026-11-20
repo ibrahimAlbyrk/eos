@@ -231,4 +231,21 @@ impl InboxRepo for SqliteTx<'_> {
         )?;
         Ok(changed > 0)
     }
+
+    fn reopen(&self, id: &str, at: i64) -> Result<bool, Error> {
+        let changed = self.exec(
+            "UPDATE inbox_items SET state = 'open', rev = rev + 1, updated_at = ?2, answered_at = NULL, \
+             answered_by = NULL, answer = NULL, consumed_at = NULL WHERE id = ?1 AND state = 'answered'",
+            params![id, at],
+        )?;
+        Ok(changed > 0)
+    }
+
+    fn delete_ended_before(&self, before: i64, limit: i64) -> Result<usize, Error> {
+        self.exec(
+            "DELETE FROM inbox_items WHERE rowid IN (SELECT rowid FROM inbox_items \
+             WHERE state NOT IN ('open','later') AND updated_at < ?1 LIMIT ?2)",
+            params![before, limit],
+        )
+    }
 }

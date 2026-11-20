@@ -18,7 +18,18 @@ fn outcomes_are_stored_as_their_words_and_read_back() {
     let words: Vec<&str> = Outcome::ALL.iter().map(|outcome| outcome.as_str()).collect();
     assert_eq!(
         words,
-        ["sent_unedited", "sent_edited", "discarded", "auto_sent", "expired", "replaced", "undone", "shown", "nothing"]
+        [
+            "sent_unedited",
+            "sent_edited",
+            "discarded",
+            "auto_sent",
+            "expired",
+            "replaced",
+            "undone",
+            "wrong",
+            "shown",
+            "nothing"
+        ]
     );
     for outcome in Outcome::ALL {
         assert_eq!(Outcome::parse(outcome.as_str()), Some(*outcome));

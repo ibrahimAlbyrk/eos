@@ -31,6 +31,11 @@
 //!   closed expires its items ([`Items::subject`]); a stale draft is sent
 //!   only on the user's second confirm.
 //! - A draft a newer run's draft replaced ends its run as `replaced`.
+//! - A send waits out a short hold where its channel cannot take it back,
+//!   and can be stopped in it ([`Items::stop_delivery`]); a send that went
+//!   out can be taken back in its channel's window ([`Items::undo`]) or
+//!   called wrong ([`Items::wrong`]), and a failed one tried again, edited
+//!   or not ([`Items::retry`]).
 //!
 //! Every write announces `inbox:change` from its job's outbox. Titles,
 //! summaries, payloads and answers are the user's: only ids, kinds, states
@@ -81,6 +86,10 @@ pub enum Error {
     /// confirm sending it anyway.
     #[error("stale")]
     Stale { reason: String },
+    /// The send cannot be taken back: it is not out, its window passed or
+    /// its channel has no undo.
+    #[error("cannot_undo")]
+    CannotUndo,
     #[error(transparent)]
     Core(#[from] eos_core::Error),
 }

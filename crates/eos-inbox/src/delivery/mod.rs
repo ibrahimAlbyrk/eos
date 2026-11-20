@@ -6,8 +6,10 @@
 
 mod claim;
 mod engine;
+mod hold;
 mod reconcile;
 pub(crate) mod record;
+mod undo;
 
 pub use engine::{Delivery, DeliveryParts};
 
@@ -22,8 +24,12 @@ use crate::INBOX_DELIVERY;
 
 /// The states a row moves through (03 §4.8).
 pub const QUEUED: &str = "queued";
+/// Waits out its hold before it is sent, and can still be stopped.
+pub const HOLDING: &str = "holding";
 pub const SENDING: &str = "sending";
 pub const SENT: &str = "sent";
+/// Taken back after it went out.
+pub const UNDONE: &str = "undone";
 pub const FAILED: &str = "failed";
 pub const UNCERTAIN: &str = "uncertain";
 pub const FROZEN: &str = "frozen";
@@ -33,6 +39,11 @@ pub const STOPPED: &str = "stopped";
 /// How a send the user approved is stored in `mode`; one Freedom sent is `auto`.
 pub const APPROVED: &str = "approved";
 pub const AUTO: &str = "auto";
+
+/// A send no user approved: Freedom sent it, or a grant did (`grant:<id>`).
+pub(crate) fn automatic(mode: &str) -> bool {
+    mode == AUTO || mode.starts_with("grant:")
+}
 
 /// How long a send waits before it goes, so it can still be stopped where
 /// the channel cannot take it back (03 G6): after the user's Send, or on
@@ -106,7 +117,8 @@ pub(crate) fn queue_in(
 ) -> Result<StoredDelivery, Error> {
     let approved = new.item_id.is_some();
     let body = serde_json::to_string(new.doc).map_err(|e| Error::storage(e.to_string()))?;
-    let send_at = now + hold_ms(new.traits, approved);
+    let hold = hold_ms(new.traits, approved);
+    let send_at = now + hold;
     let row = StoredDelivery {
         id: ids.delivery_id(),
         item_id: new.item_id,
@@ -120,7 +132,7 @@ pub(crate) fn queue_in(
         body,
         class: new.traits.class,
         mode: if approved { APPROVED } else { AUTO }.to_owned(),
-        state: QUEUED.to_owned(),
+        state: if hold > 0 { HOLDING } else { QUEUED }.to_owned(),
         send_at: Some(send_at),
         attempts: 0,
         next_attempt_at: Some(send_at),

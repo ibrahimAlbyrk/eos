@@ -25,6 +25,9 @@ words! {
         /// A newer result on the same subject took its place.
         Replaced = "replaced",
         Undone = "undone",
+        /// The user said a sent result was wrong: an outcome row only, never
+        /// how a run ended.
+        Wrong = "wrong",
         /// Shown in Eos and sent nowhere.
         Shown = "shown",
         Nothing = "nothing",

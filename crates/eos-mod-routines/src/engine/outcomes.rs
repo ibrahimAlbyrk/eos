@@ -43,6 +43,12 @@ impl RunOutcomes for Outcomes {
 
     fn finished(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, outcome: Outcome) -> Result<(), Error> {
         let run = Self::run(tx, run_id)?;
+        if run.state == RunState::Done {
+            // A result taken back after it went out: the run ended, its outcome changes.
+            tx.runs().set_outcome(run_id, outcome)?;
+            let data = json!({"outcome": outcome.as_str()}).to_string();
+            return tx.runs().append_event(run_id, self.now(), "outcome", Some(&data));
+        }
         done(tx, out, &run, outcome, self.now())
     }
 

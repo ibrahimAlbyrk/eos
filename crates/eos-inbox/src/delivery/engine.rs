@@ -19,7 +19,7 @@ use eos_core::{Clock, Error, Ids, Sleeper};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
-use super::claim::{claim_in, next_due_in};
+use super::claim::{claim_in, next_due_in, resume_in};
 use super::reconcile::{Found, found, launch_in, settle_in};
 use super::record::{Attempt, record_in};
 use super::{UNCERTAIN, target_of};
@@ -131,7 +131,9 @@ impl Delivery {
         for row in uncertain {
             self.reconcile(row).await?;
         }
-        let claimed = self.write(claim_in).await?;
+        self.resume_waiting().await?;
+        let outcomes = self.parts.outcomes.clone();
+        let claimed = self.write(move |tx, out, at| claim_in(tx, out, at, outcomes.as_ref())).await?;
         for row in claimed {
             let attempt = self.attempt(&row).await;
             let id = row.id.clone();
@@ -174,6 +176,13 @@ impl Delivery {
             other => settle_in(tx, out, at, &id, other),
         })
         .await
+    }
+
+    /// Sends that waited for their capability go again once its channel is
+    /// back (03 G23).
+    async fn resume_waiting(&self) -> Result<(), Error> {
+        let channels = self.parts.channels.clone();
+        self.write(move |tx, out, at| resume_in(tx, out, at, channels.as_ref())).await
     }
 
     /// The channel's answer to one claimed row: its precondition, then the

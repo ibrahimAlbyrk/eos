@@ -161,10 +161,13 @@ impl ItemState {
 
     /// Whether an item may move from this state to `next`. An item put aside
     /// still waits, so it ends the same ways an open one does; an item that
-    /// ended never moves again.
+    /// ended never moves again, but a sent draft opens again when the user
+    /// stops its send in the hold.
     pub fn can_become(self, next: ItemState) -> bool {
         match (self, next) {
-            (ItemState::Open, ItemState::Later) | (ItemState::Later, ItemState::Open) => true,
+            (ItemState::Open, ItemState::Later)
+            | (ItemState::Later, ItemState::Open)
+            | (ItemState::Answered, ItemState::Open) => true,
             (from, to) => from.is_waiting() && !to.is_waiting(),
         }
     }
@@ -267,6 +270,7 @@ mod tests {
             (Later, Replaced),
             (Later, Expired),
             (Later, Withdrawn),
+            (Answered, Open),
         ];
         for from in ItemState::ALL {
             for to in ItemState::ALL {

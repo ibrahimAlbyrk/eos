@@ -18,7 +18,7 @@ use eos_testkit::{FakeChannels, FakeRunOutcomes, FakeSleeper, OutcomeCall, TempS
 use serde_json::{Value, json};
 
 use crate::gate::{Gated, input, review};
-use crate::rig::Rig;
+use crate::rig::{Rig, pull_requests};
 
 fn traits(idempotency: Idempotency) -> ChannelTraits {
     ChannelTraits {
@@ -39,23 +39,21 @@ pub(crate) struct Sender {
 
 impl Sender {
     pub(crate) fn new() -> Self {
-        Self::on(Rig::new())
+        Self::confirming(pull_requests())
     }
 
     /// Over a routine whose confirmed Goes to is `confirmed`.
     pub(crate) fn confirming(confirmed: Confirmed) -> Self {
-        Self::on(Rig::with_channels(TempStore::new(), FakeChannels::new(), confirmed))
+        Self::sleeping(confirmed, Arc::new(FakeSleeper::default()))
     }
 
-    fn on(rig: Rig) -> Self {
-        Self::sleeping_on(rig, Arc::new(FakeSleeper::default()))
-    }
-
-    fn sleeping_on(rig: Rig, sleeper: Arc<FakeSleeper>) -> Self {
+    /// The engine and the user's side send, and take back, through the same channels.
+    fn sleeping(confirmed: Confirmed, sleeper: Arc<FakeSleeper>) -> Self {
         let channels = FakeChannels::new()
             .with("github", traits(Idempotency::Marker))
             .with("native", traits(Idempotency::Native))
             .with("sms", traits(Idempotency::None));
+        let rig = Rig::with_channels(TempStore::new(), channels.clone(), confirmed);
         let outcomes = Arc::new(FakeRunOutcomes::new());
         let control: Arc<dyn RoutineControl> = rig.control.clone();
         let engine = Arc::new(Delivery::new(DeliveryParts {
@@ -120,7 +118,7 @@ impl Sender {
     }
 
     /// The open `delivery_problem` items' payloads and summaries.
-    async fn problems(&self) -> Vec<(Value, String)> {
+    pub(crate) async fn problems(&self) -> Vec<(Value, String)> {
         let items = self.rig.temp.port().read(|tx| tx.inbox_items().waiting(100)).await.expect("reads");
         items
             .into_iter()
@@ -173,7 +171,8 @@ async fn a_passing_failure_climbs_the_retry_ladder_then_fails_with_a_problem() {
     assert_eq!((row.state.as_str(), row.attempts), ("failed", 6));
     let problems = sender.problems().await;
     assert_eq!(problems.len(), 1);
-    assert_eq!(problems[0].0, json!({"errorKind": "service", "deliveryId": "dl-1"}));
+    let doc = serde_json::to_value(review("Looks good.")).expect("json");
+    assert_eq!(problems[0].0, json!({"errorKind": "service", "deliveryId": "dl-1", "doc": doc}), "what a retry sends");
     assert!(sender.outcomes.calls().is_empty(), "the run waits on the user's answer");
 }
 
@@ -438,9 +437,8 @@ async fn nothing_is_claimed_while_eos_is_stopped() {
 
 #[tokio::test]
 async fn the_loop_sleeps_until_the_send_that_may_go_next_not_for_one_held_behind_its_target() {
-    let rig = Rig::new();
     let sleeper = Arc::new(FakeSleeper::default());
-    let sender = Sender::sleeping_on(rig, sleeper.clone());
+    let sender = Sender::sleeping(pull_requests(), sleeper.clone());
     let now = sender.rig.clock.now_ms();
     // The older send to the target waits on the retry ladder; a newer one
     // to the same target is due, but goes only after it.
