@@ -94,6 +94,7 @@ pub mod routine_seed;
 mod runs;
 mod secrets;
 mod signals;
+mod surface;
 mod terminal;
 mod tools;
 mod trash;
@@ -142,6 +143,7 @@ pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
 pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunOutcomes, FakeRunStarter, OutcomeCall};
 pub use secrets::FakeCapabilitySecrets;
 pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
+pub use surface::{FakeSurfaceAuthoring, SurfaceCall};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };
