@@ -15,8 +15,8 @@ use eos_domain::signals::key::capability_scope;
 use eos_mod_signals::{SignalsModule, SignalsParts, SoloRunner};
 use eos_runtime::module::Module;
 use eos_testkit::{
-    FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeTimeZone, FakeZoneRules, SeqIds,
-    TempStore,
+    FakeClock, FakeRoutineControl, FakeRoutineDirectory, FakeSignalSources, FakeSleeper, FakeTimeZone, FakeZoneRules,
+    SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -182,13 +182,21 @@ pub(crate) struct Bench {
     pub(crate) temp: TempStore,
     pub(crate) directory: Arc<FakeRoutineDirectory>,
     pub(crate) clock: Arc<FakeClock>,
+    pub(crate) sleeper: Arc<FakeSleeper>,
+    pub(crate) bus: eos_runtime::bus::Bus,
 }
 
 impl Bench {
     pub(crate) fn new(routines: Vec<RoutineTriggers>) -> Self {
         let temp = TempStore::new();
         add_source(&temp);
-        Self { temp, directory: Arc::new(FakeRoutineDirectory::new(routines)), clock: Arc::new(FakeClock::at(5_000)) }
+        Self {
+            temp,
+            directory: Arc::new(FakeRoutineDirectory::new(routines)),
+            clock: Arc::new(FakeClock::at(5_000)),
+            sleeper: Arc::new(FakeSleeper::default()),
+            bus: eos_runtime::Kernel::new(eos_runtime::KernelOptions::default()).bus,
+        }
     }
 
     /// The module over the store as `store` lets it write.
@@ -196,6 +204,7 @@ impl Bench {
         SignalsModule::new(SignalsParts {
             store,
             clock: self.clock.clone(),
+            sleeper: self.sleeper.clone(),
             ids: Arc::new(SeqIds::new()),
             zones: Arc::new(FakeZoneRules::new()),
             sources: Arc::new(FakeSignalSources::new()),
@@ -204,7 +213,7 @@ impl Bench {
             directory: self.directory.clone(),
             control: Arc::new(FakeRoutineControl::new()),
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
-            bus: eos_runtime::Kernel::new(eos_runtime::KernelOptions::default()).bus,
+            bus: self.bus.clone(),
             autostart,
         })
     }

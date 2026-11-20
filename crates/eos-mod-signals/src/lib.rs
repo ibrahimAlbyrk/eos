@@ -15,6 +15,10 @@
 //! `held-dev`. The router starts once the app is ready, routing what a
 //! crash left undecided, and wakes on each ingest.
 //!
+//! The scheduler (`scheduler`) fires each schedule's slots once, also
+//! after a sleep or a closed app; it passes at least once a minute and at
+//! once on `system:wake`, `routine:change` and `run:change`.
+//!
 //! The routes (`routes`) show what starts each routine's runs, list the
 //! signals, replay some through the run intake and preview a schedule or a
 //! Which.
@@ -27,25 +31,29 @@ mod limits;
 mod router;
 mod routes;
 mod runner;
+mod scheduler;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::SignalChange;
+use eos_contracts::stream::topics::SYSTEM_WAKE;
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
 use eos_core::store::Store;
-use eos_core::{BoxFuture, Clock, Error, Ids};
-use eos_runtime::bus::{Bus, Topic, TopicDecl};
+use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
+use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
 use crate::router::{Router, ingest_in};
+use crate::scheduler::Scheduler;
 
 pub use runner::SoloRunner;
+pub use scheduler::SCHEDULER_MAX_SLEEP_MS;
 
 pub const SIGNALS_CHANGE: Topic<SignalChange> = Topic::new("signals:change");
 
@@ -58,6 +66,8 @@ pub const CAUGHT_UP: i64 = 1_000;
 pub struct SignalsParts {
     pub store: Arc<dyn Store>,
     pub clock: Arc<dyn Clock>,
+    /// What the scheduler waits on between passes.
+    pub sleeper: Arc<dyn Sleeper>,
     pub ids: Arc<dyn Ids>,
     /// The rules of the time zones schedules name.
     pub zones: Arc<dyn ZoneRules>,
@@ -85,10 +95,16 @@ impl std::fmt::Debug for SignalsParts {
     }
 }
 
+/// What starts a pass of the scheduler at once.
+const KICKS: [&str; 3] = [SYSTEM_WAKE, "routine:change", "run:change"];
+
 pub struct SignalsModule {
     parts: SignalsParts,
     router: Arc<Router>,
-    routing: Mutex<Option<JoinHandle<()>>>,
+    scheduler: Arc<Scheduler>,
+    /// The router's and the scheduler's tasks, and the bus subscriptions
+    /// that kick the scheduler, while the module runs.
+    running: Mutex<Option<Running>>,
     /// More signals wait to be routed than ingest takes more of.
     backed_up: AtomicBool,
 }
@@ -114,11 +130,21 @@ impl SignalsModule {
             control: parts.control.clone(),
             failed: Mutex::default(),
         });
-        Self { parts, router, routing: Mutex::new(None), backed_up: AtomicBool::new(false) }
+        let scheduler = Arc::new(Scheduler {
+            store: parts.store.clone(),
+            clock: parts.clock.clone(),
+            sleeper: parts.sleeper.clone(),
+            ids: parts.ids.clone(),
+            zones: parts.zones.clone(),
+            runner: parts.runner.clone(),
+            router: router.clone(),
+            kick: Notify::new(),
+        });
+        Self { parts, router, scheduler, running: Mutex::new(None), backed_up: AtomicBool::new(false) }
     }
 
-    fn routing(&self) -> MutexGuard<'_, Option<JoinHandle<()>>> {
-        self.routing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    fn running(&self) -> MutexGuard<'_, Option<Running>> {
+        self.running.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     /// Keeps one page a source answered for the source row `source_id`, in
@@ -168,20 +194,35 @@ impl Module for SignalsModule {
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
-        let task = tokio::spawn(self.router.clone().run());
-        if let Some(previous) = self.routing().replace(task) {
-            previous.abort();
+        let kicks = KICKS.map(|topic| {
+            let scheduler = self.scheduler.clone();
+            self.parts.bus.on(topic, move |_| scheduler.kick.notify_one())
+        });
+        let running = Running {
+            tasks: [tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())],
+            _kicks: kicks,
+        };
+        if let Some(previous) = self.running().replace(running) {
+            previous.tasks.iter().for_each(JoinHandle::abort);
         }
         Box::pin(std::future::ready(Ok(())))
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
-        let task = self.routing().take();
+        let running = self.running().take();
         Box::pin(async move {
-            if let Some(task) = task {
-                task.abort();
-                let _ = task.await;
+            if let Some(running) = running {
+                for task in running.tasks {
+                    task.abort();
+                    let _ = task.await;
+                }
             }
         })
     }
+}
+
+/// What runs between `after_ready` and `stop`.
+struct Running {
+    tasks: [JoinHandle<()>; 2],
+    _kicks: [Subscription; 3],
 }

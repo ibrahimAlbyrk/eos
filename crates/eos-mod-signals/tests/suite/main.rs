@@ -5,4 +5,5 @@ mod batch;
 mod rig;
 mod router;
 mod routes;
+mod scheduler;
 mod storm;

@@ -4,8 +4,8 @@
 use eos_core::Error;
 use eos_core::store::{
     BatchedSignal, ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
-    SignalSourceRepo, SignalTally, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule,
-    StoredSignalSource,
+    SignalSourceRepo, SignalTally, SlotTally, StoredSignal, StoredSignalRoute, StoredSignalRunner,
+    StoredSignalSchedule, StoredSignalSource,
 };
 use eos_domain::routine::run::RunState;
 use eos_domain::signals::decision::Decision;
@@ -359,6 +359,21 @@ impl SignalRouteRepo for SqliteTx<'_> {
                 read().map_err(failed)
             },
         )
+    }
+
+    fn slots(&self, routine_id: &str, since: i64, late_ms: i64) -> Result<SlotTally, Error> {
+        self.row(
+            "SELECT COALESCE(SUM(json_extract(s.facts_json, '$.missed')), 0), \
+             COALESCE(SUM(s.received_at - s.occurred_at > ?3), 0) \
+             FROM signal_routes r JOIN signals s ON s.id = r.signal_id \
+             WHERE r.routine_id = ?1 AND s.kind = 'clock' AND s.received_at >= ?2",
+            params![routine_id, since, late_ms],
+            |r| {
+                let read = || -> rusqlite::Result<SlotTally> { Ok(SlotTally { missed: r.get(0)?, late: r.get(1)? }) };
+                read().map_err(failed)
+            },
+        )
+        .map(Option::unwrap_or_default)
     }
 
     fn by_signal(&self, signal_id: i64) -> Result<Vec<StoredSignalRoute>, Error> {

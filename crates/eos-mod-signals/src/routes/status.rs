@@ -22,6 +22,7 @@ use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
 
 use super::Routes;
+use crate::scheduler::LATE_MS;
 
 const MINUTE_MS: i64 = 60_000;
 const DAY_MS: i64 = 24 * 60 * MINUTE_MS;
@@ -201,9 +202,11 @@ fn day_start(zone: &dyn TimeZone, now: i64) -> i64 {
 }
 
 /// The routine's signals decided since `since`, counted as 02 §3 I.45
-/// says. Schedule slots missed or late are counted by the scheduler.
+/// says, with the slots its schedules missed and fired late.
 fn counts(tx: &dyn Tx, routine_id: &str, since: i64) -> Result<SignalCounts, eos_core::Error> {
-    Ok(tx.signal_routes().tally(routine_id, since)?.iter().fold(SignalCounts::default(), add))
+    let slots = tx.signal_routes().slots(routine_id, since, LATE_MS)?;
+    let counts = SignalCounts { missed: slots.missed, late: slots.late, ..SignalCounts::default() };
+    Ok(tx.signal_routes().tally(routine_id, since)?.iter().fold(counts, add))
 }
 
 fn add(mut counts: SignalCounts, tally: &SignalTally) -> SignalCounts {

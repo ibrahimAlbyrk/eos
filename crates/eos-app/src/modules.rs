@@ -326,6 +326,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_signals::SignalsModule::new(eos_mod_signals::SignalsParts {
             store: cx.store.clone(),
             clock: cx.clock.clone(),
+            sleeper: cx.sleeper.clone(),
             ids: cx.ids.clone(),
             zones: Arc::new(crate::host::HostZoneRules),
             sources: cx.reach.signal_sources(cx.capabilities.signal_sources()),
