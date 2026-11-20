@@ -77,6 +77,9 @@ pub struct DraftDelivery {
     pub send_at: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub undo_until: Option<i64>,
+    /// The user said it was wrong.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wrong: bool,
 }
 
 impl Validate for DraftDelivery {}

@@ -13,7 +13,9 @@
 //!   draft, one delivery per target (`{deliveries: [{id, state, sendAt}]}`);
 //! - `GET /api/inbox/deliveries/:id`: one delivery and where it stands;
 //! - `GET /api/eos/halt`, `POST /api/eos/halt`, `POST /api/eos/resume`:
-//!   "Stop everything" on this Mac, announced on `inbox:halt`.
+//!   "Stop everything" on this Mac, announced on `inbox:halt`;
+//! - `GET /api/routines/:id/freedom`: a routine's confirmed Freedom, its
+//!   streak and its offer, announced on `inbox:freedom` as they change.
 //!
 //! A routine run's permission asks (`perm:<pending id>`) and the memory
 //! suggestions about the user (`sugg:<memory id>`) are listed among the items
@@ -46,7 +48,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use tokio::sync::Notify;
 
-use eos_contracts::{DeliveryChange, HaltState, InboxChange, SignalSubject};
+use eos_contracts::{DeliveryChange, FreedomChange, HaltState, InboxChange, SignalSubject};
 use eos_core::agent::OpenQuestions;
 use eos_core::net::relay::PhoneNotify;
 use eos_core::os::DockBadge;
@@ -63,6 +65,7 @@ use eos_runtime::router::RouteDef;
 pub const INBOX_CHANGE: Topic<InboxChange> = Topic::new(eos_inbox::INBOX_CHANGE);
 pub const INBOX_DELIVERY: Topic<DeliveryChange> = Topic::new(eos_inbox::INBOX_DELIVERY);
 pub const INBOX_HALT: Topic<HaltState> = Topic::new(eos_inbox::INBOX_HALT);
+pub const INBOX_FREEDOM: Topic<FreedomChange> = Topic::new(eos_inbox::INBOX_FREEDOM);
 /// The signals feature's: a new version of a subject came in, or it closed.
 const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
 /// The subject events that may wait to be acted on.
@@ -274,7 +277,7 @@ impl Module for InboxModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![INBOX_CHANGE.decl(), INBOX_DELIVERY.decl(), INBOX_HALT.decl()]
+        vec![INBOX_CHANGE.decl(), INBOX_DELIVERY.decl(), INBOX_HALT.decl(), INBOX_FREEDOM.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {

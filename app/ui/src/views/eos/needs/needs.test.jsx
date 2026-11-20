@@ -355,6 +355,15 @@ describe("a send in its hold, and after it went out", () => {
     expect(html).toContain('<button type="button" class="eos-btn" disabled="">That was wrong</button>');
   });
 
+  it("keeps That was wrong said after a reload, from the send's wrong field", async () => {
+    const sent = sentDraft([{ id: "dl-2", state: "sent", wrong: true }]);
+    await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
+    await loadInboxItem(DRAFT);
+    const html = at(`eos:/needs/${DRAFT}`);
+    expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
+    expect(html).toContain('<button type="button" class="eos-btn" disabled="">That was wrong</button>');
+  });
+
   it("lets That was wrong be pressed again when the core refused it", async () => {
     const sent = sentDraft([{ id: "dl-2", state: "sent" }]);
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });

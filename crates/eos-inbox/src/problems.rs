@@ -11,11 +11,11 @@ use eos_core::store::{Outbox, StoredDelivery, StoredItem, Tx};
 use eos_domain::routine::blueprint::hash;
 use serde_json::Value;
 
-use crate::consume_in;
 use crate::delivery::record::{all_sent, delivering, sent_in};
 use crate::delivery::{FAILED, QUEUED, SENT, STOPPED, UNCERTAIN, announce, target_of};
 use crate::edits::{Sent, capture_in};
 use crate::send::gone_in;
+use crate::{Opening, consume_in};
 
 /// Why a send the user gave up on was stopped.
 const DISCARDED: &str = "discarded";
@@ -82,10 +82,11 @@ pub(crate) fn answered_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     outcomes: &dyn RunOutcomes,
-    control: &dyn RoutineControl,
+    at: &Opening<'_>,
     answered: Answered<'_>,
 ) -> Result<bool, Error> {
     let Answered { item, choice, doc, now } = answered;
+    let control = at.control;
     consume_in(tx, &item.id, now)?;
     let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
     let row = match payload["deliveryId"].as_str() {
@@ -114,7 +115,7 @@ pub(crate) fn answered_in(
     match choice {
         ProblemChoice::Retry => {}
         ProblemChoice::MarkSent if delivering(tx, &row.run_id)? && all_sent(tx, &row)? => {
-            sent_in(tx, out, now, outcomes, &row)?;
+            sent_in(tx, out, at, outcomes, &row)?;
         }
         ProblemChoice::Discard if delivering(tx, &row.run_id)? => {
             outcomes.delivery_failed(tx, out, &row.run_id, &reason)?;

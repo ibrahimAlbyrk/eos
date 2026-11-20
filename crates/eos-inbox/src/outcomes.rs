@@ -35,8 +35,10 @@ pub(crate) fn held_doc(payload: &Value) -> Option<ResultDoc> {
 /// cannot be read counts as edited.
 pub(crate) fn sent_outcome(item: &StoredItem, sent: &ResultDoc) -> Outcome {
     let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
+    // A draft held again after an edited send stays edited.
+    let edited_before = payload["edited"].as_bool().unwrap_or(false);
     match held_doc(&payload) {
-        Some(held) if equal(&held, sent) => Outcome::SentUnedited,
+        Some(held) if !edited_before && equal(&held, sent) => Outcome::SentUnedited,
         _ => Outcome::SentEdited,
     }
 }

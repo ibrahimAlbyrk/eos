@@ -9,6 +9,7 @@ mod halt;
 mod handoff;
 mod hold;
 mod items;
+mod offers;
 mod problems;
 mod questions;
 mod rig;

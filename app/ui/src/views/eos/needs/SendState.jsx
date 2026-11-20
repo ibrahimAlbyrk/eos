@@ -15,7 +15,8 @@ function useTick(ticking) {
 // A draft's sends after the user's Send (03 G6): in its hold, "Sending…
 // Undo" with the seconds left and Stop; waiting its turn, a plain line and
 // Stop; on its way, a plain line; once out, Undo while its channel can
-// take it back, and "That was wrong" sent or undone. Drawn by Eos, outside
+// take it back, and "That was wrong" sent or undone, once (`wrong` keeps it
+// across reloads). Drawn by Eos, outside
 // any surface frame.
 export function SendState({ detail }) {
   const { sendNotes, offline } = useInbox();
@@ -45,22 +46,25 @@ export function SendState({ detail }) {
         </p>
       )}
       {sending && <p className="eos-send-state__line" role="status">{SEND_NOTES.sending}</p>}
-      {out.map((d) => (
+      {out.map((d) => {
+        const note = sendNotes[d.id] ?? (d.wrong ? "wrong" : d.state);
+        return (
         <p key={d.id} className="eos-send-state__line">
-          {SEND_NOTES[sendNotes[d.id] ?? d.state] && <span role="status">{SEND_NOTES[sendNotes[d.id] ?? d.state]}</span>}
+          {SEND_NOTES[note] && <span role="status">{SEND_NOTES[note]}</span>}
           {undoable(d) && (
             <button type="button" className="eos-btn" disabled={offline} onClick={() => void undoDelivery(itemId, d.id)}>Undo</button>
           )}
           <button
             type="button"
             className="eos-btn"
-            disabled={offline || sendNotes[d.id] === "wrong"}
+            disabled={offline || d.wrong || sendNotes[d.id] === "wrong"}
             onClick={() => void flagDeliveryWrong(itemId, d.id)}
           >
             That was wrong
           </button>
         </p>
-      ))}
+        );
+      })}
     </div>
   );
 }

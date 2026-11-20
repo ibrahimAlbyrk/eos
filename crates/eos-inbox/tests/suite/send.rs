@@ -221,3 +221,24 @@ async fn a_send_that_went_stale_and_was_sent_again_finishes_the_run() {
     let outcomes = held.outcomes().await;
     assert_eq!(outcomes.iter().map(|row| row.outcome.outcome.as_str()).collect::<Vec<_>>(), ["sent_unedited"]);
 }
+
+#[tokio::test]
+async fn a_draft_held_again_after_an_edited_send_stays_edited_and_keeps_its_rung() {
+    let held = Held::new().await;
+    let edited = crate::gate::review("Shorter.");
+    held.rig.items.send(&held.item_id, 1, Some(edited), "dashboard", false).await.expect("sent");
+    held.channels.stale("new commits");
+    held.deliver().await;
+    let waiting = held.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+    let again = waiting.into_iter().find(|item| item.kind == ItemKind::Draft).expect("held again");
+    let payload: Value = serde_json::from_str(&again.payload).expect("json");
+    let first: Value = serde_json::from_str(&held.rig.find(&held.item_id).await.payload).expect("json");
+    assert_eq!((&payload["rung"], &payload["untrusted"]), (&json!("draft"), &first["untrusted"]));
+    assert_eq!(payload["edited"], json!(true));
+
+    held.rig.items.send(&again.id, again.rev, None, "dashboard", false).await.expect("sent again");
+    held.deliver().await;
+    let outcomes = held.outcomes().await;
+    let ended: Vec<_> = outcomes.iter().map(|row| (row.outcome.outcome.as_str(), row.outcome.rung.as_str())).collect();
+    assert_eq!(ended, [("sent_edited", "draft")], "it does not count for the streak");
+}
