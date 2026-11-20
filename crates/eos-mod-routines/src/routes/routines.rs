@@ -5,7 +5,7 @@ use std::sync::Arc;
 use eos_contracts::{
     BLUEPRINT_FORMAT, Blueprint, Num, ResultMode, RoutineDetail, RoutineDraft, RoutineOption, RoutineState,
     RoutineSummary, RoutineTakes, RoutineVersion, RoutineVersionRow, RunInput, RunSummary, Rung, Takes, TakesEmpty,
-    UsualCost, When,
+    Trigger, UsualCost, When,
 };
 use eos_core::store::{Store, StoredDraft, StoredRoutine, StoredRun, StoredVersion, Tx};
 use eos_core::{Clock, Error};
@@ -197,10 +197,10 @@ pub(crate) fn summary(
     };
     let typed = readable(&shown)?;
     let (trigger_line, usual) = match &typed {
-        Some(blueprint) => (Some(describe(&blueprint.when)), usual_cost(tx, &routine.id, blueprint)?),
+        Some(blueprint) => (Some(describe(&named(tx, &blueprint.when)?)), usual_cost(tx, &routine.id, blueprint)?),
         None => {
             let when = serde_json::from_value::<When>(stored_json(&shown)?["when"].clone()).ok();
-            (when.as_ref().map(describe), None)
+            (when.map(|when| named(tx, &when)).transpose()?.as_ref().map(describe), None)
         }
     };
     let blueprint = match typed {
@@ -229,6 +229,20 @@ pub(crate) fn summary(
         last_run,
         stats: None,
     }))
+}
+
+/// `when` with each routine an `after` waits on named as the user named
+/// it; one that is gone keeps its id.
+fn named(tx: &dyn Tx, when: &When) -> Result<When, Error> {
+    let mut when = when.clone();
+    for trigger in &mut when.on {
+        if let Trigger::After { after, .. } = trigger
+            && let Some(upstream) = tx.routines().find(&after.routine)?
+        {
+            after.routine = upstream.name;
+        }
+    }
+    Ok(when)
 }
 
 /// What a run with the default options usually costs and takes, from the

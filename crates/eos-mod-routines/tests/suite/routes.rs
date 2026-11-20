@@ -193,6 +193,18 @@ async fn a_fresh_home_answers_an_empty_list() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_routine_that_waits_on_another_names_it_in_its_trigger_line() {
+    let bench = Bench::new();
+    let (upstream, _) = bench.routine("hand", RoutineState::Active, &[pr_review("Reviews.")]);
+    let mut chained = pr_review("Follows up.");
+    chained["when"] = json!({"on": [{"after": {"routine": upstream, "outcome": "done"}}]});
+    let (id, _) = bench.routine("hand", RoutineState::Active, &[chained]);
+    let (_, list) = bench.read("/api/routines").await;
+    let row = list.as_array().expect("a list").iter().find(|row| row["id"] == id.as_str()).expect("its row");
+    assert_eq!(row["triggerLine"], "After a run of PR Review finishes", "by name, not by id");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_routine_reads_back_with_its_versions_numbered_by_when_they_were_made() {
     let bench = Bench::new();
     let (id, versions) = bench.routine("hand", RoutineState::Active, &[pr_review("First."), pr_review("Second.")]);
