@@ -99,7 +99,51 @@ pub enum StartError {
     DayCap,
     /// 409: the user stopped everything on this Mac (03 G10).
     Halted,
+    /// 409: something the runs need is not set up here; nothing was queued.
+    Unready(Unready),
     Store(Error),
+}
+
+/// What a run needs that is not set up on this computer, found before any
+/// run is queued.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unready {
+    /// No project here is a clone of the repository the run works in; its
+    /// remote (`github.com/acme/game`) when it is known.
+    NoLocalClone { repo: Option<String> },
+    /// The capability does not take calls until the user signs in.
+    SignIn { capability: String },
+    /// The capability is not on this computer, or does not take calls.
+    Capability { capability: String },
+}
+
+impl Unready {
+    /// The stable code a refusal carries.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Unready::NoLocalClone { .. } => "no_local_clone",
+            Unready::SignIn { .. } => "needs_sign_in",
+            Unready::Capability { .. } => "capability_not_ready",
+        }
+    }
+
+    /// What is missing and how the user supplies it.
+    pub fn message(&self) -> String {
+        match self {
+            Unready::NoLocalClone { repo: Some(repo) } => {
+                format!("{repo} is not a project in Eos. Add your local clone of it as a project, then start again.")
+            }
+            Unready::NoLocalClone { repo: None } => "This routine works in a repository that is not a project in \
+                 Eos. Add your local clone of it as a project, then start again."
+                .to_owned(),
+            Unready::SignIn { capability } => {
+                format!("{capability} is not signed in. Sign in to it in Capabilities, then start again.")
+            }
+            Unready::Capability { capability } => {
+                format!("{capability} is not ready on this computer. Set it up in Capabilities, then start again.")
+            }
+        }
+    }
 }
 
 impl From<Error> for StartError {

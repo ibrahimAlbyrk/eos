@@ -11,7 +11,8 @@ use std::path::Path;
 
 use eos_contracts::{AgentWorkspace, Blueprint, ItemRef, RunInput};
 use eos_core::Error;
-use eos_domain::git::project_key::{git_key, normalize_remote};
+use eos_core::capability::{ActionError, Checkout};
+use eos_domain::git::project_key::{git_key, normalize_remote, split_git_key};
 
 use super::Engine;
 
@@ -89,27 +90,64 @@ pub(crate) async fn place(
     }
 }
 
+/// Why a run's repository was not found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Missing {
+    /// No project here is a clone of it; its remote (`github.com/acme/game`)
+    /// when it is known.
+    NoClone(Option<String>),
+    /// The capability that tells where an item's code is does not take calls.
+    NotReady(String),
+    /// Where an item's code is could not be read now.
+    Unknown,
+}
+
+/// The capability an item comes from: `github` for `github.pull_request`.
+fn capability_of(item: &ItemRef) -> String {
+    item.kind.split('.').next().unwrap_or_default().to_owned()
+}
+
+/// The item's repository on this computer and where the item's code is;
+/// else the routine's `project.repo`. Nothing is fetched.
+pub(crate) async fn find(
+    engine: &Engine,
+    blueprint: &Blueprint,
+    input: &RunInput,
+) -> Result<(String, Option<Checkout>), Missing> {
+    let mut missing = Missing::NoClone(None);
+    for item in input.item.iter().chain(input.items.iter().flatten()) {
+        let checkout = match engine.reads.checkout(item).await {
+            Ok(checkout) => checkout,
+            // An item whose capability names no code, such as a file or a day.
+            Err(ActionError::NotFound) => continue,
+            Err(ActionError::NotReady(_)) => {
+                missing = Missing::NotReady(capability_of(item));
+                continue;
+            }
+            Err(_) => {
+                missing = Missing::Unknown;
+                continue;
+            }
+        };
+        let Some(remote) = normalize_remote(&checkout.remote) else { continue };
+        let root = engine.keys.find_path(&git_key(&remote, "")).await.ok_or(Missing::NoClone(Some(remote)))?;
+        return Ok((root, Some(checkout)));
+    }
+    let Some(project) = &blueprint.project else { return Err(missing) };
+    let Some((remote, _)) = split_git_key(&project.repo) else { return Ok((project.repo.clone(), None)) };
+    let root = engine.keys.find_path(&project.repo).await.ok_or_else(|| Missing::NoClone(Some(remote.to_owned())))?;
+    Ok((root, None))
+}
+
 /// The item's repository on this computer, its pull request's head fetched
 /// when `fetch`; else the routine's `project.repo`.
 async fn repository(engine: &Engine, blueprint: &Blueprint, input: &RunInput, fetch: bool) -> Result<Repo, NoPlace> {
-    let items: Vec<&ItemRef> = input.item.iter().chain(input.items.iter().flatten()).collect();
-    for item in items {
-        let Ok(checkout) = engine.reads.checkout(item).await else { continue };
-        let Some(remote) = normalize_remote(&checkout.remote) else { continue };
-        let root = engine.keys.find_path(&git_key(&remote, "")).await.ok_or(NoPlace::NoClone)?;
-        if fetch {
-            let fetched = engine.remotes.fetch_ref(Path::new(&root), &checkout.remote, &checkout.refspec).await;
-            if !fetched.ok {
-                return Err(Error::Conflict("the pull request's head could not be fetched".into()).into());
-            }
+    let (root, checkout) = find(engine, blueprint, input).await.map_err(|_| NoPlace::NoClone)?;
+    if fetch && let Some(checkout) = &checkout {
+        let fetched = engine.remotes.fetch_ref(Path::new(&root), &checkout.remote, &checkout.refspec).await;
+        if !fetched.ok {
+            return Err(Error::Conflict("the pull request's head could not be fetched".into()).into());
         }
-        return Ok(Repo { root, sha: Some(checkout.sha) });
     }
-    let Some(project) = &blueprint.project else { return Err(NoPlace::NoClone) };
-    let root = if project.repo.starts_with("git:") {
-        engine.keys.find_path(&project.repo).await.ok_or(NoPlace::NoClone)?
-    } else {
-        project.repo.clone()
-    };
-    Ok(Repo { root, sha: None })
+    Ok(Repo { root, sha: checkout.map(|checkout| checkout.sha) })
 }

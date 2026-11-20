@@ -6,7 +6,9 @@
 use std::sync::Arc;
 
 use eos_contracts::{CapabilityItem, RoutineState};
+use eos_core::capability::MissingNeed;
 use eos_core::routine::{RunOrigin, SubmittedResult};
+use eos_domain::capability::health::{Health, HealthState};
 use eos_domain::routine::run::{RunState, Station};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::{Method, Request};
@@ -332,4 +334,25 @@ async fn a_workers_run_is_found_and_who_may_call_what() {
     let resume = format!("/api/runs/{run}/resume");
     let high = Caller::Phone { grant: Tier::High, mutate: true };
     assert_eq!(routes.call(Method::Post, high, &resume, Some(json!({}))).await.0, 403, "never the phone");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_start_whose_capability_is_signed_out_is_refused_with_what_to_do() {
+    let health = Health { state: HealthState::NeedsSignIn, code: None, failures: 1 };
+    let reads = FakeCapabilityReads::new().lacking(MissingNeed { id: "github".into(), health: Some(health) });
+    let routes = Routes::over(Bench::with_reads(true, reads));
+    let mut needing = blueprint(1);
+    needing["needs"] = json!(["github"]);
+    let routine = routes.bench.routine(RoutineState::Active, needing);
+
+    let (status, body) = routes.post("/api/runs", start(&routine, json!({"items": [pr(1)]}))).await;
+    assert_eq!(
+        body,
+        json!({"error": "github is not signed in. Sign in to it in Capabilities, then start again.",
+               "code": "needs_sign_in", "capability": "github"})
+    );
+    assert_eq!(status, 409);
+    let id = routine.clone();
+    let runs = routes.bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
+    assert!(runs.is_empty(), "nothing was queued");
 }

@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use eos_contracts::{RunMessageRequest, RunPage, RunsActive, StartRunRequest, StartRunResponse, StartedRun};
 use eos_core::Error;
-use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError};
+use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError, Unready};
 use eos_domain::routine::run::{Reason, RunState};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{newer_format, param, run_summaries};
 use crate::engine::{self, Engine};
@@ -184,10 +184,23 @@ pub(crate) fn start_refused(refused: StartError) -> Result<Response, ApiError> {
         StartError::NewerFormat => Err(newer_format()),
         StartError::DayCap => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
         StartError::Halted => Err(ApiError::coded(409, "Eos is stopped", "halted")),
+        StartError::Unready(unready) => Ok(Response::json(409, &unready_body(&unready))),
         StartError::UnknownRoutine(id) => Err(Error::not_found("routine", id).into()),
         StartError::Invalid(text) => Err(ApiError::Validation(format!("invalid request: {text}"))),
         StartError::Store(error) => Err(error.into()),
     }
+}
+
+/// What is missing, with its stable code and the repository or capability
+/// it names.
+fn unready_body(unready: &Unready) -> Value {
+    let mut body = json!({"error": unready.message(), "code": unready.code()});
+    match unready {
+        Unready::NoLocalClone { repo: Some(repo) } => body["repo"] = json!(repo),
+        Unready::NoLocalClone { repo: None } => {}
+        Unready::SignIn { capability } | Unready::Capability { capability } => body["capability"] = json!(capability),
+    }
+    body
 }
 
 fn word(state: eos_contracts::RoutineState) -> String {

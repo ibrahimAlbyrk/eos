@@ -9,7 +9,7 @@ use eos_contracts::{
     Validate,
 };
 use eos_core::routine::{NewRun, RunCreated, RunOrigin, StartError};
-use eos_core::store::{MANUAL_SCOPE_HASH, ManualSignal, Outbox, StoredRun, StoredSignalSource, Tx};
+use eos_core::store::{MANUAL_SCOPE_HASH, ManualSignal, Outbox, StoredRun, StoredSignalSource, StoredVersion, Tx};
 use eos_core::{Alphabet, Error};
 use eos_domain::routine::item;
 use eos_domain::routine::run::RunState;
@@ -36,6 +36,7 @@ pub(crate) fn priority(origin: &RunOrigin) -> i64 {
 }
 
 pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCreated>, StartError> {
+    ready(engine, &new).await?;
     let now = engine.clock.now_ms();
     let request = new.client_request_id.clone();
     // The request id is looked up and remembered on the writer thread, one
@@ -88,6 +89,30 @@ fn remembered(engine: &Engine, id: &str, now: i64) -> Option<Vec<RunCreated>> {
     requests.get(id).map(|(_, runs)| runs.clone())
 }
 
+/// The version the start runs, and its blueprint.
+fn version_in(tx: &dyn Tx, new: &NewRun) -> Result<(StoredVersion, Blueprint), StartError> {
+    let version = match &new.version {
+        Some(id) => Some(
+            tx.routine_versions()
+                .find(&new.routine_id, id)?
+                .ok_or_else(|| StartError::Invalid("version: not a version of the routine".into()))?,
+        ),
+        None => showing_version(tx, &new.routine_id)?,
+    };
+    let version = version.ok_or_else(|| StartError::Invalid("routine: has no blueprint this app runs".into()))?;
+    let blueprint = readable(&version)?.ok_or(StartError::NewerFormat)?;
+    Ok((version, blueprint))
+}
+
+/// What the runs need that is not set up here refuses the start before the
+/// write. A start the write refuses for another reason passes here.
+async fn ready(engine: &Engine, new: &NewRun) -> Result<(), StartError> {
+    let asked = new.clone();
+    let Ok((_, blueprint)) = engine.store.read(move |tx| Ok(version_in(tx, &asked))).await? else { return Ok(()) };
+    let Ok(inputs) = inputs(new, &blueprint) else { return Ok(()) };
+    super::ready::check(engine, &blueprint, &inputs).await
+}
+
 /// The checks, then the writes. A refusal writes nothing.
 fn queue(
     tx: &dyn Tx,
@@ -110,16 +135,7 @@ fn queue(
     if by_the_user(new.origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
         return Err(StartError::DayCap);
     }
-    let version = match &new.version {
-        Some(id) => Some(
-            tx.routine_versions()
-                .find(&routine.id, id)?
-                .ok_or_else(|| StartError::Invalid("version: not a version of the routine".into()))?,
-        ),
-        None => showing_version(tx, &routine.id)?,
-    };
-    let version = version.ok_or_else(|| StartError::Invalid("routine: has no blueprint this app runs".into()))?;
-    let blueprint = readable(&version)?.ok_or(StartError::NewerFormat)?;
+    let (version, blueprint) = version_in(tx, new)?;
     check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin)?;
     let inputs = inputs(new, &blueprint)?;
     let keys: Vec<Option<String>> = inputs.iter().map(|input| input.item.as_ref().and_then(item::key)).collect();

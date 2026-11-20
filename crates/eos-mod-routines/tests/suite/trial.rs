@@ -4,6 +4,7 @@
 //! without one.
 
 use eos_contracts::{CapabilityItem, DraftStatus, ResultMode, RunInput};
+use eos_core::capability::Checkout;
 use eos_core::routine::{GateMode, SubmittedResult};
 use eos_domain::routine::run::{RunState, Station};
 use eos_testkit::FakeCapabilityReads;
@@ -158,4 +159,41 @@ async fn a_trial_of_a_change_runs_the_proposed_draft_not_the_head() {
     bench.eventually(|| bench.run(&run).station.is_some()).await;
     assert_eq!(bench.run(&run).version_id.as_deref(), Some(proposed.as_str()), "the draft, after leaving the queue");
     assert_eq!(routes.routine_head(&routine).as_deref(), Some(head.as_str()), "the head stays");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trial_in_a_repository_that_is_no_project_is_refused_before_any_run() {
+    let checkout = Checkout {
+        remote: "https://github.com/acme/game.git".into(),
+        refspec: "pull/5/head".into(),
+        sha: "abc".into(),
+    };
+    let reads = FakeCapabilityReads::new()
+        .items("github.pulls", vec![pull(5, false)])
+        .checkout_of("github:pr:acme/game#5", checkout);
+    let routes = Routes::over(Bench::with_reads(true, reads));
+    let bench = &routes.bench;
+    let (routine, architect) = routes.made("Review the pull requests of acme/game").await;
+    let mut in_worktree = reviewing();
+    in_worktree["who"]["agents"][0]["workspace"] = json!("worktree");
+    routes.propose(&architect, in_worktree).await;
+
+    let (status, refused) = routes.post(&format!("/api/routines/{routine}/trial"), json!({})).await;
+    assert_eq!(
+        (status, refused["code"].as_str(), refused["repo"].as_str()),
+        (409, Some("no_local_clone"), Some("github.com/acme/game"))
+    );
+    assert_eq!(
+        refused["error"],
+        "github.com/acme/game is not a project in Eos. Add your local clone of it as a project, then start again."
+    );
+    let told = bench.module.architect().start_trial(&architect).await.expect_err("refused");
+    assert!(told.to_string().contains("github.com/acme/game is not a project in Eos"), "{told}");
+    let id = routine.clone();
+    let runs = bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
+    assert!(runs.is_empty(), "no run was spent");
+
+    bench.keys.clone_at("git:github.com/acme/game", "/tmp/game");
+    let (status, started) = routes.post(&format!("/api/routines/{routine}/trial"), json!({})).await;
+    assert_eq!(status, 201, "{started}");
 }
