@@ -7,7 +7,7 @@ import { answerInboxItem, decideRunAsk, decideSuggestion, sendInboxDraft } from 
 import { openLocation } from "../../nav/eosNav.js";
 import { dropEdit } from "../editDrafts.js";
 import { docChanged, sendLabel } from "../editors/editDoc.js";
-import { currentEdit, DraftCard, originalDoc } from "./DraftCard.jsx";
+import { currentEdit, DraftCard, isStale, originalDoc } from "./DraftCard.jsx";
 import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
 import { AboutYouCard, PlainCard } from "./PlainCard.jsx";
@@ -37,10 +37,11 @@ const KINDS = {
         label: "Send",
         primary: true,
         write: true,
-        labelOf: (detail, values) => sendLabel(originalDoc(detail), currentEdit(detail, values)),
+        labelOf: (detail, values) => (isStale(detail) ? "Send anyway" : sendLabel(originalDoc(detail), currentEdit(detail, values))),
         run: async (detail, values) => {
           const edit = currentEdit(detail, values);
-          const sent = await sendInboxDraft(detail.item.id, docChanged(edit, originalDoc(detail)) ? edit : undefined);
+          const doc = docChanged(edit, originalDoc(detail)) ? edit : undefined;
+          const sent = await sendInboxDraft(detail.item.id, doc, isStale(detail));
           if (sent) dropEdit(detail.item.id);
           return sent;
         },

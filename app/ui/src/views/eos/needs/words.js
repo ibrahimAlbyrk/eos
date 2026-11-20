@@ -47,3 +47,8 @@ export function closedLine({ state, answeredBy }) {
   return DEVICES[answeredBy] ? `Answered on ${DEVICES[answeredBy]}.` : "Answered elsewhere.";
 }
 
+
+// Why a draft needs Send anyway: the core's reason ("3 new commits").
+export function staleLine(reason) {
+  return reason ? `${reason} since this draft. Check it before you send it.` : "Its subject moved on since this draft. Check it before you send it.";
+}

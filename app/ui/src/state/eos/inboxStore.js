@@ -157,11 +157,12 @@ function dropShown(id) {
 
 // A 409 on a write: another device answered first, or the item was replaced
 // (kept in `refused`, the item read again to say who or by what), or it
-// changed since it was read (read again). Any other 409 is the core's plain
-// reason, such as a recipient removed from the routine: a toast in its words.
+// changed or went stale since it was read (read again, which shows why). Any
+// other 409 is the core's plain reason, such as a recipient removed from the
+// routine: a toast in its words.
 function conflicted(id, r) {
   if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
-  else if (r.body?.rev === undefined) notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
+  else if (r.body?.rev === undefined && r.body?.error !== "stale") notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
   void loadInboxItem(id);
 }
 
@@ -196,11 +197,13 @@ export function answerInboxItem(id, answer) {
 const saving = new Map();
 
 // Sends a draft: as it is, or the whole edited ResultDoc `doc`, once a save
-// in flight has landed. A 409 "replaced" is kept in `refused` and the item
-// read again, which names the newer draft; "changed" reads the item again.
-export async function sendInboxDraft(id, doc) {
+// in flight has landed; `anyway` once the user saw that its subject moved
+// on. A 409 "replaced" is kept in `refused` and the item read again, which
+// names the newer draft; "changed" and "stale" read the item again.
+export async function sendInboxDraft(id, doc, anyway = false) {
   await saving.get(id);
-  return answerWith(id, "POST", ROUTES.inboxSend(id), doc ? { rev: revOf(id), doc } : { rev: revOf(id) });
+  const body = { rev: revOf(id), ...(doc ? { doc } : {}), ...(anyway ? { confirmStale: true } : {}) };
+  return answerWith(id, "POST", ROUTES.inboxSend(id), body);
 }
 
 // PUT draft: keeps the user's edits of a draft in the core, so another
