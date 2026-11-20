@@ -74,6 +74,15 @@ pub(crate) fn git_watcher(
     Arc::new(RepoWatcher::telling(resolve, clock.clone(), sink, recursive, repos.snapshots.clone()).ignoring(ignored))
 }
 
+/// What watches folders for the Files panel and the folders routines read:
+/// one for the app, so a folder both watch is one system watch.
+pub(crate) fn file_watcher(
+    clock: &Arc<dyn eos_core::Clock>,
+    bus: &eos_runtime::bus::Bus,
+) -> Arc<dyn eos_core::os::FileWatcher> {
+    Arc::new(DirWatcher::new(clock.clone(), fs_change_sink(bus.clone())))
+}
+
 /// What the routes over a worker's folder reach: git, Try and the desktop.
 pub(crate) fn worker_git(cx: &Context) -> WorkerGit {
     let (snapshots, git) = (cx.repos.snapshots.clone(), cx.repos.git.clone());
@@ -99,14 +108,13 @@ pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     let host = eos_platform::host();
     let (snapshots, git) = (cx.repos.snapshots.clone(), cx.repos.git.clone());
     let candidates = Arc::new(CandidateCache::new(git.clone(), cx.clock.clone()));
-    let bus = &cx.kernel.bus;
     let module = FsModule::new(
         cx.kernel.clone(),
         Ports {
             files: Arc::new(eos_fs::DiskFileSystem::new(host, cx.paths.trash_dir())),
             desktop: Arc::new(eos_fs::DesktopApps::new(host, cx.clock.clone(), cx.paths.join("icon-cache"))),
             picker: cx.picker.clone(),
-            file_watcher: Arc::new(DirWatcher::new(cx.clock.clone(), fs_change_sink(bus.clone()))),
+            file_watcher: cx.file_watcher.clone(),
             git: snapshots.clone(),
             git_diffs: snapshots.clone(),
             tree: git.clone(),

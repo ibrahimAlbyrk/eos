@@ -19,8 +19,8 @@ use eos_runtime::module::Module;
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_testkit::{
     FakeCapabilityHealth, FakeClock, FakeConfig, FakePower, FakeRoutineControl, FakeRoutineDirectory, FakeSettings,
-    FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWorkHold, FakeZoneRules, ScriptedOneShot, SeqIds,
-    TempStore,
+    FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWatcher, FakeWorkHold, FakeZoneRules,
+    ScriptedOneShot, SeqIds, TempHome, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -157,6 +157,14 @@ pub(crate) fn pull(n: u64, sha: &str, kind: &str, draft: bool, paths: &[&str]) -
     }
 }
 
+/// git over this computer's processes, as the app runs it.
+pub(crate) fn git() -> eos_git::Git {
+    let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+        eos_platform::kill_process_tree(pid).is_ok()
+    });
+    eos_git::Git::new(eos_kit_proc::Runner::new(trees), Arc::new(eos_core::SystemClock))
+}
+
 pub(crate) fn page(items: Vec<SignalDraft>, cursor: Value) -> PollPage {
     PollPage { items, cursor, more: false, baseline: false, poll_after_ms: None, retry_at: None }
 }
@@ -205,6 +213,10 @@ pub(crate) struct Bench {
     pub(crate) settings: Arc<FakeSettings>,
     /// The model the stage of Which asks.
     pub(crate) model: Arc<ScriptedOneShot>,
+    /// Watches folders and repositories.
+    pub(crate) watcher: FakeWatcher,
+    /// Eos's data folder.
+    pub(crate) home: TempHome,
 }
 
 impl Bench {
@@ -226,6 +238,8 @@ impl Bench {
             power: Arc::new(FakePower::default()),
             settings: Arc::new(FakeSettings::default()),
             model: Arc::new(ScriptedOneShot::default()),
+            watcher: FakeWatcher::new(),
+            home: TempHome::new(),
         }
     }
 
@@ -254,6 +268,11 @@ impl Bench {
                 tool_name_vars(),
             )),
             config: Arc::new(FakeConfig::new(json!({ "prices": { "haiku": { "in": 1, "out": 5 } } }))),
+            files: Arc::new(self.watcher.clone()),
+            git: Arc::new(self.watcher.clone()),
+            git_info: Arc::new(git()),
+            disk: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), self.home.join("trash"))),
+            data_dir: self.home.path().to_owned(),
             autostart,
         })
     }

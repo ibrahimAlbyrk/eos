@@ -98,6 +98,7 @@ pub(crate) struct Context {
     /// Claude Code's memory of the projects workers work in.
     pub(crate) project_memory: Arc<dyn eos_core::store::ProjectMemoryStore>,
     pub(crate) git_watcher: Arc<dyn eos_core::git::GitWatcher>,
+    pub(crate) file_watcher: Arc<dyn eos_core::os::FileWatcher>,
     /// git: the kept working-tree snapshots and the adapter whose writes tell them.
     pub(crate) repos: crate::files::Repos,
     /// The app works on the user's own data folder: it may delete on its own.
@@ -348,6 +349,11 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             one_shot: cx.one_shot.clone(),
             prompts: cx.prompts.clone(),
             config: cx.config.clone(),
+            files: cx.file_watcher.clone(),
+            git: cx.git_watcher.clone(),
+            git_info: cx.repos.snapshots.clone(),
+            disk: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), cx.paths.trash_dir())),
+            data_dir: cx.paths.home().to_owned(),
             autostart: cx.reach.autostart(),
         })),
         Arc::new(eos_mod_system::SystemModule::new(

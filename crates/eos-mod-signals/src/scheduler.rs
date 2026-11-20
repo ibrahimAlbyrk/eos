@@ -10,7 +10,8 @@
 //! slot fires once however many passed, `missed` counting the rest; a slot
 //! at or before the last one fired never fires. Then the runs that finished
 //! upstream of a routine's `after` are kept as signals (`after`), the sources the
-//! routines read are kept and the due ones polled (`polls`), and the router
+//! routines read are kept and the due ones polled (`polls`) or read
+//! (`local`), and the router
 //! is kicked, which closes due batches and retries what it could not route.
 //!
 //! Between passes the loop sleeps until the next slot, at most
@@ -35,6 +36,7 @@ use tokio::sync::Notify;
 
 use crate::after::follow_in;
 use crate::awake::{Awake, OFFER_LATE_MS};
+use crate::local::Local;
 use crate::polls::Polls;
 use crate::retention::{self, SWEEP_EVERY_MS};
 use crate::router::{CLOCK, Router, Routing, error_kind, halted_in, run_in};
@@ -58,6 +60,8 @@ pub(crate) struct Scheduler {
     pub(crate) runner: Arc<dyn Runner>,
     pub(crate) router: Arc<Router>,
     pub(crate) polls: Arc<Polls>,
+    /// The folders and branches on this computer.
+    pub(crate) local: Arc<Local>,
     pub(crate) awake: Arc<Awake>,
     /// When old signals were last cleared.
     pub(crate) swept_at: AtomicI64,
@@ -155,7 +159,8 @@ impl Scheduler {
             retention::sweep(&self.store, now).await;
         }
         self.polls.ensure(&held).await?;
-        Ok(earliest(next, self.polls.start_due().await?))
+        let next = earliest(next, self.polls.start_due().await?);
+        Ok(earliest(next, self.local.pass(&held).await?))
     }
 }
 

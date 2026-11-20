@@ -31,6 +31,11 @@ pub fn file(path: &str, size: u64, mtime_ms: i64) -> String {
     format!("file:{path}@{size}-{mtime_ms}")
 }
 
+/// A file gone from its folder: `file:<path>@removed-<at_ms>`.
+pub fn file_removed(path: &str, at_ms: i64) -> String {
+    format!("file:{path}@removed-{at_ms}")
+}
+
 /// A branch's head: `git:<repo>:<branch>@<sha>`.
 pub fn git(repo: &str, branch: &str, sha: &str) -> String {
     format!("git:{repo}:{branch}@{sha}")
@@ -81,6 +86,7 @@ mod tests {
             file("/Users/me/Inbox/a.pdf", 2048, 1_773_100_800_000),
             "file:/Users/me/Inbox/a.pdf@2048-1773100800000"
         );
+        assert_eq!(file_removed("/Users/me/Inbox/a.pdf", 7), "file:/Users/me/Inbox/a.pdf@removed-7");
         assert_eq!(git("/Users/me/game", "main", "9f1a4771"), "git:/Users/me/game:main@9f1a4771");
         assert_eq!(after("rt-0a1b2c3d4e5f", "rn-1b2c3d4e5f6a"), "routine:rt-0a1b2c3d4e5f:run:rn-1b2c3d4e5f6a");
         assert_eq!(delivery("github", "72d3162e"), "github:delivery:72d3162e");
