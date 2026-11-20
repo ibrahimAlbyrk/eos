@@ -233,10 +233,10 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
             let blueprint = readable(&version)?.ok_or_else(|| Error::Conflict(NEWER_FORMAT.into()))?;
             let issues = check_in(tx, &id, &blueprint, zones.as_ref(), &data_dir)?;
             if blocks(&issues) {
-                return Ok((Started::Refused(issues), None));
+                return Ok((Started::Refused(issues), None, false));
             }
             if !without_trial && !tried(tx, &id, &version_id)? {
-                return Ok((Started::NeedsTrial(untried(tx, &id, &version_id)?), None));
+                return Ok((Started::NeedsTrial(untried(tx, &id, &version_id)?), None, false));
             }
             tx.routine_versions().keep(&id, &version_id, without_trial)?;
             tx.routines().set_head(&id, &version_id, now)?;
@@ -261,12 +261,16 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
             }
             tracing::info!(routine_id = %id, version_id = %version_id, without_trial, "a routine was started");
             announce_routine(tx, out, &id, RoutineChangeReason::Version, now, &patterns)?;
-            Ok((Started::Kept(Box::new(row(tx, &id, now, &patterns)?)), architect))
+            let first = routine.state == RoutineState::Draft;
+            Ok((Started::Kept(Box::new(row(tx, &id, now, &patterns)?)), architect, first))
         })
         .await?;
-    let (started, architect) = started;
+    let (started, architect, first) = started;
     if let Some(architect) = architect {
         suspend(engine, &architect).await;
+    }
+    if first {
+        crate::engine::surface_moved(engine, routine_id, crate::engine::SurfaceMove::Keep).await;
     }
     engine.wake.notify_one();
     Ok(started)

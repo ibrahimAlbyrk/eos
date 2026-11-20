@@ -108,6 +108,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
         place,
         parent_id: Some(worker_id.to_owned()),
         reads_outside: agent.reads_outside,
+        pack: None,
         at: (RunState::Running, Station::Work),
     };
     let render = |folder: &str| render(engine, blueprint, &agent, input, task, folder);

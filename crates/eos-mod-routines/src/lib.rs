@@ -36,6 +36,12 @@
 //! resume). It may call the `read` and `write_local` actions of what its
 //! version needs ([`RoutinesModule::grants`]).
 //!
+//! The lead starts with the notes memory recalls for its item
+//! ([`ExperiencePacks`]); memory hears how each run ended, each check that
+//! failed and each routine that left for good ([`ExperienceFeedback`]). A
+//! routine that makes a view, a page or an app takes its surface through its
+//! life ([`SurfaceAuthoring`]).
+//!
 //! A handed-in result waits at the check while its lead is held: the rules,
 //! then a checker session (`eos-run-checker`) when the routine asks for one.
 //! A passed result goes to the gate ([`RunGate`], Needs you's) in the run's
@@ -77,6 +83,7 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
+use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{
@@ -84,6 +91,7 @@ use eos_core::routine::{
     RunLookup, RunOutcomes, RunStarter,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
+use eos_core::surface::SurfaceAuthoring;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
@@ -147,6 +155,12 @@ pub struct RoutinesParts {
     /// Where the history retention clears goes (run folders, a deleted
     /// routine's export): the trash, nothing else of the files port.
     pub trash: Arc<dyn FileSystem>,
+    /// The notes a run's lead starts with.
+    pub packs: Arc<dyn ExperiencePacks>,
+    /// What memory hears of runs and routines.
+    pub feedback: Arc<dyn ExperienceFeedback>,
+    /// The surfaces of routines that make a view, a page or an app.
+    pub surfaces: Arc<dyn SurfaceAuthoring>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -196,6 +210,9 @@ impl RoutinesModule {
             one_shot,
             power,
             trash,
+            packs,
+            feedback,
+            surfaces,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -241,6 +258,9 @@ impl RoutinesModule {
             intent_reads: Mutex::new(None),
             trash,
             retention: Mutex::default(),
+            packs,
+            feedback,
+            surfaces,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         let control = Arc::new(engine::Control(engine.clone()));

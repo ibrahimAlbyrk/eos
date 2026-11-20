@@ -121,6 +121,17 @@ async fn two_failed_checks_fail_the_run_and_its_result_stays() {
     assert_eq!((failed.state, failed.reason), (RunState::Failed, Some(Reason::CheckFailed)));
     assert_eq!(verdicts(&bench, &run).len(), 2, "both results stay readable");
     assert!(!bench.module.holds_worker(&lead));
+    let told: Vec<_> = bench
+        .feedback
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            eos_testkit::FeedbackCall::CheckFailed(verdict) => Some(verdict),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 2, "memory hears each failed round");
+    assert!(told.iter().all(|verdict| verdict.worker_id == lead && verdict.run_id == run));
 }
 
 #[tokio::test(flavor = "multi_thread")]

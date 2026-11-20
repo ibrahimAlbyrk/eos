@@ -204,6 +204,16 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_inbox::gate::Gate::new(channels.clone(), Arc::new(crate::host::HostTimeZone), cx.clock.clone()));
     let power: Arc<dyn eos_core::os::Power> =
         Arc::new(crate::host::HostPower { cache: eos_platform::PowerCache::new(), clock: cx.clock.clone() });
+    // Memory asks routines which run a worker works for; routines ask memory
+    // for packs. Memory is built first and finds routines once they exist.
+    let runs = Arc::new(crate::memory::LateRuns::default());
+    let memory = crate::memory::module(
+        cx,
+        runs.clone(),
+        profile.profile_reader(),
+        profile.memory_keeper(),
+        profile.memory_reader(),
+    );
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -229,20 +239,17 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         one_shot: cx.one_shot.clone(),
         power: power.clone(),
         trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
+        packs: memory.experience_packs(),
+        feedback: memory.experience_feedback(),
+        surfaces: Arc::new(crate::surfaces::NoSurfaces),
     }));
+    runs.attach(&routines);
     cx.grants.attach(&routines.grants());
     // The delivery engine keeps the outcomes alive for the gate.
     let run_outcomes = routines.outcomes();
     gate.attach(&routines.control(), &run_outcomes);
     cx.run_questions.attach(&routines.control());
     let transfer = crate::machines::transfer(cx);
-    let memory = crate::memory::module(
-        cx,
-        routines.lookup(),
-        profile.profile_reader(),
-        profile.memory_keeper(),
-        profile.memory_reader(),
-    );
     let tools: Arc<dyn ToolSets> =
         crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory)?;
     cx.tools.attach(&tools);

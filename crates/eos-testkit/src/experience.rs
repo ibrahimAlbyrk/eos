@@ -27,6 +27,11 @@ impl FakeExperiencePacks {
         self
     }
 
+    /// Answers `pack` from now on.
+    pub fn set(&self, pack: RunPack) {
+        *locked(&self.pack) = pack;
+    }
+
     pub fn requests(&self) -> Vec<RunPackRequest> {
         locked(&self.requests).clone()
     }
