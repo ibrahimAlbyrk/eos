@@ -1,8 +1,9 @@
 //! What an attempt comes to, recorded in a write job of its own after the
 //! channel answered: sent with its receipt; tried again on the retry
 //! ladder; unknown, to be reconciled; frozen in a development run; held
-//! again as a draft when its subject moved on; or failed for good with a
-//! `delivery_problem` item. The run hears of it through [`RunOutcomes`].
+//! again as a draft when its subject moved on; or failed, with a
+//! `delivery_problem` item that asks the user. The run hears of a send
+//! through [`RunOutcomes`].
 
 use eos_contracts::ResultDoc;
 use eos_core::Error;
@@ -181,10 +182,9 @@ pub(crate) fn record_in(
     announce(out, &row);
     tracing::info!(delivery_id = %row.id, state = %row.state, attempts = row.attempts, error_kind = ?row.last_error_kind, "a delivery moved");
     if let Some(problem) = problem {
+        // The run keeps delivering while the user decides: a retry or "I sent
+        // it myself" still finishes it, and only "Don't send" fails it.
         problem_in(tx, out, at, &row, problem)?;
-        if delivering(tx, &row.run_id)? {
-            outcomes.delivery_failed(tx, out, &row.run_id, row.last_error_kind.as_deref().unwrap_or_default())?;
-        }
     } else if let Some(reason) = stale {
         hold_again_in(tx, out, at, &row, &reason)?;
     } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {

@@ -6,12 +6,13 @@ use std::time::Duration;
 
 use eos_contracts::{InboxAnswer, ProblemChoice};
 use eos_core::Clock;
+use eos_core::delivery::SendErrorKind;
 use eos_core::store::StoredItem;
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use eos_testkit::OutcomeCall;
 
-use crate::delivery::Sender;
+use crate::delivery::{Sender, failure};
 
 impl Sender {
     /// The one open `delivery_problem` item.
@@ -36,6 +37,19 @@ impl Sender {
         self.rig.clock.set(approved + 2 * 60 * 60 * 1000);
         self.pass().await;
         assert_eq!(self.row("dl-1").await.state, "failed");
+    }
+
+    /// An approved send the channel refused for good: failed, with a problem.
+    async fn refused(&self) {
+        self.queue("dl-1", "github", "pr", "queued", "approved", self.rig.clock.now_ms()).await;
+        self.channels.script(Err(failure(SendErrorKind::Permanent, "validation")));
+        self.pass().await;
+        assert_eq!(self.row("dl-1").await.state, "failed");
+    }
+
+    /// What the run heard, from the engine and from the answer.
+    fn heard(&self) -> Vec<OutcomeCall> {
+        [self.outcomes.calls(), self.rig.outcomes.calls()].concat()
     }
 
     /// A send a crash cut off, through a channel that cannot tell: "Did it go out?".
@@ -110,4 +124,23 @@ async fn dont_send_stops_the_send_and_fails_the_runs_delivery_for_good() {
     assert_eq!(sender.rig.outcomes.calls(), [failed]);
     sender.pass().await;
     assert!(sender.sent().is_empty());
+}
+
+#[tokio::test]
+async fn a_send_refused_for_good_leaves_the_run_delivering_until_the_user_answers() {
+    let finished = OutcomeCall::Finished { run_id: "rn-1".into(), outcome: Outcome::AutoSent };
+    for choice in [ProblemChoice::Retry, ProblemChoice::MarkSent] {
+        let sender = Sender::new();
+        sender.refused().await;
+        assert!(sender.heard().is_empty(), "the run is not failed while the user decides");
+        sender.answer(choice).await;
+        sender.pass().await;
+        assert_eq!(sender.row("dl-1").await.state, "sent", "{choice:?}");
+        assert_eq!(sender.heard(), [finished.clone()], "{choice:?}");
+    }
+    let sender = Sender::new();
+    sender.refused().await;
+    sender.answer(ProblemChoice::Discard).await;
+    let failed = OutcomeCall::DeliveryFailed { run_id: "rn-1".into(), reason: "validation".into() };
+    assert_eq!(sender.heard(), [failed]);
 }

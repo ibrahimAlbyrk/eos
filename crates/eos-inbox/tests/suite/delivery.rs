@@ -168,8 +168,7 @@ async fn a_passing_failure_climbs_the_retry_ladder_then_fails_with_a_problem() {
     let problems = sender.problems().await;
     assert_eq!(problems.len(), 1);
     assert_eq!(problems[0].0, json!({"errorKind": "service", "deliveryId": "dl-1"}));
-    let failed = OutcomeCall::DeliveryFailed { run_id: "rn-1".into(), reason: "rate_limited".into() };
-    assert_eq!(sender.outcomes.calls(), [failed]);
+    assert!(sender.outcomes.calls().is_empty(), "the run waits on the user's answer");
 }
 
 #[tokio::test]
