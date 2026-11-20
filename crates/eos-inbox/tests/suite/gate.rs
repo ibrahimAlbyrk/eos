@@ -204,3 +204,11 @@ async fn freedom_to_send_queues_one_delivery_per_target_and_a_held_draft_can_be_
     gated.rig.temp.port().write(move |tx, out| gate.withdraw_in(tx, out, "rn-1")).await.expect("withdraws");
     assert_eq!(gated.rig.find(&item_id).await.state.as_str(), "withdrawn");
 }
+
+#[tokio::test]
+async fn while_eos_is_stopped_a_result_free_to_go_is_held() {
+    let gated = Gated::new();
+    gated.rig.temp.exec("INSERT INTO inbox_halt (id, \"on\", since, by, updated_at) VALUES (1, 1, 1, 'dashboard', 1)");
+    held(&gated.apply(input("on_its_own")).await);
+    assert_eq!(gated.rows(), 0);
+}
