@@ -43,6 +43,9 @@ impl ModelCatalog for FakeModelCatalog {
 pub struct FakePolicy {
     /// Tool names to deny.
     pub deny: Mutex<Vec<String>>,
+    /// Tool names whose input the policy replaces when it allows them, as a
+    /// rewrite rule or the user would.
+    pub rewrite: Mutex<Vec<(String, UnknownRecord)>>,
     pub asked: Mutex<Vec<ToolCall>>,
 }
 
@@ -52,7 +55,17 @@ impl PolicyDecider for FakePolicy {
         let decision = if denied {
             ExternalDecision::Deny(DenyVariant { message: format!("{} is denied by policy", call.tool_name) })
         } else {
-            ExternalDecision::Allow(AllowVariant { updated_input: Some(call.input.clone()), message: None })
+            let rewritten = self
+                .rewrite
+                .lock()
+                .expect("rewrite")
+                .iter()
+                .find(|(tool, _)| *tool == call.tool_name)
+                .map(|(_, input)| input.clone());
+            ExternalDecision::Allow(AllowVariant {
+                updated_input: Some(rewritten.unwrap_or_else(|| call.input.clone())),
+                message: None,
+            })
         };
         self.asked.lock().expect("asked").push(call);
         Box::pin(std::future::ready(Ok(decision)))
