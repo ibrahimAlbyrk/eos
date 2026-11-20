@@ -139,7 +139,7 @@ async fn a_send_refused_for_good_leaves_the_run_delivering_until_the_user_answer
         sender.answer(choice).await;
         sender.pass().await;
         assert_eq!(sender.row("dl-1").await.state, "sent", "{choice:?}");
-        assert_eq!(sender.heard(), [finished.clone()], "{choice:?}");
+        assert_eq!(sender.heard(), std::slice::from_ref(&finished), "{choice:?}");
     }
     let sender = Sender::new();
     sender.refused().await;
