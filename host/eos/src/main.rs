@@ -217,7 +217,7 @@ impl CoreState {
             bridge.set_element_picker(app.element_picker());
         }
         #[cfg(feature = "dev-run")]
-        dev::started(bridge, ports, self.app.get().map(|(app, _)| app.router()));
+        dev::started(bridge, ports, self.app.get().map(|(app, _)| (app.router(), app.runtime().kernel.bus.clone())));
     }
 
     /// The dashboard is loading and the core is up (or will never be).

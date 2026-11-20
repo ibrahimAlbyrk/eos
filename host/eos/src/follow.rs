@@ -68,15 +68,22 @@ pub(crate) fn events(bus: &Bus, bridge: &Arc<Bridge>, rt: &Handle) {
 
 /// Changes to Needs you and to routines come in bursts: one read per burst.
 const DUTY_SETTLE: Duration = Duration::from_millis(250);
+/// The Eos preview is a setting with no event of its own: it is read this often.
+const PREVIEW_EVERY: Duration = Duration::from_secs(5);
 
 /// What the menu-bar item shows, kept current from the core's events and read through the
-/// core's routes as the dashboard reads them. Counts and the next routine's name only.
+/// core's routes as the dashboard reads them. Counts and the next routine's name only. The
+/// item shows while the Eos preview is on or a routine exists.
 pub(crate) struct Duty {
     core: Arc<dyn Core>,
     rt: Handle,
     push: Arc<dyn Fn(MenuState) + Send + Sync>,
     state: Mutex<MenuState>,
     settling: AtomicBool,
+    /// `settings['eos.preview']` is on.
+    preview: AtomicBool,
+    /// A routine exists.
+    routines: AtomicBool,
 }
 
 fn count(value: Option<&Value>) -> u32 {
@@ -103,8 +110,15 @@ impl Duty {
         core: Arc<dyn Core>,
         push: Arc<dyn Fn(MenuState) + Send + Sync>,
     ) -> Arc<Self> {
-        let duty =
-            Arc::new(Duty { core, rt: rt.clone(), push, state: Mutex::default(), settling: AtomicBool::new(false) });
+        let duty = Arc::new(Duty {
+            core,
+            rt: rt.clone(),
+            push,
+            state: Mutex::default(),
+            settling: AtomicBool::new(false),
+            preview: AtomicBool::new(false),
+            routines: AtomicBool::new(false),
+        });
         follow(bus, rt, &duty, "runs:active", |duty, payload| match payload.get("count") {
             Some(working) => duty.change(|state| state.working = count(Some(working))),
             None => duty.read(Duty::read_runs),
@@ -121,9 +135,17 @@ impl Duty {
             first.clone().read_runs().await;
             first.clone().read_halt().await;
             first.clone().read_waiting().await;
-            // The item shows from the first reads on, whatever they found.
+            first.clone().read_preview().await;
+            // The item is drawn from the first reads on, whatever they found.
             let state = first.state.lock().unwrap_or_else(|p| p.into_inner()).clone();
             (first.push)(state);
+            let duty = Arc::downgrade(&first);
+            drop(first);
+            loop {
+                tokio::time::sleep(PREVIEW_EVERY).await;
+                let Some(duty) = duty.upgrade() else { return };
+                duty.read_preview().await;
+            }
         });
         duty
     }
@@ -138,6 +160,7 @@ impl Duty {
             let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
             let before = state.clone();
             edit(&mut state);
+            state.shown = self.preview.load(Ordering::SeqCst) || self.routines.load(Ordering::SeqCst);
             (*state != before).then(|| state.clone())
         };
         if let Some(state) = changed {
@@ -187,13 +210,24 @@ impl Duty {
         }
     }
 
-    /// Needs you's open items and the routine that runs next.
+    async fn read_preview(self: Arc<Self>) {
+        if let Some(settings) = self.get("/api/settings").await {
+            let on = settings.pointer("/settings/eos.preview").and_then(Value::as_bool) == Some(true);
+            self.preview.store(on, Ordering::SeqCst);
+            self.change(|_| {});
+        }
+    }
+
+    /// Needs you's open items, whether a routine exists, and the routine that runs next.
     async fn read_waiting(self: Arc<Self>) {
         let inbox = self.get("/api/inbox").await;
         let (routines, next) = (self.get("/api/routines").await, self.get("/api/signals/routines").await);
         self.change(|state| {
             if let Some(inbox) = &inbox {
                 state.needs_you = count(inbox.pointer("/counts/open"));
+            }
+            if let Some(listed) = routines.as_ref().and_then(Value::as_array) {
+                self.routines.store(!listed.is_empty(), Ordering::SeqCst);
             }
             if let (Some(routines), Some(next)) = (&routines, &next) {
                 state.next = next_run(routines, next);

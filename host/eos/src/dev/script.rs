@@ -30,6 +30,9 @@
 //! `every_ms` in a row, with a `Run` work hold taken when `hold` is true, and returns how
 //! late each fired: `{"held", "lateMs": [..], "wallLateMs": [..]}` (the App Nap drift check).
 //! `{"hide": null}` hides the window as its close button does (the dashboard's release).
+//! `{"preview": true}` turns the Eos preview on (`false` off), as the dashboard's setting does:
+//! the one setting a script may change. `{"runs": 2}` announces that many runs of routines
+//! working (`runs:active`), as the core does when they start; nothing starts.
 //! The output file gets one result per step, in order.
 //!
 //! A responsiveness run (`tests/responsiveness.py`, with the shell's probe on) also has
@@ -56,6 +59,7 @@ use eos_bridge::Bridge;
 use eos_core::os::HoldReason;
 use eos_core::shell::{CaptureTarget, ImageFormat, Rect, ViewId, ViewSpec};
 use eos_runtime::access::Caller;
+use eos_runtime::bus::{Bus, Topic};
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::Router;
 use eos_shell::Ports;
@@ -65,6 +69,7 @@ struct Run {
     bridge: Arc<Bridge>,
     ports: Ports,
     router: Option<Arc<Router>>,
+    bus: Option<Bus>,
     views: HashMap<String, ViewId>,
     /// Tab ids the browser steps remembered, by alias.
     tabs: HashMap<String, String>,
@@ -257,6 +262,20 @@ impl Run {
                 tokio::task::spawn_blocking(move || hide()).await.map_err(|e| e.to_string())?;
                 Ok(Value::Null)
             }
+            "preview" => {
+                let router = self.router.as_ref().ok_or("the Rust core is not running")?;
+                let body = json!({ "settings": { "eos.preview": arg.as_bool().unwrap_or(false) } });
+                let request = Request::new(Method::Put, "/api/settings", Caller::DASHBOARD)
+                    .header("content-type", "application/json")
+                    .body(body.to_string());
+                Ok(json!({ "status": router.handle(request).await.status }))
+            }
+            "runs" => {
+                let bus = self.bus.as_ref().ok_or("the Rust core is not running")?;
+                let active = json!({ "count": arg.as_u64().unwrap_or(0), "needsUser": 0 });
+                bus.publish(&Topic::<Value>::new("runs:active"), &active);
+                Ok(Value::Null)
+            }
             other => Err(format!("unknown step {other:?}")),
         }
     }
@@ -280,8 +299,15 @@ async fn ticks(ports: &Ports, arg: &Value) -> Value {
     json!({ "held": held, "lateMs": late, "wallLateMs": wall_late })
 }
 
-pub(crate) async fn run(steps: PathBuf, out: PathBuf, bridge: Arc<Bridge>, ports: Ports, router: Option<Arc<Router>>) {
-    let mut run = Run { bridge, ports, router, views: HashMap::new(), tabs: HashMap::new() };
+pub(crate) async fn run(
+    steps: PathBuf,
+    out: PathBuf,
+    bridge: Arc<Bridge>,
+    ports: Ports,
+    core: Option<(Arc<Router>, Bus)>,
+) {
+    let (router, bus) = core.unzip();
+    let mut run = Run { bridge, ports, router, bus, views: HashMap::new(), tabs: HashMap::new() };
     if std::env::var_os("EOS_DEV_SCRIPT_FOLLOW").is_some() {
         return follow(&mut run, &steps, &out).await;
     }
