@@ -10,7 +10,9 @@
 //!   `EOS_EMBED_MODEL_DIR`), recall seeds by hooks and words only.
 //! - Capture reads a worker's conversation for moments at its idle edge
 //!   (idle hook `memory`, order 90, never taking the worker), every ten
-//!   minutes while it keeps working, and when its session ends.
+//!   minutes while it keeps working, and when its session ends. A Code-view
+//!   pane's conversation is read from its Claude Code transcript once it has
+//!   been quiet for a minute, and when the pane exits.
 //! - Notes reach agents ([`reminders`]): a pack at the first turn of each
 //!   epoch of a chat, and reminders when a message, a tool call or an error
 //!   matches what was learned.
@@ -20,6 +22,7 @@
 //! Note text, cues and hook keys are the user's: logged by id, kind and
 //! count only.
 
+mod code;
 mod hooks;
 mod reminders;
 
@@ -32,12 +35,14 @@ use eos_core::git::ProjectKeys;
 use eos_core::profile::UserProfileReader;
 use eos_core::routine::RunLookup;
 use eos_core::store::Store;
+use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_memory::{Capture, Recall};
-use eos_runtime::bus::{Topic, TopicDecl};
+use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError};
 
+use crate::code::CodePanes;
 use crate::hooks::Capturer;
 pub use crate::reminders::NoteSink;
 use crate::reminders::Reminders;
@@ -67,6 +72,19 @@ impl EmbedderHealth {
     }
 }
 
+/// What Code-view panes are read through: the terminals' events and the
+/// user's Claude Code transcripts.
+pub struct CodeParts {
+    pub bus: Bus,
+    pub transcripts: Arc<dyn ClaudeTranscripts>,
+}
+
+impl std::fmt::Debug for CodeParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CodeParts").finish_non_exhaustive()
+    }
+}
+
 /// What the module is built from.
 pub struct MemoryParts {
     pub store: Arc<dyn Store>,
@@ -83,6 +101,8 @@ pub struct MemoryParts {
     pub profile: Arc<dyn UserProfileReader>,
     /// The meaning model, when the host has one.
     pub embedder: Option<LoadEmbedder>,
+    /// Code-view panes, when terminals are composed.
+    pub code: Option<CodeParts>,
     /// Whether model calls nobody asked for may run: only in the installed
     /// app on the user's own data folder.
     pub background_model_calls: bool,
@@ -98,6 +118,7 @@ pub struct MemoryModule {
     store: Arc<dyn Store>,
     recall: Arc<Recall>,
     capturer: Arc<Capturer>,
+    code: Option<CodePanes>,
     reminders: Arc<Reminders>,
     sleeper: Arc<dyn Sleeper>,
     embedder: Mutex<Option<LoadEmbedder>>,
@@ -125,8 +146,17 @@ impl MemoryModule {
             project_keys,
             profile,
             embedder,
+            code,
             background_model_calls,
         } = parts;
+        let code = code.map(|c| {
+            CodePanes::new(
+                &c.bus,
+                Capture::new(store.clone(), clock.clone(), ids.clone()),
+                c.transcripts,
+                clock.clone(),
+            )
+        });
         let health = if embedder.is_some() { EmbedderHealth::Loading } else { EmbedderHealth::Off };
         let recall = Arc::new(Recall::new(store.clone(), clock.clone()));
         let reminders = Reminders::new(
@@ -143,6 +173,7 @@ impl MemoryModule {
             recall,
             reminders: Arc::new(reminders),
             capturer: Arc::new(Capturer::new(Capture::new(store.clone(), clock, ids), runs)),
+            code,
             sleeper,
             store,
             embedder: Mutex::new(embedder),
@@ -254,6 +285,9 @@ impl Module for MemoryModule {
             tasks.push(tokio::spawn(load_meaning(load, self.recall.clone(), self.health.clone())));
         }
         tasks.push(tokio::spawn(self.capturer.clone().tick(self.sleeper.clone())));
+        if let Some(code) = &self.code {
+            tasks.push(tokio::spawn(code.poll(self.sleeper.clone())));
+        }
         drop(tasks);
         Box::pin(std::future::ready(Ok(())))
     }

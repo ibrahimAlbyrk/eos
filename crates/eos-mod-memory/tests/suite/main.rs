@@ -2,6 +2,7 @@
 
 #![allow(clippy::unwrap_used)]
 
+mod code;
 mod module;
 mod reminders;
 mod rig;

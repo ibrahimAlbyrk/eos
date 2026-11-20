@@ -3,7 +3,8 @@
 //! cursor, finds the moments in them (`eos_domain::experience::moments`) and
 //! writes the moments and the moved cursor in one write job, so a restart
 //! neither loses nor repeats one. A moment holds row ranges and cues, never
-//! text.
+//! text. A Code-view pane's conversation is read the same way from its
+//! Claude Code transcript, under the cursor of its Claude session.
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use eos_contracts::ReactionActor;
 use eos_core::routine::RunRef;
 use eos_core::store::{Store, StoredMoment, Tx};
 use eos_core::{Clock, Error, Ids};
+use eos_domain::EventRecord;
 use eos_domain::experience::moments::{Denial, MomentDraft, Reaction, Signal, scan};
 
 use crate::settings;
@@ -79,6 +81,19 @@ impl Capture {
         }
         Ok(captured)
     }
+
+    /// Reads a Code-view conversation's rows (`rows`: its transcript as now
+    /// read) after the last look.
+    pub async fn look_code(&self, claude_session_id: &str, rows: Vec<EventRecord>) -> Result<Captured, Error> {
+        let now = self.clock.now_ms();
+        let ids = self.ids.clone();
+        let key = code_key(claude_session_id);
+        let captured = self.store.write(move |tx, _| look_code_in(tx, ids.as_ref(), &key, &rows, now)).await?;
+        if !captured.stored.is_empty() {
+            tracing::info!(moments = captured.stored.len(), "memory: captured from a Code-view pane");
+        }
+        Ok(captured)
+    }
 }
 
 fn look_in(tx: &dyn Tx, ids: &dyn Ids, worker_id: &str, run: Option<&RunRef>, now: i64) -> Result<Captured, Error> {
@@ -113,8 +128,43 @@ fn look_in(tx: &dyn Tx, ids: &dyn Ids, worker_id: &str, run: Option<&RunRef>, no
         _ => Vec::new(),
     };
     let denials: Vec<Denial> = denied.into_iter().map(|d| Denial { row: d.row, tool: d.tool }).collect();
+    let source = if run.is_some() { "run" } else { "agent" };
+    keep(tx, ids, worker_id, source, run, scan(&rows, &denials, &reactions), more, now)
+}
+
+/// Where a Code-view conversation's moments and cursor are kept: by its
+/// Claude session, which outlives the pane that showed it.
+pub fn code_key(claude_session_id: &str) -> String {
+    format!("pty:{claude_session_id}")
+}
+
+/// A Code-view conversation's rows after its cursor (the transcript's rows
+/// carry their position in the file as their id). Reactions, Try, edits and
+/// the checker are not seen there.
+fn look_code_in(tx: &dyn Tx, ids: &dyn Ids, key: &str, rows: &[EventRecord], now: i64) -> Result<Captured, Error> {
+    let cursor = tx.mem_cursors().get(key)?.unwrap_or(0);
+    let fresh: Vec<EventRecord> = rows.iter().filter(|r| r.id > cursor).cloned().collect();
+    let Some(last) = fresh.last() else { return Ok(Captured::default()) };
+    tx.mem_cursors().set(key, last.id, now)?;
+    if !settings::read_in(tx)?.learning {
+        return Ok(Captured::default());
+    }
+    keep(tx, ids, key, "code", None, scan(&fresh, &[], &[]), false, now)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn keep(
+    tx: &dyn Tx,
+    ids: &dyn Ids,
+    worker_id: &str,
+    source: &str,
+    run: Option<&RunRef>,
+    drafts: Vec<MomentDraft>,
+    more: bool,
+    now: i64,
+) -> Result<Captured, Error> {
     let mut captured = Captured { more, ..Captured::default() };
-    for draft in scan(&rows, &denials, &reactions) {
+    for draft in drafts {
         if draft.signal == Signal::Accepted {
             captured.accepted.push(draft);
             continue;
@@ -122,7 +172,7 @@ fn look_in(tx: &dyn Tx, ids: &dyn Ids, worker_id: &str, run: Option<&RunRef>, no
         let moment = StoredMoment {
             id: ids.moment_id(),
             worker_id: worker_id.to_owned(),
-            source: if run.is_some() { "run" } else { "agent" }.to_owned(),
+            source: source.to_owned(),
             run_id: run.map(|r| r.run_id.clone()),
             signal: draft.signal.as_str().to_owned(),
             trust: draft.trust,

@@ -59,6 +59,7 @@ pub(crate) fn module(
         project_keys: cx.project_keys.clone(),
         profile,
         embedder,
+        code: Some(eos_mod_memory::CodeParts { bus: cx.bus.clone(), transcripts: cx.terminals.transcripts.clone() }),
         background_model_calls: cx.reach.background_model_calls(),
     }))
 }
