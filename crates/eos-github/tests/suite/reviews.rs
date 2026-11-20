@@ -171,3 +171,18 @@ async fn a_review_is_found_by_the_marker_of_its_delivery() {
     assert_eq!(others["found"], false, "only the user's own reviews count");
     assert!(rig.requests().iter().all(|request| request.starts_with("Get")), "it only reads");
 }
+
+#[tokio::test]
+async fn a_review_sent_before_is_found_on_any_page_of_the_pull_requests_reviews() {
+    let rig = rig();
+    for n in 0..150 {
+        rig.fake.add_review(REPO, 7, "someone-else", &format!("Review {n}."), "COMMENTED");
+    }
+    let login = rig.fake.login();
+    let left = rig.fake.add_review(REPO, 7, &login, "Two notes.\n\n<!-- eos:d:dl-9 -->", "COMMENTED");
+    let found = rig.call("find_review", json!({ "repo": REPO, "number": 7, "key": "dl-9" })).await.expect("reads");
+    assert_eq!((found["found"].clone(), found["reviewId"].clone()), (json!(true), json!(left)));
+    let receipt = rig.call_with("post_review", review("COMMENT", json!([])), Some("dl-9")).await.expect("posts");
+    assert_eq!((receipt["reviewId"].clone(), receipt["alreadyPosted"].clone()), (json!(left), json!(true)));
+    assert_eq!(rig.fake.reviews(REPO, 7).len(), 151, "never sent twice");
+}

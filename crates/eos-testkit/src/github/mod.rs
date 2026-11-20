@@ -284,7 +284,7 @@ impl FakeGitHub {
                 pull.map_or_else(not_found, |pull| answer(200, &json!({ "status": "ahead", "files": pull.files })))
             }
             (method, ["repos", owner, name, "pulls", rest @ ..]) => {
-                state.review_route(method, &format!("{owner}/{name}"), rest, body)
+                state.review_route(method, &format!("{owner}/{name}"), rest, query, body)
             }
             _ => not_found(),
         };
