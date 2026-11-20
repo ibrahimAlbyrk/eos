@@ -7,10 +7,10 @@ use serde::Serialize;
 use super::{
     CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
     DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
-    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo,
-    RoutineVersionRepo, RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo,
-    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
-    WorktreeRemovalQueue,
+    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo,
+    RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo,
+    SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo,
+    WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -34,6 +34,7 @@ pub trait Tx {
     fn message_queue(&self) -> &dyn MessageQueueRepo;
     fn pending(&self) -> &dyn PendingRepo;
     fn reactions(&self) -> &dyn ReactionRepo;
+    fn routine_retention(&self) -> &dyn RoutineRetentionRepo;
     fn routine_sessions(&self) -> &dyn RoutineSessionRepo;
     fn routine_spend(&self) -> &dyn RoutineSpendRepo;
     fn routine_versions(&self) -> &dyn RoutineVersionRepo;

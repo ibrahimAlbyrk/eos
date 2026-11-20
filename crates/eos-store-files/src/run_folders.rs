@@ -16,13 +16,17 @@ impl FsRunFolders {
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self { root: root.into() }
     }
-
-    fn run_dir(&self, routine_id: &str, run_id: &str) -> PathBuf {
-        self.root.join(routine_id).join("runs").join(run_id)
-    }
 }
 
 impl RunFolders for FsRunFolders {
+    fn routine_dir(&self, routine_id: &str) -> PathBuf {
+        self.root.join(routine_id)
+    }
+
+    fn run_dir(&self, routine_id: &str, run_id: &str) -> PathBuf {
+        self.routine_dir(routine_id).join("runs").join(run_id)
+    }
+
     fn work_dir(&self, routine_id: &str, run_id: &str) -> Result<PathBuf, Error> {
         let work = self.run_dir(routine_id, run_id).join("work");
         let failed = |e: std::io::Error| Error::storage(format!("the run's working folder: {e}"));

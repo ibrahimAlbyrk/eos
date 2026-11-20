@@ -12,6 +12,8 @@ use serde_json::json;
 mod capabilities;
 #[path = "other_tables/inbox.rs"]
 mod inbox;
+#[path = "other_tables/retention.rs"]
+mod retention;
 #[path = "other_tables/routines.rs"]
 mod routines;
 #[path = "other_tables/signals.rs"]

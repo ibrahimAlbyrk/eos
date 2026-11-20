@@ -26,7 +26,7 @@ use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
     FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePower, FakePrompts, FakeRecents, FakeRunGate,
-    FakeScratch, FakeSettings, FakeSleeper, FakeTimeZone, FakeWorktrees, FakeZoneRules, ScriptedOneShot,
+    FakeScratch, FakeSettings, FakeSleeper, FakeTimeZone, FakeTrash, FakeWorktrees, FakeZoneRules, ScriptedOneShot,
     ScriptedRuntime, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
@@ -66,6 +66,8 @@ pub(crate) struct Bench {
     pub(crate) model: Arc<ScriptedOneShot>,
     /// The power source: mains until a test sets it.
     pub(crate) power: Arc<FakePower>,
+    /// Where retention moves what it clears.
+    pub(crate) trash: Arc<FakeTrash>,
 }
 
 /// A plan whose five-hour window a test fills.
@@ -195,6 +197,7 @@ impl Bench {
         let (settings, ids, plan) =
             (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
         let (model, power) = (Arc::new(ScriptedOneShot::default()), Arc::new(FakePower::default()));
+        let trash = Arc::new(FakeTrash::new(temp.home.path().join("trash")));
         let parts = Shared {
             gate: &gate_port,
             keys: &keys,
@@ -204,6 +207,7 @@ impl Bench {
             plan: &plan,
             model: &model,
             power: &power,
+            trash: &trash,
         };
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
@@ -230,6 +234,7 @@ impl Bench {
             plan,
             model,
             power,
+            trash,
         }
     }
 
@@ -247,6 +252,7 @@ impl Bench {
             plan: &self.plan,
             model: &self.model,
             power: &self.power,
+            trash: &self.trash,
         };
         module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
@@ -359,6 +365,7 @@ struct Shared<'a> {
     plan: &'a Arc<FakePlan>,
     model: &'a Arc<ScriptedOneShot>,
     power: &'a Arc<FakePower>,
+    trash: &'a Arc<FakeTrash>,
 }
 
 // The bench's parts, each shared with the module a restart builds again.
@@ -371,7 +378,7 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared { gate, keys, bus, settings, ids, plan, model, power } = shared;
+    let Shared { gate, keys, bus, settings, ids, plan, model, power, trash } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -401,6 +408,7 @@ fn module(
         headroom: plan.clone(),
         one_shot: model.clone(),
         power: power.clone(),
+        trash: trash.clone(),
     }))
 }
 

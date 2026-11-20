@@ -73,6 +73,7 @@ async fn supervise(engine: Arc<Engine>) {
         };
         let wait = if budget::tick(&engine).await { wait.min(WORKING_WAIT_MS) } else { wait };
         crate::architect::sweep(&engine).await;
+        crate::retention::due(&engine);
         tokio::select! {
             () = engine.sleeper.sleep(wait) => {}
             () = engine.wake.notified() => {}

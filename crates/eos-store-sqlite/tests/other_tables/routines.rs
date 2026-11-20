@@ -11,7 +11,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::Trust;
 use eos_testkit::TempStore;
 
-fn routine(id: &str, slug: &str, state: RoutineState) -> StoredRoutine {
+pub(super) fn routine(id: &str, slug: &str, state: RoutineState) -> StoredRoutine {
     StoredRoutine {
         id: id.into(),
         slug: slug.into(),
@@ -50,7 +50,7 @@ fn version(id: &str, routine_id: &str, created_at: i64) -> StoredVersion {
     }
 }
 
-fn run(id: &str, routine_id: &str, origin: &str, origin_ref: Option<&str>, created_at: i64) -> StoredRun {
+pub(super) fn run(id: &str, routine_id: &str, origin: &str, origin_ref: Option<&str>, created_at: i64) -> StoredRun {
     StoredRun {
         id: id.into(),
         routine_id: routine_id.into(),

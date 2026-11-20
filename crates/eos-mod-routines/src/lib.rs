@@ -51,6 +51,10 @@
 //! What each of a run's agents is doing goes out on `run:activity`, one
 //! line a second per run at most, to the tabs that show the run.
 //!
+//! Once a day (`retention`) old runs, their agents' transcripts and the
+//! routines that leave for good are cleared; what they leave on disk goes to
+//! the trash.
+//!
 //! The run routes start runs by hand (`POST /api/runs`), estimate them
 //! (`POST /api/runs/estimate`), list and show them (`GET /api/runs`,
 //! `…/:id`, `…/:id/result`, `…/:id/events`), steer them (`…/:id/message`,
@@ -62,6 +66,7 @@ mod architect;
 mod engine;
 mod intent;
 mod patterns;
+mod retention;
 mod routes;
 mod trial;
 
@@ -73,7 +78,7 @@ use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
-use eos_core::os::{Power, TimeZone, ZoneRules};
+use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{
     ArchitectTools, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake,
     RunLookup, RunOutcomes, RunStarter,
@@ -139,6 +144,9 @@ pub struct RoutinesParts {
     pub one_shot: Arc<dyn OneShot>,
     /// The power source: runs from triggers wait on a low battery.
     pub power: Arc<dyn Power>,
+    /// Where the history retention clears goes (run folders, a deleted
+    /// routine's export): the trash, nothing else of the files port.
+    pub trash: Arc<dyn FileSystem>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -187,6 +195,7 @@ impl RoutinesModule {
             headroom,
             one_shot,
             power,
+            trash,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -230,6 +239,8 @@ impl RoutinesModule {
             architects: Mutex::new(HashMap::new()),
             one_shot,
             intent_reads: Mutex::new(None),
+            trash,
+            retention: Mutex::default(),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         let control = Arc::new(engine::Control(engine.clone()));

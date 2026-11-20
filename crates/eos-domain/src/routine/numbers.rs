@@ -10,7 +10,8 @@ use crate::cost::cost_usd;
 use crate::sync::stable::stable_stringify;
 use crate::worker::Usage;
 
-const WEEK_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// A week, the span of a routine's weekly numbers and of its first week.
+pub const WEEK_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 
 words! {
     /// How a run that ended `done` went: what became of its result at the
