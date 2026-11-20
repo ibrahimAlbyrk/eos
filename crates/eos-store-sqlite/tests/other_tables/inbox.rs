@@ -203,7 +203,7 @@ fn pages_follow_the_order_counts_group_and_the_handoff_lists_until_consumed() {
     assert_eq!((consumed, again, after.len()), (true, false, 0));
 }
 
-fn delivery(id: &str, state: &str, next_attempt_at: Option<i64>, created_at: i64) -> StoredDelivery {
+pub(super) fn delivery(id: &str, state: &str, next_attempt_at: Option<i64>, created_at: i64) -> StoredDelivery {
     StoredDelivery {
         id: id.into(),
         item_id: Some("nd-1".into()),
@@ -327,7 +327,7 @@ fn the_switch_is_one_row_and_off_until_first_used() {
     assert_eq!(temp.count("SELECT COUNT(*) FROM inbox_halt"), 1, "one row, however often it is switched");
 }
 
-fn outcome(routine_id: &str, outcome: &str, at: i64) -> NewOutcome {
+pub(super) fn outcome(routine_id: &str, outcome: &str, at: i64) -> NewOutcome {
     NewOutcome {
         routine_id: routine_id.into(),
         run_id: format!("rn-{at}"),

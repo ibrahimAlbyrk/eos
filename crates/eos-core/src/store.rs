@@ -51,6 +51,7 @@ mod pending;
 mod profile;
 mod reactions;
 mod remote;
+mod retention;
 mod routines;
 mod runs;
 mod session;
@@ -80,6 +81,7 @@ pub use pending::{NewPending, PendingRepo};
 pub use profile::{AvatarThumbnails, UserAvatar, UserAvatarStore, UserProfileStore};
 pub use reactions::{ReactionRepo, StoredReaction};
 pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
+pub use retention::{EndedRun, Leaving, LeavingRoutine, RoutineRetentionRepo};
 pub use routines::{
     RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, StoredDraft, StoredRoutine,
     StoredRoutineSession, StoredSpend, StoredVersion,

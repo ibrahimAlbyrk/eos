@@ -64,7 +64,7 @@ use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::agent::{OneShot, ScratchFolders};
 use eos_core::capability::CapabilityReads;
 use eos_core::git::{ProjectKeys, RemoteSync};
-use eos_core::os::{Power, TimeZone, ZoneRules};
+use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -156,6 +156,10 @@ pub(crate) struct Engine {
     pub(crate) one_shot: Arc<dyn OneShot>,
     /// The model reads of the Home input today: the local day and how many.
     pub(crate) intent_reads: Mutex<Option<(String, i64)>>,
+    /// Where what the retention pass clears goes: the trash.
+    pub(crate) trash: Arc<dyn FileSystem>,
+    /// When the retention pass is next due, and the one at work.
+    pub(crate) retention: Mutex<crate::retention::Schedule>,
 }
 
 impl Engine {
@@ -377,6 +381,7 @@ pub(crate) async fn stop_supervisor(engine: &Engine) {
     drop(Engine::locked(&engine.halt).take());
     drop(Engine::locked(&engine.handoffs).take());
     drop(Engine::locked(&engine.usage).take());
+    crate::retention::stop(engine).await;
     let task = Engine::locked(&engine.supervisor).take();
     if let Some(task) = task {
         task.abort();

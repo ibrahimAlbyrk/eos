@@ -6,17 +6,19 @@ use std::sync::Mutex;
 use eos_core::os::{FileRead, FileSystem, FsEntryMeta, FsStat, ListDirOptions, OpenFile};
 use eos_core::{BoxFuture, Error};
 
-/// `FileSystem::trash` into a folder the test gives, listing what it took;
-/// every other method fails, as a store that only trashes never calls them.
+/// `FileSystem::trash` into a folder the test gives, listing what it took,
+/// and `write_temp` into a folder beside it; every other method fails, as a
+/// store that only trashes never calls them.
 #[derive(Debug)]
 pub struct FakeTrash {
     dir: PathBuf,
     trashed: Mutex<Vec<PathBuf>>,
+    written: Mutex<usize>,
 }
 
 impl FakeTrash {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        Self { dir: dir.into(), trashed: Mutex::default() }
+        Self { dir: dir.into(), trashed: Mutex::default(), written: Mutex::default() }
     }
 
     /// The paths trashed, in order.
@@ -59,8 +61,21 @@ impl FileSystem for FakeTrash {
         unused()
     }
 
-    fn write_temp<'a>(&'a self, _: &'a str, _: &'a str, _: &'a [u8]) -> BoxFuture<'a, Result<PathBuf, Error>> {
-        unused()
+    fn write_temp<'a>(
+        &'a self,
+        prefix: &'a str,
+        name: &'a str,
+        bytes: &'a [u8],
+    ) -> BoxFuture<'a, Result<PathBuf, Error>> {
+        Box::pin(async move {
+            let mut written = self.written.lock().unwrap_or_else(|p| p.into_inner());
+            *written += 1;
+            let dir = self.dir.with_extension("temp").join(format!("{prefix}{written}"));
+            std::fs::create_dir_all(&dir).map_err(Error::storage)?;
+            let path = dir.join(name);
+            std::fs::write(&path, bytes).map_err(Error::storage)?;
+            Ok(path)
+        })
     }
 
     fn create_file<'a>(&'a self, _: &'a Path, _: &'a str) -> BoxFuture<'a, Result<(), Error>> {

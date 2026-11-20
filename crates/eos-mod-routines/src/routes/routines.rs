@@ -19,11 +19,9 @@ use serde_json::Value;
 
 use super::usual;
 use crate::patterns::ItemPatterns;
+use crate::retention::DELETED_KEPT_MS;
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
-
-/// How long a deleted routine stays in Recently deleted.
-const DELETED_KEPT_MS: i64 = 30 * DAY_MS;
 
 /// How many of a routine's latest runs its usual cost is read from.
 const USUAL_RUNS_READ: i64 = 200;
@@ -299,7 +297,7 @@ fn version_row((at, version): (usize, &StoredVersion)) -> RoutineVersionRow {
     }
 }
 
-fn with_blueprint(at: usize, version: &StoredVersion) -> Result<RoutineVersion, Error> {
+pub(crate) fn with_blueprint(at: usize, version: &StoredVersion) -> Result<RoutineVersion, Error> {
     Ok(RoutineVersion { row: version_row((at, version)), hash: version.hash.clone(), blueprint: stored_json(version)? })
 }
 

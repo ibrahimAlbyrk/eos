@@ -429,6 +429,10 @@ pub struct KeptFile {
 /// `files/`, the copies of what its result carries. No agent's file tool
 /// writes either's parent entry.
 pub trait RunFolders: Send + Sync {
+    /// The routine's folder: its scripts and its runs' folders.
+    fn routine_dir(&self, routine_id: &str) -> PathBuf;
+    /// One run's folder, inside its routine's.
+    fn run_dir(&self, routine_id: &str, run_id: &str) -> PathBuf;
     /// A new empty `work/<n>/` for one start of a session, `n` one past the
     /// highest there: nothing an earlier start left loads as instructions.
     /// Its absolute path.

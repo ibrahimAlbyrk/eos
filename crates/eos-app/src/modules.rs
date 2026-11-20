@@ -220,6 +220,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         headroom: Arc::new(crate::headroom::CachedHeadroom { cache: cx.usage_cache.clone(), clock: cx.clock.clone() }),
         one_shot: cx.one_shot.clone(),
         power: power.clone(),
+        trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), cx.paths.trash_dir())),
     }));
     cx.grants.attach(&routines.grants());
     // The delivery engine keeps the outcomes alive for the gate.
