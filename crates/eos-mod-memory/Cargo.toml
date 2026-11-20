@@ -12,6 +12,7 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-memory.workspace = true
+eos-prompts.workspace = true
 eos-runtime.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -17,6 +17,8 @@
   "env/worktree.prompt.md": "ce0e5ea248f718312ad4fbdf7aa0d9cb5c9e6c1e75e92f1d600b00025c79adbf",
   "integrate.prompt.md": "1cca1e85bbaf968dd99bac190cca2f5544195e33c21412c10d46aa13baef8352",
   "lane/in-process.prompt.md": "973dcc06853eae58bf4c2fe08cb8551786dc010301a83999a11a49b58ef61940",
+  "memory/reflect-system.prompt.md": "e04b54332387265a8c23f4b2e3a0a1a59e4a2b166a8afd3b7d2acbc869094979",
+  "memory/reflect.prompt.md": "28352748816497df508177b2dd520e5e267edcaa78bd4f9c7525a6cae1b7c74d",
   "message-ids.prompt.md": "dac45912d9ffb88e6a446f4ba8d8f3b14d274ce5df9950536ec34478f637a72c",
   "micro-tasks/auto-name.prompt.md": "d4ac0ff03646a8fda806a244997f3afc9cbf512548e595535c13fe1a2c470a51",
   "micro-tasks/signal-match.prompt.md": "b006acd4b826b98a8307dd3023d0c9b80d5234d7cffc7c1218e01f0068298aa6",

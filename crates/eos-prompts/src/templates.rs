@@ -68,6 +68,26 @@ pub mod dream {
     }
 }
 
+/// Memory's reflection on one moment.
+pub mod memory {
+    use super::{Error, PromptService, render};
+
+    /// The system prompt and the request: the moment's signal, the
+    /// conversation around it (tool results already fenced) and the notes
+    /// next to it, one per line.
+    pub fn reflect(
+        prompts: &PromptService,
+        signal: &str,
+        transcript: &str,
+        notes: &str,
+    ) -> Result<(String, String), Error> {
+        let system = render(prompts, "memory/reflect-system", &[])?;
+        let request =
+            render(prompts, "memory/reflect", &[("SIGNAL", signal), ("TRANSCRIPT", transcript), ("NOTES", notes)])?;
+        Ok((system, request))
+    }
+}
+
 /// Micro-tasks.
 pub mod micro_task {
     use super::{Error, PromptService, no_values, values};

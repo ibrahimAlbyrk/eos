@@ -9,6 +9,9 @@
 //!   memory learns from.
 //! - [`deliver`] builds a reminder and records each note that reached a
 //!   model (`mem_uses`, announced on `memory:recalled`).
+//! - [`reflect`] turns pending moments into notes (the small model where
+//!   the host lets it ask one, the rules elsewhere) and [`merge`] writes
+//!   them beside the notes they meet, in one job.
 //! - [`settings`] reads and writes the user's Learning and Reminders
 //!   switches.
 //! - [`chat_pack`] turns what was recalled into the block a chat's model
@@ -19,12 +22,16 @@
 
 pub mod capture;
 pub mod deliver;
+pub mod merge;
 pub mod pack;
 pub mod recall;
+pub mod reflect;
 pub mod settings;
+pub mod transcript;
 pub mod vectors;
 
 pub use capture::{Capture, Captured};
 pub use pack::{Pack, chat_pack};
 pub use recall::{Cues, Recall, Recalled, Situation};
+pub use reflect::{Gate, ModelGate, MomentContext, MomentSource, ReflectParts, ReflectPrompt, Reflector};
 pub use vectors::VectorIndex;

@@ -52,8 +52,16 @@ struct Inner {
     /// By PTY session id; a pane that moved conversation keeps its old one
     /// under `<pty id>#<claude id>` until it is read.
     panes: Mutex<HashMap<String, Pane>>,
+    /// The folder each Claude session seen ran in, so its moments can be
+    /// read again for reflection after its pane is gone; at most
+    /// [`KNOWN_MAX`] (the store keeps a moment, not a pane).
+    known: Mutex<HashMap<String, String>>,
     wake: Notify,
+    /// Wakes reflection when a look stored moments.
+    reflect: Arc<Notify>,
 }
+
+const KNOWN_MAX: usize = 512;
 
 pub(crate) struct CodePanes {
     inner: Arc<Inner>,
@@ -66,9 +74,17 @@ impl CodePanes {
         capture: Capture,
         transcripts: Arc<dyn ClaudeTranscripts>,
         clock: Arc<dyn Clock>,
+        reflect: Arc<Notify>,
     ) -> Self {
-        let inner =
-            Arc::new(Inner { capture, transcripts, clock, panes: Mutex::new(HashMap::new()), wake: Notify::new() });
+        let inner = Arc::new(Inner {
+            capture,
+            transcripts,
+            clock,
+            panes: Mutex::new(HashMap::new()),
+            known: Mutex::new(HashMap::new()),
+            wake: Notify::new(),
+            reflect,
+        });
         let on_session = {
             let inner = Arc::downgrade(&inner);
             bus.on(topics::PTY_SESSION, move |event| {
@@ -86,6 +102,14 @@ impl CodePanes {
             })
         };
         Self { inner, _subscriptions: [on_session, on_exit] }
+    }
+
+    /// A Claude session's conversation as rows, read again from its
+    /// transcript; `None` when the session was not seen by this run.
+    pub(crate) async fn rows(&self, claude_session_id: &str) -> Option<Vec<EventRecord>> {
+        let cwd = lock(&self.inner.known).get(claude_session_id).cloned()?;
+        let file: SharedFile = Arc::new(Mutex::new(self.inner.transcripts.open(&cwd, claude_session_id)));
+        tokio::task::spawn_blocking(move || rows_of(&file)).await.ok().filter(|rows| !rows.is_empty())
     }
 
     /// Looks at the panes every [`POLL_MS`], and at once when one exits.
@@ -109,6 +133,13 @@ impl Inner {
             return;
         }
         let Some(claude_session_id) = session.claude_session_id.clone() else { return };
+        {
+            let mut known = lock(&self.known);
+            if known.len() >= KNOWN_MAX && !known.contains_key(&claude_session_id) {
+                known.clear();
+            }
+            known.insert(claude_session_id.clone(), session.cwd.clone());
+        }
         let mut panes = lock(&self.panes);
         if let Some(pane) = panes.get(&session.session_id) {
             if pane.claude_session_id == claude_session_id {
@@ -155,11 +186,13 @@ impl Inner {
         };
         for (key, claude_session_id, file, gone) in due {
             let rows = tokio::task::spawn_blocking(move || rows_of(&file)).await.unwrap_or_default();
-            if !rows.is_empty()
-                && let Err(e) = self.capture.look_code(&claude_session_id, rows).await
-            {
-                // The next change or exit tries again.
-                tracing::warn!(error = %e, "memory: Code-view capture failed");
+            if !rows.is_empty() {
+                match self.capture.look_code(&claude_session_id, rows).await {
+                    Ok(captured) if !captured.stored.is_empty() => self.reflect.notify_one(),
+                    Ok(_) => {}
+                    // The next change or exit tries again.
+                    Err(e) => tracing::warn!(error = %e, "memory: Code-view capture failed"),
+                }
             }
             if gone {
                 lock(&self.panes).remove(&key);

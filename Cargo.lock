@@ -2179,6 +2179,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-memory",
+ "eos-prompts",
  "eos-runtime",
  "eos-testkit",
  "serde",
