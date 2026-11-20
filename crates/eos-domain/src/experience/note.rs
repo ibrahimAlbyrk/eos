@@ -250,9 +250,9 @@ mod tests {
     #[test]
     fn a_scope_widens_one_level_at_a_time() {
         let routine = Scope { level: ScopeLevel::Routine, key: "r-1".into() };
-        let project = routine.widen(Some("p"), Some("code")).unwrap();
+        let project = routine.widen(Some("p"), Some("code")).expect("a project");
         assert_eq!(project, Scope { level: ScopeLevel::Project, key: "p".into() });
-        let work = project.widen(None, Some("code")).unwrap();
+        let work = project.widen(None, Some("code")).expect("a kind of work");
         assert_eq!(work.level, ScopeLevel::Work);
         assert_eq!(work.widen(None, None), Some(Scope::everywhere()));
         assert_eq!(Scope::everywhere().widen(Some("p"), Some("code")), None);
@@ -263,13 +263,13 @@ mod tests {
     #[test]
     fn a_body_reads_back_by_its_fields() {
         let lesson = NoteBody::Lesson { situation: "s".into(), wrong: "w".into(), instead: "i".into() };
-        let json = serde_json::to_value(&lesson).unwrap();
-        assert_eq!(serde_json::from_value::<NoteBody>(json).unwrap(), lesson);
+        let json = serde_json::to_value(&lesson).expect("writes");
+        assert_eq!(serde_json::from_value::<NoteBody>(json).expect("reads"), lesson);
         let example = NoteBody::Example { run_id: "run-1".into(), excerpt: "e".into() };
-        let json = serde_json::to_value(&example).unwrap();
+        let json = serde_json::to_value(&example).expect("writes");
         assert_eq!(json, serde_json::json!({"runId": "run-1", "excerpt": "e"}));
-        assert_eq!(serde_json::from_value::<NoteBody>(json).unwrap(), example);
-        assert_eq!(serde_json::from_str::<NoteBody>("{}").unwrap(), NoteBody::None {});
+        assert_eq!(serde_json::from_value::<NoteBody>(json).expect("reads"), example);
+        assert_eq!(serde_json::from_str::<NoteBody>("{}").expect("reads"), NoteBody::None {});
     }
 
     #[test]

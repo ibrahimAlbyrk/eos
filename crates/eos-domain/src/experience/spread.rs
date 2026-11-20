@@ -46,7 +46,7 @@ pub fn spread(seeds: &[(String, f64)], mut neighbours: impl FnMut(&[String]) -> 
         let mut by_node: HashMap<&str, Vec<Edge>> = HashMap::new();
         let edges = neighbours(&frontier);
         for edge in &edges {
-            if frontier.iter().any(|f| *f == edge.from) {
+            if frontier.contains(&edge.from) {
                 by_node.entry(edge.from.as_str()).or_default().push(edge.clone());
             }
         }
@@ -141,10 +141,10 @@ mod tests {
         let nodes = 10_000u64;
         let mut links: HashMap<String, Vec<Edge>> = HashMap::new();
         for n in 0..nodes {
-            let from = if n % 10 == 0 { format!("mh-{n}") } else { format!("mn-{n}") };
+            let from = if n.is_multiple_of(10) { format!("mh-{n}") } else { format!("mn-{n}") };
             for _ in 0..(next() % 30) {
                 let to = next() % nodes;
-                let to = if to % 10 == 0 { format!("mh-{to}") } else { format!("mn-{to}") };
+                let to = if to.is_multiple_of(10) { format!("mh-{to}") } else { format!("mn-{to}") };
                 links.entry(from.clone()).or_default().push(Edge {
                     from: from.clone(),
                     to,

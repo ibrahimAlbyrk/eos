@@ -64,16 +64,16 @@ pub fn command_key(command: &str) -> String {
     let head = head.rsplit('/').next().unwrap_or(head);
     let mut key = head.to_owned();
     let takes_sub = ["cargo", "npm", "pnpm", "yarn", "git", "go", "gh", "docker", "make", "xcodebuild", "bun", "npx"];
-    if takes_sub.contains(&head) {
-        if let Some(sub) = words.next() {
+    if takes_sub.contains(&head)
+        && let Some(sub) = words.next()
+    {
+        key.push(' ');
+        key.push_str(sub);
+        if matches!(sub, "run" | "exec")
+            && let Some(script) = words.next()
+        {
             key.push(' ');
-            key.push_str(sub);
-            if matches!(sub, "run" | "exec") {
-                if let Some(script) = words.next() {
-                    key.push(' ');
-                    key.push_str(script);
-                }
-            }
+            key.push_str(script);
         }
     }
     key
@@ -110,12 +110,12 @@ pub fn path_cues(path: &str, root: Option<&str>) -> Vec<Cue> {
 /// the project's `root` when inside it).
 pub fn from_tool(name: &str, input: &Value, root: Option<&str>) -> Vec<Cue> {
     let mut cues = vec![Cue::new(HookKind::Tool, name)];
-    if is_shell(name) {
-        if let Some(command) = command_of(input) {
-            let key = command_key(command);
-            if !key.is_empty() {
-                cues.push(Cue::new(HookKind::Command, key));
-            }
+    if is_shell(name)
+        && let Some(command) = command_of(input)
+    {
+        let key = command_key(command);
+        if !key.is_empty() {
+            cues.push(Cue::new(HookKind::Command, key));
         }
     }
     for field in PATH_FIELDS {

@@ -234,11 +234,11 @@ impl Walk {
     fn user_message(&mut self, row: &EventRecord, payload: &Value) {
         let text = payload.get("text").and_then(Value::as_str).unwrap_or("");
         let message_cues = cues::from_message(text, None).cues;
-        if let Some((stop, at)) = self.open_stop.take() {
-            if row.ts - at <= STOP_JOIN_MS {
-                self.out[stop].row_to = row.id;
-                self.out[stop].cues.extend(message_cues.iter().cloned());
-            }
+        if let Some((stop, at)) = self.open_stop.take()
+            && row.ts - at <= STOP_JOIN_MS
+        {
+            self.out[stop].row_to = row.id;
+            self.out[stop].cues.extend(message_cues.iter().cloned());
         }
         match classify_user_message(text) {
             MessageClass::Rule => {
@@ -297,10 +297,10 @@ impl Walk {
             self.push(signal, row.id, row.id, call_cues, subagent);
             let entry = self.failures.entry(key).or_insert((0, row.id));
             entry.0 += 1;
-        } else if let Some((count, first)) = self.failures.remove(&key) {
-            if count >= HARD_WON_FAILURES {
-                self.push(Signal::HardWon, first, row.id, call_cues, subagent);
-            }
+        } else if let Some((count, first)) = self.failures.remove(&key)
+            && count >= HARD_WON_FAILURES
+        {
+            self.push(Signal::HardWon, first, row.id, call_cues, subagent);
         }
     }
 
