@@ -1,8 +1,10 @@
 //! What routines read: items to pick and past ones, recognisers, whether a
 //! review fits its action, what is missing, and a pull request's checkout.
 
+use eos_contracts::ResultDoc;
 use eos_core::capability::{ActionError, CapabilityReads, PastItemFilter};
 use eos_domain::capability::health::HealthState;
+use eos_domain::result_doc::{GITHUB_REVIEW, MAIL, PAGE_ISSUE, TEXT};
 
 use crate::github::{HEAD, REPO, github, pull_item, review};
 
@@ -42,6 +44,25 @@ async fn a_review_is_held_to_the_input_of_the_action_that_sends_it() {
     lineless.parts[2].meta.remove("line");
     assert!(reads.validate_result("github.review", &lineless, &item).await.is_err());
     assert!(reads.validate_result("mail", &review("post_review", "COMMENT", 30), &item).await.is_err());
+}
+
+#[tokio::test]
+async fn every_shape_a_built_in_channel_declares_shows_a_result_its_action_takes() {
+    let rig = github().await;
+    let reads: &dyn CapabilityReads = rig.service().as_ref();
+    let item = pull_item(7, HEAD);
+    let kinds = [GITHUB_REVIEW, MAIL, PAGE_ISSUE, TEXT];
+    let shapes: Vec<_> = kinds.iter().filter_map(|kind| reads.result_shape(kind)).collect();
+    assert_eq!(shapes.iter().map(|shape| shape.kind.as_str()).collect::<Vec<_>>(), [GITHUB_REVIEW]);
+    for shape in shapes {
+        let text = shape.describe();
+        let json = text.split("```json\n").nth(1).and_then(|rest| rest.split("\n```").next()).expect("an example");
+        let mut example: ResultDoc = serde_json::from_str(json).expect("a result");
+        for action in shape.actions.clone() {
+            example.action = action;
+            assert_eq!(reads.validate_result(&shape.kind, &example, &item).await, Ok(()), "{}", example.action);
+        }
+    }
 }
 
 #[tokio::test]
