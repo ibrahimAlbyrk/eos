@@ -109,3 +109,21 @@ async fn a_result_of_another_shape_is_refused_at_once_with_what_to_change() {
     bench.module.tools().submit_result(&lead, handed(fitting())).await.expect("the right shape is taken");
     bench.eventually(|| bench.state(&run) == RunState::Checking).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_object_that_is_no_result_is_told_the_field_it_lacks_not_parts_it_has() {
+    let bench = bench();
+    let (run, lead) = working(&bench).await;
+    let roleless = json!({"kind": "github.review", "channel": "github", "action": "post_review",
+                          "parts": [{"key": "summary", "text": "Fine."}]});
+    let told = bench.module.tools().submit_result(&lead, handed(roleless)).await.expect_err("refused").to_string();
+    assert!(told.contains("part `summary`: `role` is missing or not text"), "{told}");
+    assert!(!told.contains("is missing: The summary"), "the summary it has is not called missing: {told}");
+
+    let as_text = fitting().to_string();
+    let told =
+        bench.module.tools().submit_result(&lead, handed(json!(as_text))).await.expect_err("refused").to_string();
+    assert!(told.contains("pass the result as one object, not as text holding JSON"), "{told}");
+    assert!(!told.contains("part `body`"), "{told}");
+    assert_eq!(bench.run(&run).station, Some(Station::Work), "no round spent");
+}
