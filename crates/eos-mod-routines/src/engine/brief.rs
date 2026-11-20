@@ -199,7 +199,7 @@ fn render(
         })
         .collect();
     let steps: Vec<String> = blueprint.how.steps.iter().map(|step| format!("- {step}")).collect();
-    let how = format!("{}\n\nThe result's shape: {}", steps.join("\n"), blueprint.how.format);
+    let how = format!("{}\n\nHow the result reads: {}", steps.join("\n"), blueprint.how.format);
     let limits = &blueprint.limits;
     let pairs = [
         ("ROUTINE_NAME", blueprint.name.clone()),
@@ -207,6 +207,7 @@ fn render(
         ("WHO", who(blueprint, agent)),
         ("HOW", how),
         ("MAKES", format!("{} ({})", blueprint.makes.description, blueprint.makes.kind)),
+        ("RESULT_SHAPE", super::shape::text(engine, &blueprint.makes.kind)),
         ("ITEM", if items.is_empty() { "No item: this run works on its own.".into() } else { items.join("\n\n") }),
         ("OPTIONS", if options.is_empty() { "None.".into() } else { options.join("\n") }),
         ("NOTE", input.note.clone().unwrap_or_else(|| "None.".into())),

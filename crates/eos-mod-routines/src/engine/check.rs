@@ -21,7 +21,7 @@ use eos_domain::run_scope::{RunRole, Trust};
 use super::brief::word;
 use super::control::confirmed_in;
 use super::spawn::{self, RunSession};
-use super::{Engine, gate, item_text, move_run, note};
+use super::{Engine, gate, item_text, move_run, note, shape};
 use crate::routes::readable;
 
 /// The definition a run's checker starts as; its tools and prompt key on it.
@@ -126,20 +126,21 @@ pub(crate) fn result_doc(result: &StoredRunResult) -> ResultDoc {
     ResultDoc { kind: result.kind.clone(), channel: String::new(), action: String::new(), parts: vec![part] }
 }
 
-/// What the rules find wrong with the result, each a line the lead can act on.
+/// What the rules find wrong with the result, each a line the lead can act
+/// on. The channel's own check runs once the result has its shape.
 async fn rules(engine: &Engine, checking: &Checking) -> Vec<String> {
-    let mut findings = Vec::new();
     let (kind, makes) = (&checking.result.kind, &checking.blueprint.makes.kind);
-    if kind != makes {
-        findings.push(format!("The result is a {kind}; this routine makes a {makes}."));
-    }
+    let doc = result_doc(&checking.result);
+    let mut findings = shape::misfits(engine, kind, makes, &doc);
     if checking.blueprint.goes_to.iter().any(|recipient| !checking.goes_to.contains(recipient)) {
         findings.push("The routine sends to someone the user has not confirmed.".to_owned());
     }
-    let doc = result_doc(&checking.result);
+    if !findings.is_empty() {
+        return findings;
+    }
     for item in checking.items() {
-        if let Err(text) = engine.reads.validate_result(kind, &doc, item).await {
-            findings.push(text);
+        if let Err(texts) = engine.reads.validate_result(makes, &doc, item).await {
+            findings.extend(texts);
         }
     }
     findings
@@ -189,6 +190,7 @@ fn render(engine: &Engine, checking: &Checking) -> Result<String, Error> {
         ("BRIEF", blueprint.who.checker.brief.clone().unwrap_or_default()),
         ("ITEM", if items.is_empty() { "No item.".into() } else { items.join("\n\n") }),
         ("RESULT", result),
+        ("RESULT_SHAPE", shape::text(engine, &blueprint.makes.kind)),
     ];
     let values = pairs.into_iter().map(|(name, value)| (name.to_owned(), serde_json::Value::String(value))).collect();
     engine.prompts.render("routine/check-brief", &values, &eos_prompts::service::no_values())

@@ -10,19 +10,21 @@ use eos_core::capability::{
 };
 use eos_core::signals::SourceError;
 use eos_core::{BoxFuture, Error};
+use eos_domain::result_doc::shape::ResultShape;
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-/// Items, recognisers, gaps and checkouts as the test gives them. A result
-/// passes unless its kind was set to fail; an item without a checkout is
-/// not found.
+/// Items, recognisers, shapes, gaps and checkouts as the test gives them. A
+/// result passes unless its kind was set to fail or it misses the shape set
+/// for its kind; an item without a checkout is not found.
 #[derive(Debug, Default)]
 pub struct FakeCapabilityReads {
     items: HashMap<String, Vec<CapabilityItem>>,
     recognisers: Vec<ItemRecogniser>,
     refused: HashMap<String, String>,
+    shapes: HashMap<String, ResultShape>,
     missing: Vec<MissingNeed>,
     capabilities: Vec<Capability>,
     checkouts: HashMap<String, Checkout>,
@@ -48,6 +50,12 @@ impl FakeCapabilityReads {
     /// Results of `kind` fail with `text`.
     pub fn refusing(mut self, kind: &str, text: &str) -> Self {
         self.refused.insert(kind.to_owned(), text.to_owned());
+        self
+    }
+
+    /// Results of the shape's kind are told and held to it.
+    pub fn shaping(mut self, shape: ResultShape) -> Self {
+        self.shapes.insert(shape.kind.clone(), shape);
         self
     }
 
@@ -107,14 +115,23 @@ impl CapabilityReads for FakeCapabilityReads {
         Box::pin(std::future::ready(Ok(self.recognisers.clone())))
     }
 
+    fn result_shape(&self, kind: &str) -> Option<ResultShape> {
+        self.shapes.get(kind).cloned()
+    }
+
     fn validate_result<'a>(
         &'a self,
         kind: &'a str,
-        _body: &'a ResultDoc,
+        body: &'a ResultDoc,
         _item: &'a ItemRef,
-    ) -> BoxFuture<'a, Result<(), String>> {
+    ) -> BoxFuture<'a, Result<(), Vec<String>>> {
         self.ask(format!("validate {kind}"));
-        Box::pin(std::future::ready(self.refused.get(kind).map_or(Ok(()), |text| Err(text.clone()))))
+        let misfits = match (self.refused.get(kind), self.shapes.get(kind)) {
+            (Some(text), _) => vec![text.clone()],
+            (None, Some(shape)) => shape.check(body),
+            (None, None) => Vec::new(),
+        };
+        Box::pin(std::future::ready(if misfits.is_empty() { Ok(()) } else { Err(misfits) }))
     }
 
     fn missing<'a>(&'a self, needs: &'a [String]) -> BoxFuture<'a, Result<Vec<MissingNeed>, Error>> {
@@ -188,7 +205,7 @@ mod tests {
             action: "post_review".into(),
             parts: Vec::new(),
         };
-        assert_eq!(reads.validate_result("github.review", &doc, &item).await, Err("no event".into()));
+        assert_eq!(reads.validate_result("github.review", &doc, &item).await, Err(vec!["no event".to_owned()]));
         assert_eq!(reads.checkout(&item).await, Ok(checkout));
         assert!(reads.candidates("github.pulls", None, 10).await.expect("items").is_empty());
         assert_eq!(

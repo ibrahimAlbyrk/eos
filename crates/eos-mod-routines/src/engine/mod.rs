@@ -25,6 +25,7 @@ mod lifecycle;
 mod outcomes;
 mod ports;
 mod recover;
+mod shape;
 mod spawn;
 mod start;
 mod steer;

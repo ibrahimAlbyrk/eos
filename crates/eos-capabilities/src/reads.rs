@@ -10,10 +10,12 @@ use eos_core::signals::SourceError;
 use eos_core::{BoxFuture, Error};
 use eos_domain::capability::health::{Event, StateCode};
 use eos_domain::capability::schema::input_error;
+use eos_domain::result_doc::GITHUB_REVIEW;
+use eos_domain::result_doc::shape::ResultShape;
 use serde_json::{Map, Value};
 
 use crate::health::apply;
-use crate::pull::{PULL_REQUEST, Pull, action_input, review_of};
+use crate::pull::{GITHUB, PULL_REQUEST, Pull, action_input, review_of, review_shape};
 use crate::{CapabilityService, call};
 
 impl CapabilityService {
@@ -45,11 +47,23 @@ impl CapabilityService {
             .collect())
     }
 
-    /// A review result against the input schema of the action that sends it.
-    async fn check_result(&self, kind: &str, body: &ResultDoc, item: &ItemRef) -> Result<(), String> {
-        if body.kind != kind {
-            return Err(format!("the result is a {}, not a {kind}", body.kind));
+    /// The shapes the built-in channels declare.
+    fn shape_of(&self, kind: &str) -> Option<ResultShape> {
+        (kind == GITHUB_REVIEW && self.builtins.contains_key(GITHUB)).then(review_shape)
+    }
+
+    /// A review result against its shape, then against the input schema of
+    /// the action that sends it.
+    async fn check_result(&self, kind: &str, body: &ResultDoc, item: &ItemRef) -> Result<(), Vec<String>> {
+        let shape = self.shape_of(kind).ok_or_else(|| vec![format!("no channel here sends a {kind} result")])?;
+        let misfits = shape.check(body);
+        if !misfits.is_empty() {
+            return Err(misfits);
         }
+        self.fits_action(kind, body, item).await.map_err(|text| vec![text])
+    }
+
+    async fn fits_action(&self, kind: &str, body: &ResultDoc, item: &ItemRef) -> Result<(), String> {
         let pull = Pull::of_item(item).ok_or_else(|| format!("a {kind} result needs a pull request"))?;
         let commit_id = pull.sha.clone().ok_or_else(|| "the pull request names no commit".to_owned())?;
         let review = review_of(body, &pull, &commit_id)?;
@@ -122,12 +136,16 @@ impl CapabilityReads for CapabilityService {
         Box::pin(self.recognised())
     }
 
+    fn result_shape(&self, kind: &str) -> Option<ResultShape> {
+        self.shape_of(kind)
+    }
+
     fn validate_result<'a>(
         &'a self,
         kind: &'a str,
         body: &'a ResultDoc,
         item: &'a ItemRef,
-    ) -> BoxFuture<'a, Result<(), String>> {
+    ) -> BoxFuture<'a, Result<(), Vec<String>>> {
         Box::pin(self.check_result(kind, body, item))
     }
 

@@ -6,6 +6,7 @@ variables:
   - WHO
   - HOW
   - MAKES
+  - RESULT_SHAPE
   - ITEM
   - OPTIONS
   - NOTE
@@ -36,6 +37,8 @@ Your working folder is empty on purpose. Before anything else, `cd` into the che
 ## What it makes
 
 {{MAKES}}
+
+{{RESULT_SHAPE}}
 
 ## The item
 
