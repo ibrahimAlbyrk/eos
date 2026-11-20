@@ -1,6 +1,6 @@
 // This app's own migrations, run after today's TypeScript ones (`embedded.rs`, generated).
-// Each only adds a table or an index: the previous app version, and today's TypeScript app,
-// still open a file that ran them (they leave ids they do not know alone). Rows of the
+// Each only adds a table or an index, or a trigger on a table this app added: the previous
+// app version, and today's TypeScript app, still open a file that ran them (they leave ids they do not know alone). Rows of the
 // TypeScript app's tables change only back to values it wrote. Append only.
 
 use super::Migration;
@@ -24,4 +24,10 @@ pub(super) const OWN: &[Migration] = &[
     embed!("072_inbox"),
     // Capabilities: what is installed and how it stands, every version of each package, and calls.
     embed!("073_capabilities"),
+    // Memory: notes, hooks, links, vectors, evidence, versions and counters.
+    embed!("074_mem_core"),
+    // Memory's journal: moments, cursors, uses, stated rules, forgotten notes, replays, switches.
+    embed!("075_mem_journal"),
+    // Search of memory notes by words.
+    embed!("076_mem_fts"),
 ];
