@@ -2,7 +2,7 @@
 // draft as its architect leaves it, its versions and the blueprints of the
 // versions opened, what the user said to the architect in this window, and
 // the one note the editor shows after a write (changed elsewhere, refused,
-// a trial needed, too many architects at work).
+// a trial needed, an architect's refusal).
 
 import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
@@ -95,7 +95,17 @@ async function write(method, path, body, handled = []) {
 }
 
 const refused = (body) => ({ kind: "refused", text: "Eos could not keep this blueprint.", issues: body?.issues ?? [] });
-const crowded = (body) => ({ kind: "crowded", text: body?.error ?? "Too many architects are at work." });
+// The architect routes' 409s by code: only `architects_busy` offers drafts
+// to leave; the others are said as a line of their own.
+const ARCHITECT_REFUSALS = {
+  architects_busy: "Three architects are at work. Leave a draft to make room.",
+  no_architect: "No architect works on this draft now.",
+  newer_format: "A newer version of Eos made this routine. It cannot be changed here.",
+};
+const architectRefused = (body) => ({
+  kind: body?.code === "architects_busy" ? "crowded" : "refusal",
+  text: ARCHITECT_REFUSALS[body?.code] ?? body?.error ?? "Eos could not do that.",
+});
 
 // A version was written (RoutineSaved): its row, its detail and versions read again.
 async function saved(id, body) {
@@ -141,7 +151,7 @@ function remember(id, text) {
 export async function makeRoutine(sentence) {
   const r = await write("POST", ROUTES.routinesArchitect, { sentence }, [409]);
   if (!r) return null;
-  if (r.status === 409) return note(NEW, crowded(r.body)), null;
+  if (r.status === 409) return note(NEW, architectRefused(r.body)), null;
   const id = r.body?.row?.id;
   if (typeof id !== "string") return null;
   putRoutineRow(r.body.row);
@@ -164,7 +174,7 @@ export async function sayToArchitect(id, said) {
   remember(id, words);
   const r = await write("POST", path, body, [409]);
   if (!r) return false;
-  if (r.status === 409) return note(id, crowded(r.body)), false;
+  if (r.status === 409) return note(id, architectRefused(r.body)), false;
   if (typeof r.body?.status === "string") set({ drafts: { ...state.drafts, [id]: r.body } });
   note(id, null);
   return true;

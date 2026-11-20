@@ -33,7 +33,7 @@ export function shownVersion(detail, draft, rows, number) {
 // What the last write left to say: changed elsewhere, refused with its
 // findings, kept with warnings, or why a start did not happen.
 function Note({ note }) {
-  if (!note || note.kind === "crowded") return null;
+  if (!note || note.kind === "crowded" || note.kind === "refusal") return null;
   const tone = note.kind === "warnings" ? "eos-band--warn" : "eos-band--err";
   return (
     <div className={`eos-band ${tone}`} role="alert">

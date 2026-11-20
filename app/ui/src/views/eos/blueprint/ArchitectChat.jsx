@@ -66,8 +66,8 @@ function Replies({ workerId }) {
   return replies.map((r) => <div key={r.key} className="eos-bp-reply" dangerouslySetInnerHTML={{ __html: renderMarkdown(r.text) }} />);
 }
 
-// Too many architects at work: the core's words, and the drafts the user
-// could leave to make room.
+// Too many architects at work, and the drafts the user could leave to make
+// room.
 function Crowded({ routineId, text }) {
   const { list } = useRoutines();
   const others = (list ?? []).filter((r) => r.state === "draft" && r.id !== routineId);
@@ -113,6 +113,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
       {draft?.status === "abandoned" && <p className="eos-note">You left this draft. Say what to change to start again.</p>}
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
       {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} />}
+      {note?.kind === "refusal" && <p className="eos-note" role="alert">{note.text}</p>}
       <span className="eos-bp-chat__fill" />
       {making && draft === null ? (
         <p className="eos-note">This routine was made by hand. Change it on the card; once it runs, say what to change here.</p>
