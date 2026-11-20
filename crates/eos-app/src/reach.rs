@@ -19,10 +19,13 @@
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
+//! | The channels a run's results go out through (GitHub reviews) | every send answers `DevRun`: the delivery stays `frozen`, nothing is sent |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
 //! already has, never as "not signed in" or "not set".
+
+mod channels;
 
 use std::sync::Arc;
 
@@ -30,6 +33,7 @@ use eos_contracts::ProviderUsage;
 use eos_contracts::update::UpdateOffReason;
 use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
 use eos_core::capability::CapabilitySecrets;
+use eos_core::delivery::Channels;
 use eos_core::net::relay::Relay;
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::signals::{
@@ -111,6 +115,12 @@ impl Reach {
             Some(transport) => transport,
             None => Arc::new(NoGitHub),
         }
+    }
+
+    /// The channels results go out through: off the network each still says
+    /// what its actions are, and every call answers `DevRun`.
+    pub(crate) fn channels(self, channels: Arc<dyn Channels>) -> Arc<dyn Channels> {
+        if self.network { channels } else { Arc::new(channels::OffChannels(channels)) }
     }
 
     /// The sources signals come from: off the network each still says what

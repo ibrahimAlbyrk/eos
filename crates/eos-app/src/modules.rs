@@ -185,11 +185,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         place_search: cx.media.places.clone(),
         location: cx.location.clone(),
     }));
-    let gate = Arc::new(eos_inbox::gate::Gate::new(
-        cx.capabilities.channels(),
-        Arc::new(crate::host::HostTimeZone),
-        cx.clock.clone(),
-    ));
+    let channels = cx.reach.channels(cx.capabilities.channels());
+    let gate =
+        Arc::new(eos_inbox::gate::Gate::new(channels.clone(), Arc::new(crate::host::HostTimeZone), cx.clock.clone()));
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -300,7 +298,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
                 sleeper: cx.sleeper.clone(),
                 ids: cx.ids.clone(),
                 zone: Arc::new(crate::host::HostTimeZone),
-                channels: cx.capabilities.channels(),
+                channels,
                 control: routines.control(),
                 outcomes: routines.outcomes(),
                 wake: gate.waker(),
