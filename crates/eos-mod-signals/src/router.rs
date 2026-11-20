@@ -1,6 +1,6 @@
 //! From a source's page to runs, exactly once (02 §3 B).
 //!
-//! Ingest is one write: the page's signals are kept as `received` (a key
+//! Ingest (`ingest`) is one write: the page's signals are kept as `received` (a key
 //! the source reported before costs nothing) and the source's cursor moves
 //! with them. Routing is one write per signal: one `signal_routes` row for
 //! each routine held here that takes the signal, the run of each `run`
@@ -16,7 +16,7 @@
 //! that came due.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{
@@ -26,20 +26,19 @@ use eos_core::os::TimeZone;
 use eos_core::routine::{
     Admission, AdmitOutcome, AdmitRefusal, RoutineControl, RoutineDirectory, RoutineTriggers, RunIntake,
 };
-use eos_core::signals::{Holder, PollPage, Runner};
-use eos_core::store::{NewSignal, Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
+use eos_core::signals::{Holder, Runner};
+use eos_core::store::{Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::signals::decision::Decision;
-use eos_domain::signals::key::{capability_scope, fits};
+use eos_domain::signals::key::capability_scope;
 use eos_domain::signals::which::{Verdict, evaluate};
 use eos_inbox::Opening;
 
-use crate::{BACKED_UP, CAUGHT_UP};
 use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
-use crate::batch;
 use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
+use crate::{after, batch};
 
 /// The kind of a schedule's slot, as signal and source.
 pub(crate) const CLOCK: &str = "clock";
@@ -64,45 +63,19 @@ fn error_kind(error: &Error) -> &'static str {
     }
 }
 
-/// Keeps a page inside a write job: its new signals as `received`, the
-/// source's cursor as the page gave it. Answers the new signals.
-pub(crate) fn ingest_in(tx: &dyn Tx, source_id: &str, page: &PollPage, now: i64) -> Result<Vec<i64>, Error> {
-    let mut source = tx.signal_sources().find(source_id)?.ok_or_else(|| Error::not_found("source", source_id))?;
-    let mut fresh = Vec::new();
-    for draft in page.items.iter().filter(|draft| fits(&draft.key)) {
-        let signal = NewSignal {
-            source_id: source_id.to_owned(),
-            key: draft.key.clone(),
-            subject: draft.subject.clone(),
-            version: draft.version.clone(),
-            kind: draft.kind.clone(),
-            occurred_at: draft.occurred_at,
-            received_at: now,
-            facts_json: serde_json::to_string(&draft.facts).ok(),
-            item_json: draft.item.to_string(),
-            depth: 0,
-        };
-        fresh.extend(tx.signals().ingest(&signal)?);
-    }
-    source.cursor_json = Some(page.cursor.to_string());
-    source.last_poll_at = Some(now);
-    if !fresh.is_empty() {
-        source.last_signal_at = Some(now);
-    }
-    source.updated_at = now;
-    tx.signal_sources().update(&source)?;
-    tracing::info!(source_id, items = page.items.len(), fresh = fresh.len(), "a source's page was kept");
-    Ok(fresh)
-}
-
 /// Whether a routine's When reads the source the signal came from, for
-/// what happened to it.
+/// what happened to it (a run upstream: how it ended).
 fn takes(routine: &RoutineTriggers, source: &StoredSignalSource, kind: &str) -> bool {
     routine.when.on.iter().any(|trigger| match trigger {
         Trigger::Source { source: name, scope, events, .. } => {
             source.source.as_deref() == Some(name.as_str())
                 && capability_scope(name, scope).1 == source.scope_hash
                 && (events.is_empty() || events.iter().any(|event| event == kind))
+        }
+        Trigger::After { after, .. } => {
+            source.kind == after::AFTER
+                && source.scope_hash == after::scope_hash(&after.routine)
+                && after::takes(after.outcome, kind)
         }
         _ => false,
     })
@@ -184,7 +157,7 @@ pub(crate) struct Routing {
     runner: Arc<dyn Runner>,
     pub(crate) intake: Arc<dyn RunIntake>,
     pub(crate) autostart: bool,
-    now: i64,
+    pub(crate) now: i64,
     ids: Arc<dyn Ids>,
     zone: Arc<dyn TimeZone>,
     control: Arc<dyn RoutineControl>,
@@ -204,6 +177,9 @@ impl Routing {
             RoutineState::Active => {}
             RoutineState::Paused | RoutineState::Archived => return Ok((Decision::Paused, None, None)),
             _ => return Ok((Decision::Refused, Some("state".into()), None)),
+        }
+        if signal.signal.depth > after::CHAIN_MAX {
+            return Ok((Decision::Refused, Some("depth".into()), None));
         }
         let verdict = routine.which.rule.as_ref().map_or(Verdict::Pass, |rule| evaluate(rule, facts));
         match verdict {
@@ -226,7 +202,7 @@ impl Routing {
 
     /// Routes one received signal inside a write job; a `baseline` one is
     /// decided so for every routine, with no run.
-    fn route_in(
+    pub(crate) fn route_in(
         &self,
         tx: &dyn Tx,
         out: &mut Outbox,
@@ -302,40 +278,6 @@ impl Routing {
 }
 
 impl Router {
-    /// Keeps one page for the source row `source_id` (see
-    /// [`SignalsModule::ingest`](crate::SignalsModule::ingest)). A
-    /// baseline page's signals are decided `baseline` for every routine
-    /// held here that takes them, in the same write.
-    pub(crate) async fn ingest(&self, source_id: &str, page: PollPage) -> Result<usize, Error> {
-        let waiting = self.store.read(|tx| tx.signals().received_count()).await?;
-        let backed_up = self.backed_up.load(Ordering::SeqCst);
-        if waiting > BACKED_UP || (backed_up && waiting >= CAUGHT_UP) {
-            if !backed_up {
-                tracing::warn!(waiting, "signals back up: sources wait until they are routed");
-            }
-            self.backed_up.store(true, Ordering::SeqCst);
-            self.kick.notify_one();
-            return Err(Error::LimitExceeded("too many signals wait to be routed".into()));
-        }
-        self.backed_up.store(false, Ordering::SeqCst);
-        let routines = if page.baseline { self.directory.triggers().await? } else { Vec::new() };
-        let (source_id, routing) = (source_id.to_owned(), self.routing());
-        let fresh = self
-            .store
-            .write(move |tx, out| {
-                let fresh = ingest_in(tx, &source_id, &page, routing.now)?;
-                if page.baseline {
-                    for id in &fresh {
-                        routing.route_in(tx, out, *id, &routines, true)?;
-                    }
-                }
-                Ok(fresh.len())
-            })
-            .await?;
-        self.kick.notify_one();
-        Ok(fresh)
-    }
-
     /// Routes every `received` signal, oldest first; answers how many. A
     /// signal whose write fails is logged and left for a later pass, at most
     /// once every [`RETRY_MS`], while the ones after it are routed.
