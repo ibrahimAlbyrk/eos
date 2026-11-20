@@ -8,10 +8,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eos_contracts::{RoutineKind, RoutineState, SettingValue};
-use eos_core::{Clock, Error};
 use eos_core::os::{HoldReason, PowerStatus};
 use eos_core::routine::{Admission, AdmitOutcome, RoutineLoad, RoutineTriggers, RunIntake};
 use eos_core::store::{Outbox, Tx};
+use eos_core::{Clock, Error};
 use eos_mod_signals::SignalsModule;
 use eos_runtime::module::Module;
 use eos_testkit::FakeWorkHold;
