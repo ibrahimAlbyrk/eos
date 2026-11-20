@@ -505,3 +505,24 @@ async fn a_project_travels_as_its_repository_key() {
     assert_eq!(b.ep.locate("path:/x").await.unwrap(), None);
     assert_eq!(b.ep.home().await.unwrap(), s(&b.root));
 }
+
+/// A transfer reads files in the app's own process: Eos's database files are never sent, so they are never
+/// opened outside SQLite, and the app keeps its locks while another program opens the database.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_database_files_are_never_read_and_the_app_keeps_its_locks() {
+    let b = bench();
+    let busy = eos_testkit::BusyDatabase::open(&b.eos_home);
+    symlink(&b.eos_home, b.src.join("data")).unwrap();
+    for picked in [s(&b.eos_home), s(&b.eos_home.join("state.db-shm")), s(&b.src.join("data/state.db-wal"))] {
+        assert_eq!(code(b.ep.scan(std::slice::from_ref(&picked)).await), Some(Code::BadPath), "{picked}");
+    }
+    let range = ByteRange { offset: 0, length: 1 };
+    for file in ["state.db", "state.db-wal", "state.db-shm"] {
+        let path = b.eos_home.join(file);
+        let stamp = FileStamp { size: fs::metadata(&path).unwrap().len(), mtime_ms: 0.0 };
+        assert_eq!(code(b.ep.read(&s(&path), range, stamp).await), Some(Code::BadPath), "{file}");
+    }
+
+    busy.another_program_opens();
+    busy.finish();
+}

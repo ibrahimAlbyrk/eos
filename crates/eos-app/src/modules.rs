@@ -226,7 +226,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         headroom: Arc::new(crate::headroom::CachedHeadroom { cache: cx.usage_cache.clone(), clock: cx.clock.clone() }),
         one_shot: cx.one_shot.clone(),
         power: power.clone(),
-        trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), cx.paths.trash_dir())),
+        trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
     }));
     cx.grants.attach(&routines.grants());
     // The delivery engine keeps the outcomes alive for the gate.
@@ -363,7 +363,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             files: cx.file_watcher.clone(),
             git: cx.git_watcher.clone(),
             git_info: cx.repos.snapshots.clone(),
-            disk: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), cx.paths.trash_dir())),
+            disk: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
             data_dir: cx.paths.home().to_owned(),
             autostart: cx.reach.autostart(),
         })),

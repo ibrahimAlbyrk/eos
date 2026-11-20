@@ -37,7 +37,7 @@ pub type Trash = Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
 pub struct FsTransferEndpointDeps {
     /// The user's home folder: where a listing starts.
     pub home: PathBuf,
-    /// Where nothing may land: Eos's own data.
+    /// Where nothing may land: Eos's own data. Its database files are never sent.
     pub forbidden: Vec<PathBuf>,
     pub trash: Trash,
     pub projects: Arc<dyn ProjectKeys>,
@@ -86,7 +86,7 @@ impl TransferEndpoint for FsTransferEndpoint {
 
     fn scan<'a>(&'a self, paths: &'a [String]) -> BoxFuture<'a, Result<TransferManifest, TransferError>> {
         let paths = paths.to_vec();
-        Box::pin(self.on_disk(move |_| disk::scan(&paths)))
+        Box::pin(self.on_disk(move |disk| disk::scan(&paths, &|path| disk.is_database_file(path))))
     }
 
     fn read<'a>(
@@ -96,7 +96,7 @@ impl TransferEndpoint for FsTransferEndpoint {
         expect: FileStamp,
     ) -> BoxFuture<'a, Result<Bytes, TransferError>> {
         let path = path.to_owned();
-        Box::pin(self.on_disk(move |_| disk::read(&path, range, expect)))
+        Box::pin(self.on_disk(move |disk| disk::read(&path, range, expect, &|path| disk.is_database_file(path))))
     }
 
     fn prepare<'a>(

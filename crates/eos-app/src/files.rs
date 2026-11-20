@@ -111,7 +111,7 @@ pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     let module = FsModule::new(
         cx.kernel.clone(),
         Ports {
-            files: Arc::new(eos_fs::DiskFileSystem::new(host, cx.paths.trash_dir())),
+            files: Arc::new(eos_fs::DiskFileSystem::new(host, &cx.paths)),
             desktop: Arc::new(eos_fs::DesktopApps::new(host, cx.clock.clone(), cx.paths.join("icon-cache"))),
             picker: cx.picker.clone(),
             file_watcher: cx.file_watcher.clone(),

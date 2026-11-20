@@ -36,6 +36,7 @@ mod generic;
 pub use access::can_write;
 pub use backup::StartupBackup;
 pub use copy::{clone_copy, clone_copy_tree};
+pub use database::DATABASE_FILES;
 pub use error::Error;
 pub use host::{
     AppSecretStore, AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform,

@@ -24,7 +24,10 @@ async fn the_browser_scenario_replays_equal() {
         )),
         config: Arc::new(FakeConfig::new(json!({}))),
         store: temp.port(),
-        files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), temp.home.join("trash"))),
+        files: Arc::new(eos_fs::DiskFileSystem::new(
+            eos_platform::host(),
+            &eos_platform::DataPaths::new(temp.home.path()),
+        )),
         clock: clock.clone(),
         sleeper: Arc::new(FakeSleeper::default()),
         bus: kernel.bus.clone(),
