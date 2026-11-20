@@ -330,7 +330,44 @@
     },
     "payload": {
       "errorKind": "gone",
-      "deliveryId": "dl-5r9t3y7u1i4o"
+      "deliveryId": "dl-5r9t3y7u1i4o",
+      "doc": {
+        "kind": "github.review",
+        "channel": "github",
+        "action": "post_review",
+        "parts": [
+          {
+            "key": "event",
+            "role": "event",
+            "text": "REQUEST_CHANGES"
+          },
+          {
+            "key": "summary",
+            "role": "summary",
+            "text": "The login fix works, but **one change blocks**: the token is logged."
+          },
+          {
+            "key": "c:1",
+            "role": "comment",
+            "text": "This logs the session token. Drop the `debug!` line.",
+            "meta": {
+              "path": "src/auth/login.rs",
+              "line": 42,
+              "side": "RIGHT"
+            }
+          },
+          {
+            "key": "c:2",
+            "role": "comment",
+            "text": "Nit: `retries` reads better as a constant.",
+            "meta": {
+              "path": "src/auth/login.rs",
+              "line": 88,
+              "side": "RIGHT"
+            }
+          }
+        ]
+      }
     }
   }
 ]

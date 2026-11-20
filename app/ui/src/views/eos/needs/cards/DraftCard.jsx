@@ -17,6 +17,9 @@ const WAITING = new Set(["open", "later"]);
 
 const EDITORS = { "github.review": ReviewEditor, mail: MailEditor };
 
+// The editor for a result of `kind`.
+export const editorOf = (kind) => EDITORS[kind] ?? TextEditor;
+
 // The draft as the run made it.
 export function originalDoc(detail) {
   const doc = detail.payload?.doc;
@@ -66,7 +69,7 @@ export function DraftCard({ detail, values, setValue }) {
     setValue("edit", next);
     writeEdit(id, next, detail.item.rev, Date.now());
   };
-  const Editor = EDITORS[original?.kind] ?? TextEditor;
+  const Editor = editorOf(original?.kind);
   return (
     <div className={carried ? "eos-draft eos-draft--beside" : "eos-draft"}>
       <SendState detail={detail} />
