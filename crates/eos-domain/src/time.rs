@@ -98,6 +98,30 @@ pub fn instant_of(wall: i64, offset_at: OffsetAt<'_>) -> i64 {
     }
 }
 
+/// The most recent `HH:MM` on the user's clock at or before `now`.
+pub fn nightly_slot(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
+    let mut parts = nightly_at.split(':').map(|part| part.parse::<i64>().ok());
+    let (hours, minutes) = (parts.next().flatten().unwrap_or(3), parts.next().flatten().unwrap_or(0));
+    let midnight = wall_clock(now, offset_at).div_euclid(MS_PER_DAY) * MS_PER_DAY;
+    let wall = midnight + hours * 3_600_000 + minutes * 60_000;
+    let slot = instant_of(wall, offset_at);
+    if slot > now { instant_of(wall - MS_PER_DAY, offset_at) } else { slot }
+}
+
+/// The same time on the user's clock a day after the latest slot: 23 or 25
+/// hours later on the nights the clocks change.
+pub fn next_nightly(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
+    let slot = nightly_slot(now, nightly_at, offset_at);
+    instant_of(wall_clock(slot, offset_at) + MS_PER_DAY, offset_at)
+}
+
+/// Due once the clock passed tonight's slot and nothing started since: a
+/// computer asleep at the slot catches up when it wakes. `since` is the last
+/// run's start, or when the nightly work was switched on.
+pub fn is_nightly_due(now: i64, nightly_at: &str, since: i64, offset_at: OffsetAt<'_>) -> bool {
+    since < nightly_slot(now, nightly_at, offset_at)
+}
+
 /// `+03:00`, `-05:30`: minutes east of UTC as an offset.
 fn offset_label(minutes: i32) -> String {
     let sign = if minutes < 0 { '-' } else { '+' };
