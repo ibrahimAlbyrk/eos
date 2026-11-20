@@ -50,7 +50,20 @@
             }
           }
         ]
-      }
+      },
+      "flags": [],
+      "costUsd": 0.42,
+      "verdict": null,
+      "targets": [
+        {
+          "recipientId": "pr",
+          "place": {
+            "item": "github:pr:acme/game#482"
+          }
+        }
+      ],
+      "rung": "draft",
+      "untrusted": true
     }
   },
   {
@@ -94,7 +107,20 @@
             "text": "dana@example.com"
           }
         ]
-      }
+      },
+      "flags": [],
+      "costUsd": 0.08,
+      "verdict": null,
+      "targets": [
+        {
+          "recipientId": "r-1",
+          "place": {
+            "address": "dana@example.com"
+          }
+        }
+      ],
+      "rung": "draft",
+      "untrusted": true
     }
   },
   {
@@ -122,7 +148,20 @@
             "text": "Main is green again after **#471**."
           }
         ]
-      }
+      },
+      "flags": [],
+      "costUsd": 0.03,
+      "verdict": null,
+      "targets": [
+        {
+          "recipientId": "me",
+          "place": {
+            "me": true
+          }
+        }
+      ],
+      "rung": "draft",
+      "untrusted": false
     }
   },
   {
@@ -290,7 +329,8 @@
       "updatedAt": 1763442000000
     },
     "payload": {
-      "errorKind": "gone"
+      "errorKind": "gone",
+      "deliveryId": "dl-5r9t3y7u1i4o"
     }
   }
 ]

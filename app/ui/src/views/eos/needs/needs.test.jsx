@@ -5,6 +5,7 @@ import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.
 import { _resetInbox, loadInboxItem, refreshInbox, sendInboxDraft, applyInboxChange } from "../../../state/eos/inboxStore.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRuns, loadRun } from "../../../state/eos/runsStore.js";
+import { notify } from "../../../lib/notify.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { _resetNeedsCursor } from "./NeedsYouList.jsx";
@@ -254,6 +255,17 @@ describe("answers", () => {
     await sendInboxDraft(DRAFT);
     expect(t.get).toHaveBeenCalledWith(ROUTES.inboxItem(DRAFT));
     expect(at(`eos:/needs/${DRAFT}`)).toContain(">Send<");
+  });
+
+  it("say the core's own reason for any other 409, such as a recipient removed from the routine", async () => {
+    await loaded();
+    await loadInboxItem(DRAFT);
+    const error = "This recipient was removed from the routine: acme/game#482. Nothing was sent.";
+    const toast = vi.spyOn(notify, "error").mockImplementation(() => {});
+    setEosTransport(recording(reads, async () => ({ ok: false, status: 409, body: { error } })));
+    expect(await sendInboxDraft(DRAFT)).toBe(false);
+    expect(toast).toHaveBeenCalledWith(error, { title: "Needs you" });
+    toast.mockRestore();
   });
 
   it("say a dev run sends nothing, instead of a failure", async () => {

@@ -2,9 +2,10 @@ import { Revert } from "./Revert.jsx";
 import { joinSuggestion, partChanged, partOf, partsOf, splitSuggestion, withPart, withText } from "./editDoc.js";
 
 // A review with line comments (Review.dc.html): the verdict, the summary and
-// each finding with whether it goes, its title, its text and its suggested
-// code. A finding's file and line stay as the run found them, and none is
-// added here.
+// each finding with whether it goes, its text and its suggested code. A
+// comment part is its whole text, which GitHub posts as it is, and its meta
+// is where it sits (path, line, side): a finding's place stays as the run
+// found it, and none is added here.
 
 const EVENTS = [
   { value: "COMMENT", label: "Comment" },
@@ -16,7 +17,6 @@ function Finding({ original, doc, part, onChange }) {
   const included = Boolean(partOf(doc, part.key));
   const shown = partOf(doc, part.key) ?? part;
   const { body, code } = splitSuggestion(shown.text);
-  const title = shown.meta?.title;
   const id = `edit-${part.key}`;
   const setText = (nextBody, nextCode) => onChange(withText(doc, part.key, joinSuggestion(nextBody, nextCode)));
   return (
@@ -34,15 +34,6 @@ function Finding({ original, doc, part, onChange }) {
       </div>
       {included && (
         <>
-          {title != null && (
-            <input
-              type="text"
-              className="eos-edit__line"
-              aria-label="Title"
-              value={title}
-              onChange={(e) => onChange(withText(doc, part.key, shown.text, { ...shown.meta, title: e.target.value }))}
-            />
-          )}
           <textarea id={id} className="eos-edit__text" aria-label="Comment" rows={4} value={body} onChange={(e) => setText(e.target.value, code)} />
           {code != null && (
             <textarea

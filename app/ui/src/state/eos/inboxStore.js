@@ -157,9 +157,11 @@ function dropShown(id) {
 
 // A 409 on a write: another device answered first, or the item was replaced
 // (kept in `refused`, the item read again to say who or by what), or it
-// changed since it was read (read again).
+// changed since it was read (read again). Any other 409 is the core's plain
+// reason, such as a recipient removed from the routine: a toast in its words.
 function conflicted(id, r) {
   if (r.body?.answeredBy || r.body?.state) set({ refused: { ...state.refused, [id]: { answeredBy: r.body.answeredBy, state: r.body.state } } });
+  else if (r.body?.rev === undefined) notify.error(r.body?.error ?? "Eos could not do that.", { title: "Needs you" });
   void loadInboxItem(id);
 }
 
