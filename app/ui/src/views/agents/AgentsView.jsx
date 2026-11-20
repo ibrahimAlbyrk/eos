@@ -17,6 +17,7 @@ import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 import { SubagentStopDialog } from "./center/SubagentStopDialog.jsx";
+import { ModelSummaryDialog } from "./center/ModelSummaryDialog.jsx";
 import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
 import { modifiers } from "../../lib/platform.js";
 import { mainViews, useMainView } from "../../slots/index.js";
@@ -163,6 +164,7 @@ export function AgentsView({ live }) {
       <SidebarPrefsMenu />
       {ui.rewindPanel && <RewindPanel live={live} />}
       <SubagentStopDialog />
+      <ModelSummaryDialog />
     </AppLayout>
   );
 }

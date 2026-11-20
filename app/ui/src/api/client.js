@@ -775,8 +775,11 @@ export const api = {
   async setWorkerPermission(id, mode, { cascade } = {}) {
     return putJson(ROUTES.workerPermission(id), { mode, cascade });
   },
-  async setWorkerModel(id, model, effort) {
-    return putJson(ROUTES.workerModel(id), { model, effort });
+  // `askFirst`: a conversation too long for the new model is not summarized;
+  // the answer is a 409 `needs-summary` and nothing changes.
+  async setWorkerModel(id, model, effort, { askFirst = false } = {}) {
+    const path = ROUTES.workerModel(id) + (askFirst ? "?summary=ask" : "");
+    return putJson(path, { model, effort });
   },
   async switchWorkerBackend(id, kind) {
     return putJson(ROUTES.workerBackend(id), { kind });

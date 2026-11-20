@@ -26,6 +26,7 @@ import { isRunning } from "../lib/agentActivity.js";
 import { subtreeIds } from "../lib/tree.js";
 import { cancelQueued, noteWorkerChange as noteQueueChange, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
+import { NEEDS_SUMMARY, confirmModelSummary } from "../state/modelSummaryConfirm.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange, resubscribeGitWatches } from "../state/gitChangeBus.js";
 import { noteWorkerActivity as noteGitActivity } from "../state/gitStatusStore.js";
@@ -546,7 +547,14 @@ export function useLive() {
   }, [scheduleRefetch]);
 
   const setModel = useCallback(async (id, model, effort) => {
-    const r = await api.setWorkerModel(id, model, effort);
+    let r = await api.setWorkerModel(id, model, effort, { askFirst: true });
+    // The conversation doesn't fit the new model and nothing changed: the
+    // user decides whether it is summarized first. Saying no keeps the model.
+    if (r.status === 409 && r.body?.code === NEEDS_SUMMARY) {
+      const worker = workersRef.current.find((w) => w.id === id);
+      if (!(await confirmModelSummary(worker, model))) return { ...r, cancelled: true };
+      r = await api.setWorkerModel(id, model, effort);
+    }
     // A 422 means the model isn't valid for the worker's provider (nothing
     // persisted) — surface it like the backend-switch rejection.
     if (!r.ok) console.warn("model switch failed", r.status, r.body);
