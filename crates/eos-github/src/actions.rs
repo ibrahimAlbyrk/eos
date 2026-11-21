@@ -11,7 +11,7 @@ use crate::GitHub;
 use crate::manifest::{ID, PULL_REQUEST};
 
 /// The most files of a pull request read (GitHub lists at most 3,000).
-const FILE_PAGES_MAX: u32 = 30;
+pub(crate) const FILE_PAGES_MAX: u32 = 30;
 
 /// A repository, `owner/name`, safe to put in a path.
 #[derive(Debug, Clone, PartialEq, Eq)]

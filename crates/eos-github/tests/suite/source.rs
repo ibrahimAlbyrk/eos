@@ -69,3 +69,17 @@ async fn a_change_in_the_same_second_as_the_last_poll_is_not_lost_nor_told_twice
     let again = rig.call("poll_pull_requests", json!({ "repo": REPO, "cursor": next["cursor"] })).await.expect("polls");
     assert_eq!(again["items"], json!([]), "both were told at that second");
 }
+
+#[tokio::test]
+async fn a_file_list_cut_at_the_page_cap_names_no_paths_and_no_size() {
+    let rig = rig();
+    let first = rig.call("poll_pull_requests", json!({ "repo": REPO })).await.expect("polls");
+    let names: Vec<String> = (0..3_000).map(|i| format!("docs/page-{i}.md")).collect();
+    let files: Vec<(&str, &str)> = names.iter().map(|name| (name.as_str(), PATCH)).collect();
+    rig.fake.add_pull(REPO, 9, "bob", HEAD, 1_763_400_120_000, &files);
+    let changed =
+        rig.call("poll_pull_requests", json!({ "repo": REPO, "cursor": first["cursor"] })).await.expect("polls");
+    let facts = &changed["items"][0]["facts"];
+    assert_eq!(facts["author"], "bob");
+    assert!(facts.get("paths").is_none() && facts.get("size").is_none(), "{facts}");
+}
