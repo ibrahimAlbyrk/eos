@@ -1,0 +1,73 @@
+[package]
+name = "model2vec-rs"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Official Rust Implementation of Model2Vec"
+readme = "README.md"
+license-file = "LICENSE"
+authors = ["Thomas van Dongen <thomasvdongen@proton.me>", "Stéphan Tulkens <stephantul@gmail.com>"]
+homepage = "https://github.com/MinishLab/model2vec-rs"
+repository = "https://github.com/MinishLab/model2vec-rs"
+keywords = ["embeddings", "model2vec", "nlp", "rust"]
+categories = ["science", "text-processing"]
+
+exclude = ["tests/*", "assets/*", "local/*"]
+
+[features]
+default      = ["onig", "hf-hub"]
+cli          = ["dep:clap"]
+hf-hub       = ["dep:hf-hub", "dep:ureq"]
+local-only   = []
+onig         = ["tokenizers/onig",
+                "tokenizers/progressbar",
+                "tokenizers/esaxx_fast"]
+
+fancy-regex  = ["tokenizers/fancy-regex",
+                "tokenizers/progressbar",
+                "tokenizers/esaxx_fast"]
+wasm         = ["local-only",
+                "tokenizers/unstable_wasm"]
+
+[dependencies]
+tokenizers = { version = "0.21", default-features = false }
+safetensors = "0.5"
+hf-hub = { version = "0.4", default-features = false, features = ["ureq"], optional = true }
+ureq = { version = "2", optional = true }
+clap = { version = "4.0", features = ["derive"], optional = true }
+anyhow = "1.0"
+serde_json = { version = "1.0", features = ["raw_value"] }
+serde = { version = "1.0", features = ["derive"] }
+half = "2.0"
+unicode-normalization = "0.1"
+unicode_categories = "0.1"
+
+[dev-dependencies]
+approx = "0.5"
+serde_json = "1.0"
+tempfile = "3"
+
+[[bin]]
+name = "model2vec-rs"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[[bench]]
+name = "encode"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "quantize"
+harness = false
+
+[[bench]]
+name = "nanobeir"
+harness = false
+
+[[bench]]
+name = "python_compare"
+harness = false

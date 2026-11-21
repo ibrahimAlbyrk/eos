@@ -162,7 +162,10 @@ checkout and again whenever you like (it keeps what is in place and prints what 
   about 530 MB), the three files pinned with their sizes, SHA-256 values and URLs in
   `scripts/model.sh`, from Hugging Face at one revision, under `.work/models/`. Set
   `EOS_BUNDLE_MODEL_DIR` to a folder that already holds the three files and nothing is
-  fetched: setup and `bundle.sh` check that folder instead;
+  fetched: setup and `bundle.sh` check that folder instead. Loaded, the model holds about
+  670 MB of heap: 512 MB of table, the rest its vocabulary search. The repository's
+  `vendor/model2vec-rs` is patched to keep the vocabulary once (`ARCHITECTURE.md`, "A patched
+  upstream crate");
 - `npm ci` in `app/ui`, inside this checkout only, when its lockfile changed since the last
   install, and the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
 

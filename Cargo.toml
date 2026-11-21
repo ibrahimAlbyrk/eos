@@ -2,7 +2,8 @@
 resolver = "3"
 members = ["crates/*", "tools/wire-recorder", "xtask"]
 # `host/` is the Tauri + CEF workspace (see README.md, "Host workspace"); prototypes are their own workspaces too.
-exclude = ["host", "spikes"]
+# `vendor/` holds patched upstream crates, which are not ours to lint.
+exclude = ["host", "spikes", "vendor"]
 
 [workspace.package]
 version = "0.0.1"
@@ -160,6 +161,8 @@ security-framework = { version = "3.7", default-features = false }
 sha1 = "0.10"
 sha2 = "0.11"
 socket2 = "0.6"
+# Counts the heap in the one test that measures the meaning model (eos-embed).
+stats_alloc = "0.1"
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "sync", "time"] }
@@ -191,6 +194,11 @@ unwrap_used = "warn"
 # boundary instead of ending the app.
 # Test and debug builds keep line numbers for our own crates only: with full
 # debug info a build folder is several times larger and slower to link.
+[patch.crates-io]
+# model2vec-rs 0.4.0 with patches/0001: the loaded meaning model keeps one copy of its vocabulary.
+# `scripts/check-patches.sh` proves vendor/ is upstream plus patches/.
+model2vec-rs = { path = "vendor/model2vec-rs" }
+
 [profile.dev]
 debug = "line-tables-only"
 

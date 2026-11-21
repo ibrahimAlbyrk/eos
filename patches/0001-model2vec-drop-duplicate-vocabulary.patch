@@ -1,0 +1,36 @@
+Drop the second copy of a Unigram tokenizer's vocabulary.
+
+Applies to: model2vec-rs 0.4.0 (crates.io), applied in vendor/model2vec-rs. Not offered
+upstream yet.
+
+Why: for a Unigram tokenizer (potion-multilingual-128M's, 500,353 pieces) the loader builds
+its own trie and scores (`FastUnigram`) and keeps the `tokenizers` crate's `Tokenizer` only
+for the added tokens, the normalizer and the pre-tokenizer. The `Tokenizer` still held its
+Unigram model: the vocabulary as strings, a map from piece to id and a trie with a map per
+node, about 560 MB that nothing read after loading. The model is replaced by an empty one
+once `FastUnigram` is built. Token ids, and so every vector, stay byte for byte the same
+(`eos-embed`'s real-model test compares them with vectors recorded from the published crate).
+
+--- a/src/model.rs
++++ b/src/model.rs
+@@ -13,7 +13,7 @@
+ };
+ use tokenizers::{
+     Tokenizer,
+-    models::ModelWrapper,
++    models::{ModelWrapper, unigram::Unigram},
+     parallelism::{MaybeParallelRefIterator, MaybeParallelRefMutIterator},
+ };
+ 
+@@ -72,6 +72,11 @@
+         let tokenization = if let Some(ft) = FastWordPiece::from_tokenizer(&tokenizer) {
+             Tokenization::WordPiece(ft)
+         } else if let Some(fu) = FastUnigram::from_tokenizer(&tokenizer, unk_token_id) {
++            // `FastUnigram` holds the vocabulary it searches, and `encode_ids`
++            // reads only the tokenizer's added tokens, normalizer and
++            // pre-tokenizer: the crate's own Unigram model would be a second
++            // copy of the vocabulary that is never read again.
++            tokenizer.with_model(Unigram::default());
+             Tokenization::Unigram(tokenizer, fu)
+         } else {
+             Tokenization::Crate(tokenizer)
