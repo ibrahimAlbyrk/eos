@@ -155,6 +155,19 @@
   // ---- native banner for the dashboard's own errors and warnings (lib/notify.js).
   if (!HOST) window.eosNotify = { show: (n) => send("notify", { title: n?.title, body: n?.body }) };
 
+  // ---- the doors into Eos from this Mac (Settings › Eos). Start at login answers
+  // { available, state, offered } itself, not { value }.
+  const door = (path, method, body) =>
+    fetch("/_shell/" + path, {
+      method,
+      headers: { "content-type": "application/json", "x-eos-ui-token": TOKEN },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then((r) => (r.ok ? r.json() : Promise.reject(new Error("door " + r.status))));
+  if (!HOST) window.eosDoors = {
+    loginItem: () => door("doors/login-item", "GET"),
+    setLoginItem: (on) => door("doors/login-item", "PUT", { on: !!on }),
+  };
+
   // A click on a banner leads to a worker's chat or a named view.
   on("navigate", (p) => {
     if (p?.route) window.__nativeOpenRoute && window.__nativeOpenRoute(p.route);
