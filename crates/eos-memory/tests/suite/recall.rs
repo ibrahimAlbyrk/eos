@@ -3,8 +3,11 @@
 
 use std::sync::Arc;
 
+use eos_core::experience::Embedder;
+use eos_core::{BoxFuture, Error};
 use eos_domain::experience::HookKind;
 use eos_domain::experience::Scope;
+use eos_domain::experience::rank::{MEANING_FLOOR, MEANING_FULL};
 use eos_memory::{Cues, Recall, Situation, chat_pack};
 use eos_testkit::{FakeClock, FakeEmbedder, TempStore};
 
@@ -119,6 +122,52 @@ async fn the_search_by_meaning_starts_once_a_model_is_there_and_embeds_what_wait
     let again = Recall::new(temp.port(), Arc::new(FakeClock::new()));
     again.with_meaning(embedder.clone()).await.expect("on");
     assert_eq!(again.embed_missing().await.expect("embeds"), 0);
+}
+
+/// Puts each text at a fixed angle from the query, so a test chooses its cosine.
+struct Angles(Vec<(&'static str, f64)>);
+
+impl Embedder for Angles {
+    fn model(&self) -> &str {
+        "angles"
+    }
+
+    fn dims(&self) -> usize {
+        2
+    }
+
+    fn embed<'a>(&'a self, texts: &'a [String]) -> BoxFuture<'a, Result<Vec<Vec<f32>>, Error>> {
+        let vectors = texts
+            .iter()
+            .map(|t| {
+                let cos = self.0.iter().find(|(text, _)| t == text).map_or(1.0, |(_, cos)| *cos);
+                vec![cos as f32, (1.0 - cos * cos).sqrt() as f32]
+            })
+            .collect();
+        Box::pin(async move { Ok(vectors) })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_strong_meaning_hit_outranks_a_word_hit_and_a_weak_one_does_not() {
+    let temp = TempStore::new();
+    let (word, strong, weak) =
+        ("Rebuild the cache nightly.", "Clear stale build outputs.", "Commit messages are in English.");
+    put(&temp, note("mn-word", word, Scope::everywhere()), &[]);
+    put(&temp, note("mn-strong", strong, Scope::everywhere()), &[]);
+    put(&temp, note("mn-weak", weak, Scope::everywhere()), &[]);
+    let recall = Recall::new(temp.port(), Arc::new(FakeClock::new()));
+    // The query is the one text not listed, so it lies at cosine 1 with itself; the note
+    // found by its words points away from it.
+    let angles = Angles(vec![(word, 0.0), (strong, MEANING_FULL + 0.05), (weak, MEANING_FLOOR - 0.05)]);
+    recall.with_meaning(Arc::new(angles)).await.expect("on");
+    while recall.embed_missing().await.expect("embeds") > 0 {}
+    let cues = Cues { hooks: vec![], query: Some("cache".into()) };
+    let got = recall.recall(&Situation::default(), &cues, 6).await.expect("recalls");
+    let order = ids(&got);
+    assert_eq!(order[..2], ["mn-strong", "mn-word"], "a strong paraphrase matches fully: {order:?}");
+    let weak_at = order.iter().position(|id| id == "mn-weak");
+    assert!(weak_at.is_none_or(|at| got[at].score < got[1].score), "weak likeness stays below a word hit");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
