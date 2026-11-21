@@ -135,18 +135,18 @@ async fn the_real_model_loads_and_puts_near_meanings_closer_than_unrelated_ones(
 }
 
 /// English and Turkish texts whose vectors were recorded from model2vec-rs
-/// 0.4.0 as published, with the official potion-multilingual-128M.
+/// 0.4.0 as published, with the shipped potion-multilingual-128M-en-tr-int8.
 const RECORDED: [(&str, u64); 11] = [
-    ("Run the linter before you push.", 0x084b3fb2567139e8),
-    ("Lint the code before pushing it.", 0xbaa7ddc3249b0d70),
-    ("Push etmeden önce linter'ı çalıştır.", 0x8149a8cf1b0b8995),
-    ("Kodu göndermeden önce lint çalıştır.", 0x976ba315ce3778dd),
-    ("The database migration failed because the table already exists.", 0x693bc744e81007f0),
-    ("Veritabanı göçü tablo zaten var olduğu için başarısız oldu.", 0x5c82ba95f067db36),
-    ("Keep review remarks short and skip style nits.", 0xc6f35a4c00c9f0cb),
-    ("İnceleme notlarını kısa tut, biçim ayrıntılarını atla.", 0x9405fe72e8ad4a7f),
-    ("Ölçüm sonuçları dün akşamdan beri değişmedi; İstanbul'daki sunucu yavaş.", 0x5a596807c8d43cc9),
-    ("ünïcödé — mixed 123 symbols: ∑ ≤ ∞ 🙂", 0xd1f60c79d49608b3),
+    ("Run the linter before you push.", 0x63b620af05da50f1),
+    ("Lint the code before pushing it.", 0x37dc8dd009345d2e),
+    ("Push etmeden önce linter'ı çalıştır.", 0x26bd5b7b9f47dc91),
+    ("Kodu göndermeden önce lint çalıştır.", 0xd191f2d3f92e9437),
+    ("The database migration failed because the table already exists.", 0x7d0e43d6d2841a46),
+    ("Veritabanı göçü tablo zaten var olduğu için başarısız oldu.", 0x310409f07f9c2e59),
+    ("Keep review remarks short and skip style nits.", 0xc07167403054ffe0),
+    ("İnceleme notlarını kısa tut, biçim ayrıntılarını atla.", 0x9b3e3957ac52dd3e),
+    ("Ölçüm sonuçları dün akşamdan beri değişmedi; İstanbul'daki sunucu yavaş.", 0x388f687b6927e916),
+    ("ünïcödé — mixed 123 symbols: ∑ ≤ ∞ 🙂", 0x2fe02dd4af099fe2),
     ("", 0x51d88627df287325),
 ];
 
@@ -173,7 +173,9 @@ async fn the_real_model_gives_the_recorded_vectors_byte_for_byte() {
     drop(alone);
     let live = change.bytes_allocated as i64 - change.bytes_deallocated as i64 + change.bytes_reallocated as i64;
     eprintln!("live heap after load: {} MB", live / 1_000_000);
-    assert!(live < 800_000_000, "the model holds a second copy of its vocabulary: {live} bytes");
+    // The int8 table is 60 MB: a table widened to f32 or a second copy of the
+    // vocabulary would each go far over this.
+    assert!(live < 200_000_000, "the loaded model holds {live} bytes");
     let texts: Vec<String> = RECORDED.iter().map(|(text, _)| (*text).to_owned()).collect();
     let vectors = embedder.embed(&texts).await.expect("embeds");
     let got: Vec<(&str, u64)> = RECORDED.iter().zip(&vectors).map(|((text, _), v)| (*text, bits_hash(v))).collect();

@@ -1,9 +1,10 @@
 //! Memory's composition: where its meaning model comes from.
 //!
 //! The model ships in the app bundle
-//! (`Contents/Resources/models/potion-multilingual-128M`); a development run
-//! names a folder with `EOS_EMBED_MODEL_DIR`. A run with neither (every test)
-//! has no model and recalls by hooks and words. Nothing is ever downloaded.
+//! (`Contents/Resources/models/potion-multilingual-128M-en-tr-int8`); a
+//! development run names a folder with `EOS_EMBED_MODEL_DIR`. A run with
+//! neither (every test) has no model and recalls by hooks and words. Nothing
+//! is ever downloaded.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, Weak};
@@ -18,7 +19,7 @@ use eos_domain::config::Env;
 use crate::modules::Context;
 
 /// The model's folder inside the bundle's resources.
-const BUNDLED_MODEL: &str = "models/potion-multilingual-128M";
+const BUNDLED_MODEL: &str = "models/potion-multilingual-128M-en-tr-int8";
 const MODEL_DIR_VAR: &str = "EOS_EMBED_MODEL_DIR";
 
 /// The meaning model's folder: the one `EOS_EMBED_MODEL_DIR` names, else the

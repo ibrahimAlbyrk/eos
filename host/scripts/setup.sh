@@ -7,8 +7,8 @@
 #   - esbuild, the plugin builder's (shipped in the bundle, found by development builds and
 #     tests): the pinned release from the npm registry, checked against the SHA-256 below,
 #     under .work/tools
-#   - memory's meaning model (potion-multilingual-128M, about 530 MB), the three files pinned in
-#     model.sh, from Hugging Face, checked against their SHA-256, under .work/models; not
+#   - memory's meaning model (potion-multilingual-128M-en-tr-int8, about 70 MB), the three
+#     files pinned in model.sh, from Hugging Face, checked against their SHA-256, under .work/models; not
 #     fetched when EOS_BUNDLE_MODEL_DIR names a folder that holds them
 #   - the dashboard's node modules (`npm ci` in app/ui, inside this checkout only) when its
 #     lockfile changed since the last install, and its build (app/ui/dist) when it is missing
