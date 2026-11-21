@@ -1,0 +1,529 @@
+{
+ "summary": {
+  "aboutYou": 12,
+  "learned": 6,
+  "weekly": 3,
+  "scopes": [
+   {
+    "level": "project",
+    "key": "pk-game",
+    "label": "game-client",
+    "count": 2
+   },
+   {
+    "level": "routine",
+    "key": "rt-4k2n8q1x7m3p",
+    "label": "rt-4k2n8q1x7m3p",
+    "count": 2
+   },
+   {
+    "level": "everywhere",
+    "key": "",
+    "label": "",
+    "count": 2
+   }
+  ],
+  "kinds": {
+   "example": 1,
+   "fact": 1,
+   "lesson": 3,
+   "skill": 1
+  },
+  "health": {
+   "embedder": "ready",
+   "pendingMoments": 0,
+   "learning": true,
+   "reminders": true
+  }
+ },
+ "notes": {
+  "notes": [
+   {
+    "id": "mn-000000000001",
+    "kind": "lesson",
+    "text": "Keep the summary under five lines",
+    "why": "You shortened four before sending",
+    "source": "edits",
+    "state": "trying",
+    "trust": "did",
+    "helped": 3,
+    "used": 4,
+    "strength": 0.8,
+    "scope": {
+     "level": "routine",
+     "key": "rt-4k2n8q1x7m3p",
+     "label": "rt-4k2n8q1x7m3p"
+    },
+    "rev": 1,
+    "updatedAt": 1794192800000
+   },
+   {
+    "id": "mn-000000000002",
+    "kind": "fact",
+    "text": "Docs-only pull requests go out without asking",
+    "why": "You said so",
+    "source": "states_rule",
+    "state": "firm",
+    "trust": "said",
+    "helped": 5,
+    "used": 6,
+    "strength": 1.0,
+    "scope": {
+     "level": "routine",
+     "key": "rt-4k2n8q1x7m3p",
+     "label": "rt-4k2n8q1x7m3p"
+    },
+    "rev": 1,
+    "updatedAt": 1794092000000
+   },
+   {
+    "id": "mn-000000000003",
+    "kind": "lesson",
+    "text": "Run lint before pushing",
+    "why": "A push failed, lint fixed it",
+    "source": "command_fails",
+    "state": "trying",
+    "trust": "outcome",
+    "helped": 4,
+    "used": 5,
+    "strength": 0.8,
+    "scope": {
+     "level": "project",
+     "key": "pk-game",
+     "label": "game-client"
+    },
+    "rev": 1,
+    "updatedAt": 1794182000000
+   },
+   {
+    "id": "mn-000000000004",
+    "kind": "lesson",
+    "text": "Files under Assets/Generated are rebuilt, edit the template",
+    "why": "Two edits were overwritten",
+    "source": "edits",
+    "state": "firm",
+    "trust": "did",
+    "helped": 6,
+    "used": 7,
+    "strength": 0.9,
+    "scope": {
+     "level": "project",
+     "key": "pk-game",
+     "label": "game-client"
+    },
+    "rev": 1,
+    "updatedAt": 1794020000000
+   },
+   {
+    "id": "mn-000000000005",
+    "kind": "skill",
+    "text": "On macOS, sed -i needs an empty suffix",
+    "why": "A command failed twice",
+    "source": "command_fails",
+    "state": "firm",
+    "trust": "outcome",
+    "helped": 7,
+    "used": 9,
+    "strength": 0.8,
+    "scope": {
+     "level": "everywhere",
+     "key": "",
+     "label": ""
+    },
+    "rev": 1,
+    "updatedAt": 1793912000000
+   },
+   {
+    "id": "mn-000000000006",
+    "kind": "example",
+    "text": "Reports open with a chart",
+    "why": "Not used in 40 days",
+    "source": "edits",
+    "state": "cooling",
+    "trust": "did",
+    "helped": 0,
+    "used": 1,
+    "strength": 0.3,
+    "scope": {
+     "level": "everywhere",
+     "key": "",
+     "label": ""
+    },
+    "rev": 1,
+    "updatedAt": 1790960000000
+   }
+  ]
+ },
+ "details": [
+  {
+   "note": {
+    "id": "mn-000000000001",
+    "kind": "lesson",
+    "text": "Keep the summary under five lines",
+    "why": "You shortened four before sending",
+    "source": "edits",
+    "state": "trying",
+    "trust": "did",
+    "helped": 3,
+    "used": 4,
+    "strength": 0.8,
+    "scope": {
+     "level": "routine",
+     "key": "rt-4k2n8q1x7m3p",
+     "label": "rt-4k2n8q1x7m3p"
+    },
+    "rev": 1,
+    "updatedAt": 1794192800000
+   },
+   "learnedFrom": [
+    {
+     "at": 1794192620000,
+     "text": "You shortened four before sending."
+    },
+    {
+     "at": 1794192800000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "routine",
+     "label": "PR Review"
+    }
+   ],
+   "nextTo": [],
+   "comesBackWhen": {
+    "situation": "",
+    "reminder": "Keep the summary under five lines."
+   },
+   "help": {
+    "recalled": 5,
+    "used": 4,
+    "helped": 3,
+    "hurt": 0,
+    "lastUsedAt": 1794192800000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1793933600000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  },
+  {
+   "note": {
+    "id": "mn-000000000002",
+    "kind": "fact",
+    "text": "Docs-only pull requests go out without asking",
+    "why": "You said so",
+    "source": "states_rule",
+    "state": "firm",
+    "trust": "said",
+    "helped": 5,
+    "used": 6,
+    "strength": 1.0,
+    "scope": {
+     "level": "routine",
+     "key": "rt-4k2n8q1x7m3p",
+     "label": "rt-4k2n8q1x7m3p"
+    },
+    "rev": 1,
+    "updatedAt": 1794092000000
+   },
+   "learnedFrom": [
+    {
+     "at": 1794091820000,
+     "text": "You said so."
+    },
+    {
+     "at": 1794092000000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "routine",
+     "label": "PR Review"
+    }
+   ],
+   "nextTo": [],
+   "comesBackWhen": {
+    "situation": "",
+    "reminder": "Docs-only pull requests go out without asking."
+   },
+   "help": {
+    "recalled": 7,
+    "used": 6,
+    "helped": 5,
+    "hurt": 0,
+    "lastUsedAt": 1794092000000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1793832800000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  },
+  {
+   "note": {
+    "id": "mn-000000000003",
+    "kind": "lesson",
+    "text": "Run lint before pushing",
+    "why": "A push failed, lint fixed it",
+    "source": "command_fails",
+    "state": "trying",
+    "trust": "outcome",
+    "helped": 4,
+    "used": 5,
+    "strength": 0.8,
+    "scope": {
+     "level": "project",
+     "key": "pk-game",
+     "label": "game-client"
+    },
+    "rev": 1,
+    "updatedAt": 1794182000000
+   },
+   "learnedFrom": [
+    {
+     "at": 1794181820000,
+     "text": "A push failed, lint fixed it."
+    },
+    {
+     "at": 1794182000000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "command",
+     "label": "git push"
+    },
+    {
+     "kind": "project",
+     "label": "game-client"
+    }
+   ],
+   "nextTo": [
+    {
+     "id": "mn-000000000004",
+     "kind": "lesson",
+     "text": "Files under Assets/Generated are rebuilt, edit the template",
+     "why": "Two edits were overwritten",
+     "source": "edits",
+     "state": "firm",
+     "trust": "did",
+     "helped": 6,
+     "used": 7,
+     "strength": 0.9,
+     "scope": {
+      "level": "project",
+      "key": "pk-game",
+      "label": "game-client"
+     },
+     "rev": 1,
+     "updatedAt": 1794020000000
+    }
+   ],
+   "comesBackWhen": {
+    "situation": "An agent is about to push in game-client",
+    "reminder": "Run lint before pushing."
+   },
+   "help": {
+    "recalled": 6,
+    "used": 5,
+    "helped": 4,
+    "hurt": 0,
+    "lastUsedAt": 1794182000000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1793922800000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  },
+  {
+   "note": {
+    "id": "mn-000000000004",
+    "kind": "lesson",
+    "text": "Files under Assets/Generated are rebuilt, edit the template",
+    "why": "Two edits were overwritten",
+    "source": "edits",
+    "state": "firm",
+    "trust": "did",
+    "helped": 6,
+    "used": 7,
+    "strength": 0.9,
+    "scope": {
+     "level": "project",
+     "key": "pk-game",
+     "label": "game-client"
+    },
+    "rev": 1,
+    "updatedAt": 1794020000000
+   },
+   "learnedFrom": [
+    {
+     "at": 1794019820000,
+     "text": "Two edits were overwritten."
+    },
+    {
+     "at": 1794020000000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "command",
+     "label": "git push"
+    },
+    {
+     "kind": "project",
+     "label": "game-client"
+    }
+   ],
+   "nextTo": [],
+   "comesBackWhen": {
+    "situation": "An agent is about to push in game-client",
+    "reminder": "Files under Assets/Generated are rebuilt, edit the template."
+   },
+   "help": {
+    "recalled": 8,
+    "used": 7,
+    "helped": 6,
+    "hurt": 0,
+    "lastUsedAt": 1794020000000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1793760800000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  },
+  {
+   "note": {
+    "id": "mn-000000000005",
+    "kind": "skill",
+    "text": "On macOS, sed -i needs an empty suffix",
+    "why": "A command failed twice",
+    "source": "command_fails",
+    "state": "firm",
+    "trust": "outcome",
+    "helped": 7,
+    "used": 9,
+    "strength": 0.8,
+    "scope": {
+     "level": "everywhere",
+     "key": "",
+     "label": ""
+    },
+    "rev": 1,
+    "updatedAt": 1793912000000
+   },
+   "learnedFrom": [
+    {
+     "at": 1793911820000,
+     "text": "A command failed twice."
+    },
+    {
+     "at": 1793912000000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "command",
+     "label": "sed"
+    }
+   ],
+   "nextTo": [],
+   "comesBackWhen": {
+    "situation": "",
+    "reminder": "On macOS, sed -i needs an empty suffix."
+   },
+   "help": {
+    "recalled": 10,
+    "used": 9,
+    "helped": 7,
+    "hurt": 0,
+    "lastUsedAt": 1793912000000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1793652800000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  },
+  {
+   "note": {
+    "id": "mn-000000000006",
+    "kind": "example",
+    "text": "Reports open with a chart",
+    "why": "Not used in 40 days",
+    "source": "edits",
+    "state": "cooling",
+    "trust": "did",
+    "helped": 0,
+    "used": 1,
+    "strength": 0.3,
+    "scope": {
+     "level": "everywhere",
+     "key": "",
+     "label": ""
+    },
+    "rev": 1,
+    "updatedAt": 1790960000000
+   },
+   "learnedFrom": [
+    {
+     "at": 1790959820000,
+     "text": "Not used in 40 days."
+    },
+    {
+     "at": 1790960000000,
+     "text": "Eos wrote it down when the chat went quiet."
+    }
+   ],
+   "connectedTo": [
+    {
+     "kind": "command",
+     "label": "sed"
+    }
+   ],
+   "nextTo": [],
+   "comesBackWhen": {
+    "situation": "",
+    "reminder": "Reports open with a chart."
+   },
+   "help": {
+    "recalled": 2,
+    "used": 1,
+    "helped": 0,
+    "hurt": 0,
+    "lastUsedAt": 1790960000000
+   },
+   "versions": [
+    {
+     "rev": 1,
+     "at": 1790700800000,
+     "why": "learned"
+    }
+   ],
+   "device": "MacBook"
+  }
+ ]
+}

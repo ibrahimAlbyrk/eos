@@ -2,6 +2,8 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
 import { combo, isMod } from "../../keymap/index.js";
 import { EosMain } from "./EosMain.jsx";
+import { AboutYouTab } from "./memory/AboutYou.jsx";
+import { AboutYouSlot } from "./memory/aboutYouSlot.js";
 import { RunSheet } from "./runform/RunSheet.jsx";
 import { EosSidebar } from "./sidebar/EosSidebar.jsx";
 import { goBack, goForward, openLocation } from "./nav/eosNav.js";
@@ -19,5 +21,5 @@ export function EosView({ live }) {
   useKeybinding({ match: historyKey("BracketLeft"), run: (ctx, e) => { e.preventDefault(); goBack(); } }, []);
   useKeybinding({ match: historyKey("BracketRight"), run: (ctx, e) => { e.preventDefault(); goForward(); } }, []);
   useKeybinding({ match: combo("mod+n"), run: (ctx, e) => { e.preventDefault(); openLocation("eos:/routines/new"); } }, []);
-  return <AppLayout gridClass="eos-mode" sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<><EosMain /><RunSheet /></>} />;
+  return <AppLayout gridClass="eos-mode" sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<AboutYouSlot.Provider value={AboutYouTab}><EosMain /><RunSheet /></AboutYouSlot.Provider>} />;
 }
