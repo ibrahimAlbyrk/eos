@@ -38,6 +38,7 @@ mod night;
 mod reflection;
 mod reminders;
 mod routes;
+mod sync;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -65,7 +66,7 @@ use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::jobs::JobRegistry;
-use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::module::{Module, ModuleError, Opaque, SyncContribution};
 use eos_runtime::router::RouteDef;
 use tokio::sync::Notify;
 
@@ -202,6 +203,8 @@ pub struct MemoryModule {
     runs: Arc<RunMemory>,
     edits: Option<Arc<EditWatch>>,
     background_model_calls: bool,
+    /// Notes and counters as the sync feature reads them.
+    experience: Arc<dyn eos_core::experience::ExperienceSync>,
     /// What runs from `start` to `stop`.
     tasks: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
@@ -306,6 +309,8 @@ impl MemoryModule {
         let feedback =
             Feedback::new(store.clone(), clock.clone(), ids.clone(), recall.clone(), credit.clone(), device.clone());
         let runs_memory = Arc::new(RunMemory { feedback, wake: wake.clone() });
+        let experience: Arc<dyn eos_core::experience::ExperienceSync> =
+            Arc::new(sync::Experience::new(store.clone(), clock.clone(), device.clone()));
         let api = Arc::new(routes::Api {
             store: store.clone(),
             clock: clock.clone(),
@@ -333,6 +338,7 @@ impl MemoryModule {
             runs: runs_memory,
             edits,
             background_model_calls,
+            experience,
             tasks: Mutex::new(Vec::new()),
         }
     }
@@ -442,6 +448,21 @@ impl Module for MemoryModule {
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.api)
+    }
+
+    /// The handle is an `Arc<dyn ExperienceSync>`; a note written from
+    /// another Mac's record is not a local edit.
+    fn sync(&self) -> Vec<SyncContribution> {
+        let handle: Opaque = Arc::new(self.experience.clone());
+        let made_here = |event: &eos_runtime::bus::Event| {
+            event.payload_as::<ExperienceChange>().is_ok_and(|change| change.action != eos_memory::sync::SYNCED)
+        };
+        vec![SyncContribution {
+            domain: "experience",
+            handle,
+            change_topic: Some(MEMORY_CHANGE.name()),
+            is_local: Some(Arc::new(made_here)),
+        }]
     }
 
     fn job_kinds(&self) -> Vec<&'static str> {

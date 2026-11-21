@@ -1,9 +1,10 @@
 //! Sync domains over the data that has a service as its one write path: profile
-//! fields, the avatar, memories and pages. Each lists the portable form (project
+//! fields, the avatar, memories, pages and what Eos learned from work. Each lists the portable form (project
 //! folders as project keys, no local revisions or chat links) and applies it back
 //! through that service, so open views refresh off the usual change events.
 
 mod avatar;
+mod experience;
 mod memory;
 mod page;
 mod profile;
@@ -20,6 +21,7 @@ use eos_core::profile::{UserMemorySync, UserProfileSync};
 use eos_runtime::module::SyncContribution;
 
 pub use avatar::AvatarDomain;
+pub use experience::ExperienceDomain;
 pub use memory::MemoryDomain;
 pub use page::PageDomain;
 pub use profile::ProfileDomain;
@@ -69,6 +71,9 @@ pub(crate) fn from_contribution(
         "page" => Arc::new(PageDomain::new(
             handle.downcast_ref::<Arc<dyn PageSync>>().ok_or_else(wrong)?.clone(),
             project_keys.clone(),
+        )),
+        "experience" => Arc::new(ExperienceDomain::new(
+            handle.downcast_ref::<Arc<dyn eos_core::experience::ExperienceSync>>().ok_or_else(wrong)?.clone(),
         )),
         other => return Err(Error::Rule(format!("no sync domain is called \"{other}\""))),
     })

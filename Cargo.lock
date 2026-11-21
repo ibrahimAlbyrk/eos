@@ -2181,6 +2181,7 @@ dependencies = [
  "eos-memory",
  "eos-prompts",
  "eos-runtime",
+ "eos-sync",
  "eos-testkit",
  "indexmap",
  "serde",
