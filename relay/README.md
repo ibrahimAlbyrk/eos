@@ -39,7 +39,7 @@ npm test             # node strip-types test suite
 | `RELAY_HEARTBEAT_MS` | `30000` | WS ping cadence; a socket that misses one pong is terminated (half-open peers dropped within ~2 intervals) |
 | `RELAY_VAULT_DB` | `./vault.db` | sync vault SQLite file (`/data/vault.db` in Docker, on the `eos-relay-data` volume) |
 | `RELAY_VAULT_MAX` | `16` | how many vaults may exist; a new one past it is `503 {"error":"vault limit"}` |
-| `RELAY_VAULT_MAX_BYTES` | `268435456` | per-vault blob bytes (256 MiB); a put past it is `507` |
+| `RELAY_VAULT_MAX_BYTES` | `268435456` | per-vault blob bytes (256 MiB); a put past it is `507`. Keep it at 256 MiB or more: the app splits that much among its sync domains (one domain stops adding records at its share) |
 | `APNS_KEY` | _(unset)_ | path to the operator's APNs `.p8` key |
 | `APNS_KEY_ID` | _(unset)_ | the key's id |
 | `APNS_TEAM_ID` | _(unset)_ | the Apple team that owns the key and signs the phone app |

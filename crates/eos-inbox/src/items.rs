@@ -165,6 +165,21 @@ pub fn notice_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, new: NewItem) 
     Ok(item)
 }
 
+impl crate::Items {
+    /// Opens or brings up to date the day's notice `new`, in a write job of
+    /// its own, for a producer that writes nothing with it.
+    pub async fn notice(&self, new: NewItem) -> Result<StoredItem, Error> {
+        let (now, ids, zone, control) =
+            (self.clock.now_ms(), self.ids.clone(), self.zone.clone(), self.control.clone());
+        self.store
+            .write(move |tx, out| {
+                let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+                notice_in(tx, out, &at, new)
+            })
+            .await
+    }
+}
+
 /// Pauses a routine with more than [`ROUTINE_CAP`] items waiting, so nobody
 /// pays for results nobody reads, and tells the user once.
 fn cap_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, routine_id: &str) -> Result<(), Error> {

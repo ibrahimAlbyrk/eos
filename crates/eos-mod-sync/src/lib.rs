@@ -11,6 +11,7 @@
 //! | `POST /api/sync/join` | `{key}`: the account's copy wins where both have one |
 //! | `POST /api/sync/now` | a pass now (202) |
 //! | `POST /api/sync/leave` | stop syncing; the data stays as it is |
+//! | `GET /api/sync/usage` | how much of the vault each domain fills, and which are full |
 //!
 //! All of it stays on this computer: the key is the account and never crosses
 //! to a paired one. Every data type is written only through its own write
@@ -22,7 +23,7 @@ mod service;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use eos_contracts::SyncStatusResponse;
+use eos_contracts::{SyncFull, SyncStatusResponse};
 use eos_core::net::sync::SyncDomain;
 use eos_core::{Clock, git::ProjectKeys};
 use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
@@ -34,6 +35,10 @@ pub use service::{DeviceName, RelayUrl, SyncService, SyncServiceDeps, Timing};
 
 /// Sync's status changed: Settings › Sync renders the payload.
 pub const SYNC_CHANGE: Topic<SyncStatusResponse> = Topic::new("sync:change");
+
+/// A domain reached its vault budget: its new records wait on this
+/// computer. Needs you opens one notice for it.
+pub const SYNC_FULL: Topic<SyncFull> = Topic::new("sync:full");
 
 /// The job a pass that outlasts a moment shows as.
 pub const SYNC_JOB_KIND: &str = "sync";
@@ -110,7 +115,7 @@ impl Module for SyncModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![SYNC_CHANGE.decl()]
+        vec![SYNC_CHANGE.decl(), SYNC_FULL.decl()]
     }
 
     fn job_kinds(&self) -> Vec<&'static str> {

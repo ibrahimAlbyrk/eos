@@ -64,5 +64,12 @@ pub(crate) fn all(service: &Arc<SyncService>) -> Vec<RouteDef> {
     })
     .access(USER);
 
-    vec![status, key, create, join, now, leave]
+    let sync = service.clone();
+    let usage = RouteDef::get(routes::SYNC_USAGE.path, move |_req: Request| {
+        let sync = sync.clone();
+        async move { Ok(Response::json(200, &sync.usage())) }
+    })
+    .access(Access::open().local_only());
+
+    vec![status, key, create, join, now, leave, usage]
 }

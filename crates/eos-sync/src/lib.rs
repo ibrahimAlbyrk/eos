@@ -13,8 +13,13 @@
 //! that succeeded. A local record this computer never synced counts as
 //! oldest, so joining adopts the account's copy.
 //!
+//! A domain with a vault budget ([`vault_budgets`]) pushes no new record
+//! once its sealed bytes reached it; [`SyncEngine::usage`] tells which.
+//!
 //! [`SyncStateStore::save_conflict`]: eos_core::net::sync::SyncStateStore::save_conflict
 
+mod budget;
 mod engine;
 
+pub use budget::{DomainUsage, vault_budgets};
 pub use engine::{PassResult, SyncEngine, SyncEngineDeps};

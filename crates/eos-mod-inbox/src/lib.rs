@@ -48,7 +48,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use tokio::sync::Notify;
 
-use eos_contracts::{DeliveryChange, FreedomChange, HaltState, InboxChange, SignalSubject};
+use eos_contracts::{DeliveryChange, FreedomChange, HaltState, InboxChange, SignalSubject, SyncFull};
 use eos_core::agent::OpenQuestions;
 use eos_core::net::relay::PhoneNotify;
 use eos_core::os::DockBadge;
@@ -68,6 +68,8 @@ pub const INBOX_HALT: Topic<HaltState> = Topic::new(eos_inbox::INBOX_HALT);
 pub const INBOX_FREEDOM: Topic<FreedomChange> = Topic::new(eos_inbox::INBOX_FREEDOM);
 /// The signals feature's: a new version of a subject came in, or it closed.
 const SIGNALS_SUBJECT: Topic<SignalSubject> = Topic::new("signals:subject");
+/// The sync feature's: a domain reached its vault budget.
+const SYNC_FULL: Topic<SyncFull> = Topic::new("sync:full");
 /// The subject events that may wait to be acted on.
 const SUBJECTS_QUEUED: usize = 256;
 /// The changes that may wait to be acted on by attention; a missed one is
@@ -245,6 +247,30 @@ impl InboxModule {
         }));
     }
 
+    /// From now on, a sync domain that reached its vault budget opens one
+    /// notice; the sync feature tells it once each time a domain gets there.
+    fn hear_sync_full(&self) {
+        let mut events = self.bus.subscribe(&SYNC_FULL, SUBJECTS_QUEUED);
+        let items = self.parts.items.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                let full = match events.recv().await {
+                    Ok(event) => event.payload_as::<SyncFull>(),
+                    Err(RecvError::Lagged(missed)) => {
+                        tracing::warn!(missed, "sync events were missed");
+                        continue;
+                    }
+                    Err(RecvError::Closed) => return,
+                };
+                let Ok(full) = full else { continue };
+                if let Err(error) = items.notice(sync_full_notice(&full.domain)).await {
+                    tracing::warn!(%error, "a full sync domain could not be told");
+                }
+            }
+        });
+        self.keep(task);
+    }
+
     /// From now on, each subject event is acted on in a write job of its own.
     fn hear_subjects(&self) {
         let mut events = self.bus.subscribe(&SIGNALS_SUBJECT, SUBJECTS_QUEUED);
@@ -287,6 +313,7 @@ impl Module for InboxModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         self.delivery.start();
         self.hear_subjects();
+        self.hear_sync_full();
         self.sweep();
         self.attend();
         let waiters = self.waiters.clone();
@@ -309,5 +336,22 @@ impl Module for InboxModule {
             }
             self.delivery.stop().await;
         })
+    }
+}
+
+/// What Needs you says of a sync domain at its vault budget.
+fn sync_full_notice(domain: &str) -> eos_inbox::NewItem {
+    eos_inbox::NewItem {
+        kind: eos_domain::inbox::ItemKind::Notice,
+        producer: "sync".into(),
+        routine_id: None,
+        run_id: None,
+        subject_key: Some(format!("sync-full:{domain}")),
+        title: "Sync is full for some of your data".into(),
+        summary: "New records of this kind stay on this Mac until there is room. Everything else keeps syncing, \
+                  and Settings › Sync shows which kind is full."
+            .into(),
+        payload: serde_json::json!({ "domain": domain }),
+        by_hand: false,
     }
 }

@@ -188,13 +188,19 @@ impl Mac {
         let domain = MapDomain::new();
         let state = Arc::new(MemState::default());
         let clock = Arc::new(FakeClock::at(1000));
-        let engine = Arc::new(engine(&port, &domain, &state, &clock, device));
+        let engine = Arc::new(engine(&port, &domain, &state, &clock, device, Vec::new()));
         Self { device: device.to_owned(), domain, state, clock, client, vault: port, engine }
     }
 
     /// A new engine over the saved state, as after a restart of the app.
     pub(crate) fn restart(&mut self) {
-        self.engine = Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device));
+        self.engine = Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device, Vec::new()));
+    }
+
+    /// A new engine whose domain may keep `bytes` in the vault.
+    pub(crate) fn with_budget(&mut self, bytes: u64) {
+        let budgets = vec![(SyncDomainName::Memory, bytes)];
+        self.engine = Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device, budgets));
     }
 
     pub(crate) fn conflicts(&self) -> Vec<(String, Value)> {
@@ -208,6 +214,7 @@ fn engine(
     state: &Arc<MemState>,
     clock: &Arc<FakeClock>,
     device: &str,
+    budgets: Vec<(SyncDomainName, u64)>,
 ) -> SyncEngine {
     SyncEngine::new(SyncEngineDeps {
         vault: vault.clone(),
@@ -216,6 +223,7 @@ fn engine(
         domains: vec![domain.clone()],
         clock: clock.clone(),
         device: device.to_owned(),
+        budgets,
     })
 }
 

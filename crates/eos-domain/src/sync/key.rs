@@ -19,7 +19,7 @@ use sha2::{Digest, Sha256};
 const KEY_PREFIX: &str = "eos-sync1";
 pub const SECRET_BYTES: usize = 32;
 pub const NONCE_BYTES: usize = 12;
-const TAG_BYTES: usize = 16;
+pub const TAG_BYTES: usize = 16;
 const SALT: &[u8] = b"eos-sync-v1";
 
 #[derive(Clone, PartialEq, Eq)]

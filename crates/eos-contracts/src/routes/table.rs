@@ -193,6 +193,7 @@ pub const SYNC_JOIN: Route = Route::new("syncJoin", "/api/sync/join", &[Post]);
 pub const SYNC_KEY: Route = Route::new("syncKey", "/api/sync/key", &[Get]);
 pub const SYNC_NOW: Route = Route::new("syncNow", "/api/sync/now", &[Post]);
 pub const SYNC_LEAVE: Route = Route::new("syncLeave", "/api/sync/leave", &[Post]);
+pub const SYNC_USAGE: Route = Route::new("syncUsage", "/api/sync/usage", &[Get]).added();
 pub const TRANSFER_LIST: Route = Route::new("transferList", "/transfer/list", &[Get]);
 pub const TRANSFER_SCAN: Route = Route::new("transferScan", "/transfer/scan", &[Post]);
 pub const TRANSFER_READ: Route = Route::new("transferRead", "/transfer/read", &[Get]);
@@ -571,6 +572,7 @@ pub const ROUTES: &[Route] = &[
     SYNC_CREATE,
     SYNC_JOIN,
     SYNC_KEY,
+    SYNC_USAGE,
     SYNC_NOW,
     SYNC_LEAVE,
     TRANSFER_LIST,
