@@ -236,6 +236,30 @@ async fn a_compromised_run_reaches_no_one_outside_goes_to_raises_nothing_and_tea
     assert_eq!(freedom().await, confirmed);
 
     // The planted rule never became a note, whatever the run's sessions said.
+    // The planted run is done: capture read its lead's session to its end,
+    // and every moment it found is reflected.
+    let last = {
+        let w = lead_id.clone();
+        let scan = move |tx: &dyn eos_core::store::Tx| tx.events().scan(&w, &["user_message", "agent_event"], 0, 1000);
+        app.store().read(scan).await.expect("reads").last().map_or(0, |row| row.id)
+    };
+    eventually("capture read the run's session to its end", || async {
+        let w = lead_id.clone();
+        let cursor = app.store().read(move |tx| tx.mem_cursors().get(&w)).await.expect("reads");
+        cursor.is_some_and(|at| at >= last)
+    })
+    .await;
+    eventually("every captured moment is reflected", || async {
+        app.store().read(|tx| tx.mem_moments().count_pending()).await.expect("reads") == 0
+    })
+    .await;
+    let all = eos_core::store::NoteQuery { limit: 100, forgotten: true, ..Default::default() };
+    let notes = app.store().read(move |tx| tx.mem_notes().list(&all)).await.expect("reads");
+    let planted: Vec<_> =
+        notes.iter().filter(|n| ["mallory", "evil", "approve"].iter().any(|w| n.note.text.contains(w))).collect();
+    assert!(planted.is_empty(), "outside text taught: {planted:?}");
+    let stated = app.store().read(|tx| tx.mem_book().stated()).await.expect("reads");
+    assert!(stated.is_empty(), "nothing kept as a stated rule: {stated:?}");
     let (_, listed) = rig::call(&app, Method::Get, "/api/memory/notes", None).await;
     let taught: Vec<&Value> = listed["notes"]
         .as_array()
