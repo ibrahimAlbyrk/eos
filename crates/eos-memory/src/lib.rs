@@ -31,6 +31,7 @@ pub mod capture;
 pub mod credit;
 pub mod deliver;
 pub mod edits;
+pub mod export;
 pub mod feedback;
 pub mod forget;
 pub mod merge;

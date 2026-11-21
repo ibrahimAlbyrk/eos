@@ -415,4 +415,6 @@ export const ROUTES = {
   memoryStated: "/api/memory/stated",
   memorySettings: "/api/memory/settings",
   memoryTidy: "/api/memory/tidy",
+  memoryForgetAll: "/api/memory/forget-all",
+  memoryExport: "/api/memory/export",
 };

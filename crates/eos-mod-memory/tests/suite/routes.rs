@@ -225,6 +225,41 @@ async fn a_forgotten_note_leaves_the_list_and_comes_back_within_thirty_days() {
 }
 
 #[tokio::test]
+async fn forgetting_everything_keeps_about_you_and_is_undone_within_thirty_days_and_export_lists_live_notes() {
+    let api = Api::new().await;
+    api.seed();
+    let (status, export) = api.ask(Method::Get, "/api/memory/export", None).await;
+    assert_eq!(status, 200);
+    let ids: Vec<&str> = export["notes"].as_array().unwrap().iter().map(|n| n["id"].as_str().unwrap()).collect();
+    assert_eq!(ids.len(), 2);
+    let lint = export["notes"].as_array().unwrap().iter().find(|n| n["id"] == "mn-1").unwrap();
+    assert_eq!(lint["evidence"][0]["summary"], "A push failed, lint fixed it.");
+    assert_eq!(lint["scope"], "project:key:/repo");
+
+    assert_eq!(api.ask(Method::Post, "/api/memory/forget-all", Some(json!({}))).await.0, 400, "only on a confirm");
+    let (status, body) = api.ask(Method::Post, "/api/memory/forget-all", Some(json!({"confirm": true}))).await;
+    assert_eq!((status, body), (200, json!({"forgotten": 2})));
+    assert_eq!(api.temp.count("SELECT COUNT(*) FROM mem_uses"), 0, "what was used is cleared");
+    let (_, page) = api.ask(Method::Get, "/api/memory/notes", None).await;
+    assert_eq!(page["notes"], json!([]));
+    let (_, summary) = api.ask(Method::Get, "/api/memory/summary", None).await;
+    assert_eq!(summary["aboutYou"], 1, "About you stays: {summary}");
+    assert_eq!(api.ask(Method::Get, "/api/memory/export", None).await.1["notes"], json!([]));
+
+    api.clock.advance(DAY_MS);
+    let (status, body) = api.ask(Method::Post, "/api/memory/forget-all", Some(json!({"undo": true}))).await;
+    assert_eq!((status, body), (200, json!({"restored": 2})));
+    let (_, page) = api.ask(Method::Get, "/api/memory/notes", None).await;
+    assert_eq!(page["notes"].as_array().unwrap().len(), 2);
+    assert_eq!(api.ask(Method::Post, "/api/memory/forget-all", Some(json!({"undo": true}))).await.0, 404);
+
+    api.ask(Method::Post, "/api/memory/forget-all", Some(json!({"confirm": true}))).await;
+    api.clock.advance(31 * DAY_MS);
+    let (status, body) = api.ask(Method::Post, "/api/memory/forget-all", Some(json!({"undo": true}))).await;
+    assert_eq!((status, body["error"].as_str()), (409, Some("too_late")));
+}
+
+#[tokio::test]
 async fn not_right_hurts_the_note_and_keeps_what_the_user_said() {
     let api = Api::new().await;
     api.seed();
