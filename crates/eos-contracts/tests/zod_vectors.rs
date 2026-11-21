@@ -60,6 +60,11 @@ const KNOWN_DIFFERENCES: &[(&str, &str, &str)] = &[
     ("MessageRecordSchema", "option-4", NO_GOAL_LOOPS),
     ("WorkerEventTypeSchema", "enum", NO_GOAL_LOOPS),
     ("WorkerEventPostBodySchema", "enum:type", NO_GOAL_LOOPS),
+    (
+        "SyncDomainNameSchema",
+        "enum",
+        "the `experience` sync domain is this app's own (memory's notes and counters); the TypeScript app had none",
+    ),
 ];
 
 #[test]
