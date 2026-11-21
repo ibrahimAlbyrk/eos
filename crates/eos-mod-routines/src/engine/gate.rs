@@ -18,6 +18,16 @@ use crate::routes::readable;
 
 /// Hands the passed result of `run` to the gate and moves the run by its
 /// decision. A result with nothing to send skips the gate (01 G20).
+/// The facts the source of the signal that started the run read, empty for a
+/// run without one or after retention cleared them.
+fn signal_facts_in(tx: &dyn Tx, input: &eos_contracts::RunInput) -> Result<eos_contracts::Facts, Error> {
+    let Some(id) = input.trigger.as_ref().and_then(|trigger| trigger.signal_id.parse::<i64>().ok()) else {
+        return Ok(eos_contracts::Facts::new());
+    };
+    let facts = tx.signals().find(id)?.and_then(|signal| signal.signal.facts_json);
+    Ok(facts.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default())
+}
+
 pub(crate) fn hand_over(
     engine: &Arc<Engine>,
     tx: &dyn Tx,
@@ -94,6 +104,7 @@ fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunR
         // A trial sends nothing anywhere (03 G21).
         targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
+        signal_facts: signal_facts_in(tx, &input)?,
         subject_key: run.item_key.clone(),
         trust: eos_domain::routine::trust::of_run(Some(version.trust), &input),
         freedom_confirmed,

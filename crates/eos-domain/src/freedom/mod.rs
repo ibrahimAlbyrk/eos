@@ -6,4 +6,4 @@
 pub mod rung;
 pub mod streak;
 
-pub use rung::{AUTOMATIC_RUNGS_LOCKED, Caps, Waiting, effective_rung};
+pub use rung::{Caps, Waiting, effective_rung};

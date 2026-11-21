@@ -359,29 +359,21 @@ describe("a hand edit", () => {
 describe("the Freedom ladder", () => {
   const pr = { name: "PR Review", makes: { kind: "github.review" }, goesTo: [{ id: "pr", kind: "item_place", channel: "github" }] };
   const ladder = (rung, onApply = () => {}) => renderToStaticMarkup(<FreedomLadder blueprint={{ ...pr, freedom: { rung } }} onApply={onApply} />);
+  const RUNG_LABELS = { ask: "Ask each time", draft: "Draft, I send", send_then_tell: "Send, then tell me", on_its_own: "On its own" };
   const rungs = (html) => [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map((m) => ({ label: m[2], attrs: m[1] }));
 
-  it("keeps the two unattended rungs locked with the line that says until when", () => {
-    const html = ladder("draft");
-    const [ask, draft, sendThenTell, onItsOwn] = rungs(html);
-    for (const locked of [sendThenTell, onItsOwn]) {
-      expect(locked.attrs).toContain('aria-disabled="true"');
-      expect(locked.attrs).toContain('tabindex="-1"');
-      expect(locked.attrs).toMatch(/aria-describedby="[^"]+"/);
+  it("offers every rung, the one set checked", () => {
+    for (const rung of ["ask", "draft", "send_then_tell", "on_its_own"]) {
+      const all = rungs(ladder(rung));
+      expect(all.map((r) => r.label)).toEqual(["Ask each time", "Draft, I send", "Send, then tell me", "On its own"]);
+      for (const r of all) expect(r.attrs).not.toContain("aria-disabled");
+      expect(all.filter((r) => r.attrs.includes('aria-checked="true"')).length).toBe(1);
+      expect(all.find((r) => r.attrs.includes('aria-checked="true"')).label).toBe(RUNG_LABELS[rung]);
     }
-    for (const open of [ask, draft]) {
-      expect(open.attrs).not.toContain("aria-disabled");
-      expect(open.attrs).not.toContain("tabindex");
-    }
-    const describedBy = sendThenTell.attrs.match(/aria-describedby="([^"]+)"/)[1];
-    expect(html).toContain(`<p id="${describedBy}" class="eos-note">After the safety suite passes</p>`);
   });
 
-  it("shows Draft, I send as what applies to a routine set higher", () => {
-    for (const rung of ["send_then_tell", "on_its_own"]) {
-      const checked = rungs(ladder(rung)).filter((r) => r.attrs.includes('aria-checked="true"'));
-      expect(checked.map((r) => r.label)).toEqual(["Draft, I send"]);
-    }
-    expect(rungs(ladder("ask")).find((r) => r.attrs.includes('aria-checked="true"')).label).toBe("Ask each time");
+  it("is read-only without a way to apply it", () => {
+    const html = renderToStaticMarkup(<FreedomLadder blueprint={{ ...pr, freedom: { rung: "draft" } }} />);
+    for (const r of rungs(html)) expect(r.attrs).toContain('aria-disabled="true"');
   });
 });

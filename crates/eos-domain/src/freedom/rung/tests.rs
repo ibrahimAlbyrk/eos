@@ -64,9 +64,9 @@ fn every_class_at_every_rung_under_every_cap() {
         for rung in RUNGS {
             let (free, capped) = expected(class, rung);
             let confirmed = freedom(rung, Vec::new());
-            assert_eq!(unlocked_rung(class, &confirmed, &no_facts, &Caps::default()), free, "{class:?} at {rung:?}");
+            assert_eq!(effective_rung(class, &confirmed, &no_facts, &Caps::default()), free, "{class:?} at {rung:?}");
             for (cap, caps) in each_cap() {
-                assert_eq!(unlocked_rung(class, &confirmed, &no_facts, &caps), capped, "{class:?} at {rung:?}, {cap}");
+                assert_eq!(effective_rung(class, &confirmed, &no_facts, &caps), capped, "{class:?} at {rung:?}, {cap}");
             }
         }
     }
@@ -92,13 +92,13 @@ fn a_grant_adds_freedom_to_the_items_whose_facts_pass_it() {
     let docs = facts(json!({"paths": ["docs/setup.md"]}));
     let code = facts(json!({"paths": ["src/main.rs"]}));
     let none = Caps::default();
-    assert_eq!(unlocked_rung(ActionClass::Speak, &confirmed, &docs, &none), Rung::OnItsOwn);
-    assert_eq!(unlocked_rung(ActionClass::Speak, &confirmed, &code, &none), Rung::Draft);
+    assert_eq!(effective_rung(ActionClass::Speak, &confirmed, &docs, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::Speak, &confirmed, &code, &none), Rung::Draft);
     // A fact the item lacks passes no grant.
-    assert_eq!(unlocked_rung(ActionClass::Speak, &confirmed, &Facts::new(), &none), Rung::Draft);
+    assert_eq!(effective_rung(ActionClass::Speak, &confirmed, &Facts::new(), &none), Rung::Draft);
     // Every cap holds a granted result too.
     for (cap, caps) in each_cap() {
-        assert_eq!(unlocked_rung(ActionClass::Speak, &confirmed, &docs, &caps), Rung::Draft, "{cap}");
+        assert_eq!(effective_rung(ActionClass::Speak, &confirmed, &docs, &caps), Rung::Draft, "{cap}");
     }
 }
 
@@ -108,7 +108,7 @@ fn a_grant_never_takes_freedom_away_and_the_freest_passing_grant_wins() {
     let item = facts(json!({"draft": false}));
     let none = Caps::default();
     let lower = freedom(Rung::SendThenTell, vec![grant(any.clone(), Rung::Ask, false)]);
-    assert_eq!(unlocked_rung(ActionClass::Speak, &lower, &item, &none), Rung::SendThenTell);
+    assert_eq!(effective_rung(ActionClass::Speak, &lower, &item, &none), Rung::SendThenTell);
     let several = freedom(
         Rung::Ask,
         vec![
@@ -117,11 +117,11 @@ fn a_grant_never_takes_freedom_away_and_the_freest_passing_grant_wins() {
             grant(json!({"fact": "draft", "is": true}), Rung::OnItsOwn, false),
         ],
     );
-    assert_eq!(unlocked_rung(ActionClass::Speak, &several, &item, &none), Rung::SendThenTell);
+    assert_eq!(effective_rung(ActionClass::Speak, &several, &item, &none), Rung::SendThenTell);
     // Telling the user and the local classes do not read grants.
     let held = freedom(Rung::Ask, vec![grant(any, Rung::Ask, true)]);
-    assert_eq!(unlocked_rung(ActionClass::TellUser, &held, &item, &none), Rung::OnItsOwn);
-    assert_eq!(unlocked_rung(ActionClass::WriteLocal, &held, &item, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::TellUser, &held, &item, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::WriteLocal, &held, &item, &none), Rung::OnItsOwn);
 }
 
 #[test]
@@ -130,37 +130,13 @@ fn an_irreversible_action_goes_only_under_a_grant_that_covers_it() {
     let docs = facts(json!({"paths": ["docs/setup.md"]}));
     let none = Caps::default();
     let speak_only = freedom(Rung::OnItsOwn, vec![grant(docs_only.clone(), Rung::OnItsOwn, false)]);
-    assert_eq!(unlocked_rung(ActionClass::Irreversible, &speak_only, &docs, &none), Rung::Draft);
-    assert_eq!(unlocked_rung(ActionClass::Speak, &speak_only, &docs, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::Irreversible, &speak_only, &docs, &none), Rung::Draft);
+    assert_eq!(effective_rung(ActionClass::Speak, &speak_only, &docs, &none), Rung::OnItsOwn);
     let covering = freedom(Rung::Draft, vec![grant(docs_only, Rung::OnItsOwn, true)]);
-    assert_eq!(unlocked_rung(ActionClass::Irreversible, &covering, &docs, &none), Rung::OnItsOwn);
-    assert_eq!(unlocked_rung(ActionClass::Speak, &covering, &docs, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::Irreversible, &covering, &docs, &none), Rung::OnItsOwn);
+    assert_eq!(effective_rung(ActionClass::Speak, &covering, &docs, &none), Rung::OnItsOwn);
     let code = facts(json!({"paths": ["src/main.rs"]}));
-    assert_eq!(unlocked_rung(ActionClass::Irreversible, &covering, &code, &none), Rung::Draft);
+    assert_eq!(effective_rung(ActionClass::Irreversible, &covering, &code, &none), Rung::Draft);
     let halted = Caps { halted: true, ..none };
-    assert_eq!(unlocked_rung(ActionClass::Irreversible, &covering, &docs, &halted), Rung::Draft);
-}
-
-#[test]
-fn while_locked_nothing_goes_past_a_draft() {
-    let free = freedom(Rung::OnItsOwn, Vec::new());
-    assert_eq!(effective_rung(ActionClass::Speak, &free, &Facts::new(), &Caps::default()), Rung::Draft);
-    let any = json!({"fact": "draft", "is": false});
-    let item = facts(json!({"draft": false}));
-    let mut every_caps = vec![("no cap", Caps::default())];
-    every_caps.extend(each_cap());
-    for class in CLASSES {
-        for rung in RUNGS {
-            for granted in RUNGS {
-                for covers in [false, true] {
-                    let confirmed = freedom(rung, vec![grant(any.clone(), granted, covers)]);
-                    for (cap, caps) in &every_caps {
-                        let got = effective_rung(class, &confirmed, &item, caps);
-                        let unlocked = unlocked_rung(class, &confirmed, &item, caps);
-                        assert_eq!(got, unlocked.min(Rung::Draft), "{class:?} at {rung:?}, grant {granted:?}, {cap}");
-                    }
-                }
-            }
-        }
-    }
+    assert_eq!(effective_rung(ActionClass::Irreversible, &covering, &docs, &halted), Rung::Draft);
 }

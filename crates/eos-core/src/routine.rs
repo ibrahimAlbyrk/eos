@@ -522,6 +522,10 @@ pub struct GateInput {
     pub targets: Vec<Recipient>,
     /// The item's fields, for the Goes-to bounds and the rung's caps.
     pub item_facts: serde_json::Value,
+    /// What the item's source read about it (the signal's facts, `repo`,
+    /// `draft`, …), for the Goes-to bounds and the grants. Never what a
+    /// result may name.
+    pub signal_facts: eos_contracts::Facts,
     /// The item's key: one subject's results replace each other.
     pub subject_key: Option<String>,
     pub trust: Trust,

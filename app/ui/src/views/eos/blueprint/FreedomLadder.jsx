@@ -1,12 +1,9 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 
 // The Freedom row: how far a result goes without the user, as a radiogroup
 // of 03's rungs. The user may pick any rung (G30); raising a routine that
 // speaks for the user to "Send, then tell me" or "On its own" asks first in
-// Eos's own dialog, outside anything an agent wrote. The two unattended
-// rungs stay locked until the safety suite passes: the core holds every
-// result as a draft at most, so the ladder shows "Draft, I send" as what
-// applies and offers neither.
+// Eos's own dialog, outside anything an agent wrote.
 
 export const RUNGS = [
   { value: "ask", label: "Ask each time" },
@@ -16,11 +13,6 @@ export const RUNGS = [
 ];
 
 const UNATTENDED = new Set(["send_then_tell", "on_its_own"]);
-
-export const LOCKED_LINE = "After the safety suite passes";
-
-// The rung that applies: an unattended one is held as a draft.
-const applying = (rung) => (UNATTENDED.has(rung) ? "draft" : rung);
 
 const ACTS = { "github.review": "post reviews", mail: "send mail", "mail.reply": "send mail" };
 
@@ -56,8 +48,6 @@ function Ask({ question, allow, cancel }) {
 export function FreedomLadder({ blueprint, onApply, changed = false }) {
   const [asking, setAsking] = useState(null);
   const rung = blueprint.freedom?.rung ?? "draft";
-  const applies = applying(rung);
-  const lockedId = useId();
   const pick = (value) => {
     if (value === rung) return;
     const question = freedomQuestion(blueprint, value);
@@ -69,27 +59,20 @@ export function FreedomLadder({ blueprint, onApply, changed = false }) {
       <dt className="eos-bp-row__label">Freedom{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
       <dd className="eos-bp-row__value">
         <div className="eos-seg" role="radiogroup" aria-label="How much Eos may do on its own">
-          {RUNGS.map((r) => {
-            const locked = UNATTENDED.has(r.value);
-            const open = onApply && !locked;
-            return (
-              <button
-                key={r.value}
-                type="button"
-                role="radio"
-                aria-checked={r.value === applies}
-                aria-disabled={open ? undefined : true}
-                tabIndex={locked ? -1 : undefined}
-                aria-describedby={locked ? lockedId : undefined}
-                className="eos-seg__opt"
-                onClick={open ? () => pick(r.value) : undefined}
-              >
-                {r.label}
-              </button>
-            );
-          })}
+          {RUNGS.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              role="radio"
+              aria-checked={r.value === rung}
+              aria-disabled={onApply ? undefined : true}
+              className="eos-seg__opt"
+              onClick={onApply ? () => pick(r.value) : undefined}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
-        <p id={lockedId} className="eos-note">{LOCKED_LINE}</p>
         {asking && (
           <Ask
             question={asking.question}
