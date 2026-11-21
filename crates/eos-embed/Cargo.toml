@@ -1,6 +1,6 @@
 [package]
 name = "eos-embed"
-description = "Memory's meaning vectors: the Embedder port over a local static model (potion-multilingual-128M), read from files the host hands in."
+description = "Memory's meaning vectors: the Embedder port over a local static model (potion-multilingual-128M-en-tr-int8), read from files the host hands in."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

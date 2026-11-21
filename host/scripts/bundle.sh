@@ -89,7 +89,7 @@ rsync -a --exclude "*.map" "$DIST/" "$APP/Contents/Resources/dist/" # the source
 cp "$ESBUILD" "$APP/Contents/Resources/esbuild"
 cp -R "$REPO/assets/claude-plugin" "$APP/Contents/Resources/claude-plugin"
 # Memory's meaning model (`eos_app::memory`), checked above. -c: a clone copy where the volume
-# supports it (APFS), so 530 MB cost no disk.
+# supports it (APFS), so 70 MB cost no disk.
 mkdir -p "$APP/Contents/Resources/models/$MODEL_NAME"
 while read -r name _; do
   cp -c "$MODEL/$name" "$APP/Contents/Resources/models/$MODEL_NAME/" 2>/dev/null \
