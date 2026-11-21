@@ -21,6 +21,7 @@ url.workspace = true
 
 [dev-dependencies]
 eos-kit-net.workspace = true
+eos-mod-memory.workspace = true
 eos-mod-pages.workspace = true
 eos-mod-profile.workspace = true
 eos-store-files.workspace = true

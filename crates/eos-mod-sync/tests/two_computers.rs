@@ -1,18 +1,26 @@
 //! Two computers, one relay: real services, real files, real crypto and the
-//! vault over HTTP.
+//! vault over HTTP. What Eos learned travels too: memory's notes over real stores.
 
 #![allow(clippy::unwrap_used)]
 
 mod support;
 
 use std::sync::Arc;
+use std::time::Duration;
+
+use eos_core::experience::ExperienceSync;
+use eos_domain::experience::{Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, Trust};
+use eos_mod_memory::{MemoryModule, MemoryParts, NoteSink};
+use eos_mod_sync::domains::ExperienceDomain;
+use eos_runtime::module::Module;
+use eos_testkit::{FakeClock, FakeSleeper, SeqIds, TempStore};
 
 use eos_contracts::{PageAuthor, SyncPhase, UserMemoryCategory, UserMemoryScope, UserMemoryTier, UserProfilePatch};
 use eos_mod_pages::NewPage;
 use eos_mod_profile::{MemoryInput, MemoryPatch};
 use eos_testkit::vault::{FakeVault, ServedVault, VaultLimits};
 use serde_json::json;
-use support::{Mac, until};
+use support::{Mac, PathKeys, fast, until};
 use tokio::sync::Notify;
 
 async fn relay() -> (Arc<FakeVault>, ServedVault) {
@@ -183,4 +191,106 @@ async fn what_the_vault_holds_is_sealed() {
     assert_eq!(envelope["data"]["scope"], json!({ "kind": "global" }));
     assert!(envelope["data"].get("rev").is_none() && envelope["data"].get("id").is_none());
     air.sync.stop();
+}
+
+/// Reminders go nowhere: no chat runs here.
+struct NoSink;
+
+impl NoteSink for NoSink {
+    fn note(&self, _worker_id: &str, _text: String) -> bool {
+        false
+    }
+}
+
+/// Memory on its own store, and the sync domain over it.
+fn experience(mac: &Mac, temp: &TempStore, device: &str) -> Arc<ExperienceDomain> {
+    let module = MemoryModule::new(MemoryParts {
+        store: temp.port(),
+        clock: Arc::new(FakeClock::new()),
+        sleeper: Arc::new(FakeSleeper::default()),
+        ids: Arc::new(SeqIds::new()),
+        runs: None,
+        sink: Arc::new(NoSink),
+        project_keys: Arc::new(PathKeys),
+        profile: mac.profile.clone(),
+        embedder: None,
+        code: None,
+        edits: None,
+        learn: None,
+        memories: mac.memories.clone(),
+        home: None,
+        device: device.into(),
+        background_model_calls: false,
+    });
+    let handle = module.sync().remove(0).handle;
+    let sync = handle.downcast::<Arc<dyn ExperienceSync>>().unwrap();
+    Arc::new(ExperienceDomain::new((*sync).clone()))
+}
+
+fn lesson(text: &str, at: i64) -> Note {
+    Note {
+        id: "mn-push".into(),
+        kind: NoteKind::Lesson,
+        text: text.into(),
+        body: NoteBody::None {},
+        trust: Trust::Said,
+        state: NoteState::Firm,
+        scope: Scope { level: ScopeLevel::Routine, key: "rt-review".into() },
+        valid_from: 0,
+        valid_to: None,
+        replaced_by: None,
+        do_hooks: vec![],
+        avoid_hooks: vec![],
+        created_at: at,
+        updated_at: at,
+        device: "air".into(),
+    }
+}
+
+fn text_of(temp: &TempStore) -> Option<String> {
+    temp.store.read_blocking(|tx| tx.mem_notes().find("mn-push")).unwrap().map(|n| n.note.text)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_note_learned_on_one_computer_reaches_the_other_and_its_edit_comes_back() {
+    let (_vault, served) = relay().await;
+    let rang = Arc::new(Notify::new());
+    // The experience domain is swept, not announced: sweep often.
+    let timing = || eos_mod_sync::Timing { sweep: Duration::from_millis(100), ..fast() };
+    let (air_store, pro_store) = (TempStore::new(), TempStore::new());
+    // Memory reads About you from a computer of its own; the two that sync carry its domain.
+    let air_shell = Mac::new(None, "air-shell", b'c', &rang).await;
+    let pro_shell = Mac::new(None, "pro-shell", b'd', &rang).await;
+    let air_domain = experience(&air_shell, &air_store, "air");
+    let pro_domain = experience(&pro_shell, &pro_store, "pro");
+    let air = Mac::with(Some(served.relay_url()), "air", b'a', &rang, timing(), vec![air_domain]).await;
+    let start = FakeClock::START_MS;
+    air_store
+        .store
+        .write_blocking(move |tx, _| tx.mem_notes().insert(&lesson("Keep the summary short.", start), "").map(drop))
+        .unwrap();
+    air.sync.create().unwrap();
+    let pro = Mac::with(None, "pro", b'b', &rang, timing(), vec![pro_domain]).await;
+    pro.sync.join(&air.sync.key().unwrap()).unwrap();
+
+    let reached = || text_of(&pro_store).as_deref() == Some("Keep the summary short.");
+    until(&rang, "the note reaching pro", reached).await;
+    let arrived = pro_store.store.read_blocking(|tx| tx.mem_notes().find("mn-push")).unwrap().unwrap();
+    assert_eq!(arrived.note.scope, Scope { level: ScopeLevel::Routine, key: "rt-review".into() });
+
+    // Pro edits it later; air takes the newer text.
+    let edited =
+        Note { text: "Keep the summary to three lines.".into(), device: "pro".into(), ..lesson("", start + 60_000) };
+    let rev = arrived.rev + 1;
+    pro_store.store.write_blocking(move |tx, _| tx.mem_notes().update(&edited, "", rev)).unwrap();
+    pro.sync.sync_now();
+    let back = || text_of(&air_store).as_deref() == Some("Keep the summary to three lines.");
+    until(&rang, "the edit reaching air", back).await;
+    until(&rang, "both settling", || {
+        air.sync.status().phase == SyncPhase::Idle && pro.sync.status().phase == SyncPhase::Idle
+    })
+    .await;
+    assert_eq!(text_of(&pro_store), text_of(&air_store));
+    air.sync.stop();
+    pro.sync.stop();
 }

@@ -2434,6 +2434,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-kit-net",
+ "eos-mod-memory",
  "eos-mod-pages",
  "eos-mod-profile",
  "eos-runtime",
