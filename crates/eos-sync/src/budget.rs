@@ -9,10 +9,13 @@ use eos_domain::sync::key::{NONCE_BYTES, TAG_BYTES};
 /// What sealing adds to a record: its nonce and its tag.
 pub(crate) const SEAL_OVERHEAD: u64 = (NONCE_BYTES + TAG_BYTES) as u64;
 
-/// The budgets the app syncs with. Today's domains share the headroom and
-/// have none of their own.
+/// The most memory's notes and counters keep in the vault.
+pub const EXPERIENCE_BUDGET: u64 = 120 * 1024 * 1024;
+
+/// The budgets the app syncs with. The domains not named share the
+/// headroom and have none of their own.
 pub fn vault_budgets() -> Vec<(SyncDomainName, u64)> {
-    Vec::new()
+    vec![(SyncDomainName::Experience, EXPERIENCE_BUDGET)]
 }
 
 /// How full one domain is, as of the last pass.

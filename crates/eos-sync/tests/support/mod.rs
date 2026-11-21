@@ -49,11 +49,24 @@ pub(crate) struct MapDomain {
     pub(crate) fail_apply: AtomicBool,
     /// Yield at every call, so two passes running together interleave.
     pub(crate) yields: AtomicBool,
+    /// Merges two changed records by the union of their `tags`.
+    pub(crate) merges: AtomicBool,
+    /// Reads only what changed after the first pass.
+    pub(crate) fast: AtomicBool,
+    /// How often it was listed whole.
+    pub(crate) lists: std::sync::atomic::AtomicUsize,
 }
 
 impl MapDomain {
     pub(crate) fn new() -> Arc<Self> {
-        Arc::new(Self { rows: Mutex::default(), fail_apply: AtomicBool::new(false), yields: AtomicBool::new(false) })
+        Arc::new(Self {
+            rows: Mutex::default(),
+            fail_apply: AtomicBool::new(false),
+            yields: AtomicBool::new(false),
+            merges: AtomicBool::new(false),
+            fast: AtomicBool::new(false),
+            lists: std::sync::atomic::AtomicUsize::new(0),
+        })
     }
 
     pub(crate) fn set(&self, id: &str, data: Value, updated_at: Option<f64>) {
@@ -95,6 +108,7 @@ impl SyncDomain for MapDomain {
     fn list(&self) -> BoxFuture<'_, Result<Vec<SyncItem>, Error>> {
         Box::pin(async move {
             self.pause().await;
+            self.lists.fetch_add(1, Ordering::SeqCst);
             let rows = self.rows.lock().unwrap();
             Ok(rows
                 .iter()
@@ -132,6 +146,34 @@ impl SyncDomain for MapDomain {
             self.delete(id);
             Ok(())
         })
+    }
+
+    fn merge(&self, local: &Value, remote: &Value) -> Option<Value> {
+        if !self.merges.load(Ordering::SeqCst) {
+            return None;
+        }
+        let mut tags: Vec<Value> = local["tags"].as_array().cloned().unwrap_or_default();
+        for tag in remote["tags"].as_array().into_iter().flatten() {
+            if !tags.contains(tag) {
+                tags.push(tag.clone());
+            }
+        }
+        Some(serde_json::json!({ "tags": tags }))
+    }
+
+    fn changed_since(&self, since_ms: f64) -> Option<BoxFuture<'_, Result<eos_core::net::sync::Changed, Error>>> {
+        if !self.fast.load(Ordering::SeqCst) {
+            return None;
+        }
+        Some(Box::pin(async move {
+            let rows = self.rows.lock().unwrap();
+            let items = rows
+                .iter()
+                .filter(|(_, row)| row.updated_at.is_some_and(|at| at >= since_ms))
+                .map(|(id, row)| SyncItem { id: id.clone(), data: row.data.clone(), updated_at: row.updated_at })
+                .collect();
+            Ok(eos_core::net::sync::Changed { items, ids: rows.keys().cloned().collect() })
+        }))
     }
 }
 

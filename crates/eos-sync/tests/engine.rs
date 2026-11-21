@@ -400,3 +400,40 @@ async fn a_domain_at_its_budget_pushes_no_new_record_but_changes_and_deletions_s
     b.engine.sync().await.unwrap();
     assert_eq!(b.domain.ids(), ["um-2"]);
 }
+
+#[tokio::test]
+async fn a_merging_domain_takes_both_changes_and_sends_the_merge_back() {
+    let vault = vault();
+    let (a, b) = (Mac::new(&vault, "air"), Mac::new(&vault, "pro"));
+    for mac in [&a, &b] {
+        mac.domain.merges.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+    a.domain.set("n-1", json!({ "tags": ["x"] }), Some(5.0));
+    a.engine.sync().await.unwrap();
+    b.engine.sync().await.unwrap();
+    a.domain.set("n-1", json!({ "tags": ["x", "a"] }), Some(6.0));
+    b.domain.set("n-1", json!({ "tags": ["x", "b"] }), Some(7.0));
+    a.engine.sync().await.unwrap();
+    let merged = b.engine.sync().await.unwrap();
+    assert_eq!(merged.conflicts, 0, "nothing is set aside");
+    assert_eq!(b.domain.data("n-1"), Some(json!({ "tags": ["x", "b", "a"] })));
+    assert!(b.conflicts().is_empty());
+    a.engine.sync().await.unwrap();
+    assert_eq!(a.domain.data("n-1"), Some(json!({ "tags": ["x", "b", "a"] })), "the merge went out");
+}
+
+#[tokio::test]
+async fn after_the_first_pass_a_domain_with_a_fast_read_is_not_listed_whole() {
+    let vault = vault();
+    let (a, b) = (Mac::new(&vault, "air"), Mac::new(&vault, "pro"));
+    a.domain.fast.store(true, std::sync::atomic::Ordering::SeqCst);
+    a.domain.set("n-1", json!({ "text": "one" }), Some(500.0));
+    a.engine.sync().await.unwrap();
+    a.clock.advance(1000);
+    a.domain.set("n-2", json!({ "text": "two" }), Some(1500.0));
+    a.domain.delete("n-1");
+    assert_eq!(a.engine.sync().await.unwrap(), result(0, 2, 0), "the new one and the deletion");
+    assert_eq!(a.domain.lists.load(std::sync::atomic::Ordering::SeqCst), 1, "listed once, in the first pass");
+    b.engine.sync().await.unwrap();
+    assert_eq!(b.domain.ids(), ["n-2"]);
+}
