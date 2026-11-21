@@ -62,6 +62,7 @@ pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
         replay::route(&routes),
         preview::schedule(&routes),
         preview::which(&routes),
+        settings::read(&routes),
         settings::route(&routes),
         summary::route(&routes),
     ]
