@@ -1,0 +1,6504 @@
+{
+ "notes": [
+  {
+   "id": "mn-001",
+   "text": "In game, lint eslint: run `npm run lint` with care; warnings matter here (game-0).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    },
+    {
+     "kind": "path",
+     "key": "game/src/ui"
+    }
+   ]
+  },
+  {
+   "id": "mn-002",
+   "text": "In game, lint again: `npm run lint --verbose` shows more (game-0b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-003",
+   "text": "In api, lint eslint: run `npm run lint` with care; warnings matter here (api-0).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    },
+    {
+     "kind": "path",
+     "key": "api/src/ui"
+    }
+   ]
+  },
+  {
+   "id": "mn-004",
+   "text": "In api, lint again: `npm run lint --verbose` shows more (api-0b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-005",
+   "text": "In site, lint eslint: run `npm run lint` with care; warnings matter here (site-0).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    },
+    {
+     "kind": "path",
+     "key": "site/src/ui"
+    }
+   ]
+  },
+  {
+   "id": "mn-006",
+   "text": "In site, lint again: `npm run lint --verbose` shows more (site-0b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-007",
+   "text": "In infra, lint eslint: run `npm run lint` with care; warnings matter here (infra-0).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    },
+    {
+     "kind": "path",
+     "key": "infra/src/ui"
+    }
+   ]
+  },
+  {
+   "id": "mn-008",
+   "text": "In infra, lint again: `npm run lint --verbose` shows more (infra-0b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-009",
+   "text": "When you see 'eslint: 12 problems', lint is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "eslint: 12 problems"
+    }
+   ]
+  },
+  {
+   "id": "mn-010",
+   "text": "In game, migrations schema: run `sqlx migrate run` with care; database matter here (game-1).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    },
+    {
+     "kind": "path",
+     "key": "game/migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-011",
+   "text": "In game, migrations again: `sqlx migrate run --verbose` shows more (game-1b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-012",
+   "text": "In api, migrations schema: run `sqlx migrate run` with care; database matter here (api-1).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    },
+    {
+     "kind": "path",
+     "key": "api/migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-013",
+   "text": "In api, migrations again: `sqlx migrate run --verbose` shows more (api-1b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-014",
+   "text": "In site, migrations schema: run `sqlx migrate run` with care; database matter here (site-1).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    },
+    {
+     "kind": "path",
+     "key": "site/migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-015",
+   "text": "In site, migrations again: `sqlx migrate run --verbose` shows more (site-1b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-016",
+   "text": "In infra, migrations schema: run `sqlx migrate run` with care; database matter here (infra-1).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    },
+    {
+     "kind": "path",
+     "key": "infra/migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-017",
+   "text": "In infra, migrations again: `sqlx migrate run --verbose` shows more (infra-1b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-018",
+   "text": "When you see 'relation does not exist', migrations is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "relation does not exist"
+    }
+   ]
+  },
+  {
+   "id": "mn-019",
+   "text": "In game, snapshot tests: run `npm test -- -u` with care; jest matter here (game-2).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    },
+    {
+     "kind": "path",
+     "key": "game/tests/__snapshots__"
+    }
+   ]
+  },
+  {
+   "id": "mn-020",
+   "text": "In game, snapshot again: `npm test -- -u --verbose` shows more (game-2b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-021",
+   "text": "In api, snapshot tests: run `npm test -- -u` with care; jest matter here (api-2).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    },
+    {
+     "kind": "path",
+     "key": "api/tests/__snapshots__"
+    }
+   ]
+  },
+  {
+   "id": "mn-022",
+   "text": "In api, snapshot again: `npm test -- -u --verbose` shows more (api-2b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-023",
+   "text": "In site, snapshot tests: run `npm test -- -u` with care; jest matter here (site-2).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    },
+    {
+     "kind": "path",
+     "key": "site/tests/__snapshots__"
+    }
+   ]
+  },
+  {
+   "id": "mn-024",
+   "text": "In site, snapshot again: `npm test -- -u --verbose` shows more (site-2b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-025",
+   "text": "In infra, snapshot tests: run `npm test -- -u` with care; jest matter here (infra-2).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    },
+    {
+     "kind": "path",
+     "key": "infra/tests/__snapshots__"
+    }
+   ]
+  },
+  {
+   "id": "mn-026",
+   "text": "In infra, snapshot again: `npm test -- -u --verbose` shows more (infra-2b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-027",
+   "text": "When you see 'snapshot mismatch', snapshot is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "snapshot mismatch"
+    }
+   ]
+  },
+  {
+   "id": "mn-028",
+   "text": "In game, docker compose: run `docker compose up` with care; volumes matter here (game-3).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    },
+    {
+     "kind": "path",
+     "key": "game/deploy/compose.yml"
+    }
+   ]
+  },
+  {
+   "id": "mn-029",
+   "text": "In game, docker again: `docker compose up --verbose` shows more (game-3b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-030",
+   "text": "In api, docker compose: run `docker compose up` with care; volumes matter here (api-3).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    },
+    {
+     "kind": "path",
+     "key": "api/deploy/compose.yml"
+    }
+   ]
+  },
+  {
+   "id": "mn-031",
+   "text": "In api, docker again: `docker compose up --verbose` shows more (api-3b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-032",
+   "text": "In site, docker compose: run `docker compose up` with care; volumes matter here (site-3).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    },
+    {
+     "kind": "path",
+     "key": "site/deploy/compose.yml"
+    }
+   ]
+  },
+  {
+   "id": "mn-033",
+   "text": "In site, docker again: `docker compose up --verbose` shows more (site-3b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-034",
+   "text": "In infra, docker compose: run `docker compose up` with care; volumes matter here (infra-3).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    },
+    {
+     "kind": "path",
+     "key": "infra/deploy/compose.yml"
+    }
+   ]
+  },
+  {
+   "id": "mn-035",
+   "text": "In infra, docker again: `docker compose up --verbose` shows more (infra-3b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-036",
+   "text": "When you see 'port is already allocated', docker is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "port is already allocated"
+    }
+   ]
+  },
+  {
+   "id": "mn-037",
+   "text": "In game, cargo clippy: run `cargo clippy` with care; pedantic matter here (game-4).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    },
+    {
+     "kind": "path",
+     "key": "game/crates/core"
+    }
+   ]
+  },
+  {
+   "id": "mn-038",
+   "text": "In game, cargo again: `cargo clippy --verbose` shows more (game-4b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-039",
+   "text": "In api, cargo clippy: run `cargo clippy` with care; pedantic matter here (api-4).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    },
+    {
+     "kind": "path",
+     "key": "api/crates/core"
+    }
+   ]
+  },
+  {
+   "id": "mn-040",
+   "text": "In api, cargo again: `cargo clippy --verbose` shows more (api-4b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-041",
+   "text": "In site, cargo clippy: run `cargo clippy` with care; pedantic matter here (site-4).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    },
+    {
+     "kind": "path",
+     "key": "site/crates/core"
+    }
+   ]
+  },
+  {
+   "id": "mn-042",
+   "text": "In site, cargo again: `cargo clippy --verbose` shows more (site-4b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-043",
+   "text": "In infra, cargo clippy: run `cargo clippy` with care; pedantic matter here (infra-4).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    },
+    {
+     "kind": "path",
+     "key": "infra/crates/core"
+    }
+   ]
+  },
+  {
+   "id": "mn-044",
+   "text": "In infra, cargo again: `cargo clippy --verbose` shows more (infra-4b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-045",
+   "text": "When you see 'this function has too many arguments', cargo is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "this function has too many arguments"
+    }
+   ]
+  },
+  {
+   "id": "mn-046",
+   "text": "In game, terraform plan: run `terraform plan` with care; state matter here (game-5).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    },
+    {
+     "kind": "path",
+     "key": "game/infra/main.tf"
+    }
+   ]
+  },
+  {
+   "id": "mn-047",
+   "text": "In game, terraform again: `terraform plan --verbose` shows more (game-5b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-048",
+   "text": "In api, terraform plan: run `terraform plan` with care; state matter here (api-5).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    },
+    {
+     "kind": "path",
+     "key": "api/infra/main.tf"
+    }
+   ]
+  },
+  {
+   "id": "mn-049",
+   "text": "In api, terraform again: `terraform plan --verbose` shows more (api-5b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-050",
+   "text": "In site, terraform plan: run `terraform plan` with care; state matter here (site-5).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    },
+    {
+     "kind": "path",
+     "key": "site/infra/main.tf"
+    }
+   ]
+  },
+  {
+   "id": "mn-051",
+   "text": "In site, terraform again: `terraform plan --verbose` shows more (site-5b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-052",
+   "text": "In infra, terraform plan: run `terraform plan` with care; state matter here (infra-5).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    },
+    {
+     "kind": "path",
+     "key": "infra/infra/main.tf"
+    }
+   ]
+  },
+  {
+   "id": "mn-053",
+   "text": "In infra, terraform again: `terraform plan --verbose` shows more (infra-5b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-054",
+   "text": "When you see 'Error acquiring the state lock', terraform is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Error acquiring the state lock"
+    }
+   ]
+  },
+  {
+   "id": "mn-055",
+   "text": "In game, pnpm workspace: run `pnpm install` with care; install matter here (game-6).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    },
+    {
+     "kind": "path",
+     "key": "game/package.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-056",
+   "text": "In game, pnpm again: `pnpm install --verbose` shows more (game-6b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-057",
+   "text": "In api, pnpm workspace: run `pnpm install` with care; install matter here (api-6).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    },
+    {
+     "kind": "path",
+     "key": "api/package.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-058",
+   "text": "In api, pnpm again: `pnpm install --verbose` shows more (api-6b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-059",
+   "text": "In site, pnpm workspace: run `pnpm install` with care; install matter here (site-6).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    },
+    {
+     "kind": "path",
+     "key": "site/package.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-060",
+   "text": "In site, pnpm again: `pnpm install --verbose` shows more (site-6b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-061",
+   "text": "In infra, pnpm workspace: run `pnpm install` with care; install matter here (infra-6).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    },
+    {
+     "kind": "path",
+     "key": "infra/package.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-062",
+   "text": "In infra, pnpm again: `pnpm install --verbose` shows more (infra-6b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-063",
+   "text": "When you see 'ERR_PNPM_OUTDATED_LOCKFILE', pnpm is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ERR_PNPM_OUTDATED_LOCKFILE"
+    }
+   ]
+  },
+  {
+   "id": "mn-064",
+   "text": "In game, generated assets: run `make assets` with care; templates matter here (game-7).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    },
+    {
+     "kind": "path",
+     "key": "game/Assets/Generated"
+    }
+   ]
+  },
+  {
+   "id": "mn-065",
+   "text": "In game, generated again: `make assets --verbose` shows more (game-7b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-066",
+   "text": "In api, generated assets: run `make assets` with care; templates matter here (api-7).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    },
+    {
+     "kind": "path",
+     "key": "api/Assets/Generated"
+    }
+   ]
+  },
+  {
+   "id": "mn-067",
+   "text": "In api, generated again: `make assets --verbose` shows more (api-7b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-068",
+   "text": "In site, generated assets: run `make assets` with care; templates matter here (site-7).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    },
+    {
+     "kind": "path",
+     "key": "site/Assets/Generated"
+    }
+   ]
+  },
+  {
+   "id": "mn-069",
+   "text": "In site, generated again: `make assets --verbose` shows more (site-7b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-070",
+   "text": "In infra, generated assets: run `make assets` with care; templates matter here (infra-7).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    },
+    {
+     "kind": "path",
+     "key": "infra/Assets/Generated"
+    }
+   ]
+  },
+  {
+   "id": "mn-071",
+   "text": "In infra, generated again: `make assets --verbose` shows more (infra-7b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-072",
+   "text": "When you see 'file is generated', generated is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "file is generated"
+    }
+   ]
+  },
+  {
+   "id": "mn-073",
+   "text": "In game, python virtualenv: run `pip install -r requirements.txt` with care; requirements matter here (game-8).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    },
+    {
+     "kind": "path",
+     "key": "game/requirements.txt"
+    }
+   ]
+  },
+  {
+   "id": "mn-074",
+   "text": "In game, python again: `pip install -r requirements.txt --verbose` shows more (game-8b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-075",
+   "text": "In api, python virtualenv: run `pip install -r requirements.txt` with care; requirements matter here (api-8).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    },
+    {
+     "kind": "path",
+     "key": "api/requirements.txt"
+    }
+   ]
+  },
+  {
+   "id": "mn-076",
+   "text": "In api, python again: `pip install -r requirements.txt --verbose` shows more (api-8b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-077",
+   "text": "In site, python virtualenv: run `pip install -r requirements.txt` with care; requirements matter here (site-8).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    },
+    {
+     "kind": "path",
+     "key": "site/requirements.txt"
+    }
+   ]
+  },
+  {
+   "id": "mn-078",
+   "text": "In site, python again: `pip install -r requirements.txt --verbose` shows more (site-8b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-079",
+   "text": "In infra, python virtualenv: run `pip install -r requirements.txt` with care; requirements matter here (infra-8).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    },
+    {
+     "kind": "path",
+     "key": "infra/requirements.txt"
+    }
+   ]
+  },
+  {
+   "id": "mn-080",
+   "text": "In infra, python again: `pip install -r requirements.txt --verbose` shows more (infra-8b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-081",
+   "text": "When you see 'No matching distribution', python is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "No matching distribution"
+    }
+   ]
+  },
+  {
+   "id": "mn-082",
+   "text": "In game, translations locale: run `npm run i18n` with care; strings matter here (game-9).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    },
+    {
+     "kind": "path",
+     "key": "game/locales/tr.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-083",
+   "text": "In game, translations again: `npm run i18n --verbose` shows more (game-9b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-084",
+   "text": "In api, translations locale: run `npm run i18n` with care; strings matter here (api-9).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    },
+    {
+     "kind": "path",
+     "key": "api/locales/tr.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-085",
+   "text": "In api, translations again: `npm run i18n --verbose` shows more (api-9b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-086",
+   "text": "In site, translations locale: run `npm run i18n` with care; strings matter here (site-9).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    },
+    {
+     "kind": "path",
+     "key": "site/locales/tr.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-087",
+   "text": "In site, translations again: `npm run i18n --verbose` shows more (site-9b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-088",
+   "text": "In infra, translations locale: run `npm run i18n` with care; strings matter here (infra-9).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    },
+    {
+     "kind": "path",
+     "key": "infra/locales/tr.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-089",
+   "text": "In infra, translations again: `npm run i18n --verbose` shows more (infra-9b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-090",
+   "text": "When you see 'missing translation key', translations is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "missing translation key"
+    }
+   ]
+  },
+  {
+   "id": "mn-091",
+   "text": "In game, release changelog: run `git tag` with care; version matter here (game-10).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    },
+    {
+     "kind": "path",
+     "key": "game/CHANGELOG.md"
+    }
+   ]
+  },
+  {
+   "id": "mn-092",
+   "text": "In game, release again: `git tag --verbose` shows more (game-10b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-093",
+   "text": "In api, release changelog: run `git tag` with care; version matter here (api-10).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    },
+    {
+     "kind": "path",
+     "key": "api/CHANGELOG.md"
+    }
+   ]
+  },
+  {
+   "id": "mn-094",
+   "text": "In api, release again: `git tag --verbose` shows more (api-10b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-095",
+   "text": "In site, release changelog: run `git tag` with care; version matter here (site-10).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    },
+    {
+     "kind": "path",
+     "key": "site/CHANGELOG.md"
+    }
+   ]
+  },
+  {
+   "id": "mn-096",
+   "text": "In site, release again: `git tag --verbose` shows more (site-10b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-097",
+   "text": "In infra, release changelog: run `git tag` with care; version matter here (infra-10).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    },
+    {
+     "kind": "path",
+     "key": "infra/CHANGELOG.md"
+    }
+   ]
+  },
+  {
+   "id": "mn-098",
+   "text": "In infra, release again: `git tag --verbose` shows more (infra-10b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-099",
+   "text": "When you see 'tag already exists', release is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "tag already exists"
+    }
+   ]
+  },
+  {
+   "id": "mn-100",
+   "text": "In game, flaky network: run `curl` with care; retries matter here (game-11).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    },
+    {
+     "kind": "path",
+     "key": "game/scripts/fetch.sh"
+    }
+   ]
+  },
+  {
+   "id": "mn-101",
+   "text": "In game, flaky again: `curl --verbose` shows more (game-11b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-102",
+   "text": "In api, flaky network: run `curl` with care; retries matter here (api-11).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    },
+    {
+     "kind": "path",
+     "key": "api/scripts/fetch.sh"
+    }
+   ]
+  },
+  {
+   "id": "mn-103",
+   "text": "In api, flaky again: `curl --verbose` shows more (api-11b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-104",
+   "text": "In site, flaky network: run `curl` with care; retries matter here (site-11).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    },
+    {
+     "kind": "path",
+     "key": "site/scripts/fetch.sh"
+    }
+   ]
+  },
+  {
+   "id": "mn-105",
+   "text": "In site, flaky again: `curl --verbose` shows more (site-11b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-106",
+   "text": "In infra, flaky network: run `curl` with care; retries matter here (infra-11).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    },
+    {
+     "kind": "path",
+     "key": "infra/scripts/fetch.sh"
+    }
+   ]
+  },
+  {
+   "id": "mn-107",
+   "text": "In infra, flaky again: `curl --verbose` shows more (infra-11b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-108",
+   "text": "When you see 'Connection timed out', flaky is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Connection timed out"
+    }
+   ]
+  },
+  {
+   "id": "mn-109",
+   "text": "In game, typescript strict: run `npx tsc --noEmit` with care; null matter here (game-12).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    },
+    {
+     "kind": "path",
+     "key": "game/tsconfig.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-110",
+   "text": "In game, typescript again: `npx tsc --noEmit --verbose` shows more (game-12b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-111",
+   "text": "In api, typescript strict: run `npx tsc --noEmit` with care; null matter here (api-12).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    },
+    {
+     "kind": "path",
+     "key": "api/tsconfig.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-112",
+   "text": "In api, typescript again: `npx tsc --noEmit --verbose` shows more (api-12b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-113",
+   "text": "In site, typescript strict: run `npx tsc --noEmit` with care; null matter here (site-12).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    },
+    {
+     "kind": "path",
+     "key": "site/tsconfig.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-114",
+   "text": "In site, typescript again: `npx tsc --noEmit --verbose` shows more (site-12b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-115",
+   "text": "In infra, typescript strict: run `npx tsc --noEmit` with care; null matter here (infra-12).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    },
+    {
+     "kind": "path",
+     "key": "infra/tsconfig.json"
+    }
+   ]
+  },
+  {
+   "id": "mn-116",
+   "text": "In infra, typescript again: `npx tsc --noEmit --verbose` shows more (infra-12b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-117",
+   "text": "When you see 'Object is possibly undefined', typescript is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Object is possibly undefined"
+    }
+   ]
+  },
+  {
+   "id": "mn-118",
+   "text": "In game, kubernetes rollout: run `kubectl rollout restart` with care; restart matter here (game-13).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    },
+    {
+     "kind": "path",
+     "key": "game/k8s/deploy.yaml"
+    }
+   ]
+  },
+  {
+   "id": "mn-119",
+   "text": "In game, kubernetes again: `kubectl rollout restart --verbose` shows more (game-13b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-120",
+   "text": "In api, kubernetes rollout: run `kubectl rollout restart` with care; restart matter here (api-13).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    },
+    {
+     "kind": "path",
+     "key": "api/k8s/deploy.yaml"
+    }
+   ]
+  },
+  {
+   "id": "mn-121",
+   "text": "In api, kubernetes again: `kubectl rollout restart --verbose` shows more (api-13b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-122",
+   "text": "In site, kubernetes rollout: run `kubectl rollout restart` with care; restart matter here (site-13).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    },
+    {
+     "kind": "path",
+     "key": "site/k8s/deploy.yaml"
+    }
+   ]
+  },
+  {
+   "id": "mn-123",
+   "text": "In site, kubernetes again: `kubectl rollout restart --verbose` shows more (site-13b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-124",
+   "text": "In infra, kubernetes rollout: run `kubectl rollout restart` with care; restart matter here (infra-13).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    },
+    {
+     "kind": "path",
+     "key": "infra/k8s/deploy.yaml"
+    }
+   ]
+  },
+  {
+   "id": "mn-125",
+   "text": "In infra, kubernetes again: `kubectl rollout restart --verbose` shows more (infra-13b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-126",
+   "text": "When you see 'ImagePullBackOff', kubernetes is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ImagePullBackOff"
+    }
+   ]
+  },
+  {
+   "id": "mn-127",
+   "text": "In game, benchmarks criterion: run `cargo bench` with care; baseline matter here (game-14).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    },
+    {
+     "kind": "path",
+     "key": "game/benches"
+    }
+   ]
+  },
+  {
+   "id": "mn-128",
+   "text": "In game, benchmarks again: `cargo bench --verbose` shows more (game-14b).",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-129",
+   "text": "In api, benchmarks criterion: run `cargo bench` with care; baseline matter here (api-14).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    },
+    {
+     "kind": "path",
+     "key": "api/benches"
+    }
+   ]
+  },
+  {
+   "id": "mn-130",
+   "text": "In api, benchmarks again: `cargo bench --verbose` shows more (api-14b).",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-131",
+   "text": "In site, benchmarks criterion: run `cargo bench` with care; baseline matter here (site-14).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    },
+    {
+     "kind": "path",
+     "key": "site/benches"
+    }
+   ]
+  },
+  {
+   "id": "mn-132",
+   "text": "In site, benchmarks again: `cargo bench --verbose` shows more (site-14b).",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-133",
+   "text": "In infra, benchmarks criterion: run `cargo bench` with care; baseline matter here (infra-14).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    },
+    {
+     "kind": "path",
+     "key": "infra/benches"
+    }
+   ]
+  },
+  {
+   "id": "mn-134",
+   "text": "In infra, benchmarks again: `cargo bench --verbose` shows more (infra-14b).",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench --verbose"
+    }
+   ]
+  },
+  {
+   "id": "mn-135",
+   "text": "When you see 'regression detected', benchmarks is usually the cause.",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "regression detected"
+    }
+   ]
+  },
+  {
+   "id": "mn-136",
+   "text": "For this routine keep the lint remarks short and drop eslint nits (rt-review-0).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "lint"
+    }
+   ]
+  },
+  {
+   "id": "mn-137",
+   "text": "For this routine keep the migrations remarks short and drop schema nits (rt-review-1).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-138",
+   "text": "For this routine keep the snapshot remarks short and drop tests nits (rt-review-2).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "snapshot"
+    }
+   ]
+  },
+  {
+   "id": "mn-139",
+   "text": "For this routine keep the docker remarks short and drop compose nits (rt-review-3).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "docker"
+    }
+   ]
+  },
+  {
+   "id": "mn-140",
+   "text": "For this routine keep the cargo remarks short and drop clippy nits (rt-review-4).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "cargo"
+    }
+   ]
+  },
+  {
+   "id": "mn-141",
+   "text": "For this routine keep the terraform remarks short and drop plan nits (rt-review-5).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "terraform"
+    }
+   ]
+  },
+  {
+   "id": "mn-142",
+   "text": "For this routine keep the lint remarks short and drop eslint nits (rt-digest-0).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "lint"
+    }
+   ]
+  },
+  {
+   "id": "mn-143",
+   "text": "For this routine keep the migrations remarks short and drop schema nits (rt-digest-1).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "migrations"
+    }
+   ]
+  },
+  {
+   "id": "mn-144",
+   "text": "For this routine keep the snapshot remarks short and drop tests nits (rt-digest-2).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "snapshot"
+    }
+   ]
+  },
+  {
+   "id": "mn-145",
+   "text": "For this routine keep the docker remarks short and drop compose nits (rt-digest-3).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "docker"
+    }
+   ]
+  },
+  {
+   "id": "mn-146",
+   "text": "For this routine keep the cargo remarks short and drop clippy nits (rt-digest-4).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "cargo"
+    }
+   ]
+  },
+  {
+   "id": "mn-147",
+   "text": "For this routine keep the terraform remarks short and drop plan nits (rt-digest-5).",
+   "scope": {
+    "level": "routine",
+    "key": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "terraform"
+    }
+   ]
+  },
+  {
+   "id": "mn-148",
+   "text": "Check the logs here before asking again (0).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc0"
+    }
+   ]
+  },
+  {
+   "id": "mn-149",
+   "text": "Check the logs here before asking again (1).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc1"
+    }
+   ]
+  },
+  {
+   "id": "mn-150",
+   "text": "Check the logs here before asking again (2).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc2"
+    }
+   ]
+  },
+  {
+   "id": "mn-151",
+   "text": "Check the logs here before asking again (3).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc3"
+    }
+   ]
+  },
+  {
+   "id": "mn-152",
+   "text": "Check the logs here before asking again (4).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc4"
+    }
+   ]
+  },
+  {
+   "id": "mn-153",
+   "text": "Check the logs here before asking again (5).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc5"
+    }
+   ]
+  },
+  {
+   "id": "mn-154",
+   "text": "Check the logs here before asking again (6).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc6"
+    }
+   ]
+  },
+  {
+   "id": "mn-155",
+   "text": "Check the logs here before asking again (7).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc7"
+    }
+   ]
+  },
+  {
+   "id": "mn-156",
+   "text": "Check the logs here before asking again (8).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc8"
+    }
+   ]
+  },
+  {
+   "id": "mn-157",
+   "text": "Check the logs here before asking again (9).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc9"
+    }
+   ]
+  },
+  {
+   "id": "mn-158",
+   "text": "Check the logs here before asking again (10).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc10"
+    }
+   ]
+  },
+  {
+   "id": "mn-159",
+   "text": "Check the logs here before asking again (11).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc11"
+    }
+   ]
+  },
+  {
+   "id": "mn-160",
+   "text": "Check the logs here before asking again (12).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc12"
+    }
+   ]
+  },
+  {
+   "id": "mn-161",
+   "text": "Check the logs here before asking again (13).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc13"
+    }
+   ]
+  },
+  {
+   "id": "mn-162",
+   "text": "Check the logs here before asking again (14).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc14"
+    }
+   ]
+  },
+  {
+   "id": "mn-163",
+   "text": "Check the logs here before asking again (15).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc15"
+    }
+   ]
+  },
+  {
+   "id": "mn-164",
+   "text": "Check the logs here before asking again (16).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc16"
+    }
+   ]
+  },
+  {
+   "id": "mn-165",
+   "text": "Check the logs here before asking again (17).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc17"
+    }
+   ]
+  },
+  {
+   "id": "mn-166",
+   "text": "Check the logs here before asking again (18).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc18"
+    }
+   ]
+  },
+  {
+   "id": "mn-167",
+   "text": "Check the logs here before asking again (19).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc19"
+    }
+   ]
+  },
+  {
+   "id": "mn-168",
+   "text": "Check the logs here before asking again (20).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc20"
+    }
+   ]
+  },
+  {
+   "id": "mn-169",
+   "text": "Check the logs here before asking again (21).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc21"
+    }
+   ]
+  },
+  {
+   "id": "mn-170",
+   "text": "Check the logs here before asking again (22).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc22"
+    }
+   ]
+  },
+  {
+   "id": "mn-171",
+   "text": "Check the logs here before asking again (23).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc23"
+    }
+   ]
+  },
+  {
+   "id": "mn-172",
+   "text": "Check the logs here before asking again (24).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc24"
+    }
+   ]
+  },
+  {
+   "id": "mn-173",
+   "text": "Check the logs here before asking again (25).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc25"
+    }
+   ]
+  },
+  {
+   "id": "mn-174",
+   "text": "Check the logs here before asking again (26).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc26"
+    }
+   ]
+  },
+  {
+   "id": "mn-175",
+   "text": "Check the logs here before asking again (27).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc27"
+    }
+   ]
+  },
+  {
+   "id": "mn-176",
+   "text": "Check the logs here before asking again (28).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc28"
+    }
+   ]
+  },
+  {
+   "id": "mn-177",
+   "text": "Check the logs here before asking again (29).",
+   "scope": {
+    "level": "everywhere",
+    "key": ""
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "misc29"
+    }
+   ]
+  }
+ ],
+ "situations": [
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    }
+   ],
+   "query": null,
+   "expect": "mn-115"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/tsconfig.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-115"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the please check typescript",
+   "expect": "mn-115"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/tsconfig.json"
+    }
+   ],
+   "query": "what strict",
+   "expect": "mn-115"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "file is generated"
+    }
+   ],
+   "query": null,
+   "expect": "mn-072"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "why file is",
+   "expect": "mn-072"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "file is generated"
+    }
+   ],
+   "query": "generated",
+   "expect": "mn-072"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/src/ui"
+    }
+   ],
+   "query": null,
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix for about eslint",
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/src/ui"
+    }
+   ],
+   "query": "now eslint",
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Error acquiring the state lock"
+    }
+   ],
+   "query": null,
+   "expect": "mn-054"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "for Error acquiring",
+   "expect": "mn-054"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Error acquiring the state lock"
+    }
+   ],
+   "query": "terraform",
+   "expect": "mn-054"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    }
+   ],
+   "query": null,
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/Assets/Generated"
+    }
+   ],
+   "query": null,
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please why what assets",
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/Assets/Generated"
+    }
+   ],
+   "query": "check assets",
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    }
+   ],
+   "query": null,
+   "expect": "mn-061"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/package.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-061"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix check for workspace",
+   "expect": "mn-061"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/package.json"
+    }
+   ],
+   "query": "why workspace",
+   "expect": "mn-061"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "missing translation key"
+    }
+   ],
+   "query": null,
+   "expect": "mn-090"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please missing translation",
+   "expect": "mn-090"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "missing translation key"
+    }
+   ],
+   "query": "translations",
+   "expect": "mn-090"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    }
+   ],
+   "query": null,
+   "expect": "mn-093"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/CHANGELOG.md"
+    }
+   ],
+   "query": null,
+   "expect": "mn-093"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "this again fix release",
+   "expect": "mn-093"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/CHANGELOG.md"
+    }
+   ],
+   "query": "for changelog",
+   "expect": "mn-093"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-003"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/src/ui"
+    }
+   ],
+   "query": null,
+   "expect": "mn-003"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please quickly here lint",
+   "expect": "mn-003"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/src/ui"
+    }
+   ],
+   "query": "why eslint",
+   "expect": "mn-003"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    }
+   ],
+   "query": null,
+   "expect": "mn-030"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/deploy/compose.yml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-030"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly the what compose",
+   "expect": "mn-030"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/deploy/compose.yml"
+    }
+   ],
+   "query": "now compose",
+   "expect": "mn-030"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    }
+   ],
+   "query": null,
+   "expect": "mn-086"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/locales/tr.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-086"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "again for the strings",
+   "expect": "mn-086"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/locales/tr.json"
+    }
+   ],
+   "query": "here locale",
+   "expect": "mn-086"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "snapshot remarks about",
+   "expect": "mn-138"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "snapshot"
+    }
+   ],
+   "query": null,
+   "expect": "mn-138"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    }
+   ],
+   "query": null,
+   "expect": "mn-041"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/crates/core"
+    }
+   ],
+   "query": null,
+   "expect": "mn-041"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "about me here pedantic",
+   "expect": "mn-041"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/crates/core"
+    }
+   ],
+   "query": "the clippy",
+   "expect": "mn-041"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "No matching distribution"
+    }
+   ],
+   "query": null,
+   "expect": "mn-081"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly No matching",
+   "expect": "mn-081"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "No matching distribution"
+    }
+   ],
+   "query": "python",
+   "expect": "mn-081"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    }
+   ],
+   "query": null,
+   "expect": "mn-111"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/tsconfig.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-111"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "now again what strict",
+   "expect": "mn-111"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/tsconfig.json"
+    }
+   ],
+   "query": "check strict",
+   "expect": "mn-111"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "lint remarks please",
+   "expect": "mn-136"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-136"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "terraform remarks here",
+   "expect": "mn-141"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "terraform"
+    }
+   ],
+   "query": null,
+   "expect": "mn-141"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    }
+   ],
+   "query": null,
+   "expect": "mn-127"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/benches"
+    }
+   ],
+   "query": null,
+   "expect": "mn-127"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please again the baseline",
+   "expect": "mn-127"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/benches"
+    }
+   ],
+   "query": "this criterion",
+   "expect": "mn-127"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    }
+   ],
+   "query": null,
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/crates/core"
+    }
+   ],
+   "query": null,
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix about this cargo",
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/crates/core"
+    }
+   ],
+   "query": "why clippy",
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    }
+   ],
+   "query": null,
+   "expect": "mn-010"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-010"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "about me fix database",
+   "expect": "mn-010"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/migrations"
+    }
+   ],
+   "query": "check schema",
+   "expect": "mn-010"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "docker remarks for",
+   "expect": "mn-139"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "docker"
+    }
+   ],
+   "query": null,
+   "expect": "mn-139"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    }
+   ],
+   "query": null,
+   "expect": "mn-088"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/locales/tr.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-088"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the about what translations",
+   "expect": "mn-088"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/locales/tr.json"
+    }
+   ],
+   "query": "for locale",
+   "expect": "mn-088"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-077"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-077"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "check the please python",
+   "expect": "mn-077"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/requirements.txt"
+    }
+   ],
+   "query": "now virtualenv",
+   "expect": "mn-077"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    }
+   ],
+   "query": null,
+   "expect": "mn-102"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/scripts/fetch.sh"
+    }
+   ],
+   "query": null,
+   "expect": "mn-102"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly for again flaky",
+   "expect": "mn-102"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/scripts/fetch.sh"
+    }
+   ],
+   "query": "this network",
+   "expect": "mn-102"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "docker remarks now",
+   "expect": "mn-145"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "docker"
+    }
+   ],
+   "query": null,
+   "expect": "mn-145"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    }
+   ],
+   "query": null,
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/k8s/deploy.yaml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix again me kubernetes",
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/k8s/deploy.yaml"
+    }
+   ],
+   "query": "this rollout",
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    }
+   ],
+   "query": null,
+   "expect": "mn-019"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/tests/__snapshots__"
+    }
+   ],
+   "query": null,
+   "expect": "mn-019"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix please now snapshot",
+   "expect": "mn-019"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/tests/__snapshots__"
+    }
+   ],
+   "query": "fix tests",
+   "expect": "mn-019"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "this function has too many arguments"
+    }
+   ],
+   "query": null,
+   "expect": "mn-045"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "check this function",
+   "expect": "mn-045"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "this function has too many arguments"
+    }
+   ],
+   "query": "cargo",
+   "expect": "mn-045"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    }
+   ],
+   "query": null,
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/package.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "this fix about workspace",
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/package.json"
+    }
+   ],
+   "query": "now workspace",
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    }
+   ],
+   "query": null,
+   "expect": "mn-032"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/deploy/compose.yml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-032"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "now for what compose",
+   "expect": "mn-032"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/deploy/compose.yml"
+    }
+   ],
+   "query": "for compose",
+   "expect": "mn-032"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    }
+   ],
+   "query": null,
+   "expect": "mn-039"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/crates/core"
+    }
+   ],
+   "query": null,
+   "expect": "mn-039"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "here now again cargo",
+   "expect": "mn-039"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/crates/core"
+    }
+   ],
+   "query": "why clippy",
+   "expect": "mn-039"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    }
+   ],
+   "query": null,
+   "expect": "mn-057"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/package.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-057"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "this why here workspace",
+   "expect": "mn-057"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/package.json"
+    }
+   ],
+   "query": "about workspace",
+   "expect": "mn-057"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    }
+   ],
+   "query": null,
+   "expect": "mn-025"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/tests/__snapshots__"
+    }
+   ],
+   "query": null,
+   "expect": "mn-025"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "why again me snapshot",
+   "expect": "mn-025"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/tests/__snapshots__"
+    }
+   ],
+   "query": "quickly tests",
+   "expect": "mn-025"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    }
+   ],
+   "query": null,
+   "expect": "mn-129"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/benches"
+    }
+   ],
+   "query": null,
+   "expect": "mn-129"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "me this again baseline",
+   "expect": "mn-129"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/benches"
+    }
+   ],
+   "query": "me criterion",
+   "expect": "mn-129"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    }
+   ],
+   "query": null,
+   "expect": "mn-133"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/benches"
+    }
+   ],
+   "query": null,
+   "expect": "mn-133"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please what me criterion",
+   "expect": "mn-133"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/benches"
+    }
+   ],
+   "query": "check criterion",
+   "expect": "mn-133"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-079"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-079"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "about now why virtualenv",
+   "expect": "mn-079"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/requirements.txt"
+    }
+   ],
+   "query": "me virtualenv",
+   "expect": "mn-079"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "terraform remarks again",
+   "expect": "mn-147"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "terraform"
+    }
+   ],
+   "query": null,
+   "expect": "mn-147"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo clippy"
+    }
+   ],
+   "query": null,
+   "expect": "mn-043"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/crates/core"
+    }
+   ],
+   "query": null,
+   "expect": "mn-043"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "what quickly me pedantic",
+   "expect": "mn-043"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/crates/core"
+    }
+   ],
+   "query": "what clippy",
+   "expect": "mn-043"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "cargo remarks check",
+   "expect": "mn-140"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "cargo"
+    }
+   ],
+   "query": null,
+   "expect": "mn-140"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    }
+   ],
+   "query": null,
+   "expect": "mn-082"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/locales/tr.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-082"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix what quickly translations",
+   "expect": "mn-082"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/locales/tr.json"
+    }
+   ],
+   "query": "about locale",
+   "expect": "mn-082"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    }
+   ],
+   "query": null,
+   "expect": "mn-104"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/scripts/fetch.sh"
+    }
+   ],
+   "query": null,
+   "expect": "mn-104"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the why quickly network",
+   "expect": "mn-104"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/scripts/fetch.sh"
+    }
+   ],
+   "query": "me network",
+   "expect": "mn-104"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "migrations remarks this",
+   "expect": "mn-143"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-143"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    }
+   ],
+   "query": null,
+   "expect": "mn-122"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/k8s/deploy.yaml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-122"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please what here pods",
+   "expect": "mn-122"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/k8s/deploy.yaml"
+    }
+   ],
+   "query": "here rollout",
+   "expect": "mn-122"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    }
+   ],
+   "query": null,
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/CHANGELOG.md"
+    }
+   ],
+   "query": null,
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly why fix version",
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/CHANGELOG.md"
+    }
+   ],
+   "query": "for changelog",
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "cargo remarks this",
+   "expect": "mn-146"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "cargo"
+    }
+   ],
+   "query": null,
+   "expect": "mn-146"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    }
+   ],
+   "query": null,
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/scripts/fetch.sh"
+    }
+   ],
+   "query": null,
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly now about timeout",
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/scripts/fetch.sh"
+    }
+   ],
+   "query": "quickly network",
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    }
+   ],
+   "query": null,
+   "expect": "mn-118"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/k8s/deploy.yaml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-118"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "this quickly for kubernetes",
+   "expect": "mn-118"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/k8s/deploy.yaml"
+    }
+   ],
+   "query": "for rollout",
+   "expect": "mn-118"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ERR_PNPM_OUTDATED_LOCKFILE"
+    }
+   ],
+   "query": null,
+   "expect": "mn-063"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "about ERR_PNPM_OUTDATED_LOCKFILE",
+   "expect": "mn-063"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ERR_PNPM_OUTDATED_LOCKFILE"
+    }
+   ],
+   "query": "pnpm",
+   "expect": "mn-063"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "lint remarks what",
+   "expect": "mn-142"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-142"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    }
+   ],
+   "query": null,
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/infra/main.tf"
+    }
+   ],
+   "query": null,
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "for again the state",
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/infra/main.tf"
+    }
+   ],
+   "query": "now plan",
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    }
+   ],
+   "query": null,
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/deploy/compose.yml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "what why the compose",
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/deploy/compose.yml"
+    }
+   ],
+   "query": "the compose",
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ImagePullBackOff"
+    }
+   ],
+   "query": null,
+   "expect": "mn-126"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "again ImagePullBackOff",
+   "expect": "mn-126"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "ImagePullBackOff"
+    }
+   ],
+   "query": "kubernetes",
+   "expect": "mn-126"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    }
+   ],
+   "query": null,
+   "expect": "mn-064"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/Assets/Generated"
+    }
+   ],
+   "query": null,
+   "expect": "mn-064"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please again fix assets",
+   "expect": "mn-064"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/Assets/Generated"
+    }
+   ],
+   "query": "what assets",
+   "expect": "mn-064"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-005"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/src/ui"
+    }
+   ],
+   "query": null,
+   "expect": "mn-005"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "check again fix warnings",
+   "expect": "mn-005"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/src/ui"
+    }
+   ],
+   "query": "for eslint",
+   "expect": "mn-005"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "snapshot mismatch"
+    }
+   ],
+   "query": null,
+   "expect": "mn-027"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "me snapshot mismatch",
+   "expect": "mn-027"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "snapshot mismatch"
+    }
+   ],
+   "query": "snapshot",
+   "expect": "mn-027"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Connection timed out"
+    }
+   ],
+   "query": null,
+   "expect": "mn-108"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "what Connection timed",
+   "expect": "mn-108"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Connection timed out"
+    }
+   ],
+   "query": "flaky",
+   "expect": "mn-108"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    }
+   ],
+   "query": null,
+   "expect": "mn-046"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/infra/main.tf"
+    }
+   ],
+   "query": null,
+   "expect": "mn-046"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "me why again lock",
+   "expect": "mn-046"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/infra/main.tf"
+    }
+   ],
+   "query": "about plan",
+   "expect": "mn-046"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    }
+   ],
+   "query": null,
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/tsconfig.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly about please null",
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/tsconfig.json"
+    }
+   ],
+   "query": "quickly strict",
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    }
+   ],
+   "query": null,
+   "expect": "mn-066"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/Assets/Generated"
+    }
+   ],
+   "query": null,
+   "expect": "mn-066"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "here me quickly templates",
+   "expect": "mn-066"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/Assets/Generated"
+    }
+   ],
+   "query": "this assets",
+   "expect": "mn-066"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run lint"
+    }
+   ],
+   "query": null,
+   "expect": "mn-007"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/src/ui"
+    }
+   ],
+   "query": null,
+   "expect": "mn-007"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "here me the lint",
+   "expect": "mn-007"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/src/ui"
+    }
+   ],
+   "query": "please eslint",
+   "expect": "mn-007"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "make assets"
+    }
+   ],
+   "query": null,
+   "expect": "mn-068"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/Assets/Generated"
+    }
+   ],
+   "query": null,
+   "expect": "mn-068"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "why this for templates",
+   "expect": "mn-068"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/Assets/Generated"
+    }
+   ],
+   "query": "fix assets",
+   "expect": "mn-068"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npx tsc --noEmit"
+    }
+   ],
+   "query": null,
+   "expect": "mn-113"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/tsconfig.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-113"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "about me the strict",
+   "expect": "mn-113"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/tsconfig.json"
+    }
+   ],
+   "query": "me strict",
+   "expect": "mn-113"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pip install -r requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/requirements.txt"
+    }
+   ],
+   "query": null,
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "again me what python",
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/requirements.txt"
+    }
+   ],
+   "query": "about virtualenv",
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    }
+   ],
+   "query": null,
+   "expect": "mn-052"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/infra/main.tf"
+    }
+   ],
+   "query": null,
+   "expect": "mn-052"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "for what again terraform",
+   "expect": "mn-052"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/infra/main.tf"
+    }
+   ],
+   "query": "what plan",
+   "expect": "mn-052"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "docker compose up"
+    }
+   ],
+   "query": null,
+   "expect": "mn-028"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/deploy/compose.yml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-028"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "what again about docker",
+   "expect": "mn-028"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/deploy/compose.yml"
+    }
+   ],
+   "query": "for compose",
+   "expect": "mn-028"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-review"
+   },
+   "hooks": [],
+   "query": "migrations remarks me",
+   "expect": "mn-137"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-review"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-137"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "tag already exists"
+    }
+   ],
+   "query": null,
+   "expect": "mn-099"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "what tag already",
+   "expect": "mn-099"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "tag already exists"
+    }
+   ],
+   "query": "release",
+   "expect": "mn-099"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "cargo bench"
+    }
+   ],
+   "query": null,
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/benches"
+    }
+   ],
+   "query": null,
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "me please quickly benchmarks",
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/benches"
+    }
+   ],
+   "query": "here criterion",
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "pnpm install"
+    }
+   ],
+   "query": null,
+   "expect": "mn-055"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/package.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-055"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "please what now install",
+   "expect": "mn-055"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/package.json"
+    }
+   ],
+   "query": "for workspace",
+   "expect": "mn-055"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    }
+   ],
+   "query": null,
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "me please now schema",
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/migrations"
+    }
+   ],
+   "query": "this schema",
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    }
+   ],
+   "query": null,
+   "expect": "mn-097"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/CHANGELOG.md"
+    }
+   ],
+   "query": null,
+   "expect": "mn-097"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fix me about changelog",
+   "expect": "mn-097"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/CHANGELOG.md"
+    }
+   ],
+   "query": "why changelog",
+   "expect": "mn-097"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "curl"
+    }
+   ],
+   "query": null,
+   "expect": "mn-100"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/scripts/fetch.sh"
+    }
+   ],
+   "query": null,
+   "expect": "mn-100"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "here for me timeout",
+   "expect": "mn-100"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/scripts/fetch.sh"
+    }
+   ],
+   "query": "me network",
+   "expect": "mn-100"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    }
+   ],
+   "query": null,
+   "expect": "mn-021"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/tests/__snapshots__"
+    }
+   ],
+   "query": null,
+   "expect": "mn-021"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "quickly why me tests",
+   "expect": "mn-021"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/tests/__snapshots__"
+    }
+   ],
+   "query": "me tests",
+   "expect": "mn-021"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "eslint: 12 problems"
+    }
+   ],
+   "query": null,
+   "expect": "mn-009"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "again eslint: 12",
+   "expect": "mn-009"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "eslint: 12 problems"
+    }
+   ],
+   "query": "lint",
+   "expect": "mn-009"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "terraform plan"
+    }
+   ],
+   "query": null,
+   "expect": "mn-050"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/infra/main.tf"
+    }
+   ],
+   "query": null,
+   "expect": "mn-050"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "now the for state",
+   "expect": "mn-050"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/infra/main.tf"
+    }
+   ],
+   "query": "now plan",
+   "expect": "mn-050"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Object is possibly undefined"
+    }
+   ],
+   "query": null,
+   "expect": "mn-117"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "now Object is",
+   "expect": "mn-117"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "Object is possibly undefined"
+    }
+   ],
+   "query": "typescript",
+   "expect": "mn-117"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    }
+   ],
+   "query": null,
+   "expect": "mn-014"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-014"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "check here now migrations",
+   "expect": "mn-014"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/migrations"
+    }
+   ],
+   "query": "why schema",
+   "expect": "mn-014"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "regression detected"
+    }
+   ],
+   "query": null,
+   "expect": "mn-135"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "here regression detected",
+   "expect": "mn-135"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "regression detected"
+    }
+   ],
+   "query": "benchmarks",
+   "expect": "mn-135"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm run i18n"
+    }
+   ],
+   "query": null,
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/locales/tr.json"
+    }
+   ],
+   "query": null,
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "for quickly why translations",
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/locales/tr.json"
+    }
+   ],
+   "query": "the locale",
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "npm test -- -u"
+    }
+   ],
+   "query": null,
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/tests/__snapshots__"
+    }
+   ],
+   "query": null,
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "for again check snapshot",
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "site/tests/__snapshots__"
+    }
+   ],
+   "query": "again tests",
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "kubectl rollout restart"
+    }
+   ],
+   "query": null,
+   "expect": "mn-124"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/k8s/deploy.yaml"
+    }
+   ],
+   "query": null,
+   "expect": "mn-124"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "why the me pods",
+   "expect": "mn-124"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "infra/k8s/deploy.yaml"
+    }
+   ],
+   "query": "this rollout",
+   "expect": "mn-124"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "relation does not exist"
+    }
+   ],
+   "query": null,
+   "expect": "mn-018"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "this relation does",
+   "expect": "mn-018"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "error",
+     "key": "relation does not exist"
+    }
+   ],
+   "query": "migrations",
+   "expect": "mn-018"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "sqlx migrate run"
+    }
+   ],
+   "query": null,
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/migrations"
+    }
+   ],
+   "query": null,
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "now why this migrations",
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "api/migrations"
+    }
+   ],
+   "query": "this schema",
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": "rt-digest"
+   },
+   "hooks": [],
+   "query": "snapshot remarks for",
+   "expect": "mn-144"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": "rt-digest"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "snapshot"
+    }
+   ],
+   "query": null,
+   "expect": "mn-144"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "command",
+     "key": "git tag"
+    }
+   ],
+   "query": null,
+   "expect": "mn-091"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [
+    {
+     "kind": "path",
+     "key": "game/CHANGELOG.md"
+    }
+   ],
+   "query": null,
+   "expect": "mn-091"
+  }
+ ]
+}
