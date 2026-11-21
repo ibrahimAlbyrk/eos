@@ -22,6 +22,7 @@ import capabilities from "./sample/capabilities.json";
 import signInFailed from "./sample/sign-in-failed.json";
 import triggerStatus from "./sample/trigger-status.json";
 import signals from "./sample/signals.json";
+import memory from "./sample/memory.json";
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
@@ -32,7 +33,8 @@ import signals from "./sample/signals.json";
 // capabilities hold one of each state; GitHub's sign-in is one that did not work.
 // PR Review's triggers show a schedule in another zone, a source after a
 // catch-up and an open batch, with a signal of each group in its list; Mail
-// Triage's source needs a sign-in.
+// Triage's source needs a sign-in. Memory holds notes learned for PR Review,
+// a project and everywhere, one of them cooling.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
   [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
@@ -52,6 +54,9 @@ export const SAMPLE_READS = {
   [ROUTES.capabilitySignIn("github")]: signInFailed,
   ...Object.fromEntries(Object.entries(triggerStatus).map(([id, status]) => [ROUTES.signalsRoutine(id), status])),
   [`${ROUTES.signals}?routine=${routineDetail.routine.id}`]: signals,
+  [ROUTES.memorySummary]: memory.summary,
+  [ROUTES.memoryNotes]: memory.notes,
+  ...Object.fromEntries(memory.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
 };
 
 // Eos's columns in the app's grid. The chrome around them (the mode switcher,

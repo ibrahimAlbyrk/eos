@@ -44,6 +44,7 @@
 @import "./styles/eos-blueprint.css";
 @import "./styles/eos-runform.css";
 @import "./styles/eos-signals.css";
+@import "./styles/eos-memory.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

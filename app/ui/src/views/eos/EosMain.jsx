@@ -1,6 +1,7 @@
 import { NewRoutine } from "./blueprint/NewRoutine.jsx";
 import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
+import { EosMemoryScreen } from "./memory/EosMemoryScreen.jsx";
 import { EosHeader } from "./nav/EosHeader.jsx";
 import { NeedsItemScreen } from "./needs/NeedsItemScreen.jsx";
 import { NeedsYouList } from "./needs/NeedsYouList.jsx";
@@ -49,6 +50,7 @@ export function EosMain() {
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
   if (location?.screen === "version") return <RoutinePage key={location.routineId} id={location.routineId} tab="blueprint" version={location.version} />;
   if (location?.screen === "run") return <RunView key={location.runId} id={location.runId} />;
+  if (location?.screen === "memory") return <EosMemoryScreen tab={location.tab} note={location.note} />;
   if (location?.screen === "capabilities") return <CapabilitiesScreen />;
   if (location?.screen === "capability") return <CapabilityScreen key={location.capabilityId} id={location.capabilityId} />;
   return <PlaceholderScreen location={location} />;
