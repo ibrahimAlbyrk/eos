@@ -13,7 +13,7 @@ use eos_domain::experience::cues::Cue;
 use eos_domain::experience::rank::{Candidate, score};
 use eos_domain::experience::spread::{Edge, spread};
 use eos_domain::experience::state::strength;
-use eos_domain::experience::{ScopeLevel, hook_id};
+use eos_domain::experience::{HookKind, ScopeLevel, hook_id};
 
 use crate::vectors::{MEANING_SEEDS, VectorIndex, quantize};
 
@@ -175,7 +175,9 @@ impl Recall {
             }
             None => Vec::new(),
         };
-        let hooks: Vec<String> = cues.hooks.iter().map(|c| hook_id(c.kind, &c.key)).collect();
+        let mut hooks: Vec<String> = cues.hooks.iter().map(|c| hook_id(c.kind, &c.key)).collect();
+        // A routine's own notes come back on each of its runs, whatever the item says.
+        hooks.extend(situation.routine.as_deref().map(|routine| hook_id(HookKind::Routine, routine)));
         let (situation, query, now) = (situation.clone(), cues.query.clone(), self.clock.now_ms());
         self.store.read(move |tx| ranked(tx, &situation, &hooks, query.as_deref(), &meaning_hits, now, limit)).await
     }

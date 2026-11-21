@@ -1,5 +1,6 @@
 //! Merge: what a reflection learned, written in one job. A new note comes
-//! with its hooks, its links, its first version and its evidence; a known
+//! with its hooks (a routine's note also with its routine's scope hook, which
+//! that routine's runs recall it by), its links, its first version and its evidence; a known
 //! lesson gains evidence; a replaced note is closed. The moment is marked
 //! reflected in the same job, and `memory:change` leaves after commit.
 
@@ -8,7 +9,7 @@ use eos_core::store::{StoredEvidence, StoredHook, StoredLink, StoredMoment, Stor
 use eos_core::{Error, Ids};
 use eos_domain::experience::merge::MergePlan;
 use eos_domain::experience::reflect::Draft;
-use eos_domain::experience::{Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, hook_id, state};
+use eos_domain::experience::{HookKind, Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, hook_id, state};
 
 /// Topic of notes learned, changed, forgotten, or their counts moved.
 pub const MEMORY_CHANGE: &str = "memory:change";
@@ -123,15 +124,11 @@ pub fn merge_in(
     let cues = draft.hooks.iter().map(|h| h.key.as_str()).collect::<Vec<_>>().join(" ");
     tx.mem_notes().insert(&note, &cues)?;
     let mut hook_ids = Vec::new();
-    for hook in &draft.hooks {
-        let hid = hook_id(hook.kind, &hook.key);
-        tx.mem_graph().add_hook(&StoredHook {
-            id: hid.clone(),
-            kind: hook.kind,
-            key: hook.key.clone(),
-            label: String::new(),
-            degree: 0,
-        })?;
+    let scope_hook = (note.scope.level == ScopeLevel::Routine).then(|| (HookKind::Routine, note.scope.key.clone()));
+    let hooks = draft.hooks.iter().map(|h| (h.kind, h.key.clone())).chain(scope_hook);
+    for (kind, key) in hooks {
+        let hid = hook_id(kind, &key);
+        tx.mem_graph().add_hook(&StoredHook { id: hid.clone(), kind, key, label: String::new(), degree: 0 })?;
         let about =
             StoredLink { a: id.clone(), b: hid.clone(), rel: "about".into(), weight: 1.0, co_uses: 0, updated_at: now };
         tx.mem_graph().put_link(&about)?;
