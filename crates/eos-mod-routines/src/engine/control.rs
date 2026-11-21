@@ -29,11 +29,23 @@ fn confirmed_by_user(version: &StoredVersion) -> bool {
         && matches!(version.author, VersionAuthor::User | VersionAuthor::Architect | VersionAuthor::Restore)
 }
 
+/// The Freedom and Goes to of the newest version the user stands behind,
+/// with the Freedom lowered by every kept version Eos wrote after it: Eos
+/// only ever takes freedom away (a step-down), never adds it (D9).
 pub(crate) fn confirmed_in(tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, Error> {
-    for version in tx.routine_versions().list(routine_id)?.iter().rev().filter(|v| confirmed_by_user(v)) {
-        if let Some(blueprint) = readable(version)? {
-            return Ok(Confirmed { freedom: blueprint.freedom, goes_to: blueprint.goes_to });
+    let versions = tx.routine_versions().list(routine_id)?;
+    for (at, version) in versions.iter().enumerate().rev().filter(|(_, v)| confirmed_by_user(v)) {
+        let Some(blueprint) = readable(version)? else { continue };
+        let mut freedom = blueprint.freedom;
+        for later in
+            versions[at + 1..].iter().filter(|v| v.status == VersionStatus::Kept && v.author == VersionAuthor::Eos)
+        {
+            if let Some(eos) = readable(later)? {
+                freedom.rung = freedom.rung.min(eos.freedom.rung);
+                freedom.grants.retain(|grant| eos.freedom.grants.contains(grant));
+            }
         }
+        return Ok(Confirmed { freedom, goes_to: blueprint.goes_to });
     }
     Err(Error::not_found("confirmed routine", routine_id))
 }
@@ -93,18 +105,21 @@ pub(crate) fn pause_in(
 
 /// A new kept head with the head's blueprint at `rung`; nothing when the
 /// head is at `rung` already or `keep` says the move goes the wrong way.
+/// A step-down also drops every grant, so no item keeps the freedom the
+/// undone send had.
 struct NewRung<'a> {
     rung: Rung,
     author: VersionAuthor,
     note: Option<&'a str>,
     keep: fn(current: Rung, next: Rung) -> bool,
+    drop_grants: bool,
 }
 
 impl Control {
     fn set_rung(&self, routine_id: &str, change: NewRung<'_>) -> BoxFuture<'_, Result<(), Error>> {
         let (engine, id) = (self.0.clone(), routine_id.to_owned());
         let note = change.note.map(str::to_owned);
-        let (rung, author, keep) = (change.rung, change.author, change.keep);
+        let (rung, author, keep, drop_grants) = (change.rung, change.author, change.keep, change.drop_grants);
         Box::pin(async move {
             let now = engine.clock.now_ms();
             let version_id = engine.ids.routine_version_id();
@@ -115,10 +130,17 @@ impl Control {
                     let head = tx.routine_versions().head(&id)?.ok_or_else(|| Error::not_found("routine", &id))?;
                     let mut blueprint = readable(&head)?
                         .ok_or_else(|| Error::Conflict("the routine was made by a newer Eos".into()))?;
-                    if !keep(blueprint.freedom.rung, rung) {
+                    let moves = keep(blueprint.freedom.rung, rung);
+                    let drops = drop_grants && !blueprint.freedom.grants.is_empty();
+                    if !moves && !drops {
                         return Ok(());
                     }
-                    blueprint.freedom.rung = rung;
+                    if moves {
+                        blueprint.freedom.rung = rung;
+                    }
+                    if drops {
+                        blueprint.freedom.grants.clear();
+                    }
                     let text = canonical_json(&blueprint);
                     tx.routine_versions().insert(&StoredVersion {
                         id: version_id.clone(),
@@ -156,14 +178,21 @@ impl RoutineControl for Control {
 
     fn raise<'a>(&'a self, routine_id: &'a str, rung: Rung) -> BoxFuture<'a, Result<(), Error>> {
         let higher = |current: Rung, next: Rung| next > current;
-        self.set_rung(routine_id, NewRung { rung, author: VersionAuthor::User, note: None, keep: higher })
+        let raise = NewRung { rung, author: VersionAuthor::User, note: None, keep: higher, drop_grants: false };
+        self.set_rung(routine_id, raise)
     }
 
     fn step_down<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         let lower = |current: Rung, next: Rung| next < current;
         self.set_rung(
             routine_id,
-            NewRung { rung: Rung::Draft, author: VersionAuthor::Eos, note: Some(reason), keep: lower },
+            NewRung {
+                rung: Rung::Draft,
+                author: VersionAuthor::Eos,
+                note: Some(reason),
+                keep: lower,
+                drop_grants: true,
+            },
         )
     }
 
