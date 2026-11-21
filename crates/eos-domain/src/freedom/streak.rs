@@ -4,6 +4,8 @@
 
 use eos_contracts::Rung;
 
+use super::rung::AUTOMATIC_RUNGS_LOCKED;
+
 /// Sends in a row, unedited, that offer the next rung (D8).
 pub const OFFER_AFTER: i64 = 10;
 /// An automatic send counts once a day passed without an undo or "that was
@@ -77,12 +79,15 @@ impl OfferState {
 }
 
 /// The rung to offer, when one is due: a streak of [`OFFER_AFTER`], no open
-/// offer and no "never", and a rung above.
+/// offer and no "never", a rung above, and only a rung that sends without
+/// the user while automatic sending is unlocked. Raising Ask to Draft needs
+/// no unlock.
 pub fn offer_due(streak: i64, state: OfferState, rung: Rung) -> Option<Rung> {
     if streak < OFFER_AFTER || matches!(state, OfferState::Offered | OfferState::Never) {
         return None;
     }
-    next_rung(rung)
+    let next = next_rung(rung)?;
+    (next <= Rung::Draft || !AUTOMATIC_RUNGS_LOCKED).then_some(next)
 }
 
 #[cfg(test)]
@@ -129,6 +134,7 @@ mod tests {
         assert_eq!(offer_due(OFFER_AFTER, OfferState::Offered, rung), None, "one open offer");
         assert_eq!(offer_due(OFFER_AFTER, OfferState::Never, rung), None);
         assert_eq!(offer_due(OFFER_AFTER, OfferState::None, Rung::OnItsOwn), None, "nothing above");
-        assert_eq!(offer_due(OFFER_AFTER, OfferState::None, Rung::Draft), Some(Rung::SendThenTell));
+        let automatic = offer_due(OFFER_AFTER, OfferState::None, Rung::Draft);
+        assert_eq!(automatic, (!AUTOMATIC_RUNGS_LOCKED).then_some(Rung::SendThenTell), "only once unlocked");
     }
 }
