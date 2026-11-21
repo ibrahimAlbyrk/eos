@@ -6,6 +6,7 @@ use eos_contracts::{ExperienceNoteRow, ExperienceScope};
 use eos_core::Error;
 use eos_core::git::ProjectKeys;
 use eos_core::store::{StoredNote, Tx};
+use eos_domain::experience::state::strength;
 use eos_domain::experience::{Scope, ScopeLevel};
 
 /// The oldest evidence of each note: what first taught it.
@@ -60,6 +61,7 @@ pub(crate) fn row(stored: &StoredNote, first: &FirstEvidence, labels: &HashMap<S
         trust: note.trust.as_str().to_owned(),
         helped: stored.counters.helped,
         used: stored.counters.used,
+        strength: strength(note.trust, stored.counters.helped, stored.counters.hurt),
         scope: scope(&note.scope, labels),
         rev: stored.rev,
         forgotten_at: stored.forgotten_at,

@@ -126,6 +126,8 @@ pub struct ExperienceNoteRow {
     pub trust: String,
     pub helped: i64,
     pub used: i64,
+    /// How far the note is trusted, 0 to 1 (`(helped+1)/(helped+hurt+2)`, capped by trust).
+    pub strength: f64,
     pub scope: ExperienceScope,
     pub rev: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
