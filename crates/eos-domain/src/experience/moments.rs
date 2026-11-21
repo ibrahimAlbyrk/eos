@@ -417,7 +417,19 @@ impl Walk {
 /// The moments in `rows` (one worker's events, oldest first), the user's
 /// `denials` and `reactions` on agent messages.
 pub fn scan(rows: &[EventRecord], denials: &[Denial], reactions: &[Reaction]) -> Vec<MomentDraft> {
-    let mut walk = Walk::default();
+    scan_after(rows, denials, reactions, false)
+}
+
+/// [`scan`] of rows that follow earlier ones a look already read:
+/// `agent_spoke` says the conversation stopped on the agent's turn there, so
+/// the user's first message here answers it (a look ends at an idle edge).
+pub fn scan_after(
+    rows: &[EventRecord],
+    denials: &[Denial],
+    reactions: &[Reaction],
+    agent_spoke: bool,
+) -> Vec<MomentDraft> {
+    let mut walk = Walk { agent_turn: agent_spoke, ..Walk::default() };
     for row in rows {
         let payload: Value = row.payload.as_deref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or(Value::Null);
         match row.kind.as_str() {
