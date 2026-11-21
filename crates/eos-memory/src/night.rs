@@ -25,7 +25,7 @@ use eos_domain::time::{iso_from_ms, wall_clock};
 use serde_json::json;
 
 use crate::credit::restand_in;
-use crate::forget::RESTORE_MS;
+use crate::forget::{FORGOTTEN_KEPT_MS, RESTORE_MS};
 use crate::merge::{MEMORY_CHANGE, version};
 use crate::recall::Recall;
 use crate::reflect::{Gate, MODEL, ModelGate, TIMEOUT_MS};
@@ -34,10 +34,9 @@ use crate::settings;
 /// Model calls the night may make in one local day.
 pub const NIGHT_CALLS_PER_DAY: i64 = 30;
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
-/// Done moments are kept this long, uses this long, forgotten records this long.
+/// Done moments are kept this long, uses this long.
 const MOMENTS_KEPT_MS: i64 = 30 * DAY_MS;
 const USES_KEPT_MS: i64 = 180 * DAY_MS;
-const FORGOTTEN_KEPT_MS: i64 = 90 * DAY_MS;
 const PAGE: i64 = 500;
 /// A general note's text, at most.
 const GENERAL_CHARS: usize = 300;
@@ -165,6 +164,11 @@ impl Night {
                 for stored in tx.mem_notes().list(&query)? {
                     if stored.forgotten_at.is_some_and(|at| at < now - RESTORE_MS) {
                         tx.mem_notes().delete(&stored.note.id)?;
+                        // Nothing brings it back now: only its fingerprint stays.
+                        if let Some(mut record) = tx.mem_book().forgotten(&stored.note.id)? {
+                            record.snapshot = "{}".to_owned();
+                            tx.mem_book().put_forgotten(&record)?;
+                        }
                         erased += 1;
                     }
                 }
@@ -395,7 +399,7 @@ fn close_in(
 }
 
 /// The general note with its lessons' hooks, linked to each lesson, which it
-/// replaces.
+/// replaces; nothing when the user forgot that note.
 fn insert_general_in(
     tx: &dyn Tx,
     out: &mut eos_core::store::Outbox,
@@ -407,7 +411,11 @@ fn insert_general_in(
     let links = tx.mem_graph().links(members)?;
     let hooks: BTreeSet<String> =
         links.iter().filter(|l| l.rel == "about" && l.b.starts_with("mh-")).map(|l| l.b.clone()).collect();
-    let stored_hooks = tx.mem_graph().hooks(&hooks.iter().cloned().collect::<Vec<_>>())?;
+    let hook_ids: Vec<String> = hooks.iter().cloned().collect();
+    if crate::forget::forgotten_again_in(tx, &note.text, &hook_ids, now)? {
+        return Ok(());
+    }
+    let stored_hooks = tx.mem_graph().hooks(&hook_ids)?;
     let cues = stored_hooks.iter().map(|h| h.key.as_str()).collect::<Vec<_>>().join(" ");
     tx.mem_notes().insert(note, &cues)?;
     for hook in &hooks {

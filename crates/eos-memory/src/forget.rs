@@ -1,19 +1,23 @@
 //! Forgetting a note and bringing it back. A forgotten note stays in the
 //! store, out of every recall and list, with a record in `mem_forgotten`:
-//! its fingerprint (hooks and text), which keeps it from being learned again,
-//! and a snapshot that brings it back. It can be brought back for
-//! [`RESTORE_MS`]; the record is kept for 90 days.
+//! its fingerprint (hooks and word marks, no text), which keeps it from
+//! being learned again for [`FORGOTTEN_KEPT_MS`], and a snapshot that brings
+//! it back. It can be brought back for [`RESTORE_MS`]; then the night erases
+//! the note and its snapshot.
 
 use eos_contracts::ExperienceChange;
 use eos_core::Error;
 use eos_core::store::{Outbox, StoredForgotten, Tx};
 use eos_domain::experience::Note;
+use eos_domain::experience::fingerprint::Fingerprint;
 use serde_json::{Value, json};
 
 use crate::merge::{MEMORY_CHANGE, version};
 
 /// How long a forgotten note can be brought back.
 pub const RESTORE_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// How long a forgotten note's fingerprint keeps it from being learned again.
+pub const FORGOTTEN_KEPT_MS: i64 = 90 * 24 * 60 * 60 * 1000;
 
 /// Where the last "Forget everything learned" is kept: its time.
 const FORGET_ALL_AT: &str = "forget_all.at";
@@ -63,16 +67,29 @@ pub fn forget_in(tx: &dyn Tx, out: &mut Outbox, note_id: &str, now: i64) -> Resu
         .filter(|l| l.rel == "about" && l.a == note_id)
         .map(|l| l.b)
         .collect();
-    let fingerprint = json!({"hooks": hooks, "text": stored.note.text});
+    let fingerprint = Fingerprint::of(&stored.note.text, hooks);
     tx.mem_book().put_forgotten(&StoredForgotten {
         note_id: note_id.to_owned(),
-        fingerprint: fingerprint.to_string(),
+        fingerprint: serde_json::to_string(&fingerprint).unwrap_or_else(|_| "{}".into()),
         snapshot: snapshot(&stored.note).to_string(),
         at: now,
     })?;
     tx.mem_notes().set_forgotten(note_id, Some(now))?;
     out.push(MEMORY_CHANGE, &ExperienceChange { ids: vec![note_id.to_owned()], action: "forgotten".into() });
     Ok(true)
+}
+
+/// A fingerprint as kept or sent: hooks and word marks only, whatever else
+/// `raw` carried.
+pub fn fingerprint_of(raw: &str) -> Fingerprint {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+/// A note with `text` and hook ids `hooks` matches a note forgotten since
+/// `now - FORGOTTEN_KEPT_MS`, inside the caller's job.
+pub fn forgotten_again_in(tx: &dyn Tx, text: &str, hooks: &[String], now: i64) -> Result<bool, Error> {
+    let recent = tx.mem_book().forgotten_since(now - FORGOTTEN_KEPT_MS)?;
+    Ok(recent.iter().any(|f| fingerprint_of(&f.fingerprint).matches(text, hooks)))
 }
 
 /// Brings a forgotten note back inside the caller's write job, as a new

@@ -81,7 +81,9 @@ async fn the_rules_cool_dedupe_and_erase_and_ask_no_model() {
     put(&temp, old, &[cue(HookKind::Command, "make")]);
     put(&temp, note("mn-gone", "A forgotten lesson.", project("p")), &[]);
     temp.store
-        .write_blocking(|tx, _| tx.mem_notes().set_forgotten("mn-gone", Some(FakeClock::START_MS - 31 * DAY)))
+        .write_blocking(|tx, out| {
+            eos_memory::forget::forget_in(tx, out, "mn-gone", FakeClock::START_MS - 31 * DAY).map(drop)
+        })
         .unwrap();
     three_lessons(&temp);
     let model = Arc::new(ScriptedOneShot::default());
@@ -98,6 +100,9 @@ async fn the_rules_cool_dedupe_and_erase_and_ask_no_model() {
     assert_eq!(find(&temp, "mn-c").unwrap().note.state, NoteState::Firm, "another project's lesson is another lesson");
     assert_eq!(find(&temp, "mn-old").unwrap().note.state, NoteState::Cooling, "unused for a month");
     assert!(find(&temp, "mn-gone").is_none(), "its text goes once it cannot come back");
+    let record = temp.store.read_blocking(|tx| tx.mem_book().forgotten("mn-gone")).unwrap().expect("kept");
+    assert_eq!(record.snapshot, "{}", "nothing left to bring back");
+    assert!(!record.fingerprint.contains("forgotten lesson"), "the fingerprint holds no text: {}", record.fingerprint);
     assert!(model.asked().is_empty(), "no model without leave to ask one");
     assert_eq!((tidied.deduped, tidied.erased, tidied.generalized), (1, 1, 0));
 }

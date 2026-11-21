@@ -68,6 +68,7 @@ fn a_note_reaches_the_other_mac_with_its_hooks_and_evidence_and_a_forgotten_one_
     assert_eq!(tomb.len(), 1, "a pass after the forget reads it");
     assert_eq!(tomb[0].data["forgotten"], true);
     assert_eq!(tomb[0].data.get("text"), None, "a tombstone carries only its fingerprint");
+    assert!(!tomb[0].data["fingerprint"].to_string().contains("pnpm"), "and the fingerprint no text");
     apply(&b, "mac-b", tomb.clone());
     let got = b.store.read_blocking(|tx| tx.mem_notes().find("mn-1")).unwrap().expect("kept, forgotten");
     assert_eq!(got.forgotten_at, Some(NOW));
