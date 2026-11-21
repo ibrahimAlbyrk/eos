@@ -6,6 +6,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Set on the chat row of a routine note that holds Eos's own words or a
+/// checker's: no user said them, so memory never reads them as the user's.
+pub const EOS_NOTE_FIELD: &str = "eosNote";
+
 /// What a dispatched message is, when it is not the operator's.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
@@ -58,6 +62,10 @@ pub enum Envelope {
     /// user's words while a result waits.
     RoutineNote {
         run_id: String,
+        /// The words are the user's (a revision asked from Needs you, a late
+        /// answer), not Eos's or a checker's: only these may teach memory.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        from_user: bool,
     },
 }
 
@@ -171,7 +179,7 @@ pub fn sender_tag(envelope: &Envelope) -> (SenderClass, Vec<(&'static str, Optio
                 ("pct", pct.map(|p| eos_contracts::primitives::Num(p).to_string())),
             ],
         ),
-        Envelope::RoutineNote { run_id } => {
+        Envelope::RoutineNote { run_id, .. } => {
             (SenderClass::System, vec![("kind", some("routine_note")), ("run-id", some(run_id))])
         }
     }
@@ -184,7 +192,7 @@ mod tests {
 
     #[test]
     fn a_routine_note_is_a_system_message_naming_its_run() {
-        let note = Envelope::RoutineNote { run_id: "rn-1".into() };
+        let note = Envelope::RoutineNote { run_id: "rn-1".into(), from_user: false };
         let (class, attrs) = sender_tag(&note);
         assert_eq!(
             apply_sender_tag("submit_result, or report_failure", class, &attrs),

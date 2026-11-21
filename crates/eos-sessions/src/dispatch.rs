@@ -12,7 +12,7 @@ use eos_core::agent::{NoteTurn, UserMessage, UserMessages};
 use eos_core::store::{NewQueuedMessage, Outbox, Tx};
 use eos_core::{BoxFuture, Error};
 use eos_domain::Worker;
-use eos_domain::envelope::{Envelope, apply_sender_tag, sender_tag};
+use eos_domain::envelope::{EOS_NOTE_FIELD, Envelope, apply_sender_tag, sender_tag};
 use eos_domain::message_id::{
     ReplyTarget, build_reply_block, prefix_operator_turn, reply_ref_of, reply_selection, reply_target_from_row,
     starts_with_slash_command,
@@ -155,6 +155,10 @@ fn chat_row(
         Some(Envelope::PermissionAsk { .. }) => (WorkerEventType::PermissionAsk, Value::Object(base)),
         // The operator's own message (and what has no row kind of its own).
         Some(Envelope::ContextThreshold { .. } | Envelope::RoutineNote { .. }) | None => {
+            // Eos's own words to a run, or a checker's, are no user's: memory never learns from them.
+            if let Some(Envelope::RoutineNote { from_user: false, .. }) = &input.envelope {
+                base.insert(EOS_NOTE_FIELD.into(), true.into());
+            }
             if let Some(ids) = client_ids.filter(|ids| !ids.is_empty()) {
                 base.insert("clientMsgIds".into(), json!(ids));
             }

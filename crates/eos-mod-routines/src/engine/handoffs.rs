@@ -31,7 +31,7 @@ use serde_json::json;
 use super::control::Control;
 use super::supervisor::skip_for;
 use super::versions::{Added, add_in};
-use super::{Engine, announce_waiting, note};
+use super::{Engine, announce_waiting, user_note};
 use crate::routes::readable;
 
 /// Who makes the items acted on here.
@@ -241,7 +241,7 @@ async fn tell_lead(engine: &Engine, item: &StoredItem) -> Result<(), Error> {
     let id = run_id.clone();
     let run = engine.store.read(move |tx| tx.runs().find(&id)).await?;
     let Some(lead) = run.filter(|run| !run.state.is_terminal()).and_then(|run| run.lead_id) else { return Ok(()) };
-    note(engine, &lead, &run_id, &late_answer(item)).await?;
+    user_note(engine, &lead, &run_id, &late_answer(item)).await?;
     tracing::info!(run_id, item_id = %item.id, "a late answer was told to a run's lead");
     Ok(())
 }
