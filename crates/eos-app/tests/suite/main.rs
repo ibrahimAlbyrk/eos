@@ -17,6 +17,7 @@ mod flows;
 mod injection;
 mod isolation;
 mod machines;
+mod memory;
 mod notes;
 mod peer;
 mod phone;
