@@ -1,15 +1,17 @@
 import { fmtCost } from "../../../lib/format.js";
 import { useRuns } from "../../../state/eos/runsStore.js";
 import { ROLES } from "../run/words.js";
+import { WhyPanel } from "./WhyPanel.jsx";
 
-// The aside of an item a run made: what its checker found, and who worked on
-// it at what cost. Drawn once the run is read.
+// The aside of an item a run made: the notes that shaped it, what its checker
+// found, and who worked on it at what cost. Drawn once the run is read.
 export function ChecksPanel({ runId }) {
   const run = useRuns().details[runId];
   if (!run) return null;
   const { verdict, agents } = run;
   return (
     <aside className="eos-needs-aside" aria-label="About this result">
+      <WhyPanel runId={runId} />
       {verdict && (
         <section className="eos-needs-aside__part">
           <h2 className="eos-label">Checked before it reached you</h2>

@@ -11,6 +11,9 @@ import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import { AboutYouSlot } from "./aboutYouSlot.js";
 import memory from "../gallery/sample/memory.json";
+import { loadRecalled, notRightNote } from "../../../state/eos/notesStore.js";
+import { WhyPanel } from "../needs/WhyPanel.jsx";
+import { RunMemory } from "../run/RunMemory.jsx";
 
 const [summaryNote, docsNote, lintNote] = memory.notes.notes;
 
@@ -150,5 +153,42 @@ describe("the notes store", () => {
     setEosTransport({ get, send: vi.fn() });
     applyMemoryChange({ ids: ["mn-1"], action: "learned" });
     expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe("memory in the other screens", () => {
+  const runId = memory.recalled.runId;
+
+  it("shows a draft's Why aside with each note its run was given once, and Not right", async () => {
+    await loadRecalled({ runId });
+    const html = renderToStaticMarkup(<WhyPanel runId={runId} />);
+    expect(html).toContain("Eos remembered 4 things from your earlier corrections:");
+    expect(html.match(/class="eos-needs-why__text"/g)).toHaveLength(4);
+    expect(html).toContain(`${summaryNote.text}</button><span class="eos-needs-why__from">You shortened four before sending</span>`);
+    expect(html.match(/>Not right<\/button>/g)).toHaveLength(4);
+  });
+
+  it("shows nothing where a run was given no note", async () => {
+    await loadRecalled({ runId: "rn-none" });
+    expect(renderToStaticMarkup(<WhyPanel runId="rn-none" />)).toBe("");
+    expect(renderToStaticMarkup(<RunMemory runId="rn-none" />)).toBe("");
+  });
+
+  it("shows a run's first three notes and how many came with it", async () => {
+    await loadRecalled({ runId });
+    const html = renderToStaticMarkup(<RunMemory runId={runId} />);
+    expect(html).toContain("Memory that came with it");
+    expect(html.match(/class="eos-run-memory__note"/g)).toHaveLength(3);
+    expect(html).toContain(">4 notes in all</button>");
+  });
+
+  it("says Not right with the run and the user's words, and the note's new strength reaches the aside", async () => {
+    await loadRecalled({ runId });
+    const weaker = { ...memory.details[0], note: { ...summaryNote, strength: 0.4 } };
+    const send = vi.fn(async () => ({ ok: true, status: 200, body: weaker }));
+    setEosTransport({ ...fixtureTransport(SAMPLE_READS), send });
+    expect(await notRightNote(summaryNote.id, { runId, note: "not for docs" })).toBe(true);
+    expect(send).toHaveBeenCalledWith("POST", ROUTES.memoryNoteNotRight(summaryNote.id), { note: "not for docs", runId, workerId: undefined });
+    expect(storeNow().recalled[`run:${runId}`].filter((n) => n.row.id === summaryNote.id).every((n) => n.row.strength === 0.4)).toBe(true);
   });
 });

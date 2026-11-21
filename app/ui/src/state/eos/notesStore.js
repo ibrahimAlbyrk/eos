@@ -12,11 +12,14 @@ import { isDevRunRefusal, transport } from "./transport.js";
 
 const DETAILS_KEPT = 50;
 const PAGES_KEPT = 10;
+const RECALLED_KEPT = 20;
 
 // summary: null until loaded. pages: path → { notes, nextCursor }, the pages
 // read last. details: id → ExperienceNoteDetail. failed: id → "gone" (404)
-// or "error". devRun: a write was refused because this is a dev run.
-const EMPTY = { summary: null, summaryFailed: false, pages: {}, pagesFailed: {}, details: {}, failed: {}, devRun: false };
+// or "error". recalled: "run:<id>" | "worker:<id>" → the notes that run or
+// chat received (ExperienceRecalledNote[]), the ones read last. devRun: a
+// write was refused because this is a dev run.
+const EMPTY = { summary: null, summaryFailed: false, pages: {}, pagesFailed: {}, details: {}, failed: {}, recalled: {}, devRun: false };
 let state = EMPTY;
 const asked = new Map(); // path or id → the number of its latest request
 const subs = new Set();
@@ -94,11 +97,20 @@ function withRow(row) {
   return pages;
 }
 
+function withRecalledRow(row) {
+  const recalled = {};
+  for (const [key, notes] of Object.entries(state.recalled)) {
+    recalled[key] = notes.map((n) => (n.row.id === row.id ? { ...n, row } : n));
+  }
+  return recalled;
+}
+
 function putDetail(detail) {
   set({
     details: putBounded(state.details, detail.note.id, detail, DETAILS_KEPT),
     failed: without(state.failed, detail.note.id),
     pages: withRow(detail.note),
+    recalled: withRecalledRow(detail.note),
   });
 }
 
@@ -108,6 +120,25 @@ export async function loadNote(id) {
   if (r?.ok && r.body?.note?.id === id) putDetail(r.body);
   else if (r?.status === 404) set({ details: without(state.details, id), failed: { ...state.failed, [id]: "gone" } });
   else if (!state.details[id]) set({ failed: { ...state.failed, [id]: "error" } });
+}
+
+export const recalledKey = ({ runId, workerId }) => (runId ? `run:${runId}` : `worker:${workerId}`);
+
+// The notes a run (or a chat) received; nothing is kept when the core has no
+// memory, so the screens leave their memory part out.
+export async function loadRecalled(who) {
+  const key = recalledKey(who);
+  const query = who.runId ? `runId=${encodeURIComponent(who.runId)}` : `workerId=${encodeURIComponent(who.workerId)}`;
+  const r = await latest(key, () => transport.get(`${ROUTES.memoryRecalled}?${query}`));
+  if (r?.ok && Array.isArray(r.body?.notes)) set({ recalled: putBounded(state.recalled, key, r.body.notes, RECALLED_KEPT) });
+}
+
+// SSE memory:recalled { workerId?, runId?, noteIds, how }: a run or chat on
+// screen received more notes.
+export function applyMemoryRecalled(payload) {
+  for (const who of [{ runId: payload?.runId }, { workerId: payload?.workerId }]) {
+    if ((who.runId || who.workerId) && state.recalled[recalledKey(who)]) void loadRecalled(who);
+  }
 }
 
 // SSE memory:change { ids, action } (state/eos/live.js).
@@ -125,6 +156,10 @@ export function resyncMemory() {
   if (state.summary !== null) void refreshMemorySummary();
   for (const path of Object.keys(state.pages)) void loadNotes(path);
   for (const id of Object.keys(state.details)) void loadNote(id);
+  for (const key of Object.keys(state.recalled)) {
+    const [kind, id] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+    void loadRecalled(kind === "run" ? { runId: id } : { workerId: id });
+  }
 }
 
 // A write's answer, or null when it was refused or failed. A dev run's

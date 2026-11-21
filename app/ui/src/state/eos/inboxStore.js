@@ -330,8 +330,10 @@ export async function decideRunAsk(id, pendingId, allow) {
   return ok;
 }
 
-// A suggestion about the user, kept or dismissed through its recorded routes.
-export async function decideSuggestion(id, memoryId, keep) {
+// A suggestion about the user, kept or dismissed through its recorded routes;
+// kept in the user's own words when `text` is given.
+export async function decideSuggestion(id, memoryId, keep, text) {
+  if (keep && text && !(await answerWith(id, "PUT", ROUTES.userMemory(memoryId), { text }))) return false;
   const ok = await answerWith(id, "POST", keep ? ROUTES.userMemoryApprove(memoryId) : ROUTES.userMemoryDismiss(memoryId), {});
   if (ok) dropShown(id);
   return ok;

@@ -7,7 +7,7 @@ import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blue
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
 import { applyHalt, resyncHalt } from "./haltStore.js";
 import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.js";
-import { applyMemoryChange, resyncMemory } from "./notesStore.js";
+import { applyMemoryChange, applyMemoryRecalled, resyncMemory } from "./notesStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
 import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
@@ -30,7 +30,7 @@ const HANDLERS = {
   "inbox:freedom": ignored,
   "inbox:halt": applyHalt,
   "memory:change": applyMemoryChange,
-  "memory:recalled": ignored,
+  "memory:recalled": applyMemoryRecalled,
   "surfaces:change": ignored,
   "surfaces:issue": ignored,
   "surfaces:pins": ignored,
