@@ -122,7 +122,7 @@ pub use clock::FakeClock;
 pub use confinement::FakeConfinement;
 pub use db::{Announced, TempStore};
 pub use delivery::FakeChannels;
-pub use embed::FakeEmbedder;
+pub use embed::{FakeEmbedder, real_embedder};
 pub use experience::{FakeExperienceFeedback, FakeExperiencePacks, FeedbackCall};
 pub use fakes::{
     EchoTool, FakeCredentials, FakeDesktop, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch,
