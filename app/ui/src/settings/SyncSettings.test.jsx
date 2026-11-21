@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SyncSettings } from "./SyncSettings.jsx";
-import { setSyncStatus } from "../state/syncStore.js";
+import { setSyncStatus, setSyncUsage } from "../state/syncStore.js";
 
 const render = (status) => {
   setSyncStatus(status);
@@ -24,6 +24,14 @@ describe("SyncSettings", () => {
     expect(html).toContain("relay.example");
     expect(html).toContain("12 memories · 1 page · 2 workers");
     expect(html).not.toContain("Create sync key");
+  });
+
+  it("says which kind is full, and nothing while none is", () => {
+    const on = { phase: "idle", relay: "relay.example", lastSyncAt: 5, error: null, counts: {} };
+    setSyncUsage([{ name: "memory", bytes: 10, budget: 10, full: true }, { name: "page", bytes: 1, full: false }]);
+    expect(render(on)).toContain("Sync is full for memories: new ones stay on this Mac until there is room.");
+    setSyncUsage([{ name: "memory", bytes: 1, budget: 10, full: false }]);
+    expect(render(on)).not.toContain("Sync is full");
   });
 
   it("error: says the relay is unreachable and why", () => {

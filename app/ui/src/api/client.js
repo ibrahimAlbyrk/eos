@@ -993,6 +993,11 @@ export const api = {
     if (!r.ok) throw new Error(`getSync → ${r.status}`);
     return r.body;
   },
+  async getSyncUsage() {
+    const r = await getJson(ROUTES.syncUsage);
+    if (!r.ok) throw new Error(`getSyncUsage → ${r.status}`);
+    return r.body;
+  },
   async getSyncKey() {
     const r = await getJson(ROUTES.syncKey, { headers: uiTokenHeader() });
     if (!r.ok) throw new Error(r.body?.error ?? `getSyncKey → ${r.status}`);

@@ -5,6 +5,8 @@ use eos_contracts::{BoolLit, IntLit, Num, SyncDomainName, SyncEnvelope};
 use eos_core::net::sync::{PutOutcome, SyncCrypto, SyncDomain, SyncStateStore, SyncVault, VaultEntry};
 use eos_core::{Clock, Error};
 use eos_domain::sync::{IndexEntry, LocalState, SyncItem, index_key, stable_stringify};
+
+use crate::budget::{DomainUsage, SEAL_OVERHEAD};
 use indexmap::IndexMap;
 use serde_json::Value;
 use tokio::sync::watch;
@@ -21,6 +23,9 @@ pub struct SyncEngineDeps {
     pub clock: Arc<dyn Clock>,
     /// Stamped on what this computer pushes.
     pub device: String,
+    /// The most sealed bytes a domain may keep in the vault
+    /// ([`vault_budgets`](crate::vault_budgets)); a domain not named has none.
+    pub budgets: Vec<(SyncDomainName, u64)>,
 }
 
 /// What a call to [`SyncEngine::sync`] did, over every round it ran.
@@ -51,6 +56,8 @@ pub struct SyncEngine {
     saving: Arc<tokio::sync::Mutex<()>>,
     /// What the last save wrote: a pass that changed nothing writes nothing.
     saved: Arc<Mutex<Option<LocalState>>>,
+    /// Per domain, as of its last push.
+    usage: Mutex<IndexMap<&'static str, DomainUsage>>,
 }
 
 impl std::fmt::Debug for SyncEngine {
@@ -96,7 +103,45 @@ impl SyncEngine {
             stopped: Arc::new(AtomicBool::new(false)),
             saving: Arc::new(tokio::sync::Mutex::new(())),
             saved: Arc::default(),
+            usage: Mutex::default(),
         }
+    }
+
+    /// How full each domain is, in push order, as of the last pass.
+    pub fn usage(&self) -> Vec<DomainUsage> {
+        let usage = lock(&self.usage);
+        self.deps
+            .domains
+            .iter()
+            .map(|domain| {
+                let name = domain_name(domain.name());
+                usage.get(name).cloned().unwrap_or(DomainUsage {
+                    name,
+                    bytes: 0,
+                    budget: self.budget_of(domain.name()),
+                    full: false,
+                })
+            })
+            .collect()
+    }
+
+    fn budget_of(&self, name: SyncDomainName) -> Option<u64> {
+        self.deps.budgets.iter().find(|(domain, _)| *domain == name).map(|(_, bytes)| *bytes)
+    }
+
+    /// The bytes `item` takes in the vault once sealed.
+    fn sealed_size(&self, name: SyncDomainName, item: &SyncItem) -> u64 {
+        let envelope = SyncEnvelope {
+            v: IntLit,
+            domain: name,
+            id: item.id.clone(),
+            changed_at: Num(item.updated_at.unwrap_or_default()),
+            device: self.deps.device.clone(),
+            deleted: None,
+            data: Some(item.data.clone()),
+        };
+        let plain = serde_json::to_vec(&envelope).map_or(0, |plain| plain.len() as u64);
+        plain + SEAL_OVERHEAD
     }
 
     /// The last vault sequence number this computer has seen: where a wait
@@ -265,17 +310,42 @@ impl SyncEngine {
 
     async fn push_domain(&self, domain: &dyn SyncDomain, tally: &mut PassResult) -> Result<(), Error> {
         let name = domain_name(domain.name());
+        let budget = self.budget_of(domain.name());
         let mut seen = std::collections::HashSet::new();
-        for item in domain.list().await? {
+        let items = domain.list().await?;
+        // What the vault holds of this domain already counts first; new
+        // records go while they fit.
+        let sized: Vec<(SyncItem, u64, bool)> = items
+            .into_iter()
+            .map(|item| {
+                let size = self.sealed_size(domain.name(), &item);
+                let stored = self.known(&index_key(name, &item.id)).is_some_and(|known| known.hash.is_some());
+                (item, size, stored)
+            })
+            .collect();
+        let mut bytes: u64 = sized.iter().filter(|(_, _, stored)| *stored).map(|(_, size, _)| size).sum();
+        let mut full = false;
+        for (item, size, stored) in sized {
             self.running()?;
             let key = index_key(name, &item.id);
+            if !stored && budget.is_some_and(|budget| bytes + size > budget) {
+                full = true;
+                continue;
+            }
             let changed = self.known(&key).and_then(|known| known.hash) != self.hash_of(Some(&item.data));
             seen.insert(key);
+            if !stored {
+                bytes += size;
+            }
             if changed {
                 let id = item.id.clone();
                 self.send(domain, &id, Some(item), tally).await?;
             }
         }
+        if full {
+            tracing::warn!(domain = name, bytes, budget, "sync: a domain reached its vault budget; new records wait");
+        }
+        lock(&self.usage).insert(name, DomainUsage { name, bytes, budget, full });
         let prefix = format!("{name}/");
         let gone: Vec<String> = lock(&self.state)
             .index

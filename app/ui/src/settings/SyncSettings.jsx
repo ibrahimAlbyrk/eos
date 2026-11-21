@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
-import { useSyncStatus, refreshSync, setSyncStatus } from "../state/syncStore.js";
+import { useSyncStatus, refreshSync, setSyncStatus, useSyncFull } from "../state/syncStore.js";
 import { isRemoteView } from "../lib/host.js";
 import { timeAgo } from "../lib/timeAgo.js";
 import { CopyIcon } from "../components/machines/icons.jsx";
@@ -20,6 +20,13 @@ function countsLine(counts) {
     .join(" · ");
 }
 
+// Domains past their share of the vault, in the words Settings uses.
+function fullLine(full) {
+  if (full.length === 0) return null;
+  const names = full.map((name) => LABELS[name]?.[1] ?? name).join(", ");
+  return `Sync is full for ${names}: new ones stay on this Mac until there is room. Everything else keeps syncing.`;
+}
+
 function StatusPill({ status }) {
   useNow();
   if (status.phase === "syncing") return <span className="m-pill">Syncing…</span>;
@@ -29,6 +36,7 @@ function StatusPill({ status }) {
 
 export function SyncSettings() {
   const status = useSyncStatus();
+  const full = useSyncFull();
   const [joinKey, setJoinKey] = useState("");
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -119,6 +127,7 @@ export function SyncSettings() {
                 <span className="mono">{status.relay}</span>
                 {countsLine(status.counts) && <> · {countsLine(status.counts)}</>}
               </div>
+              {fullLine(full) && <div className="stg-row__desc" role="status">{fullLine(full)}</div>}
             </div>
             <div className="peer-actions">
               <button type="button" className="m-btn m-btn--sm" disabled={status.phase === "syncing"} onClick={() => void api.syncNow()}>Sync now</button>

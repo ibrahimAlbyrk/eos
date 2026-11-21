@@ -188,6 +188,7 @@ export const ROUTES = {
   syncKey: "/api/sync/key",
   syncNow: "/api/sync/now",
   syncLeave: "/api/sync/leave",
+  syncUsage: "/api/sync/usage",
   // File transfer (eos-contracts `transfer.rs`): /transfer/* is a daemon's own disk
   // (this Mac's, or a paired one's through /h/<id>); /api/transfers this Mac's engine.
   transferList: "/transfer/list",

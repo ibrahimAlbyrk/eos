@@ -85,6 +85,8 @@ async fn the_key_and_every_change_are_the_users_and_nothing_crosses_to_a_paired_
         assert_eq!((status, body), (403, json!({ "error": "ui token required" })), "{path}");
     }
     assert_eq!(answer(&app, Method::Get, "/api/sync", Caller::UNTRUSTED, None).await.0, 200, "the status is open");
+    let usage = answer(&app, Method::Get, "/api/sync/usage", Caller::UNTRUSTED, None).await;
+    assert_eq!(usage, (200, json!({ "domains": [] })), "nothing is counted while sync is off");
     assert_eq!(mac.sync.key(), None, "none of the refused calls did anything");
 
     let paired = Caller::Peer { device: "f".repeat(64).into(), human: true };
@@ -105,6 +107,9 @@ async fn the_key_and_every_change_are_the_users_and_nothing_crosses_to_a_paired_
     assert_eq!(status, 200);
     assert!(key["key"].as_str().unwrap().starts_with("eos-sync1."));
     assert_eq!(answer(&app, Method::Post, "/api/sync/now", Caller::DASHBOARD, None).await.0, 202);
+    let (status, usage) = answer(&app, Method::Get, "/api/sync/usage", Caller::DASHBOARD, None).await;
+    assert_eq!((status, usage["domains"].as_array().map(Vec::len)), (200, Some(6)), "{usage}");
+    assert_eq!(usage["domains"][0]["full"], false);
     let (status, left) = answer(&app, Method::Post, "/api/sync/leave", Caller::DASHBOARD, None).await;
     assert_eq!((status, &left["phase"]), (200, &json!("off")));
 }

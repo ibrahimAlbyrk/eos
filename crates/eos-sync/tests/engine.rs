@@ -373,3 +373,30 @@ async fn a_caller_whose_pass_is_dropped_does_not_strand_the_next_one() {
     let _ = first.await;
     assert_eq!(a.engine.sync().await.unwrap(), result(0, 1, 0));
 }
+
+#[tokio::test]
+async fn a_domain_at_its_budget_pushes_no_new_record_but_changes_and_deletions_still_go() {
+    let vault = vault();
+    let mut a = Mac::new(&vault, "air");
+    a.with_budget(400);
+    a.domain.set("um-1", json!({ "text": "x".repeat(100) }), Some(5.0));
+    assert_eq!(a.engine.sync().await.unwrap(), result(0, 1, 0));
+    let usage = a.engine.usage();
+    assert_eq!((usage[0].name, usage[0].budget, usage[0].full), ("memory", Some(400), false));
+    let one = usage[0].bytes;
+    assert!(one > 100 && one < 400, "{one}");
+
+    a.domain.set("um-2", json!({ "text": "y".repeat(200) }), Some(6.0));
+    assert_eq!(a.engine.sync().await.unwrap(), result(0, 0, 0), "it would pass the budget");
+    assert_eq!((a.engine.usage()[0].bytes, a.engine.usage()[0].full), (one, true));
+
+    a.domain.set("um-1", json!({ "text": "changed" }), Some(7.0));
+    assert_eq!(a.engine.sync().await.unwrap(), result(0, 1, 0), "a record the vault holds still changes");
+    a.domain.delete("um-1");
+    let deleted = a.engine.sync().await.unwrap();
+    assert_eq!(deleted.pushed, 2, "the deletion goes, and the kept-back record fits now");
+    assert!(!a.engine.usage()[0].full);
+    let b = Mac::new(&vault, "pro");
+    b.engine.sync().await.unwrap();
+    assert_eq!(b.domain.ids(), ["um-2"]);
+}

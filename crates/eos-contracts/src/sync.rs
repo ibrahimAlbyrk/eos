@@ -107,6 +107,37 @@ impl Validate for SyncStatusResponse {
     }
 }
 
+/// `GET /api/sync/usage`: how much of the vault each domain fills, in push
+/// order; empty while sync is off.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SyncUsageResponse {
+    pub domains: Vec<SyncDomainUsage>,
+}
+
+impl Validate for SyncUsageResponse {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SyncDomainUsage {
+    pub name: String,
+    /// The sealed bytes of its records, as of the last pass.
+    pub bytes: i64,
+    /// The most it may keep in the vault; none for a domain without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<i64>,
+    /// New records wait on this computer: the budget is reached.
+    pub full: bool,
+}
+
+impl Validate for SyncDomainUsage {}
+
+/// `sync:full`: a domain reached its vault budget.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SyncFull {
+    pub domain: String,
+}
+
+impl Validate for SyncFull {}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SyncJoinRequest {
     #[serde(deserialize_with = "de::trimmed")]

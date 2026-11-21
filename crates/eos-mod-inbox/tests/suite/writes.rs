@@ -145,3 +145,21 @@ async fn a_run_question_withdrawn_with_its_routine_wakes_its_asker() {
     let heard = heard.expect("an answer");
     assert_eq!(heard.get("Which branch?"), Some(&json!(eos_inbox::WITHDRAWN)));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_full_sync_domain_opens_one_notice_a_day() {
+    let rig = Rig::new().await;
+    let full: eos_runtime::bus::Topic<eos_contracts::SyncFull> = eos_runtime::bus::Topic::new("sync:full");
+    let count = || rig.temp.count("SELECT COUNT(*) FROM inbox_items WHERE kind = 'notice' AND producer = 'sync'");
+    rig.runtime.kernel.bus.publish(&full, &eos_contracts::SyncFull { domain: "memory".into() });
+    for _ in 0..200 {
+        if count() == 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(count(), 1);
+    rig.runtime.kernel.bus.publish(&full, &eos_contracts::SyncFull { domain: "memory".into() });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(count(), 1, "the same day's notice is brought up to date");
+}

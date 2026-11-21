@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
-use eos_contracts::{Num, SyncPhase, SyncStatusResponse};
+use eos_contracts::{Num, SyncDomainUsage, SyncFull, SyncPhase, SyncStatusResponse, SyncUsageResponse};
 use eos_core::net::sync::{SyncAccounts, SyncDomain, SyncIdentityStore, SyncStateStore, SyncVault};
 use eos_core::{Clock, Error};
 use eos_domain::sync::{SyncIdentity, format_sync_key, parse_sync_key};
@@ -23,7 +23,7 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-use crate::{SYNC_CHANGE, SYNC_JOB_KIND};
+use crate::{SYNC_CHANGE, SYNC_FULL, SYNC_JOB_KIND};
 
 /// The relay a new account is created on, read when the user creates one.
 pub type RelayUrl = Arc<dyn Fn() -> Option<String> + Send + Sync>;
@@ -92,6 +92,8 @@ struct Session {
 #[derive(Default)]
 struct Inner {
     session: Option<Arc<Session>>,
+    /// The domains at their vault budget, told once each time one gets there.
+    full: std::collections::HashSet<&'static str>,
     last_sync_at: Option<i64>,
     error: Option<String>,
 }
@@ -186,6 +188,33 @@ impl SyncService {
         }
     }
 
+    /// How much of the vault each domain fills; empty while sync is off.
+    pub fn usage(&self) -> SyncUsageResponse {
+        let session = lock(&self.inner).session.clone();
+        let usage = session.map(|session| session.engine.usage()).unwrap_or_default();
+        let domains = usage
+            .into_iter()
+            .map(|domain| SyncDomainUsage {
+                name: domain.name.to_owned(),
+                bytes: i64::try_from(domain.bytes).unwrap_or(i64::MAX),
+                budget: domain.budget.map(|budget| i64::try_from(budget).unwrap_or(i64::MAX)),
+                full: domain.full,
+            })
+            .collect();
+        SyncUsageResponse { domains }
+    }
+
+    /// Announces each domain that reached its budget since the last pass.
+    fn tell_full(&self, inner: &mut Inner, session: &Session) {
+        let full: std::collections::HashSet<&'static str> =
+            session.engine.usage().into_iter().filter(|domain| domain.full).map(|domain| domain.name).collect();
+        for domain in full.difference(&inner.full) {
+            tracing::warn!(domain, "sync: a domain is full");
+            self.bus.publish(&SYNC_FULL, &SyncFull { domain: (*domain).to_owned() });
+        }
+        inner.full = full;
+    }
+
     pub fn key(&self) -> Option<String> {
         lock(&self.inner).session.as_ref().map(|session| format_sync_key(&session.identity))
     }
@@ -251,6 +280,7 @@ impl SyncService {
             domains: self.domains.clone(),
             clock: self.clock.clone(),
             device: (self.deps.device)(),
+            budgets: eos_sync::vault_budgets(),
         });
         let session = Arc::new(Session {
             identity,
@@ -378,6 +408,7 @@ impl SyncService {
                 if r.pulled + r.pushed + r.conflicts > 0 {
                     tracing::info!(pulled = r.pulled, pushed = r.pushed, conflicts = r.conflicts, "sync: pass");
                 }
+                self.tell_full(&mut inner, session);
                 true
             }
             Err(e) => {
