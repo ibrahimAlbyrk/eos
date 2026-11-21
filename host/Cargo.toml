@@ -52,6 +52,8 @@ unwrap_used = "warn"
 # tauri-runtime-cef 3.0.0-alpha.7 with the "no bridge" patch (patches/0001), the
 # launch-without-activation switch (patches/0003) and contained popups (patches/0004).
 tauri-runtime-cef = { path = "vendor/tauri-runtime-cef" }
+# As the main workspace (its Cargo.toml says why).
+model2vec-rs = { path = "../vendor/model2vec-rs" }
 
 [profile.dev]
 debug = 0

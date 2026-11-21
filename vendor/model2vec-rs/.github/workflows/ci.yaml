@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            build: cargo build --verbose
+            test: cargo test --verbose
+          - name: cli
+            build: cargo build --features cli --verbose
+            test: cargo test --features cli --verbose
+          - name: fancy-regex
+            build: cargo build --no-default-features --features fancy-regex --verbose
+            test: cargo test --no-default-features --features fancy-regex --verbose
+          - name: local-only
+            build: cargo build --no-default-features --features onig,local-only --verbose
+            test: cargo test --no-default-features --features onig,local-only --verbose
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Build
+        run: ${{ matrix.build }}
+
+      - name: Test
+        run: ${{ matrix.test }}
+
+      - name: Lint (clippy)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Format check
+        run: cargo fmt -- --check
+
+  wasm-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: Check wasm feature set
+        run: RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo check --no-default-features --features wasm --target wasm32-unknown-unknown

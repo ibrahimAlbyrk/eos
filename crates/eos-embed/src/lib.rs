@@ -9,9 +9,11 @@
 //! Loading reads about 530 MB and takes about a second in a release build:
 //! call [`LocalEmbedder::load`] on a blocking thread. model2vec copies the
 //! table into memory (it maps only a `'static` slice, and mapping a file
-//! needs `unsafe`), so the loaded model holds about 1.1 GB: 512 MB of table
-//! and the rest the tokenizer's 500,000-piece vocabulary. Embedding a text
-//! takes well under a millisecond.
+//! needs `unsafe`), so the loaded model holds about 670 MB of heap: 512 MB of
+//! table and the rest its search over the 500,000-piece vocabulary. The
+//! `model2vec-rs` it uses is patched (`vendor/`, `patches/0001`) so the
+//! vocabulary is held once, not a second time inside the `tokenizers` crate's
+//! model. Embedding a text takes well under a millisecond.
 
 use std::fmt;
 use std::path::{Path, PathBuf};

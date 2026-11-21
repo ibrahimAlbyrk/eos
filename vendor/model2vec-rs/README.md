@@ -1,0 +1,264 @@
+<div align="center">
+    <picture>
+      <!-- Assuming this is the correct path for the Rust version's logo -->
+      <img width="35%" alt="Model2Vec Rust logo" src="assets/images/model2vec_rs_logo.png">
+    </picture>
+</div>
+
+<div align="center">
+  <h2>Fast State-of-the-Art Static Embeddings in Rust</h2>
+</div>
+
+<div align="center">
+  <!-- Badges: crates.io version, downloads, license, docs.rs -->
+  <a href="https://crates.io/crates/model2vec-rs"><img src="https://img.shields.io/crates/v/model2vec-rs.svg" alt="Crates.io"></a>
+  <a href="https://crates.io/crates/model2vec-rs"><img src="https://img.shields.io/crates/d/model2vec-rs.svg" alt="Downloads"></a>
+  <a href="https://docs.rs/model2vec-rs"><img src="https://docs.rs/model2vec-rs/badge.svg" alt="Docs.rs"></a>
+  <a href="https://discord.gg/4BDPR5nmtK">
+    <img src="https://img.shields.io/badge/Join-Discord-5865F2?logo=discord&logoColor=white" alt="Join Discord">
+    </a>
+  <a href="https://github.com/MinishLab/model2vec-rs/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
+  <!-- Optional: Add a build status badge if CI is set up -->
+  <!-- <a href="YOUR_CI_LINK_HERE"><img src="YOUR_CI_BADGE_LINK_HERE" alt="Build Status"></a> -->
+</div>
+
+<div align="center">
+  <p>
+    <a href="#quickstart"><strong>Quickstart</strong></a> •
+    <a href="#features"><strong>Features</strong></a> •
+    <a href="#models"><strong>Models</strong></a> •
+    <a href="#performance"><strong>Performance</strong></a> •
+    <a href="#relation-to-python-model2vec"><strong>Relation to Python Model2Vec</strong></a>
+  </p>
+</div>
+
+`model2vec-rs` is a Rust crate providing an efficient implementation for inference with [Model2Vec](https://github.com/MinishLab/model2vec) static embedding models. Model2Vec is a technique for creating compact and fast static embedding models from sentence transformers, achieving significant reductions in model size and inference speed. This Rust crate is optimized for performance, making it suitable for applications requiring fast embedding generation.
+
+## Quickstart
+
+You can utilize `model2vec-rs` in two ways:
+
+1.  **As a library** in your Rust projects 
+2.  **As a standalone Command-Line Interface (CLI) tool** for quick terminal-based inferencing
+
+---
+
+### 1. Using `model2vec-rs` as a Library
+
+Integrate `model2vec-rs` into your Rust application to generate embeddings within your code.
+
+**a. Add `model2vec-rs` as a dependency:**
+
+```bash
+cargo add model2vec-rs
+```
+
+**b. Load a model and generate embeddings:**
+```rust
+use anyhow::Result;
+use model2vec_rs::model::StaticModel;
+
+fn main() -> Result<()> {
+    // Load a model from the Hugging Face Hub or a local path.
+    // Arguments: (repo_or_path, hf_token, normalize_embeddings, subfolder_in_repo)
+    let model = StaticModel::from_pretrained(
+        "minishlab/potion-base-8M", // Model ID from Hugging Face or local path to model directory
+        None,                       // Optional: Hugging Face API token for private models
+        None,                       // Optional: bool to override model's default normalization. `None` uses model's config.
+        None                        // Optional: subfolder if model files are not at the root of the repo/path
+    )?;
+
+    let sentences = vec![
+        "Hello world".to_string(),
+        "Rust is awesome".to_string(),
+    ];
+
+    // Generate embeddings using default parameters
+    // (Default max_length: Some(512), all sentences in one batch)
+    let embeddings = model.encode(&sentences);
+    // `embeddings` is a Vec<Vec<f32>>
+    println!("Generated {} embeddings.", embeddings.len());
+
+    // To generate embeddings with custom arguments:
+    let custom_embeddings = model.encode_with_args(
+        &sentences,
+        Some(256), // Optional: custom max token length for truncation
+        512,       // Custom batch size for processing
+    );
+    println!("Generated {} custom embeddings.", custom_embeddings.len());
+
+    // `encode_flat` returns one row-major `Vec<f32>` of
+    // `sentences.len() * model.dim()` values. Use it when you want contiguous
+    // output or only read the rows; prefer `encode` if you need an owned
+    // `Vec<f32>` per sentence.
+    let flat = model.encode_flat(&sentences);
+    for row in flat.chunks_exact(model.dim()) {
+        println!("First value: {}", row[0]);
+    }
+
+    Ok(())
+}
+```
+
+**Alternative: Loading from in-memory bytes (`wasm` / embedded use cases):**
+
+When filesystem access is unavailable, use `from_bytes` instead of `from_pretrained`:
+
+```rust
+use model2vec_rs::model::StaticModel;
+
+let model = StaticModel::from_bytes(
+    include_bytes!("path/to/tokenizer.json").as_ref(),
+    include_bytes!("path/to/model.safetensors").as_ref(),
+    include_bytes!("path/to/config.json").as_ref(),
+    None, // normalize: None reads the value from config.json
+)?;
+
+let embeddings = model.encode(&["Hello world".to_string()]);
+```
+
+**Quantizing an f32 model to int8:**
+
+```rust
+use model2vec_rs::model::StaticModel;
+
+let model = StaticModel::from_pretrained("minishlab/potion-base-8M", None, None, None)?.quantize_int8();
+```
+
+`quantize_int8` stores the embeddings as int8 with one scale per row, using a quarter of the memory and encoding faster. Outputs stay very close to the f32 model (cosine similarity above 0.9998 on the potion models).
+
+See the [feature flags](#feature-flags) section for `wasm` and `local-only` build configurations.
+
+---
+
+### 2. Using the `model2vec-rs` CLI
+
+**a. Install the CLI tool:**
+This command compiles the crate in release mode (for speed) and installs the `model2vec-rs` executable to Cargo's binary directory `~/.cargo/bin/`.
+```bash
+cargo install model2vec-rs --features cli
+```
+Ensure `~/.cargo/bin/` is in your system's `PATH` to run `model2vec-rs` from any directory.
+The CLI is opt-in; default library builds do not include Clap.
+From a checkout, use `cargo run --release --features cli -- ...`.
+
+**b. Generate embeddings via CLI:**
+The compiled binary installed via `cargo install` is significantly faster (often >10x) than running via `cargo run -- ...` without release mode.
+
+*   **Encode a single sentence:**
+    ```shell
+    model2vec-rs encode-single "Hello world" "minishlab/potion-base-8M"
+    ```
+    Embeddings will be printed to the console in JSON format. This command should take less than 0.1s to execute.
+
+*   **Encode multiple lines from a file and save to an output file:**
+    ```shell
+    echo -e "This is the first sentence.\nThis is another sentence." > my_texts.txt
+    model2vec-rs encode my_texts.txt "minishlab/potion-base-8M" --output embeddings_output.json
+    ```
+
+
+## Features
+
+*   **Fast Inference:** Optimized Rust implementation for fast embedding generation.
+*   **Hugging Face Hub Integration:** Load pre-trained Model2Vec models directly from the Hugging Face Hub using model IDs, or use models from local paths.
+*   **Model Formats:** Supports models with f32, f16, and i8 weight types stored in `safetensors` files. Int8 models (model2vec's `quantize_to="int8"`) stay int8 in memory, and f32 models can be quantized to int8 at load time with `quantize_int8`.
+*   **Flexible Loading:** Load models from the Hub (`from_pretrained`), raw bytes (`from_bytes`), or owned/borrowed data (`from_owned`, `from_borrowed`, and `from_owned_i8`, `from_borrowed_i8` for int8 embeddings) for embedded and WASM use cases.
+*   **Batch Processing:** Encodes multiple sentences in batches.
+*   **Configurable Encoding:** Allows customization of maximum sequence length and batch size during encoding.
+
+### Feature flags
+
+The crate exposes a few feature combinations for different runtimes:
+
+* `default`: native build with `onig` tokenization and optional Hugging Face Hub downloads
+* `cli`: build the command-line executable with Clap (not enabled by default)
+* `fancy-regex`: alternative tokenizer backend for native builds
+* `local-only`: disable remote model downloads and restrict loading to local paths or `from_bytes(...)`
+* `wasm`: minimal WebAssembly-oriented feature set for in-memory loading via `from_bytes(...)`
+
+Typical invocations:
+
+```bash
+# native local-only build
+cargo build --no-default-features --features onig,local-only
+
+# wasm (requires getrandom backend config)
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' \
+cargo check --no-default-features --features wasm --target wasm32-unknown-unknown
+```
+
+## What is Model2Vec?
+
+Model2Vec is a technique to distill large sentence transformer models into highly efficient static embedding models. This process significantly reduces model size and computational requirements for inference. For a detailed understanding of how Model2Vec works, including the distillation process and model training, please refer to the [main Model2Vec Python repository](https://github.com/MinishLab/model2vec) and its [documentation](https://github.com/MinishLab/model2vec/blob/main/docs/what_is_model2vec.md).
+
+This `model2vec-rs` crate provides a Rust-based engine specifically for **inference** using these Model2Vec models.
+
+## Models
+
+A variety of pre-trained Model2Vec models are available on the [HuggingFace Hub (MinishLab collection)](https://huggingface.co/collections/minishlab/model2vec-base-models-66fd9dd9b7c3b3c0f25ca90e). These can be loaded by `model2vec-rs` using their Hugging Face model ID or by providing a local path to the model files.
+
+| Model                                                                 | Language    | Sentence Transformer                                            | Params  | Task      |
+|-----------------------------------------------------------------------|------------|-----------------------------------------------------------------|---------|-----------|
+| [potion-base-32M](https://huggingface.co/minishlab/potion-base-32M)   | English    | [bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5) | 32.3M   | General   |
+| [potion-multilingual-128M](https://huggingface.co/minishlab/potion-multilingual-128M) | Multilingual | [bge-m3](https://huggingface.co/BAAI/bge-m3)      | 128M    | General   |
+| [potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) | English    | [bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5) | 32.3M   | Retrieval |
+| [potion-base-8M](https://huggingface.co/minishlab/potion-base-8M)     | English    | [bge-base-en-v1.5](https://huggingface.co/BAAI/bge-base-en-v1.5) | 7.5M    | General   |
+| [potion-code-16M-v2](https://huggingface.co/minishlab/potion-code-16M-v2) | Code       | [CodeRankEmbed](https://huggingface.co/nomic-ai/CodeRankEmbed) | 16.2M   | Code      |
+
+
+## Performance
+
+We compared `model2vec-rs` with the Python version of Model2Vec by encoding the same texts with [`potion-base-8M`](https://huggingface.co/minishlab/potion-base-8M) in both.
+
+| Implementation | Single thread       | All cores             | Model load |
+| -------------- | ------------------- | --------------------- | ---------- |
+| **Rust**       | 671K texts/second   | 3.06M texts/second    | 15 ms      |
+| **Python**     | 40K texts/second    | 134K texts/second     | 312 ms     |
+| **Speedup**    | **16.6×**           | **22.9×**             | **~20×**   |
+
+On a single thread, the Rust version is roughly **17×** faster than the Python version, and about **23×** faster when using all cores.
+
+To reproduce these numbers, run this from the repository root (it needs Rust and [`uv`](https://docs.astral.sh/uv/)):
+
+```sh
+uv run scripts/python_compare.py
+```
+
+The script downloads the corpus, builds [`benches/python_compare.rs`](benches/python_compare.rs), runs both implementations and prints the table above. See [`scripts/python_compare.py`](scripts/python_compare.py) for the options.
+
+Benchmark details:
+
+*   **Corpus:** 2,644 random articles from English Wikipedia: shard [`20231101.en/train-00017-of-00041.parquet`](https://huggingface.co/datasets/wikimedia/wikipedia/blob/b04c8d1ceb2f5cd4588862100d08de323dccfbaa/20231101.en/train-00017-of-00041.parquet) of [`wikimedia/wikipedia`](https://huggingface.co/datasets/wikimedia/wikipedia), shuffled with seed 0 and taken until they reach 1.1M words, joined by blank lines (7.0 MB, SHA-256 `c23440073f72900784a3f56a2318742ff055506b7a136f1e473edb4ef190d9e7`). The script rebuilds it byte for byte.
+*   **Texts:** each of the 64,738 non-empty lines (paragraphs and section headings, 17 words and 108 bytes on average) is one text. Every timed pass encodes all of them in a single `encode` call with the default `max_length` of 512.
+*   **Hardware:** Apple M3 Pro (12 cores), 18 GB RAM.
+*   **Software:** `model2vec-rs` 0.3.0 (release build, Rust 1.99.1); Python 3.14.3 with `model2vec` 0.10.0, `tokenizers` 0.23.3 and `numpy` 2.5.4.
+*   **Single thread:** `RAYON_NUM_THREADS=1` and `TOKENIZERS_PARALLELISM=false` for both; Python with `use_multiprocessing=False`.
+*   **All cores:** both with their defaults: Rust with Rayon parallelism; Python with tokenizer parallelism and `use_multiprocessing=True`, which spreads the texts over a process pool.
+*   **Method:** 5 alternating rounds of Rust and Python processes, 5 timed passes each after one warm-up pass; the table reports the median over the 25 passes.
+*   **Output:** the Rust and Python embeddings differ by at most 2.7e-7 per value (minimum cosine similarity 0.9999999).
+*   **Model load:** median time to load the model from the local Hugging Face cache; for Python this includes importing `model2vec`.
+
+## Relation to Python `model2vec`
+
+*   **`model2vec-rs` (This Crate):** High-performance Rust engine for up to 23x faster **Model2Vec inference**.
+*   **[`model2vec`](https://github.com/MinishLab/model2vec) (Python-based):** Handles model **distillation, training, fine-tuning**, and slower Python-based inference.
+
+## License
+
+MIT
+
+## Citing Model2Vec
+
+If you use Model2Vec in your research, please cite the following:
+```bibtex
+@software{minishlab2024model2vec,
+  author       = {Stephan Tulkens and {van Dongen}, Thomas},
+  title        = {Model2Vec: Fast State-of-the-Art Static Embeddings},
+  year         = {2024},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.17270888},
+  url          = {https://github.com/MinishLab/model2vec},
+  license      = {MIT}
+}
+```

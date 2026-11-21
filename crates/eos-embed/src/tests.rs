@@ -3,7 +3,17 @@
 
 use std::path::Path;
 
+use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
+
 use super::*;
+
+/// Counts the heap, so the real-model test can say what the loaded model holds.
+#[global_allocator]
+static HEAP: &StatsAlloc<std::alloc::System> = &INSTRUMENTED_SYSTEM;
+
+/// Held by each test that loads the real model, so one load never counts in
+/// another's heap.
+static REAL_MODEL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 const VOCAB: [&str; 5] = ["[UNK]", "lint", "push", "before", "template"];
 const DIMS: usize = 4;
@@ -88,8 +98,10 @@ async fn the_real_model_loads_and_puts_near_meanings_closer_than_unrelated_ones(
         eprintln!("skipped: {MODEL_DIR_VAR} is not set");
         return;
     };
+    let alone = REAL_MODEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let started = std::time::Instant::now();
     let embedder = LocalEmbedder::load(Path::new(&dir)).expect("the real model loads");
+    drop(alone);
     eprintln!("load: {:?}", started.elapsed());
     assert_eq!(embedder.dims(), 256);
     let texts: Vec<String> = [
@@ -120,4 +132,50 @@ async fn the_real_model_loads_and_puts_near_meanings_closer_than_unrelated_ones(
             cos(far.0, far.1)
         );
     }
+}
+
+/// English and Turkish texts whose vectors were recorded from model2vec-rs
+/// 0.4.0 as published, with the official potion-multilingual-128M.
+const RECORDED: [(&str, u64); 11] = [
+    ("Run the linter before you push.", 0x084b3fb2567139e8),
+    ("Lint the code before pushing it.", 0xbaa7ddc3249b0d70),
+    ("Push etmeden önce linter'ı çalıştır.", 0x8149a8cf1b0b8995),
+    ("Kodu göndermeden önce lint çalıştır.", 0x976ba315ce3778dd),
+    ("The database migration failed because the table already exists.", 0x693bc744e81007f0),
+    ("Veritabanı göçü tablo zaten var olduğu için başarısız oldu.", 0x5c82ba95f067db36),
+    ("Keep review remarks short and skip style nits.", 0xc6f35a4c00c9f0cb),
+    ("İnceleme notlarını kısa tut, biçim ayrıntılarını atla.", 0x9405fe72e8ad4a7f),
+    ("Ölçüm sonuçları dün akşamdan beri değişmedi; İstanbul'daki sunucu yavaş.", 0x5a596807c8d43cc9),
+    ("ünïcödé — mixed 123 symbols: ∑ ≤ ∞ 🙂", 0xd1f60c79d49608b3),
+    ("", 0x51d88627df287325),
+];
+
+/// FNV-1a over a vector's bits: equal hashes mean byte-for-byte equal vectors.
+fn bits_hash(vector: &[f32]) -> u64 {
+    vector
+        .iter()
+        .flat_map(|x| x.to_bits().to_le_bytes())
+        .fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+}
+
+/// The shipped model gives exactly the vectors recorded from the published
+/// loader, and the test reports what the loaded model holds on the heap.
+#[tokio::test]
+async fn the_real_model_gives_the_recorded_vectors_byte_for_byte() {
+    let Some(dir) = std::env::var_os(MODEL_DIR_VAR) else {
+        eprintln!("skipped: {MODEL_DIR_VAR} is not set");
+        return;
+    };
+    let alone = REAL_MODEL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let heap = Region::new(HEAP);
+    let embedder = LocalEmbedder::load(Path::new(&dir)).expect("the real model loads");
+    let change = heap.change();
+    drop(alone);
+    let live = change.bytes_allocated as i64 - change.bytes_deallocated as i64 + change.bytes_reallocated as i64;
+    eprintln!("live heap after load: {} MB", live / 1_000_000);
+    assert!(live < 800_000_000, "the model holds a second copy of its vocabulary: {live} bytes");
+    let texts: Vec<String> = RECORDED.iter().map(|(text, _)| (*text).to_owned()).collect();
+    let vectors = embedder.embed(&texts).await.expect("embeds");
+    let got: Vec<(&str, u64)> = RECORDED.iter().zip(&vectors).map(|((text, _), v)| (*text, bits_hash(v))).collect();
+    assert_eq!(got, RECORDED, "the vectors differ from the recorded ones");
 }
