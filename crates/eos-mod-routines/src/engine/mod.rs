@@ -241,13 +241,22 @@ pub(crate) async fn fail(
 /// Sends Eos's own words to one of a run's sessions, after its turn when it
 /// is busy; a session that ended comes back for it.
 pub(crate) async fn note(engine: &Engine, worker_id: &str, run_id: &str, text: &str) -> Result<(), Error> {
+    send_note(engine, worker_id, run_id, text, false).await
+}
+
+/// [`note`] with the user's words in it.
+pub(crate) async fn user_note(engine: &Engine, worker_id: &str, run_id: &str, text: &str) -> Result<(), Error> {
+    send_note(engine, worker_id, run_id, text, true).await
+}
+
+async fn send_note(engine: &Engine, worker_id: &str, run_id: &str, text: &str, from_user: bool) -> Result<(), Error> {
     let message = MessageInput {
         worker_id: worker_id.to_owned(),
         text: text.to_owned(),
         display_text: Some(text.to_owned()),
         queue_when_busy: true,
         origin: Some("routine".into()),
-        envelope: Some(Envelope::RoutineNote { run_id: run_id.to_owned() }),
+        envelope: Some(Envelope::RoutineNote { run_id: run_id.to_owned(), from_user }),
         ..MessageInput::default()
     };
     engine.sessions.dispatch(message).await.map(drop)

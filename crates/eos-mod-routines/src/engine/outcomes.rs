@@ -12,7 +12,7 @@ use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
 
 use super::gate::done;
-use super::{Engine, announce, move_run, note};
+use super::{Engine, announce, move_run, user_note};
 
 pub(crate) struct Outcomes(pub(crate) Arc<Engine>);
 
@@ -88,7 +88,7 @@ impl RunOutcomes for Outcomes {
             }
             if let Some(lead) = lead {
                 Engine::locked(&engine.held).remove(&lead);
-                if let Err(error) = note(&engine, &lead, &run_id, &text).await {
+                if let Err(error) = user_note(&engine, &lead, &run_id, &text).await {
                     tracing::warn!(run_id, %error, "a revised run's lead could not be told");
                 }
             }

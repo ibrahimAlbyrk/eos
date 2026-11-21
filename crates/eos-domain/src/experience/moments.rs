@@ -11,6 +11,7 @@ use serde_json::Value;
 use super::cues::{self, Cue};
 use super::note::{HookKind, Trust};
 use crate::EventRecord;
+use crate::envelope::EOS_NOTE_FIELD;
 
 /// A correction or rule cue counts only this early in a message.
 const CUE_CHARS: usize = 120;
@@ -265,6 +266,9 @@ impl Walk {
     }
 
     fn user_message(&mut self, row: &EventRecord, payload: &Value) {
+        if payload.get(EOS_NOTE_FIELD).and_then(Value::as_bool) == Some(true) {
+            return;
+        }
         let text = payload.get("text").and_then(Value::as_str).unwrap_or("");
         let message_cues = cues::from_message(text, None).cues;
         if let Some((stop, at)) = self.open_stop.take()
