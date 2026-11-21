@@ -164,6 +164,16 @@ fn what_belongs_to_a_note_goes_with_it() {
             })?;
             assert_eq!(tx.mem_vectors().all("m")?[0].vec, vec![1, -2, 127]);
             assert_eq!(tx.mem_vectors().missing("m", 10)?, vec![(rowid + 1, "other".to_owned())]);
+            tx.mem_vectors().put(&StoredVector {
+                note_rowid: rowid + 1,
+                model: "older".into(),
+                scale: 0.5,
+                vec: vec![3, 4, 5],
+            })?;
+            assert_eq!(tx.mem_vectors().missing("m", 10)?.len(), 1, "another model's vector does not count");
+            assert_eq!(tx.mem_vectors().keep_only("m")?, 1);
+            assert!(tx.mem_vectors().all("older")?.is_empty());
+            assert_eq!(tx.mem_vectors().all("m")?.len(), 1);
             tx.mem_versions().insert(&StoredNoteVersion {
                 note_id: "mn-a".into(),
                 rev: 1,

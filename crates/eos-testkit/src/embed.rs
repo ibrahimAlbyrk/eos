@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
 pub struct FakeEmbedder {
+    model: &'static str,
     dims: usize,
     /// Every batch it was asked to embed, in order.
     pub batches: Mutex<Vec<Vec<String>>>,
@@ -24,7 +25,12 @@ impl FakeEmbedder {
     pub const MODEL: &'static str = "fake-words-64";
 
     pub fn new() -> Self {
-        Self { dims: 64, batches: Mutex::new(Vec::new()), failing: AtomicBool::new(false) }
+        Self::named(Self::MODEL)
+    }
+
+    /// The same embedder under another model name, as a model that changed.
+    pub fn named(model: &'static str) -> Self {
+        Self { model, dims: 64, batches: Mutex::new(Vec::new()), failing: AtomicBool::new(false) }
     }
 
     fn vector(&self, text: &str) -> Vec<f32> {
@@ -50,7 +56,7 @@ impl Default for FakeEmbedder {
 
 impl Embedder for FakeEmbedder {
     fn model(&self) -> &str {
-        Self::MODEL
+        self.model
     }
 
     fn dims(&self) -> usize {

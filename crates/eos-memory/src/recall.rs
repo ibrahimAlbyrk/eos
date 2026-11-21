@@ -101,9 +101,18 @@ impl Recall {
     }
 
     /// Turns the search by meaning on with a loaded model: the vectors it
-    /// made earlier are read into memory.
+    /// made earlier are read into memory, and those of any other model are
+    /// removed, since they are never compared with its own. Notes left
+    /// without a vector wait for [`embed_missing`](Self::embed_missing).
     pub async fn with_meaning(&self, embedder: Arc<dyn Embedder>) -> Result<(), Error> {
         let model = embedder.model().to_owned();
+        let stale = {
+            let model = model.clone();
+            self.store.write(move |tx, _| tx.mem_vectors().keep_only(&model)).await?
+        };
+        if stale > 0 {
+            tracing::info!(removed = stale, "memory: vectors of another model removed");
+        }
         let vectors = {
             let model = model.clone();
             self.store.read(move |tx| tx.mem_vectors().all(&model)).await?

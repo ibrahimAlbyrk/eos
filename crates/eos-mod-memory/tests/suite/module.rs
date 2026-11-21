@@ -61,6 +61,46 @@ async fn the_meaning_model_loads_at_start_and_without_one_recall_stays_on_words(
     assert_eq!(settled(&broken).await, EmbedderHealth::Off);
 }
 
+/// Vectors of `model` once there are `want` of them, or what there are after two seconds.
+async fn vectors_of(temp: &TempStore, model: &str, want: i64) -> i64 {
+    let sql = format!("SELECT COUNT(*) FROM mem_vectors WHERE model = '{model}'");
+    for _ in 0..200 {
+        if temp.count(&sql) == want {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    temp.count(&sql)
+}
+
+#[tokio::test]
+async fn every_note_gets_a_vector_of_the_loaded_model_and_a_changed_model_replaces_the_old_ones() {
+    let rig = crate::rig::Rig::new();
+    // More than one batch of notes, written before any model was there.
+    for i in 0..300 {
+        rig.note_about(&format!("mn-{i}"), &format!("Lesson number {i} about the build."), &format!("make {i}"));
+    }
+    let start = |model: &'static str| {
+        let fake = Arc::new(FakeEmbedder::named(model));
+        let handed = fake.clone();
+        let load: LoadEmbedder = Box::new(move || Ok(handed as Arc<dyn Embedder>));
+        (module(&rig.temp, Some(load)), fake)
+    };
+
+    let (first, fake) = start("model-a");
+    first.start().await.unwrap();
+    assert_eq!(vectors_of(&rig.temp, "model-a", 300).await, 300, "embedded in the background at start");
+    let batches: Vec<usize> = fake.batches.lock().unwrap().iter().map(Vec::len).collect();
+    assert_eq!(batches, [256, 44], "in batches");
+    first.stop().await;
+
+    let (second, _) = start("model-b");
+    second.start().await.unwrap();
+    assert_eq!(vectors_of(&rig.temp, "model-b", 300).await, 300, "every note again, by the new model");
+    assert_eq!(vectors_of(&rig.temp, "model-a", 0).await, 0, "the old model's vectors are gone");
+    second.stop().await;
+}
+
 mod capture {
     use std::sync::Arc;
     use std::time::Duration;

@@ -138,6 +138,8 @@ pub trait MemVectorRepo {
     fn all(&self, model: &str) -> Result<Vec<StoredVector>, Error>;
     /// Up to `limit` notes, not forgotten, with no vector by `model`: row number and text.
     fn missing(&self, model: &str, limit: i64) -> Result<Vec<(i64, String)>, Error>;
+    /// Removes every vector made by a model other than `model`; answers how many.
+    fn keep_only(&self, model: &str) -> Result<usize, Error>;
     fn clear(&self) -> Result<(), Error>;
 }
 
