@@ -47,6 +47,17 @@ export function applyHalt(payload) {
   set({ halt: payload, resumed: payload.on ? false : state.resumed });
 }
 
+// POST halt: Stop everything → true once the core switched it on.
+export async function stopEos() {
+  const r = await transport.send("POST", ROUTES.eosHalt, {}).catch(() => null);
+  if (r?.ok && r.body?.on === true) {
+    set({ halt: r.body, resumed: false });
+    return true;
+  }
+  notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Eos" });
+  return false;
+}
+
 // POST resume: true once the core switched it off.
 export async function resumeEos() {
   const r = await transport.send("POST", ROUTES.eosResume, {}).catch(() => null);

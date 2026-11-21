@@ -1,7 +1,8 @@
 // Settings registry — the single place sections and their items live.
 // SettingsSection contract (documented, not enforced — plain objects):
 //   { id, label, Icon, groups: [{ title, items: [SettingItem] }],
-//     requires?: feature }   // shown only where this computer offers it (featuresStore)
+//     requires?: feature,    // shown only where this computer offers it (featuresStore)
+//     visible?: () => bool } // shown only while this holds (Eos mode is shown)
 // SettingItem:
 //   { key, label, description?, control: { type, ...props }, defaultValue,
 //     visibleWhen?: (settings) => bool }   // conditional rows (e.g. mode-dependent)
@@ -15,6 +16,8 @@ import { useState } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
 import { getFeatures } from "../state/featuresStore.js";
+import { isEosShown } from "../state/eos/eosStatusStore.js";
+import { EosModeIcon } from "../views/eos/meta.jsx";
 import { EditorSelect } from "./EditorSelect.jsx";
 import { modLabel, shortcutLabel } from "../lib/platform.js";
 import { preloadable } from "../lib/preloadable.js";
@@ -40,6 +43,7 @@ const RemoteAccessSettings = pane("RemoteAccessSettings");
 const MachinesSettings = pane("MachinesSettings");
 const SyncSettings = pane("SyncSettings");
 const UpdatesSettings = pane("UpdatesSettings");
+const EosSettings = pane("EosSettings");
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -339,6 +343,15 @@ export const SETTINGS_SECTIONS = [
     ],
   },
   {
+    id: "eos",
+    label: "Eos",
+    Icon: EosModeIcon,
+    // Custom Component: Eos mode's settings (09 §4.5), each behind the route of
+    // the area that owns it. Owns no settings.json keys of its own.
+    Component: EosSettings,
+    visible: isEosShown,
+  },
+  {
     id: "accounts",
     label: "Accounts",
     Icon: AccountsIcon,
@@ -530,7 +543,7 @@ export const BUILTIN_PLUGIN_SETTINGS = {};
 
 // The sections this computer offers — what the modal and the palette list.
 export const visibleSections = (features = getFeatures()) =>
-  SETTINGS_SECTIONS.filter((s) => !s.requires || features[s.requires] !== false);
+  SETTINGS_SECTIONS.filter((s) => (!s.requires || features[s.requires] !== false) && (!s.visible || s.visible()));
 
 export const SETTING_DEFAULTS = {
   ...Object.fromEntries(
