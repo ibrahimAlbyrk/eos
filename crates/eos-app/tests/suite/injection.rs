@@ -114,7 +114,7 @@ async fn hand_in(app: &App, agents: &ScriptedRuntime, lead: &str, doc: Value, ch
         started.filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker")).map(|s| s.worker_id)
     };
     eventually("a checker starts", || async { checkers().count() > checkers_before }).await;
-    let checker = checkers().last().expect("a checker");
+    let checker = checkers().next_back().expect("a checker");
     let verdict = json!({"pass": true, "checks": [], "mustFix": []});
     let reply = call_tool(app, agents, &checker, "submit_verdict", verdict).await;
     assert!(!reply.is_error, "{}", reply.text);
