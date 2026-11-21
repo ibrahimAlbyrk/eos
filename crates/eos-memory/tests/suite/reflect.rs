@@ -198,6 +198,28 @@ async fn without_a_model_the_rules_keep_the_user_s_words_and_ask_nothing() {
 }
 
 #[tokio::test]
+async fn a_note_the_user_forgot_is_not_learned_again() {
+    let b = bench(Gate::RulesOnly, true, false);
+    correction(&b, "No, that's wrong: use pnpm").await;
+    let first = b.temp.port().read(|tx| tx.mem_moments().pending(1)).await.unwrap().remove(0);
+    assert_eq!(b.reflector.pass().await.unwrap().learned, 1);
+    let id = b.temp.port().read(|tx| tx.mem_notes().ids()).await.unwrap().remove(0);
+    b.temp
+        .store
+        .write_blocking(move |tx, out| {
+            eos_memory::forget::forget_in(tx, out, &id, FakeClock::START_MS)?;
+            // The same moment seen again.
+            tx.mem_moments().insert(&StoredMoment { id: "mm-again".into(), ..first })
+        })
+        .unwrap();
+
+    let pass = b.reflector.pass().await.unwrap();
+    assert_eq!((pass.learned, pass.skipped), (0, 1), "the same lesson stays forgotten");
+    let live = b.temp.port().read(|tx| tx.mem_notes().list(&NoteQuery { limit: 10, ..NoteQuery::default() })).await;
+    assert!(live.unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn at_the_plan_line_or_the_daily_cap_moments_wait() {
     let b = bench(Gate::Wait, true, false);
     correction(&b, "No, that's wrong").await;

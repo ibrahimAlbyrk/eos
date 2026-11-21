@@ -125,7 +125,7 @@ pub fn note_item_in(tx: &dyn Tx, stored: &StoredNote, travel: Travel) -> Result<
 }
 
 fn tombstone(id: String, at: i64, fingerprint: &str) -> SyncItem {
-    let fingerprint: Value = serde_json::from_str(fingerprint).unwrap_or(Value::Null);
+    let fingerprint = serde_json::to_value(crate::forget::fingerprint_of(fingerprint)).unwrap_or(Value::Null);
     SyncItem { id, data: json!({"forgotten": true, "at": at, "fingerprint": fingerprint}), updated_at: to_f64(at) }
 }
 
@@ -346,7 +346,8 @@ fn forgotten_in(tx: &dyn Tx, out: &mut Outbox, note_id: &str, data: &Value) -> R
     let snapshot = stored.as_ref().map_or_else(|| "{}".to_owned(), |s| crate::forget::snapshot(&s.note).to_string());
     tx.mem_book().put_forgotten(&StoredForgotten {
         note_id: note_id.to_owned(),
-        fingerprint: data["fingerprint"].to_string(),
+        fingerprint: serde_json::to_string(&crate::forget::fingerprint_of(&data["fingerprint"].to_string()))
+            .unwrap_or_else(|_| "{}".into()),
         snapshot,
         at,
     })?;

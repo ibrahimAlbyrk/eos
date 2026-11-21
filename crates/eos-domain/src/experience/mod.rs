@@ -7,6 +7,7 @@
 pub mod budget;
 pub mod clean;
 pub mod cues;
+pub mod fingerprint;
 pub mod merge;
 pub mod moments;
 pub mod night;

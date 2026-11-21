@@ -269,7 +269,7 @@ impl Reflector {
                 Ok(merged)
             })
             .await?;
-        Ok(Outcome::Learned(merged.new))
+        Ok(merged.map_or(Outcome::Skipped, |merged| Outcome::Learned(merged.new)))
     }
 
     /// Asks the model: the draft, its merge plan and the notes shown that the

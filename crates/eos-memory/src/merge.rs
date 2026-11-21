@@ -1,8 +1,9 @@
 //! Merge: what a reflection learned, written in one job. A new note comes
 //! with its hooks (a routine's note also with its routine's scope hook, which
 //! that routine's runs recall it by), its links, its first version and its evidence; a known
-//! lesson gains evidence; a replaced note is closed. The moment is marked
-//! reflected in the same job, and `memory:change` leaves after commit.
+//! lesson gains evidence; a replaced note is closed; a note the user forgot
+//! is not learned again (04 G24). The moment is marked reflected (or
+//! skipped) in the same job, and `memory:change` leaves after commit.
 
 use eos_contracts::ExperienceChange;
 use eos_core::store::{StoredEvidence, StoredHook, StoredLink, StoredMoment, StoredNoteVersion, Tx};
@@ -10,6 +11,8 @@ use eos_core::{Error, Ids};
 use eos_domain::experience::merge::MergePlan;
 use eos_domain::experience::reflect::Draft;
 use eos_domain::experience::{HookKind, Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, hook_id, state};
+
+use crate::forget::forgotten_again_in;
 
 /// Topic of notes learned, changed, forgotten, or their counts moved.
 pub const MEMORY_CHANGE: &str = "memory:change";
@@ -77,7 +80,8 @@ pub struct Merged {
     pub new: bool,
 }
 
-/// Writes `draft` by `plan` for `moment`, inside the caller's write job.
+/// Writes `draft` by `plan` for `moment`, inside the caller's write job;
+/// `None` when the draft is a note the user forgot.
 #[allow(clippy::too_many_arguments)]
 pub fn merge_in(
     tx: &dyn Tx,
@@ -89,19 +93,28 @@ pub fn merge_in(
     place: &Place,
     device: &str,
     now: i64,
-) -> Result<Merged, Error> {
+) -> Result<Option<Merged>, Error> {
     if let MergePlan::AddEvidence(id) = plan
         && tx.mem_notes().find(id)?.is_some_and(|n| n.forgotten_at.is_none())
     {
         tx.mem_evidence().insert(&evidence(ids, id, moment, &draft.evidence, device, now))?;
         tx.mem_moments().finish(&moment.id, "reflected", Some(id), now)?;
         out.push(MEMORY_CHANGE, &ExperienceChange { ids: vec![id.clone()], action: "changed".into() });
-        return Ok(Merged { note_id: id.clone(), new: false });
+        return Ok(Some(Merged { note_id: id.clone(), new: false }));
     }
     let (links, close) = match plan {
         MergePlan::Insert { links, close } => (links.clone(), close.clone()),
         MergePlan::AddEvidence(_) => (Vec::new(), Vec::new()),
     };
+    let scope = scope_at(draft.scope, draft.work_kind.as_deref(), place);
+    let scope_hook = (scope.level == ScopeLevel::Routine).then(|| (HookKind::Routine, scope.key.clone()));
+    let hooks: Vec<(HookKind, String)> =
+        draft.hooks.iter().map(|h| (h.kind, h.key.clone())).chain(scope_hook).collect();
+    let hook_ids: Vec<String> = hooks.iter().map(|(kind, key)| hook_id(*kind, key)).collect();
+    if forgotten_again_in(tx, &draft.text, &hook_ids, now)? {
+        tx.mem_moments().finish(&moment.id, "skipped", None, now)?;
+        return Ok(None);
+    }
     let id = ids.note_id();
     let hook_of = |key: &str| draft.hooks.iter().find(|h| h.key == key).map(|h| hook_id(h.kind, &h.key));
     let note = Note {
@@ -111,7 +124,7 @@ pub fn merge_in(
         body: body_of(draft),
         trust: draft.trust,
         state: state::initial(draft.trust),
-        scope: scope_at(draft.scope, draft.work_kind.as_deref(), place),
+        scope,
         valid_from: now,
         valid_to: draft.valid_for.map(|ms| now + ms),
         replaced_by: None,
@@ -123,16 +136,11 @@ pub fn merge_in(
     };
     let cues = draft.hooks.iter().map(|h| h.key.as_str()).collect::<Vec<_>>().join(" ");
     tx.mem_notes().insert(&note, &cues)?;
-    let mut hook_ids = Vec::new();
-    let scope_hook = (note.scope.level == ScopeLevel::Routine).then(|| (HookKind::Routine, note.scope.key.clone()));
-    let hooks = draft.hooks.iter().map(|h| (h.kind, h.key.clone())).chain(scope_hook);
-    for (kind, key) in hooks {
-        let hid = hook_id(kind, &key);
+    for ((kind, key), hid) in hooks.into_iter().zip(&hook_ids) {
         tx.mem_graph().add_hook(&StoredHook { id: hid.clone(), kind, key, label: String::new(), degree: 0 })?;
         let about =
             StoredLink { a: id.clone(), b: hid.clone(), rel: "about".into(), weight: 1.0, co_uses: 0, updated_at: now };
         tx.mem_graph().put_link(&about)?;
-        hook_ids.push(hid);
     }
     tx.mem_graph().recount_degrees(&hook_ids)?;
     for (from, to, rel) in links {
@@ -159,7 +167,7 @@ pub fn merge_in(
     if !changed.is_empty() {
         out.push(MEMORY_CHANGE, &ExperienceChange { ids: changed, action: "changed".into() });
     }
-    Ok(Merged { note_id: id, new: true })
+    Ok(Some(Merged { note_id: id, new: true }))
 }
 
 /// A note as it stands at `rev`, kept in its history.
