@@ -158,14 +158,16 @@ checkout and again whenever you like (it keeps what is in place and prints what 
   checked against the SHA-256 in the script, under `.work/tools/esbuild-<version>/`: the bundle
   ships it, and development builds and tests of this checkout find it there
   (`eos_plugin_build::locate`);
-- memory's meaning model, the official `minishlab/potion-multilingual-128M` at full size (f32,
-  about 530 MB), the three files pinned with their sizes, SHA-256 values and URLs in
-  `scripts/model.sh`, from Hugging Face at one revision, under `.work/models/`. Set
-  `EOS_BUNDLE_MODEL_DIR` to a folder that already holds the three files and nothing is
-  fetched: setup and `bundle.sh` check that folder instead. Loaded, the model holds about
-  670 MB of heap: 512 MB of table, the rest its vocabulary search. The repository's
-  `vendor/model2vec-rs` is patched to keep the vocabulary once (`ARCHITECTURE.md`, "A patched
-  upstream crate");
+- memory's meaning model, `ibrahimAlbyrk/potion-multilingual-128M-en-tr-int8` (about 70 MB):
+  the official `minishlab/potion-multilingual-128M` cut to its English and Turkish vocabulary
+  and stored as int8 with one scale per row. It covers English and Turkish only; text in
+  another script embeds character by character, poorly. The three files are pinned with their
+  sizes, SHA-256 values and URLs in `scripts/model.sh`, from Hugging Face at one revision,
+  under `.work/models/`. Set `EOS_BUNDLE_MODEL_DIR` to a folder that already holds the three
+  files and nothing is fetched: setup and `bundle.sh` check that folder instead. Loaded, the
+  model holds about 120 MB of heap, its table kept int8: 60 MB of table, the rest its
+  vocabulary search. The repository's `vendor/model2vec-rs` is patched to keep the vocabulary
+  once (`ARCHITECTURE.md`, "A patched upstream crate");
 - `npm ci` in `app/ui`, inside this checkout only, when its lockfile changed since the last
   install, and the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
 
@@ -212,7 +214,7 @@ font packages, the screen saver's clock faces) and from `scripts/setup.sh` (esbu
 meaning model).
 
 `Contents/Resources` holds, beside the dashboard (`dist`), `esbuild`, `claude-plugin`,
-`pdfjs`, `models/potion-multilingual-128M` (the meaning model, each file checked against
+`pdfjs`, `models/potion-multilingual-128M-en-tr-int8` (the meaning model, each file checked against
 `scripts/model.sh` before the build: one that differs fails it), the icon and the banner sound, two bundles of their own, each signed by itself
 before the app is sealed (`sign.sh`): `EosLocation.app` (the location helper) and
 `Eos.saver`, the screen saver. The saver is a loadable bundle the system's screen-saver host
@@ -522,7 +524,7 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
 | `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a dev run (see above) |
 | `EOS_LOG` | what is logged to stderr and `core.log`, as a `tracing` filter (default `warn,eos=info,eos_agent=warn`: Eos's own info, warnings of everything else) |
-| `EOS_EMBED_MODEL_DIR` | the folder of memory's meaning model (`tokenizer.json`, `model.safetensors`, `config.json` of potion-multilingual-128M) for a run outside the bundle; the bundle's `Resources/models/potion-multilingual-128M` otherwise. Without either, memory recalls by hooks and words only. Nothing downloads it. Set for `cargo test`, it also runs the tests that load the real model (`eos-embed`, the recall eval in `eos-memory`); without it they skip |
+| `EOS_EMBED_MODEL_DIR` | the folder of memory's meaning model (`tokenizer.json`, `model.safetensors`, `config.json` of potion-multilingual-128M-en-tr-int8) for a run outside the bundle; the bundle's `Resources/models/potion-multilingual-128M-en-tr-int8` otherwise. Without either, memory recalls by hooks and words only. Nothing downloads it. Set for `cargo test`, it also runs the tests that load the real model (`eos-embed`, the recall eval in `eos-memory`); without it they skip |
 | `EOS_GITHUB_CLIENT_ID` | the OAuth App GitHub's sign-in asks for (`github.clientId` in `config.json` wins over it; default `Ov23li8QQZilyzYjPuab`, Eos's own; empty, GitHub needs setting up with `client_id_missing`) |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-run`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-run`: steps on test views (`eos/src/dev/script.rs`) |

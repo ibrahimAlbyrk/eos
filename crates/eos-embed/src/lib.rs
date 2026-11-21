@@ -1,16 +1,20 @@
 //! Memory's meaning vectors on this Mac: the `Embedder` port over a static
-//! model2vec model (the official potion-multilingual-128M, f32) read from a
-//! folder the host hands in. The installed app's folder is inside its bundle
-//! (`Contents/Resources/models/potion-multilingual-128M`); a dev run names
-//! one with `EOS_EMBED_MODEL_DIR`. A test uses a fake, and the real model only
-//! where that variable names its folder. Nothing is downloaded and no text
-//! leaves the process.
+//! model2vec model read from a folder the host hands in. What ships is
+//! potion-multilingual-128M-en-tr-int8: the official potion-multilingual-128M
+//! cut to its English and Turkish vocabulary (234,823 pieces), int8 with one
+//! scale per row, about 70 MB of files. It covers English and Turkish only:
+//! text in another script falls apart into single characters and embeds
+//! poorly. The installed app's folder is inside its bundle
+//! (`Contents/Resources/models/potion-multilingual-128M-en-tr-int8`); a dev
+//! run names one with `EOS_EMBED_MODEL_DIR`. A test uses a fake, and the real
+//! model only where that variable names its folder. Nothing is downloaded and
+//! no text leaves the process.
 //!
-//! Loading reads about 530 MB and takes about a second in a release build:
-//! call [`LocalEmbedder::load`] on a blocking thread. model2vec copies the
-//! table into memory (it maps only a `'static` slice, and mapping a file
-//! needs `unsafe`), so the loaded model holds about 670 MB of heap: 512 MB of
-//! table and the rest its search over the 500,000-piece vocabulary. The
+//! Loading takes about half a second in a release build: call
+//! [`LocalEmbedder::load`] on a blocking thread. model2vec copies the table
+//! into memory as it is stored, int8 (it maps only a `'static` slice, and
+//! mapping a file needs `unsafe`), so the loaded model holds about 120 MB of
+//! heap: 60 MB of table and the rest its search over the vocabulary. The
 //! `model2vec-rs` it uses is patched (`vendor/`, `patches/0001`) so the
 //! vocabulary is held once, not a second time inside the `tokenizers` crate's
 //! model. Embedding a text takes well under a millisecond.
