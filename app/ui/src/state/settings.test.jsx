@@ -14,7 +14,7 @@ vi.mock("./composer.jsx", () => ({ useComposer: () => ({ updateComposer: () => {
 vi.mock("./selection.jsx", () => ({ useSelection: () => ({ resetToolToggles: () => {} }) }));
 vi.mock("../settings/theme.js", () => ({ THEME_STORAGE_KEY: "cm:theme", setTheme: () => {} }));
 const setEosPreview = vi.hoisted(() => vi.fn());
-vi.mock("./eos/eosStatusStore.js", () => ({ setEosPreview }));
+vi.mock("./eos/eosStatusStore.js", () => ({ setEosPreview, isEosShown: () => false }));
 
 const { SettingsProvider } = await import("./settings.jsx");
 
