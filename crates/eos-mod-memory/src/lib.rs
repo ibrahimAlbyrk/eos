@@ -81,8 +81,8 @@ use crate::reminders::Reminders;
 pub const MEMORY_CHANGE: Topic<ExperienceChange> = Topic::new("memory:change");
 pub const MEMORY_RECALLED: Topic<ExperienceRecalledEvent> = Topic::new(eos_memory::deliver::MEMORY_RECALLED);
 
-/// Loads the meaning model: slow (about 530 MB read), so it runs on a
-/// blocking thread.
+/// Loads the meaning model: slow (about 70 MB read and indexed), so it runs
+/// on a blocking thread.
 pub type LoadEmbedder = Box<dyn FnOnce() -> Result<Arc<dyn Embedder>, String> + Send>;
 
 /// Where the meaning model stands, as the Memory screen's health shows it.
