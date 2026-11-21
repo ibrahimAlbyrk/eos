@@ -14,6 +14,7 @@ mod boot;
 mod capabilities;
 mod crash;
 mod flows;
+mod injection;
 mod isolation;
 mod machines;
 mod notes;
