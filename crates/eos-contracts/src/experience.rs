@@ -296,5 +296,62 @@ pub struct ExperienceStated {
 
 impl Validate for ExperienceStated {}
 
+/// `POST /api/memory/forget-all`: `{confirm: true}` forgets every note Eos
+/// learned; `{undo: true}` brings back what the last one forgot, for 30 days.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ForgetAllRequest {
+    #[serde(default)]
+    pub confirm: bool,
+    #[serde(default)]
+    pub undo: bool,
+}
+
+impl Validate for ForgetAllRequest {}
+
+/// What forgetting everything, or undoing it, did.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ForgetAllAnswer {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forgotten: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restored: Option<i64>,
+}
+
+impl Validate for ForgetAllAnswer {}
+
+/// What a note was learned or confirmed from, as an export keeps it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ExperienceExportEvidence {
+    pub kind: String,
+    pub summary: String,
+    pub at: i64,
+}
+
+/// One live note in an export.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceExportNote {
+    pub id: String,
+    pub kind: String,
+    pub text: String,
+    pub trust: String,
+    pub state: String,
+    pub scope: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub evidence: Vec<ExperienceExportEvidence>,
+}
+
+/// `GET /api/memory/export`: every live note with its evidence, for the
+/// user to save as one file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceExport {
+    pub exported_at: i64,
+    pub notes: Vec<ExperienceExportNote>,
+}
+
+impl Validate for ExperienceExport {}
+
 #[cfg(test)]
 mod tests;

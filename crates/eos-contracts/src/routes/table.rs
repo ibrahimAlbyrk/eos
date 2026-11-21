@@ -392,6 +392,8 @@ pub const MEMORY_RECALLED: Route = Route::new("memoryRecalled", "/api/memory/rec
 pub const MEMORY_STATED: Route = Route::new("memoryStated", "/api/memory/stated", &[Get]).added();
 pub const MEMORY_SETTINGS: Route = Route::new("memorySettings", "/api/memory/settings", &[Get, Put]).added();
 pub const MEMORY_TIDY: Route = Route::new("memoryTidy", "/api/memory/tidy", &[Post]).added();
+pub const MEMORY_FORGET_ALL: Route = Route::new("memoryForgetAll", "/api/memory/forget-all", &[Post]).added();
+pub const MEMORY_EXPORT: Route = Route::new("memoryExport", "/api/memory/export", &[Get]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -752,4 +754,6 @@ pub const ROUTES: &[Route] = &[
     MEMORY_STATED,
     MEMORY_SETTINGS,
     MEMORY_TIDY,
+    MEMORY_FORGET_ALL,
+    MEMORY_EXPORT,
 ];

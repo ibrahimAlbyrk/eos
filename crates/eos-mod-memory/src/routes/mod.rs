@@ -1,7 +1,8 @@
 //! Memory's routes: the screen's head, what a chat or a run was reminded
 //! of, where stated rules were said, the two switches and "Tidy now"; the routes over
-//! notes are in [`notes`].
+//! notes are in [`notes`], forgetting everything and the export in [`everything`].
 
+mod everything;
 mod notes;
 mod view;
 
@@ -183,5 +184,6 @@ pub(crate) fn all(api: &Arc<Api>) -> Vec<RouteDef> {
     ]
     .into_iter()
     .chain(notes::all(api))
+    .chain(everything::all(api))
     .collect()
 }

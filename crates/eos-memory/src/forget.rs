@@ -15,6 +15,9 @@ use crate::merge::{MEMORY_CHANGE, version};
 /// How long a forgotten note can be brought back.
 pub const RESTORE_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 
+/// Where the last "Forget everything learned" is kept: its time.
+const FORGET_ALL_AT: &str = "forget_all.at";
+
 /// What bringing a note back came to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Restored {
@@ -89,4 +92,42 @@ pub fn restore_in(tx: &dyn Tx, out: &mut Outbox, note_id: &str, device: &str, no
     tx.mem_book().remove_forgotten(note_id)?;
     out.push(MEMORY_CHANGE, &ExperienceChange { ids: vec![note_id.to_owned()], action: "changed".into() });
     Ok(Restored::Done)
+}
+
+/// Forgets every note inside the caller's write job, and clears what was
+/// captured, used and the meaning vectors; About you is not memory's and
+/// stays. Answers how many notes were forgotten.
+pub fn forget_all_in(tx: &dyn Tx, out: &mut Outbox, now: i64) -> Result<usize, Error> {
+    let mut forgotten = 0;
+    for id in tx.mem_notes().ids()? {
+        forgotten += usize::from(forget_in(tx, out, &id, now)?);
+    }
+    tx.mem_moments().clear()?;
+    tx.mem_uses().clear()?;
+    tx.mem_vectors().clear()?;
+    tx.mem_book().set_setting(FORGET_ALL_AT, &now.to_string())?;
+    Ok(forgotten)
+}
+
+/// Brings back every note the last "Forget everything learned" forgot,
+/// inside the caller's write job: how many, or `TooLate` past
+/// [`RESTORE_MS`] (`NotForgotten` when there was none).
+pub fn undo_forget_all_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    device: &str,
+    now: i64,
+) -> Result<Result<usize, Restored>, Error> {
+    let Some(at) = tx.mem_book().setting(FORGET_ALL_AT)?.and_then(|at| at.parse::<i64>().ok()) else {
+        return Ok(Err(Restored::NotForgotten));
+    };
+    if now - at > RESTORE_MS {
+        return Ok(Err(Restored::TooLate));
+    }
+    let mut restored = 0;
+    for forgotten in tx.mem_book().forgotten_since(at)?.into_iter().filter(|f| f.at == at) {
+        restored += usize::from(restore_in(tx, out, &forgotten.note_id, device, now)? == Restored::Done);
+    }
+    tx.mem_book().set_setting(FORGET_ALL_AT, "")?;
+    Ok(Ok(restored))
 }
