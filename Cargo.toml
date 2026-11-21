@@ -190,15 +190,15 @@ dbg_macro = "warn"
 todo = "warn"
 unwrap_used = "warn"
 
-# One address space holds every agent: a panic must unwind to its task's
-# boundary instead of ending the app.
-# Test and debug builds keep line numbers for our own crates only: with full
-# debug info a build folder is several times larger and slower to link.
 [patch.crates-io]
 # model2vec-rs 0.4.0 with patches/0001: the loaded meaning model keeps one copy of its vocabulary.
 # `scripts/check-patches.sh` proves vendor/ is upstream plus patches/.
 model2vec-rs = { path = "vendor/model2vec-rs" }
 
+# One address space holds every agent: a panic must unwind to its task's
+# boundary instead of ending the app.
+# Test and debug builds keep line numbers for our own crates only: with full
+# debug info a build folder is several times larger and slower to link.
 [profile.dev]
 debug = "line-tables-only"
 
