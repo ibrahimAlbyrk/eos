@@ -10,6 +10,7 @@ import { openLocation } from "../nav/eosNav.js";
 import { DocView } from "../needs/results/ResultView.jsx";
 import { RoutinePage } from "../routine/RoutinePage.jsx";
 import { RunCost } from "./RunCost.jsx";
+import { RunMemory } from "./RunMemory.jsx";
 import { Interruptions, RunStations } from "./RunStations.jsx";
 import { RunTook } from "./RunTook.jsx";
 import { TeamCard } from "./TeamCard.jsx";
@@ -134,6 +135,7 @@ function RunBody({ detail, options, result, lines, devRun }) {
         <aside className="eos-run-aside" aria-label="About this run">
           <RunTook input={detail.input} options={options} />
           <RunCost run={run} usual={detail.usual} />
+          <RunMemory runId={run.id} />
         </aside>
       </div>
     </div>

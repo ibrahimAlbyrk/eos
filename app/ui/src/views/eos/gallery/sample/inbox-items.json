@@ -369,5 +369,24 @@
         ]
       }
     }
+  },
+  {
+    "item": {
+      "id": "ib-6f2g8h4j0k1l",
+      "kind": "freedom_offer",
+      "state": "open",
+      "attention": "silent",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "title": "Let PR Review send, then tell you",
+      "summary": "You sent its last 10 results as Eos made them. It can send them itself and tell you after, with a short time to undo.",
+      "rev": 1,
+      "createdAt": 1763440000000,
+      "updatedAt": 1763440000000
+    },
+    "payload": {
+      "from": "draft",
+      "rung": "send_then_tell",
+      "streak": 10
+    }
   }
 ]

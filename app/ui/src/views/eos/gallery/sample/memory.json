@@ -525,5 +525,125 @@
    ],
    "device": "MacBook"
   }
- ]
+ ],
+ "recalled": {
+  "runId": "rn-9c1v5b0z2w8e",
+  "notes": [
+   {
+    "row": {
+     "id": "mn-000000000001",
+     "kind": "lesson",
+     "text": "Keep the summary under five lines",
+     "why": "You shortened four before sending",
+     "source": "edits",
+     "state": "trying",
+     "trust": "did",
+     "helped": 3,
+     "used": 4,
+     "strength": 0.8,
+     "scope": {
+      "level": "routine",
+      "key": "rt-4k2n8q1x7m3p",
+      "label": "rt-4k2n8q1x7m3p"
+     },
+     "rev": 1,
+     "updatedAt": 1794192800000
+    },
+    "how": "pack",
+    "at": 1794192800000
+   },
+   {
+    "row": {
+     "id": "mn-000000000002",
+     "kind": "fact",
+     "text": "Docs-only pull requests go out without asking",
+     "why": "You said so",
+     "source": "states_rule",
+     "state": "firm",
+     "trust": "said",
+     "helped": 5,
+     "used": 6,
+     "strength": 1.0,
+     "scope": {
+      "level": "routine",
+      "key": "rt-4k2n8q1x7m3p",
+      "label": "rt-4k2n8q1x7m3p"
+     },
+     "rev": 1,
+     "updatedAt": 1794092000000
+    },
+    "how": "pack",
+    "at": 1794192801000
+   },
+   {
+    "row": {
+     "id": "mn-000000000003",
+     "kind": "lesson",
+     "text": "Run lint before pushing",
+     "why": "A push failed, lint fixed it",
+     "source": "command_fails",
+     "state": "trying",
+     "trust": "outcome",
+     "helped": 4,
+     "used": 5,
+     "strength": 0.8,
+     "scope": {
+      "level": "project",
+      "key": "pk-game",
+      "label": "game-client"
+     },
+     "rev": 1,
+     "updatedAt": 1794182000000
+    },
+    "how": "pack",
+    "at": 1794192802000
+   },
+   {
+    "row": {
+     "id": "mn-000000000005",
+     "kind": "skill",
+     "text": "On macOS, sed -i needs an empty suffix",
+     "why": "A command failed twice",
+     "source": "command_fails",
+     "state": "firm",
+     "trust": "outcome",
+     "helped": 7,
+     "used": 9,
+     "strength": 0.8,
+     "scope": {
+      "level": "everywhere",
+      "key": "",
+      "label": ""
+     },
+     "rev": 1,
+     "updatedAt": 1793912000000
+    },
+    "how": "reminder",
+    "at": 1794192803000
+   },
+   {
+    "row": {
+     "id": "mn-000000000001",
+     "kind": "lesson",
+     "text": "Keep the summary under five lines",
+     "why": "You shortened four before sending",
+     "source": "edits",
+     "state": "trying",
+     "trust": "did",
+     "helped": 3,
+     "used": 4,
+     "strength": 0.8,
+     "scope": {
+      "level": "routine",
+      "key": "rt-4k2n8q1x7m3p",
+      "label": "rt-4k2n8q1x7m3p"
+     },
+     "rev": 1,
+     "updatedAt": 1794192800000
+    },
+    "how": "reminder",
+    "at": 1794192804000
+   }
+  ]
+ }
 }

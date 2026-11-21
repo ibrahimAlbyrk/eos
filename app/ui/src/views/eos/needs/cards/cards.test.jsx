@@ -121,7 +121,8 @@ describe("the other cards", () => {
       routine_alert: ["Resume", "Keep paused", "Open", "Later", "Discard"],
       confirm_change: ["Confirm", "Reject", "Later", "Discard"],
       delivery_problem: ["Try again", "Edit and retry", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
-      about_you: ["Yes, keep it", "No"],
+      about_you: ["Yes, keep it", "No", "Edit"],
+      freedom_offer: ["Allow", "Not now", "Later", "Discard"],
     };
     for (const [kind, labels] of Object.entries(expected)) expect(buttons(await screen(kind)), kind).toEqual(labels);
   });
@@ -215,11 +216,41 @@ describe("the other cards", () => {
     expect(t.send.mock.calls.map(([, path]) => path)).toEqual([ROUTES.userMemoryApprove("um-2p6o0i4u8y"), ROUTES.userMemoryDismiss("um-2p6o0i4u8y")]);
   });
 
+  it("keep a guess in the user's words after Edit, and as it is when the words did not change", async () => {
+    await screen("about_you");
+    const t = recording();
+    setEosTransport(t);
+    const values = {};
+    actionsOf(byKind.about_you).find((a) => a.label === "Edit").run(byKind.about_you, values, (k, v) => { values[k] = v; });
+    expect(values.text).toBe("You prefer short reviews with the blocking findings first.");
+    expect(actionsOf(byKind.about_you, values).map((a) => a.label)).toEqual(["Yes, keep it", "No"]);
+    await act("about_you", "Yes, keep it", values);
+    expect(t.send).toHaveBeenCalledTimes(1);
+    await act("about_you", "Yes, keep it", { text: "You prefer short reviews." });
+    expect(t.send.mock.calls.slice(1)).toEqual([
+      ["PUT", ROUTES.userMemory("um-2p6o0i4u8y"), { text: "You prefer short reviews." }],
+      ["POST", ROUTES.userMemoryApprove("um-2p6o0i4u8y"), {}],
+    ]);
+  });
+
+  it("answer a freedom offer with Allow or Not now", async () => {
+    const offer = byKind.freedom_offer;
+    const html = await screen("freedom_offer");
+    expect(html).toContain("You sent its last 10 results as Eos made them.");
+    const t = recording();
+    setEosTransport(t);
+    for (const label of ["Allow", "Not now"]) await actionsOf(offer).find((a) => a.label === label).run(offer, {});
+    expect(t.send.mock.calls.map(([, , body]) => body.answer)).toEqual([
+      { kind: "freedom_offer", choice: "accept" },
+      { kind: "freedom_offer", choice: "not_now" },
+    ]);
+  });
+
   it("show a kind with no card as its title and summary, with Open and Later", async () => {
-    const offer = { ...byKind.confirm_change, item: { ...byKind.confirm_change.item, id: "ib-offer0000001", kind: "freedom_offer", title: "Let PR Review send on its own?", summary: "Nine of the last ten went out unedited." } };
-    const html = await screen("freedom_offer", offer);
-    expect(html).toContain('<h1 class="eos-title">Let PR Review send on its own?</h1>');
-    expect(html).toContain("Nine of the last ten went out unedited.");
+    const other = { ...byKind.confirm_change, item: { ...byKind.confirm_change.item, id: "ib-other0000001", kind: "capability_attention", title: "GitHub needs you", summary: "Its sign-in ran out." } };
+    const html = await screen("capability_attention", other);
+    expect(html).toContain('<h1 class="eos-title">GitHub needs you</h1>');
+    expect(html).toContain("Its sign-in ran out.");
     expect(buttons(html)).toEqual(["Open", "Later", "Discard"]);
   });
 });

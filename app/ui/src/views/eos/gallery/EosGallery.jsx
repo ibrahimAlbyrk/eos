@@ -34,7 +34,8 @@ import memory from "./sample/memory.json";
 // PR Review's triggers show a schedule in another zone, a source after a
 // catch-up and an open batch, with a signal of each group in its list; Mail
 // Triage's source needs a sign-in. Memory holds notes learned for PR Review,
-// a project and everywhere, one of them cooling.
+// a project and everywhere, one of them cooling; PR Review's run was given
+// four of them.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
   [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
@@ -57,6 +58,7 @@ export const SAMPLE_READS = {
   [ROUTES.memorySummary]: memory.summary,
   [ROUTES.memoryNotes]: memory.notes,
   ...Object.fromEntries(memory.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
+  [`${ROUTES.memoryRecalled}?runId=${memory.recalled.runId}`]: { notes: memory.recalled.notes },
 };
 
 // Eos's columns in the app's grid. The chrome around them (the mode switcher,

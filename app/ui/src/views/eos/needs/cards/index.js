@@ -10,7 +10,8 @@ import { docChanged, sendLabel } from "../editors/editDoc.js";
 import { currentEdit, DraftCard, isStale, originalDoc } from "./DraftCard.jsx";
 import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
-import { AboutYouCard, PlainCard } from "./PlainCard.jsx";
+import { editedGuess, MemoryQuestion } from "./MemoryQuestion.jsx";
+import { PlainCard } from "./PlainCard.jsx";
 
 const answer = (kind, choice, label, primary = false) => ({
   label,
@@ -112,11 +113,26 @@ const KINDS = {
       answer("delivery_problem", "discard", "Don't send"),
     ],
   },
+  freedom_offer: { Body: PlainCard, actions: [answer("freedom_offer", "accept", "Allow", true), answer("freedom_offer", "not_now", "Not now")] },
   about_you: {
-    Body: AboutYouCard,
+    Body: MemoryQuestion,
     actions: [
-      { label: "Yes, keep it", primary: true, write: true, run: (detail) => decideSuggestion(detail.item.id, detail.payload.memory.id, true) },
+      {
+        label: "Yes, keep it",
+        primary: true,
+        write: true,
+        ready: (detail, values) => values.text === undefined || Boolean(values.text.trim()),
+        run: (detail, values) => decideSuggestion(detail.item.id, detail.payload.memory.id, true, editedGuess(detail, values)),
+      },
       { label: "No", write: true, run: (detail) => decideSuggestion(detail.item.id, detail.payload.memory.id, false) },
+      {
+        label: "Edit",
+        when: (detail, values) => values.text === undefined,
+        run: (detail, values, setValue) => {
+          setValue("text", detail.payload.memory.text);
+          return false;
+        },
+      },
     ],
   },
 };

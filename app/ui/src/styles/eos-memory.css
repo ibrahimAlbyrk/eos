@@ -80,3 +80,30 @@
 
 .eos-mem-about { padding: 0; }
 .eos-mem-about__bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+
+/* Memory in the other screens: a draft's Why aside and a run's aside. */
+.eos-needs-why, .eos-run-memory { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.eos-needs-why__note { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: var(--text-sm); }
+.eos-needs-why__text, .eos-run-memory__note {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+.eos-needs-why__from { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-needs-why__ask { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.eos-needs-why__ask input {
+  flex: 1;
+  min-width: 140px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--raised);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--fg);
+}

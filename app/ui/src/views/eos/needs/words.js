@@ -25,6 +25,7 @@ const PRIMARY = {
   run_start: "Decide",
   confirm_change: "Decide",
   about_you: "Decide",
+  freedom_offer: "Decide",
   delivery_problem: "Fix",
 };
 

@@ -21,13 +21,3 @@ export function PlainCard({ detail, values = {}, setValue }) {
     </div>
   );
 }
-
-// A suggestion about the user: Eos's guess, asked back.
-export function AboutYouCard({ detail }) {
-  return (
-    <div className="eos-needs-card">
-      <p className="eos-needs-card__lead">{detail.item.title}</p>
-      <p className="eos-needs-card__class">Is this right about you?</p>
-    </div>
-  );
-}
