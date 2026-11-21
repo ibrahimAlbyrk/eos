@@ -1,12 +1,17 @@
 //! Memory's meaning vectors on this Mac: the `Embedder` port over a static
-//! model2vec model (potion-multilingual-128M, int8) read from a folder the
-//! host hands in. The installed app's folder is inside its bundle
+//! model2vec model (the official potion-multilingual-128M, f32) read from a
+//! folder the host hands in. The installed app's folder is inside its bundle
 //! (`Contents/Resources/models/potion-multilingual-128M`); a dev run names
-//! one with `EOS_EMBED_MODEL_DIR`; a test hands in none and uses a fake.
-//! Nothing is downloaded and no text leaves the process.
+//! one with `EOS_EMBED_MODEL_DIR`. A test uses a fake, and the real model only
+//! where that variable names its folder. Nothing is downloaded and no text
+//! leaves the process.
 //!
-//! Loading reads about 130 MB: call [`LocalEmbedder::load`] on a blocking
-//! thread. Embedding a text takes well under a millisecond.
+//! Loading reads about 530 MB and takes about a second in a release build:
+//! call [`LocalEmbedder::load`] on a blocking thread. model2vec copies the
+//! table into memory (it maps only a `'static` slice, and mapping a file
+//! needs `unsafe`), so the loaded model holds about 1.1 GB: 512 MB of table
+//! and the rest the tokenizer's 500,000-piece vocabulary. Embedding a text
+//! takes well under a millisecond.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -17,6 +22,9 @@ use model2vec_rs::model::StaticModel;
 
 /// The files a model folder holds.
 pub const MODEL_FILES: [&str; 3] = ["tokenizer.json", "model.safetensors", "config.json"];
+
+/// The variable that names a model folder outside the bundle.
+pub const MODEL_DIR_VAR: &str = "EOS_EMBED_MODEL_DIR";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
