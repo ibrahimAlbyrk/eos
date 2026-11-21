@@ -121,6 +121,33 @@ async fn raising_and_stepping_down_are_new_kept_heads_that_only_go_their_way() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_step_down_lowers_what_the_gate_reads_and_drops_every_grant_until_the_user_raises_it() {
+    let bench = Bench::new(true);
+    let mut granted = with_rung("send_then_tell");
+    granted["freedom"]["grants"] =
+        json!([{"id": "docs", "when": {"fact": "draft", "is": false}, "rung": "on_its_own"}]);
+    let routine = bench.routine(RoutineState::Active, granted);
+    let control = bench.module.control();
+    assert_eq!(control.confirmed(&routine).await.expect("confirmed").freedom.grants.len(), 1);
+
+    control.step_down(&routine, "a sent review was undone").await.expect("steps down");
+    let confirmed = control.confirmed(&routine).await.expect("confirmed").freedom;
+    assert_eq!((confirmed.rung, confirmed.grants.len()), (Rung::Draft, 0), "the gate reads the step-down");
+
+    // At Draft already, a step-down still takes the grants away.
+    let mut draft_granted = with_rung("draft");
+    draft_granted["freedom"]["grants"] =
+        json!([{"id": "all", "when": {"fact": "draft", "is": false}, "rung": "on_its_own"}]);
+    let at_draft = bench.routine(RoutineState::Active, draft_granted);
+    control.step_down(&at_draft, "that was wrong").await.expect("steps down");
+    assert!(control.confirmed(&at_draft).await.expect("confirmed").freedom.grants.is_empty());
+
+    // Only the user raises it again.
+    control.raise(&routine, Rung::SendThenTell).await.expect("raises");
+    assert_eq!(control.confirmed(&routine).await.expect("confirmed").freedom.rung, Rung::SendThenTell);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_pause_and_its_resume_by_reason() {
     let bench = Bench::new(true);
     let first = bench.routine(RoutineState::Active, blueprint(1));
