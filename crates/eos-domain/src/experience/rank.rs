@@ -18,6 +18,21 @@ pub const REMINDER_THRESHOLD_TRYING: f64 = 0.65;
 /// A note rides in a pack at this score.
 pub const PACK_THRESHOLD: f64 = 0.35;
 
+/// Below this cosine the shipped model finds a note no more like a query
+/// than unrelated text is: a meaning hit there matches nothing.
+pub const MEANING_FLOOR: f64 = 0.15;
+/// From this cosine a meaning hit matches fully, as a hook does: a strong
+/// paraphrase, or the same advice in another language.
+pub const MEANING_FULL: f64 = 0.45;
+
+/// How well a note matches by meaning, from its cosine with the query:
+/// nothing up to [`MEANING_FLOOR`], rising evenly to a full match at
+/// [`MEANING_FULL`]. Both were chosen by the recall eval with the shipped
+/// model (`eos-memory`'s `tests/suite/eval.rs`).
+pub fn meaning_match(cosine: f64) -> f64 {
+    ((cosine - MEANING_FLOOR) / (MEANING_FULL - MEANING_FLOOR)).clamp(0.0, 1.0)
+}
+
 /// Ranking weight of a note's trust.
 pub fn trust_factor(trust: Trust) -> f64 {
     match trust {
@@ -114,6 +129,16 @@ mod tests {
         assert!((score(&wide_guess) - 0.7 * 0.7).abs() < 1e-9);
         let cooling = Candidate { state: NoteState::Cooling, ..full };
         assert!((score(&cooling) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_meaning_hit_matches_from_its_floor_to_full() {
+        assert_eq!(meaning_match(MEANING_FLOOR - 0.1), 0.0);
+        assert_eq!(meaning_match(MEANING_FLOOR), 0.0);
+        let halfway = (MEANING_FLOOR + MEANING_FULL) / 2.0;
+        assert!((meaning_match(halfway) - 0.5).abs() < 1e-9);
+        assert_eq!(meaning_match(MEANING_FULL), 1.0);
+        assert_eq!(meaning_match(0.9), 1.0);
     }
 
     #[test]

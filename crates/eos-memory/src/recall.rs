@@ -10,7 +10,7 @@ use eos_core::experience::Embedder;
 use eos_core::store::{Store, StoredNote, StoredVector, Tx};
 use eos_core::{Clock, Error};
 use eos_domain::experience::cues::Cue;
-use eos_domain::experience::rank::{Candidate, score};
+use eos_domain::experience::rank::{Candidate, meaning_match, score};
 use eos_domain::experience::spread::{Edge, spread};
 use eos_domain::experience::state::strength;
 use eos_domain::experience::{HookKind, ScopeLevel, hook_id};
@@ -221,7 +221,7 @@ fn ranked(
         let n = hits.len().max(1) as f64;
         by_row.extend(hits.iter().enumerate().map(|(i, h)| (h.rowid, 0.9 - 0.4 * i as f64 / n)));
     }
-    by_row.extend(meaning_hits.iter().map(|(rowid, sim)| (*rowid, sim.clamp(0.0, 1.0))));
+    by_row.extend(meaning_hits.iter().map(|(rowid, sim)| (*rowid, meaning_match(*sim))));
     let rows: Vec<i64> = by_row.iter().map(|(r, _)| *r).collect();
     let mut notes: HashMap<String, StoredNote> = HashMap::new();
     for note in tx.mem_notes().find_rows(&rows)? {

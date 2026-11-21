@@ -1,0 +1,746 @@
+{
+ "notes": [
+  {
+   "id": "mn-201",
+   "text": "Veritabanı yedeğini almadan hiçbir tabloyu silme.",
+   "scope": {
+    "level": "everywhere"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-yedek"
+    }
+   ]
+  },
+  {
+   "id": "mn-202",
+   "text": "Ödeme servisine istek atarken her zaman zaman aşımı ve yeniden deneme ekle.",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-odeme"
+    }
+   ]
+  },
+  {
+   "id": "mn-203",
+   "text": "Ana sayfadaki görseller sıkıştırılmadan yüklenmemeli.",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-gorsel"
+    }
+   ]
+  },
+  {
+   "id": "mn-204",
+   "text": "Oyun motorunu güncellemeden önce kayıt dosyalarının uyumluluğunu test et.",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-motor"
+    }
+   ]
+  },
+  {
+   "id": "mn-205",
+   "text": "Gece yarısından sonra üretim sunucularına dağıtım yapma.",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-gece"
+    }
+   ]
+  },
+  {
+   "id": "mn-206",
+   "text": "Commit mesajlarını kısa ve emir kipinde yaz.",
+   "scope": {
+    "level": "everywhere"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-mesaj"
+    }
+   ]
+  },
+  {
+   "id": "mn-207",
+   "text": "Gizli anahtarları asla depoya ekleme; ortam değişkenlerini kullan.",
+   "scope": {
+    "level": "everywhere"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-gizli"
+    }
+   ]
+  },
+  {
+   "id": "mn-208",
+   "text": "Yeni bir uç nokta eklerken belgeleri de güncelle.",
+   "scope": {
+    "level": "project",
+    "key": "api"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-belge"
+    }
+   ]
+  },
+  {
+   "id": "mn-209",
+   "text": "Erişilebilirlik için her görsele alternatif metin ekle.",
+   "scope": {
+    "level": "project",
+    "key": "site"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-erisim"
+    }
+   ]
+  },
+  {
+   "id": "mn-210",
+   "text": "Kare hızı altmışın altına düşerse profil çıkar.",
+   "scope": {
+    "level": "project",
+    "key": "game"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-kare"
+    }
+   ]
+  },
+  {
+   "id": "mn-211",
+   "text": "Disk doluluğu yüzde sekseni geçince uyarı gönder.",
+   "scope": {
+    "level": "project",
+    "key": "infra"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-disk"
+    }
+   ]
+  },
+  {
+   "id": "mn-212",
+   "text": "Kod incelemesinde önce testleri oku, sonra uygulamayı.",
+   "scope": {
+    "level": "everywhere"
+   },
+   "hooks": [
+    {
+     "kind": "topic",
+     "key": "tr-inceleme"
+    }
+   ]
+  }
+ ],
+ "situations": [
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the javascript style checker complains about my code",
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "applying table structure changes before the server starts",
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "stored expected outputs of the pages need refreshing",
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "bringing all containers online together for local development",
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the rust analyzer keeps nagging about style",
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "previewing cloud infrastructure changes before applying them",
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "fetching node dependencies for each folder of the monorepo",
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "rebuilding the images and sprites produced by the build",
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "preparing an isolated environment holding the needed libraries",
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "updating the text shown to users of other languages",
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "publishing a new numbered build plus notes about what changed",
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "downloads that fail now and then because the connection drops",
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "making the compiler reject values that might be empty",
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "redeploying the pods so they pick up the new config",
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "measuring how fast the code runs compared to last time",
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "changing the shape of tables inside the stored records",
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "starting every service inside containers on my machine",
+   "expect": "mn-028"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "complaints from the rust static analyzer",
+   "expect": "mn-039"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "the french and german wording on the pages",
+   "expect": "mn-086"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "restarting the deployment on the cluster",
+   "expect": "mn-124"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "container cannot start because something else listens on that socket",
+   "expect": "mn-036"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "another person applies cloud changes simultaneously so my work waits",
+   "expect": "mn-054"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "compiler says some field could be missing at runtime",
+   "expect": "mn-117"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "cluster cannot download our container picture",
+   "expect": "mn-126"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "javascript kod stili denetleyicisi uyarı veriyor",
+   "expect": "mn-001"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "veritabanı şemasını güncelleyen göç dosyalarını çalıştır",
+   "expect": "mn-012"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "anlık görüntü testlerini güncellemek gerekiyor",
+   "expect": "mn-023"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "tüm konteynerleri birlikte ayağa kaldır",
+   "expect": "mn-034"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "rust kod denetimi çok fazla uyarı veriyor",
+   "expect": "mn-037"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "bulut altyapı değişikliklerini uygulamadan önce önizle",
+   "expect": "mn-048"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "monorepo bağımlılıklarını yükle",
+   "expect": "mn-059"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "üretilen görselleri yeniden oluştur",
+   "expect": "mn-070"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "sanal ortamda gerekli kütüphaneleri kur",
+   "expect": "mn-073"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "çeviri dosyalarındaki metinleri güncelle",
+   "expect": "mn-084"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "yeni sürüm yayınla, değişiklik günlüğünü yaz",
+   "expect": "mn-095"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "ağ bağlantısı ara sıra kopuyor, istekler başarısız oluyor",
+   "expect": "mn-106"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "tip denetimini sıkı modda çalıştır",
+   "expect": "mn-109"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "kümedeki podları yeniden başlat",
+   "expect": "mn-120"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "performans ölçümlerini önceki sonuçlarla karşılaştır",
+   "expect": "mn-131"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "tablo yapısını değiştiren göçler",
+   "expect": "mn-016"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "bağlantı noktası dolu olduğu için konteyner açılmıyor",
+   "expect": "mn-036"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "bağlantı zaman aşımına uğradı",
+   "expect": "mn-108"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "nesne tanımsız olabilir hatası",
+   "expect": "mn-117"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "küme imajı indiremiyor",
+   "expect": "mn-126"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "never drop tables without taking backups first",
+   "expect": "mn-201"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "make copies of the data before removing anything",
+   "expect": "mn-201"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "calls to the billing service must give up after some seconds and try again",
+   "expect": "mn-202"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "compress pictures before putting them on the home page",
+   "expect": "mn-203"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "large images slow down the landing page",
+   "expect": "mn-203"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "check that old save files still load before upgrading the engine",
+   "expect": "mn-204"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "make sure saved games survive an engine update",
+   "expect": "mn-204"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "no deploys to production servers after midnight",
+   "expect": "mn-205"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "avoid shipping to live machines late at night",
+   "expect": "mn-205"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "write short imperative messages when saving changes to version control",
+   "expect": "mn-206"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "keep messages in version history brief and imperative",
+   "expect": "mn-206"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "never put secret keys in the repository, use environment variables",
+   "expect": "mn-207"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "credentials belong in env vars and not in source control",
+   "expect": "mn-207"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "update the docs whenever you add a new endpoint",
+   "expect": "mn-208"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "document each new route",
+   "expect": "mn-208"
+  },
+  {
+   "situation": {
+    "project": "site",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "every image needs some description for screen readers",
+   "expect": "mn-209"
+  },
+  {
+   "situation": {
+    "project": "game",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "profile it when frames per second fall under sixty",
+   "expect": "mn-210"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "send an alert when storage is more than eighty percent full",
+   "expect": "mn-211"
+  },
+  {
+   "situation": {
+    "project": "infra",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "warn me before storage fills up",
+   "expect": "mn-211"
+  },
+  {
+   "situation": {
+    "project": "api",
+    "routine": null
+   },
+   "hooks": [],
+   "query": "look at the spec changes first when reviewing a pull request",
+   "expect": "mn-212"
+  }
+ ]
+}
