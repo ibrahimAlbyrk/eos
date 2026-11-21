@@ -307,6 +307,10 @@ impl MemVectorRepo for SqliteTx<'_> {
         )
     }
 
+    fn keep_only(&self, model: &str) -> Result<usize, Error> {
+        self.exec("DELETE FROM mem_vectors WHERE model != ?1", [model])
+    }
+
     fn clear(&self) -> Result<(), Error> {
         self.exec("DELETE FROM mem_vectors", []).map(drop)
     }

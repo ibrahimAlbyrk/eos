@@ -416,8 +416,9 @@ impl ExperienceSearch for Search {
     }
 }
 
-/// Loads the model and turns meaning search on; a model that does not load
-/// leaves recall on hooks and words.
+/// Loads the model, turns meaning search on and then embeds, batch by batch,
+/// every note that has no vector of this model (all of them after the model
+/// changed); a model that does not load leaves recall on hooks and words.
 async fn load_meaning(load: LoadEmbedder, recall: Arc<Recall>, health: Arc<Mutex<EmbedderHealth>>) {
     let loaded = tokio::task::spawn_blocking(load).await.map_err(|e| e.to_string()).and_then(|r| r);
     let ready = match loaded {
@@ -435,6 +436,19 @@ async fn load_meaning(load: LoadEmbedder, recall: Arc<Recall>, health: Arc<Mutex
     };
     let state = if ready { EmbedderHealth::Ready } else { EmbedderHealth::Off };
     *health.lock().unwrap_or_else(PoisonError::into_inner) = state;
+    if !ready {
+        return;
+    }
+    loop {
+        match recall.embed_missing().await {
+            Ok(0) => return,
+            Ok(_) => {}
+            Err(e) => {
+                tracing::warn!(error = %e, "memory: notes waiting for a vector were not embedded");
+                return;
+            }
+        }
+    }
 }
 
 impl Module for MemoryModule {
