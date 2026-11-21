@@ -57,6 +57,8 @@ async fn a_note_applies_only_where_its_scope_does() {
     put(&temp, note("mn-game", "game only", project("game")), std::slice::from_ref(&push));
     put(&temp, note("mn-review", "the PR review routine's own", routine("rt-review")), std::slice::from_ref(&push));
     put(&temp, note("mn-all", "everywhere", Scope::everywhere()), std::slice::from_ref(&push));
+    let git = Scope { level: eos_domain::experience::ScopeLevel::Work, key: "git".into() };
+    put(&temp, note("mn-git", "git work only", git), std::slice::from_ref(&push));
     let recall = Recall::new(temp.port(), Arc::new(FakeClock::new()));
     let cues = Cues { hooks: vec![push], query: None };
 
@@ -66,7 +68,11 @@ async fn a_note_applies_only_where_its_scope_does() {
     let run = Situation { routine: Some("rt-review".into()), project: Some("game".into()), work_kind: None };
     let got = ids(&recall.recall(&run, &cues, 6).await.expect("recalls"));
     assert_eq!(got[0], "mn-review", "the narrowest scope ranks first");
-    assert_eq!(got.len(), 3);
+    assert_eq!(got.len(), 3, "a kind of work's note stays out where the kind is not known");
+    let at_git = Situation { work_kind: Some("git".into()), ..in_project("web") };
+    let mut git_work = ids(&recall.recall(&at_git, &cues, 6).await.expect("recalls"));
+    git_work.sort();
+    assert_eq!(git_work, ["mn-all", "mn-git"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
