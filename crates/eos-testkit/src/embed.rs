@@ -1,12 +1,14 @@
 //! An embedder that loads no model: each word adds to the dimensions its hash
 //! names, so texts that share words point the same way and a test can rely on
-//! meaning search without any model file.
+//! meaning search without any model file. And the real model, for the few
+//! tests that measure it, only where `EOS_EMBED_MODEL_DIR` names its folder.
 
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use eos_core::experience::Embedder;
 use eos_core::{BoxFuture, Error};
+use eos_embed::{LocalEmbedder, MODEL_DIR_VAR};
 use sha2::{Digest, Sha256};
 
 #[derive(Debug)]
@@ -64,4 +66,11 @@ impl Embedder for FakeEmbedder {
             Ok(texts.iter().map(|t| self.vector(t)).collect())
         })
     }
+}
+
+/// The shipped model from the folder `EOS_EMBED_MODEL_DIR` names; `None`
+/// without it, so a test that wants it skips. Never downloaded.
+pub fn real_embedder() -> Option<Arc<LocalEmbedder>> {
+    let dir = std::env::var_os(MODEL_DIR_VAR)?;
+    Some(Arc::new(LocalEmbedder::load(std::path::Path::new(&dir)).expect("the model folder loads")))
 }
