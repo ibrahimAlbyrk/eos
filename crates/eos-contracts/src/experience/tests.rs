@@ -33,7 +33,7 @@ fn the_settings_read_and_write_both_switches() {
 fn a_note_row_and_an_edit_read_and_write_in_order() {
     round_trip::<ExperienceNoteRow>(
         json!({"id": "mn-1", "kind": "lesson", "text": "Run lint first.", "why": "A push failed.",
-        "source": "command_fails", "state": "trying", "trust": "did", "helped": 1, "used": 2,
+        "source": "command_fails", "state": "trying", "trust": "did", "helped": 1, "used": 2, "strength": 0.5,
         "scope": {"level": "project", "key": "k", "label": "game-client"}, "rev": 3, "updatedAt": 9}),
     );
     round_trip::<ExperienceEditRequest>(
