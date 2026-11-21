@@ -79,3 +79,45 @@ fn a_folder_without_a_model_file_is_refused_by_name() {
     std::fs::write(dir.join("model.safetensors"), b"not a model").expect("write");
     assert!(matches!(LocalEmbedder::load(&dir), Err(Error::Invalid(_))));
 }
+
+/// The shipped model, loaded from the folder `EOS_EMBED_MODEL_DIR` names;
+/// skipped without it, so the normal check never needs the files.
+#[tokio::test]
+async fn the_real_model_loads_and_puts_near_meanings_closer_than_unrelated_ones() {
+    let Some(dir) = std::env::var_os(MODEL_DIR_VAR) else {
+        eprintln!("skipped: {MODEL_DIR_VAR} is not set");
+        return;
+    };
+    let started = std::time::Instant::now();
+    let embedder = LocalEmbedder::load(Path::new(&dir)).expect("the real model loads");
+    eprintln!("load: {:?}", started.elapsed());
+    assert_eq!(embedder.dims(), 256);
+    let texts: Vec<String> = [
+        "Run the linter before you push.",
+        "Lint the code before pushing it.",
+        "Push etmeden önce linter'ı çalıştır.",
+        "Kodu göndermeden önce lint çalıştır.",
+        "The cat sleeps on the warm sofa.",
+        "Kedi sıcak kanepede uyuyor.",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    let started = std::time::Instant::now();
+    let vectors = embedder.embed(&texts).await.expect("embeds");
+    eprintln!("per text: {:?}", started.elapsed() / texts.len() as u32);
+    for v in &vectors {
+        assert_eq!(v.len(), 256);
+        let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-4, "normalized: {norm}");
+    }
+    let cos = |a: usize, b: usize| -> f32 { vectors[a].iter().zip(&vectors[b]).map(|(x, y)| x * y).sum() };
+    // English near English, Turkish near Turkish, and each language near the other.
+    for (near, far) in [((0, 1), (0, 4)), ((2, 3), (2, 5)), ((0, 2), (0, 5)), ((5, 4), (5, 3))] {
+        assert!(
+            cos(near.0, near.1) > cos(far.0, far.1),
+            "{near:?} {} vs {far:?} {}",
+            cos(near.0, near.1),
+            cos(far.0, far.1)
+        );
+    }
+}
