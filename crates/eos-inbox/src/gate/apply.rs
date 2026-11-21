@@ -42,7 +42,9 @@ pub(crate) fn apply_in(
     }
     let control = gate.control()?;
     let at = Opening { now, ids, zone: gate.zone.as_ref(), control: control.as_ref() };
-    let facts = facts_of(&input.item_facts);
+    // What the source read wins over the item's own fields of the same name.
+    let mut facts = facts_of(&input.item_facts);
+    facts.extend(input.signal_facts.clone());
     let chosen = match choose(input, &facts) {
         Targets::Go(chosen) => chosen,
         Targets::Nowhere => return Ok(GateDecision::Shown),
