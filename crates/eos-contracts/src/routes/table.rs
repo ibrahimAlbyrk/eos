@@ -345,7 +345,7 @@ pub const SIGNALS_SCHEDULE_PREVIEW: Route =
     Route::new("signalsSchedulePreview", "/api/signals/schedule/preview", &[Post]).added();
 pub const SIGNALS_WHICH_PREVIEW: Route =
     Route::new("signalsWhichPreview", "/api/signals/which/preview", &[Post]).added();
-pub const SIGNALS_SETTINGS: Route = Route::new("signalsSettings", "/api/signals/settings", &[Put]).added();
+pub const SIGNALS_SETTINGS: Route = Route::new("signalsSettings", "/api/signals/settings", &[Get, Put]).added();
 pub const RUNNERS: Route = Route::new("runners", "/api/runners", &[Get]).added();
 pub const RUNNERS_CLAIM: Route = Route::new("runnersClaim", "/api/runners/claim", &[Post]).added();
 pub const INBOX: Route = Route::new("inbox", "/api/inbox", &[Get]).added();
