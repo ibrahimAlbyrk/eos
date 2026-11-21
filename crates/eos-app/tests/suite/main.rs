@@ -23,5 +23,6 @@ mod plan_switch;
 mod reach;
 mod read_path;
 mod result_shape;
+mod routine_e2e;
 mod routines;
 mod skeleton;
