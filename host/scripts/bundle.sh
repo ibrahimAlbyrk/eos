@@ -16,11 +16,15 @@
 #   EOS_ESBUILD          the esbuild binary that builds plugins. Default: the pinned release
 #                        scripts/setup.sh fetched. It must be the release `eos-plugin-build`
 #                        speaks; without one the bundle is not made.
+#   EOS_BUNDLE_MODEL_DIR a folder holding memory's meaning model. Default: the copy
+#                        scripts/setup.sh keeps. Either is checked against the pins in
+#                        model.sh; a file that differs fails the build. Never downloaded here.
 #   EOS_UPDATE_CHANNEL   `stable` marks a release bundle as one that updates itself
 #                        (Resources/update.json). Unset for every other build: a build from
 #                        source never replaces itself. See ../docs/first-rust-release.md.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
+source "$(dirname "$0")/model.sh"
 require_setup
 MODE="${1:-release}"
 case "$MODE" in
@@ -42,6 +46,10 @@ DIST="${EOS_UI_DIST:-$REPO/app/ui/dist}"
 ESBUILD="${EOS_ESBUILD:-$ESBUILD_BIN}"
 [ -x "$ESBUILD" ] || { echo "no esbuild binary: run host/scripts/setup.sh, or set EOS_ESBUILD" >&2; exit 1; }
 [ "$("$ESBUILD" --version)" = "$(esbuild_version)" ] || { echo "$ESBUILD is not esbuild $(esbuild_version)" >&2; exit 1; }
+# Checked before the long build, so a wrong file fails at once and never ships.
+MODEL="$(model_source)"
+[ -n "$MODEL" ] || { echo "no meaning model: run host/scripts/setup.sh, or set EOS_BUNDLE_MODEL_DIR" >&2; exit 1; }
+model_check "$MODEL" || { echo "$MODEL does not hold the pinned meaning model: not bundled" >&2; exit 1; }
 
 cd "$HOST_DIR"
 FLAG=(); [ "$PROFILE" = "release" ] && FLAG=(--release)
@@ -80,6 +88,13 @@ rsync -a --exclude "*.map" "$DIST/" "$APP/Contents/Resources/dist/" # the source
 # signs it again with the app's identity) and the skill that teaches agents to write plugins.
 cp "$ESBUILD" "$APP/Contents/Resources/esbuild"
 cp -R "$REPO/assets/claude-plugin" "$APP/Contents/Resources/claude-plugin"
+# Memory's meaning model (`eos_app::memory`), checked above. -c: a clone copy where the volume
+# supports it (APFS), so 530 MB cost no disk.
+mkdir -p "$APP/Contents/Resources/models/$MODEL_NAME"
+while read -r name _; do
+  cp -c "$MODEL/$name" "$APP/Contents/Resources/models/$MODEL_NAME/" 2>/dev/null \
+    || cp "$MODEL/$name" "$APP/Contents/Resources/models/$MODEL_NAME/"
+done <<<"$MODEL_PINS"
 # The PDF viewer of the raw-content origin (`Options.pdfjs_root`).
 cp -R "$REPO/assets/pdfjs" "$APP/Contents/Resources/pdfjs"
 # The CoreLocation helper the core runs for `GET /api/location`. A bundle, not a bare

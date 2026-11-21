@@ -137,8 +137,8 @@ saver/         the screen saver's source, Swift + Metal (`Eos.saver`, built by s
 scripts/       setup, env, check, bundle, sign, dev, try, launch on test data
 tests/         smoke run, browser run on a local page, memory measurement, local-network
                probe, proxy-script test; guard.py stops what a killed run started
-.work/         build caches (not in git): cmake, ninja and esbuild (scripts/setup.sh), cargo
-               registry, CEF (~460 MB), target, bundles
+.work/         build caches (not in git): cmake, ninja, esbuild and the meaning model
+               (scripts/setup.sh), cargo registry, CEF (~460 MB), target, bundles
 ```
 
 The portable half of the shell lives in the main workspace and is tested there without a
@@ -158,6 +158,11 @@ checkout and again whenever you like (it keeps what is in place and prints what 
   checked against the SHA-256 in the script, under `.work/tools/esbuild-<version>/`: the bundle
   ships it, and development builds and tests of this checkout find it there
   (`eos_plugin_build::locate`);
+- memory's meaning model, the official `minishlab/potion-multilingual-128M` at full size (f32,
+  about 530 MB), the three files pinned with their sizes, SHA-256 values and URLs in
+  `scripts/model.sh`, from Hugging Face at one revision, under `.work/models/`. Set
+  `EOS_BUNDLE_MODEL_DIR` to a folder that already holds the three files and nothing is
+  fetched: setup and `bundle.sh` check that folder instead;
 - `npm ci` in `app/ui`, inside this checkout only, when its lockfile changed since the last
   install, and the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
 
@@ -200,10 +205,12 @@ build ours. The Rust core serves every route of the dashboard except the metered
 settings (`/api/backends*`) and `/metrics` (it had a listener to count; there is none): a route
 it does not declare is a 404. Everything a bundle ships comes from this tree (`assets`,
 `host/bundle`, `host/location`, `host/saver`, the dashboard's `app/ui/dist` and two of its
-font packages, the screen saver's clock faces) and from `scripts/setup.sh` (esbuild).
+font packages, the screen saver's clock faces) and from `scripts/setup.sh` (esbuild, the
+meaning model).
 
 `Contents/Resources` holds, beside the dashboard (`dist`), `esbuild`, `claude-plugin`,
-`pdfjs`, the icon and the banner sound, two bundles of their own, each signed by itself
+`pdfjs`, `models/potion-multilingual-128M` (the meaning model, each file checked against
+`scripts/model.sh` before the build: one that differs fails it), the icon and the banner sound, two bundles of their own, each signed by itself
 before the app is sealed (`sign.sh`): `EosLocation.app` (the location helper) and
 `Eos.saver`, the screen saver. The saver is a loadable bundle the system's screen-saver host
 runs, never the app: `EosSaver` (Swift, `swiftc -emit-library -Xlinker -bundle`, arm64,
@@ -512,7 +519,7 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
 | `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a dev run (see above) |
 | `EOS_LOG` | what is logged to stderr and `core.log`, as a `tracing` filter (default `warn,eos=info,eos_agent=warn`: Eos's own info, warnings of everything else) |
-| `EOS_EMBED_MODEL_DIR` | the folder of memory's meaning model (`tokenizer.json`, `model.safetensors`, `config.json` of potion-multilingual-128M) for a run outside the bundle; the bundle's `Resources/models/potion-multilingual-128M` otherwise. Without either, memory recalls by hooks and words only. Nothing downloads it |
+| `EOS_EMBED_MODEL_DIR` | the folder of memory's meaning model (`tokenizer.json`, `model.safetensors`, `config.json` of potion-multilingual-128M) for a run outside the bundle; the bundle's `Resources/models/potion-multilingual-128M` otherwise. Without either, memory recalls by hooks and words only. Nothing downloads it. Set for `cargo test`, it also runs the tests that load the real model (`eos-embed`, the recall eval in `eos-memory`); without it they skip |
 | `EOS_GITHUB_CLIENT_ID` | the OAuth App GitHub's sign-in asks for (`github.clientId` in `config.json` wins over it; default `Ov23li8QQZilyzYjPuab`, Eos's own; empty, GitHub needs setting up with `client_id_missing`) |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-run`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-run`: steps on test views (`eos/src/dev/script.rs`) |
@@ -522,7 +529,7 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 
 The scripts' own variables are in their headers: the data copy and output folder of a dev run
 (`EOS_DEV_DATA`, `EOS_DEV_HOME`, `EOS_DEV_OUT`: `scripts/dev-env.sh`), the bundle's identifier,
-dashboard, esbuild and update channel (`scripts/bundle.sh`), the build caches
+dashboard, esbuild, meaning model and update channel (`scripts/bundle.sh`), the build caches
 (`EOS_HOST_WORK`: `scripts/env.sh`).
 
 ### Open points

@@ -7,6 +7,9 @@
 #   - esbuild, the plugin builder's (shipped in the bundle, found by development builds and
 #     tests): the pinned release from the npm registry, checked against the SHA-256 below,
 #     under .work/tools
+#   - memory's meaning model (potion-multilingual-128M, about 530 MB), the three files pinned in
+#     model.sh, from Hugging Face, checked against their SHA-256, under .work/models; not
+#     fetched when EOS_BUNDLE_MODEL_DIR names a folder that holds them
 #   - the dashboard's node modules (`npm ci` in app/ui, inside this checkout only) when its
 #     lockfile changed since the last install, and its build (app/ui/dist) when it is missing
 #     or older than its sources
@@ -19,6 +22,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/env.sh"
+source "$HERE/model.sh"
 REPO="$(cd "$HOST_DIR/.." && pwd)"
 TOOLS="$EOS_HOST_WORK/tools"
 
@@ -101,6 +105,23 @@ else
   rm -f "$TOOLS/esbuild.tgz"
   [ "$("$ESBUILD_BIN" --version)" = "$ESBUILD_VERSION" ] || die "the fetched esbuild is not $ESBUILD_VERSION"
   say "esbuild $ESBUILD_VERSION fetched into .work/tools (SHA-256 checked)"
+fi
+
+# ---- the meaning model ---------------------------------------------------------------------
+if [ -n "${EOS_BUNDLE_MODEL_DIR:-}" ]; then
+  model_check "$EOS_BUNDLE_MODEL_DIR" || die "EOS_BUNDLE_MODEL_DIR does not hold the pinned meaning model"
+  say "meaning model: the pinned files in EOS_BUNDLE_MODEL_DIR"
+elif [ -d "$MODEL_CACHE" ] && model_check "$MODEL_CACHE" 2>/dev/null; then
+  say "meaning model already in .work/models"
+else
+  rm -rf "$MODEL_CACHE"
+  mkdir -p "$MODEL_CACHE.part"
+  while read -r name _ sha; do
+    fetch "$MODEL_URL/$name" "$sha" "$MODEL_CACHE.part/$name"
+  done <<<"$MODEL_PINS"
+  model_check "$MODEL_CACHE.part" || die "the fetched meaning model is not the pinned one"
+  mv "$MODEL_CACHE.part" "$MODEL_CACHE"
+  say "meaning model fetched into .work/models (SHA-256 checked)"
 fi
 
 # ---- the dashboard's node modules ----------------------------------------------------------
