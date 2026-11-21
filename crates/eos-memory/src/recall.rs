@@ -33,12 +33,13 @@ pub struct Situation {
 
 impl Situation {
     /// A note scoped to `level`/`key` applies here. A routine's notes never
-    /// apply to another routine or to a chat.
+    /// apply to another routine or to a chat, and a kind of work's notes
+    /// only where that kind is known.
     pub fn admits(&self, level: ScopeLevel, key: &str) -> bool {
         match level {
             ScopeLevel::Routine => self.routine.as_deref() == Some(key),
             ScopeLevel::Project => self.project.as_deref() == Some(key),
-            ScopeLevel::Work => self.work_kind.as_deref().is_none_or(|kind| kind == key),
+            ScopeLevel::Work => self.work_kind.as_deref() == Some(key),
             ScopeLevel::Everywhere => true,
         }
     }
