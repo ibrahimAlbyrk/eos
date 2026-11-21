@@ -13,7 +13,7 @@ use eos_core::routine::RunRef;
 use eos_core::store::{Store, StoredMoment, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::EventRecord;
-use eos_domain::experience::moments::{Denial, MomentDraft, Reaction, Signal, scan};
+use eos_domain::experience::moments::{Denial, MomentDraft, Reaction, Signal, scan_after};
 
 use crate::settings;
 
@@ -129,7 +129,8 @@ fn look_in(tx: &dyn Tx, ids: &dyn Ids, worker_id: &str, run: Option<&RunRef>, no
     };
     let denials: Vec<Denial> = denied.into_iter().map(|d| Denial { row: d.row, tool: d.tool }).collect();
     let source = if run.is_some() { "run" } else { "agent" };
-    keep(tx, ids, worker_id, source, run, scan(&rows, &denials, &reactions), more, now)
+    // A look after an earlier one starts where that one stopped: on the agent's turn.
+    keep(tx, ids, worker_id, source, run, scan_after(&rows, &denials, &reactions, cursor > 0), more, now)
 }
 
 /// Where a Code-view conversation's moments and cursor are kept: by its
@@ -149,7 +150,7 @@ fn look_code_in(tx: &dyn Tx, ids: &dyn Ids, key: &str, rows: &[EventRecord], now
     if !settings::read_in(tx)?.learning {
         return Ok(Captured::default());
     }
-    keep(tx, ids, key, "code", None, scan(&fresh, &[], &[]), false, now)
+    keep(tx, ids, key, "code", None, scan_after(&fresh, &[], &[], cursor > 0), false, now)
 }
 
 #[allow(clippy::too_many_arguments)]

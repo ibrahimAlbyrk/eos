@@ -268,3 +268,11 @@ fn eos_s_own_note_to_a_run_is_no_user_message() {
     let log = Log::new().reply("Working on it.").at(1_000, "user_message", note);
     assert!(scan(&log.rows, &[], &[]).is_empty(), "a checker's finding states no rule and corrects nothing");
 }
+
+#[test]
+fn a_correction_that_opens_a_later_look_answers_the_turn_the_last_look_ended_on() {
+    let next = Log::new().user("No, start with the parser").reply("ok");
+    assert!(scan(&next.rows, &[], &[]).is_empty(), "a first look has no turn before it");
+    let signals: Vec<Signal> = scan_after(&next.rows, &[], &[], true).iter().map(|m| m.signal).collect();
+    assert_eq!(signals, [Signal::SaysWrong]);
+}
