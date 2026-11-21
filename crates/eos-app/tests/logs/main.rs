@@ -16,6 +16,7 @@ mod routines_rig;
 mod capabilities;
 mod chats;
 mod inbox;
+mod memory;
 mod routines;
 
 use std::time::Duration;
@@ -54,6 +55,7 @@ async fn every_area_is_told_by_id_and_nothing_private_reaches_the_log() {
         chats::steps(&app).await,
         capabilities::steps(&app, &agents, &planted).await,
         inbox::steps(&app).await,
+        memory::steps(&app, &agents).await,
         routines::steps().await,
     ];
 
