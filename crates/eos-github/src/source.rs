@@ -120,11 +120,9 @@ impl GitHub {
                 "size": size,
             },
         });
-        if cut {
-            if let Some(facts) = item["facts"].as_object_mut() {
-                facts.remove("paths");
-                facts.remove("size");
-            }
+        if cut && let Some(facts) = item["facts"].as_object_mut() {
+            facts.remove("paths");
+            facts.remove("size");
         }
         Ok(item)
     }
