@@ -5,6 +5,7 @@
 mod capture;
 mod credit;
 mod edits;
+mod eval;
 mod feedback;
 mod night;
 mod notes;
