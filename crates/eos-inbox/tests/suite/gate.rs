@@ -1,6 +1,6 @@
 //! The gate over the real store: show-only and trial write nothing, an
-//! unconfirmed target refuses and pauses, caps hold a result as a draft, a
-//! clean result above Draft goes out by itself, and a held result is taken back.
+//! unconfirmed target refuses and pauses, caps hold a result as a draft,
+//! automatic sending stays locked, and a held result is taken back.
 
 use std::sync::Arc;
 
@@ -190,15 +190,16 @@ async fn a_held_mail_names_each_recipient_readably() {
 }
 
 #[tokio::test]
-async fn a_clean_result_of_a_routine_set_above_draft_goes_out_without_an_item() {
+async fn while_automatic_sending_is_locked_a_routine_on_its_own_is_held_as_a_draft() {
     let gated = Gated::new();
     for rung in ["send_then_tell", "on_its_own"] {
-        match gated.apply(input(rung)).await {
-            GateDecision::Delivering { delivery_ids } => assert_eq!(delivery_ids.len(), 1, "{rung}"),
-            other => panic!("{rung}: not delivering: {other:?}"),
-        }
+        let item_id = held(&gated.apply(input(rung)).await);
+        let item = gated.rig.find(&item_id).await;
+        let payload: Value = serde_json::from_str(&item.payload).expect("json");
+        assert_eq!((item.kind.as_str(), &payload["rung"]), ("draft", &json!("draft")), "{rung}");
     }
-    assert_eq!((gated.rows(), gated.items()), (2, 0), "queued, nothing held");
+    assert_eq!(gated.rows(), 0, "nothing is queued");
+    assert!(gated.channels.sent().is_empty());
 }
 
 #[tokio::test]
