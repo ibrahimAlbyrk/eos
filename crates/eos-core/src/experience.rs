@@ -102,3 +102,17 @@ pub trait ExperienceFeedback: Send + Sync {
     /// The routine left the trash for good: its notes close.
     fn routine_removed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }
+
+/// Memory's notes and counters as the sync feature reads and writes them
+/// (04 G8): its `experience` domain is built over this.
+pub trait ExperienceSync: Send + Sync {
+    /// Every record.
+    fn list(&self) -> BoxFuture<'_, Result<Vec<eos_domain::sync::SyncItem>, Error>>;
+    /// The records changed since `since_ms`, and every record's id.
+    fn changed_since(&self, since_ms: i64) -> BoxFuture<'_, Result<crate::net::sync::Changed, Error>>;
+    fn get<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<eos_domain::sync::SyncItem>, Error>>;
+    fn apply<'a>(&'a self, id: &'a str, data: &'a serde_json::Value) -> BoxFuture<'a, Result<(), Error>>;
+    fn remove<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// One record from both sides when two Macs changed it.
+    fn merge(&self, local: &serde_json::Value, remote: &serde_json::Value) -> Option<serde_json::Value>;
+}

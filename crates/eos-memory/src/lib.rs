@@ -40,6 +40,7 @@ pub mod recall;
 pub mod reflect;
 pub mod settings;
 pub mod stated;
+pub mod sync;
 pub mod transcript;
 pub mod vectors;
 
