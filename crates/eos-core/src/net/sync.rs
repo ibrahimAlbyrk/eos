@@ -114,4 +114,23 @@ pub trait SyncDomain: Send + Sync + 'static {
     /// Fails on data it cannot accept; the engine keeps that as a conflict.
     fn apply<'a>(&'a self, id: &'a str, data: &'a Value) -> BoxFuture<'a, Result<(), Error>>;
     fn remove<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// One record from both sides when each changed it since they last
+    /// matched; `None` lets the newer one win, the other kept as a conflict.
+    fn merge(&self, _local: &Value, _remote: &Value) -> Option<Value> {
+        None
+    }
+    /// The records changed since `since_ms` and the id of every record, so
+    /// a pass after the first reads only what changed; `None` when the
+    /// domain has no such read and is listed whole.
+    fn changed_since(&self, _since_ms: f64) -> Option<BoxFuture<'_, Result<Changed, Error>>> {
+        None
+    }
+}
+
+/// What a domain changed since a time ([`SyncDomain::changed_since`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Changed {
+    pub items: Vec<SyncItem>,
+    /// Every record it holds; one missing was deleted.
+    pub ids: Vec<String>,
 }

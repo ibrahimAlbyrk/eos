@@ -32,6 +32,7 @@ pub(crate) fn push_order(name: SyncDomainName) -> u8 {
         SyncDomainName::Memory => 2,
         SyncDomainName::Template => 3,
         SyncDomainName::Worker => 4,
+        SyncDomainName::Experience => 6,
         SyncDomainName::Page => 5,
     }
 }

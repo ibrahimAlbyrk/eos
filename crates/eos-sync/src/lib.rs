@@ -13,13 +13,20 @@
 //! that succeeded. A local record this computer never synced counts as
 //! oldest, so joining adopts the account's copy.
 //!
+//! A merging domain ([`SyncDomain::merge`]) takes both sides of a record
+//! two computers changed and pushes the merge; a domain with a read of
+//! what changed ([`SyncDomain::changed_since`]) is listed whole only in the
+//! first pass of a run.
+//!
 //! A domain with a vault budget ([`vault_budgets`]) pushes no new record
 //! once its sealed bytes reached it; [`SyncEngine::usage`] tells which.
 //!
 //! [`SyncStateStore::save_conflict`]: eos_core::net::sync::SyncStateStore::save_conflict
+//! [`SyncDomain::merge`]: eos_core::net::sync::SyncDomain::merge
+//! [`SyncDomain::changed_since`]: eos_core::net::sync::SyncDomain::changed_since
 
 mod budget;
 mod engine;
 
-pub use budget::{DomainUsage, vault_budgets};
+pub use budget::{DomainUsage, EXPERIENCE_BUDGET, vault_budgets};
 pub use engine::{PassResult, SyncEngine, SyncEngineDeps};

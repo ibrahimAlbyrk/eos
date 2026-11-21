@@ -15,6 +15,8 @@ pub enum SyncDomainName {
     Page,
     Template,
     Worker,
+    /// What Eos learned from work: notes (`n-`) and each Mac's counters (`c-`).
+    Experience,
 }
 
 impl Validate for SyncDomainName {}

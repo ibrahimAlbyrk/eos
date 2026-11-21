@@ -58,6 +58,14 @@ pub struct SyncEngine {
     saved: Arc<Mutex<Option<LocalState>>>,
     /// Per domain, as of its last push.
     usage: Mutex<IndexMap<&'static str, DomainUsage>>,
+    /// Per domain, when its last push in this run began: the next reads
+    /// only what changed since.
+    listed: Mutex<std::collections::HashMap<&'static str, f64>>,
+    /// The sealed bytes of every record seen in this run, by index key.
+    sizes: Mutex<std::collections::HashMap<String, u64>>,
+    /// Records to read again whether they changed or not: kept back for the
+    /// budget, or merged with another computer's change.
+    recheck: Mutex<std::collections::HashSet<String>>,
 }
 
 impl std::fmt::Debug for SyncEngine {
@@ -78,6 +86,7 @@ fn domain_name(name: SyncDomainName) -> &'static str {
         SyncDomainName::Page => "page",
         SyncDomainName::Template => "template",
         SyncDomainName::Worker => "worker",
+        SyncDomainName::Experience => "experience",
     }
 }
 
@@ -104,6 +113,9 @@ impl SyncEngine {
             saving: Arc::new(tokio::sync::Mutex::new(())),
             saved: Arc::default(),
             usage: Mutex::default(),
+            listed: Mutex::default(),
+            sizes: Mutex::default(),
+            recheck: Mutex::default(),
         }
     }
 
@@ -308,32 +320,77 @@ impl SyncEngine {
         }
     }
 
+    /// The domain's records to look at in this pass, and the id of every
+    /// record it holds. The first pass of a run lists the domain whole;
+    /// later ones read only what changed where the domain can, and the
+    /// records kept back or merged since.
+    async fn records_of(
+        &self,
+        domain: &dyn SyncDomain,
+        since: Option<f64>,
+    ) -> Result<(Vec<SyncItem>, Vec<String>), Error> {
+        let name = domain_name(domain.name());
+        let Some(read) = since.and_then(|since| domain.changed_since(since)) else {
+            let items = domain.list().await?;
+            let ids = items.iter().map(|item| item.id.clone()).collect();
+            return Ok((items, ids));
+        };
+        let changed = read.await?;
+        let mut items = changed.items;
+        let prefix = format!("{name}/");
+        let again: Vec<String> = lock(&self.recheck)
+            .iter()
+            .filter_map(|key| key.strip_prefix(&prefix).map(str::to_owned))
+            .filter(|id| !items.iter().any(|item| &item.id == id))
+            .collect();
+        for id in again {
+            if let Some(item) = domain.get(&id).await? {
+                items.push(item);
+            }
+        }
+        Ok((items, changed.ids))
+    }
+
     async fn push_domain(&self, domain: &dyn SyncDomain, tally: &mut PassResult) -> Result<(), Error> {
         let name = domain_name(domain.name());
         let budget = self.budget_of(domain.name());
-        let mut seen = std::collections::HashSet::new();
-        let items = domain.list().await?;
+        let started = self.deps.clock.now_ms() as f64;
+        let since = lock(&self.listed).get(name).copied();
+        let (items, ids) = self.records_of(domain, since).await?;
+        let held: std::collections::HashSet<String> = ids.iter().map(|id| index_key(name, id)).collect();
         // What the vault holds of this domain already counts first; new
         // records go while they fit.
-        let sized: Vec<(SyncItem, u64, bool)> = items
-            .into_iter()
-            .map(|item| {
-                let size = self.sealed_size(domain.name(), &item);
-                let stored = self.known(&index_key(name, &item.id)).is_some_and(|known| known.hash.is_some());
-                (item, size, stored)
-            })
-            .collect();
-        let mut bytes: u64 = sized.iter().filter(|(_, _, stored)| *stored).map(|(_, size, _)| size).sum();
+        let sized: Vec<(SyncItem, u64, bool)> = {
+            let mut sizes = lock(&self.sizes);
+            items
+                .into_iter()
+                .map(|item| {
+                    let key = index_key(name, &item.id);
+                    let size = self.sealed_size(domain.name(), &item);
+                    sizes.insert(key.clone(), size);
+                    let stored = self.known(&key).is_some_and(|known| known.hash.is_some());
+                    (item, size, stored)
+                })
+                .collect()
+        };
+        let mut bytes: u64 = {
+            let (sizes, state) = (lock(&self.sizes), lock(&self.state));
+            held.iter()
+                .filter(|key| state.index.get(*key).is_some_and(|entry| entry.hash.is_some()))
+                .map(|key| sizes.get(key).copied().unwrap_or_default())
+                .sum()
+        };
         let mut full = false;
         for (item, size, stored) in sized {
             self.running()?;
             let key = index_key(name, &item.id);
             if !stored && budget.is_some_and(|budget| bytes + size > budget) {
                 full = true;
+                lock(&self.recheck).insert(key);
                 continue;
             }
+            lock(&self.recheck).remove(&key);
             let changed = self.known(&key).and_then(|known| known.hash) != self.hash_of(Some(&item.data));
-            seen.insert(key);
             if !stored {
                 bytes += size;
             }
@@ -350,13 +407,14 @@ impl SyncEngine {
         let gone: Vec<String> = lock(&self.state)
             .index
             .iter()
-            .filter(|(key, entry)| key.starts_with(&prefix) && !seen.contains(*key) && entry.hash.is_some())
+            .filter(|(key, entry)| key.starts_with(&prefix) && !held.contains(*key) && entry.hash.is_some())
             .map(|(key, _)| key[prefix.len()..].to_owned())
             .collect();
         for id in gone {
             self.running()?;
             self.send(domain, &id, None, tally).await?;
         }
+        lock(&self.listed).insert(name, started);
         Ok(())
     }
 
@@ -435,6 +493,18 @@ impl SyncEngine {
             Some(known) => local_hash != known.hash,
             None => local.is_some(),
         };
+        if local_changed
+            && !deleted
+            && let Some(local) = &local
+            && let Some(merged) = domain.merge(&local.data, &remote)
+            && domain.apply(&envelope.id, &merged).await.is_ok()
+        {
+            // Both changed it: the merge went in here and goes out in this pass's push.
+            self.index(key.clone(), entry.seq, remote_hash);
+            lock(&self.recheck).insert(key);
+            tally.pulled += 1;
+            return Ok(());
+        }
         if local_changed {
             tally.conflicts += 1;
             let local_at = match (&known, &local) {
