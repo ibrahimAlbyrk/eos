@@ -272,9 +272,16 @@ impl FakeGitHub {
             }
             (Method::Get, ["repos", owner, name, "pulls", number, "files"]) => {
                 let pull = state.pulls.get(&(format!("{owner}/{name}"), number.parse().ok()?));
-                let first = !query.contains("page=") || query.contains("page=1&") || query.ends_with("page=1");
+                // One page, as GitHub lists them: `per_page` from `page` (from 1); all without `per_page`.
+                let param = |name: &str| {
+                    query.split('&').find_map(|pair| pair.strip_prefix(name)?.strip_prefix('=')?.parse::<usize>().ok())
+                };
+                let (per_page, page) = (param("per_page"), param("page").unwrap_or(1).max(1));
                 pull.map_or_else(not_found, |pull| {
-                    answer(200, &json!(if first { pull.files.clone() } else { Vec::new() }))
+                    let per_page = per_page.unwrap_or(pull.files.len().max(1));
+                    let shown: Vec<Value> =
+                        pull.files.iter().skip(per_page * (page - 1)).take(per_page).cloned().collect();
+                    answer(200, &json!(shown))
                 })
             }
             // The files of the repository's first pull request: a test compares one.

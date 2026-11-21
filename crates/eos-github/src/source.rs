@@ -12,7 +12,7 @@ use eos_core::capability::{ActionError, FailureKind};
 use serde_json::{Value, json};
 
 use crate::GitHub;
-use crate::actions::{Repo, item_key, labels, ms, repo, summary, text};
+use crate::actions::{FILE_PAGES_MAX, Repo, item_key, labels, ms, repo, summary, text};
 use crate::client::Method;
 
 /// The pull requests one poll reads, most recently updated first.
@@ -92,16 +92,18 @@ impl GitHub {
     }
 
     /// One changed pull request with the facts rules test; its files give
-    /// the paths and the size.
+    /// the paths and the size. A list cut at the page cap names neither: the
+    /// author chooses the files, and a fact that is missing passes no rule.
     async fn item(&self, token: &str, repo: &Repo, pull: &Value, event: &str) -> Result<Value, ActionError> {
         let number = pull["number"].as_u64().unwrap_or_default();
         let files = self.files(token, repo, number).await?;
+        let cut = files.len() >= FILE_PAGES_MAX as usize * 100;
         let size: u64 = files
             .iter()
             .map(|file| file["additions"].as_u64().unwrap_or_default() + file["deletions"].as_u64().unwrap_or_default())
             .sum();
         let summary = summary(pull);
-        Ok(json!({
+        let mut item = json!({
             "key": item_key(&repo.0, number),
             "version": summary["headSha"],
             "event": event,
@@ -117,6 +119,13 @@ impl GitHub {
                 "base": summary["base"],
                 "size": size,
             },
-        }))
+        });
+        if cut {
+            if let Some(facts) = item["facts"].as_object_mut() {
+                facts.remove("paths");
+                facts.remove("size");
+            }
+        }
+        Ok(item)
     }
 }
