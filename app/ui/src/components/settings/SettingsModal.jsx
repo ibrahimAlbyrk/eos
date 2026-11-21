@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSettings } from "../../state/settings.jsx";
 import { settingsPanes, visibleSections } from "../../settings/registry.jsx";
 import { useFeatures } from "../../state/featuresStore.js";
+import { useEosShown } from "../../state/eos/eosStatusStore.js";
 import { SettingsGroups } from "../../settings/SettingsGroups.jsx";
 
 function itemMatches(item, q) {
@@ -82,8 +83,10 @@ export function SettingsModal() {
   }, [settingsOpen, closeSettings]);
 
   const features = useFeatures();
+  const eosShown = useEosShown();
   const q = query.trim().toLowerCase();
-  const visible = useMemo(() => filterSections(visibleSections(features), q), [q, features]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Eos's section shows while Eos is shown
+  const visible = useMemo(() => filterSections(visibleSections(features), q), [q, features, eosShown]);
 
   if (!settingsOpen) return null;
 
