@@ -47,7 +47,7 @@ export function HomeScreen({ clock = Date.now }) {
   useInputFlight(blockRef, placeRef);
   const home = useHome();
   const inbox = useInbox();
-  const routines = useRoutines().list;
+  const { list: routines, listFailed } = useRoutines();
   const offered = useMemo(() => offeredRoutines(routines), [routines]);
   const summary = useNotes().summary;
   const lastSeen = visitSince();
@@ -110,6 +110,7 @@ export function HomeScreen({ clock = Date.now }) {
       </div>
       <FieldLayer
         routines={offered}
+        status={routines === null ? (listFailed ? "failed" : "loading") : home.offline ? "offline" : null}
         needs={needs}
         next={next}
         caption={[hello(new Date(now).getHours(), home.name), needLine(waiting.length)].filter(Boolean).join(" ")}

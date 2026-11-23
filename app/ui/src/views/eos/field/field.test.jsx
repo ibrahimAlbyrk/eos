@@ -87,11 +87,36 @@ describe("the field", () => {
     expect(shownView("auto", false)).toBe("list");
   });
 
-  it("empty and first run: no disc, still a way back", () => {
+  it("empty and first run: no disc, the first-run caption, still a way back", () => {
     openField();
-    const html = field([]);
+    const html = field([], { caption: "Good morning." });
     expect(html).not.toContain("eos-disc ");
+    expect(html).toContain("Your routines will gather here.");
     expect(html).toContain("Back to home");
+  });
+
+  it("loading: the rings and the caption, no disc yet and no first-run words", () => {
+    openField();
+    const html = field([], { caption: "Good morning.", status: "loading" });
+    expect(html).toContain("eos-field__ring--3");
+    expect(html).toContain("Good morning.");
+    expect(html).not.toContain("gather here");
+    expect(html).not.toContain("eos-disc ");
+  });
+
+  it("error: the routines could not be read, with Try again", () => {
+    openField();
+    const html = field([], { caption: "Good morning.", status: "failed" });
+    expect(html).toContain("Couldn&#x27;t load routines. <button");
+    expect(html).not.toContain("gather here");
+  });
+
+  it("offline: the discs stay, and the header says it is reconnecting", () => {
+    openField();
+    const html = field(routines, { handled: "Eos handled 31 things overnight.", status: "offline" });
+    expect(html.match(/class="eos-disc /g)).toHaveLength(routines.length);
+    expect(html).toContain('role="status">Reconnecting…</span>');
+    expect(html).not.toContain("handled 31");
   });
 
   it("turns Home into the field: the rest of Home is inert and the input moves to the centre", async () => {
