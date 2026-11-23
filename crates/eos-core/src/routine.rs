@@ -28,6 +28,9 @@ pub enum RunOrigin {
     Agent { worker_id: String },
     /// Another routine's run; only when this routine's When names it.
     Routine { run_id: String },
+    /// Memory's check of a playbook candidate on a past run's item (01 G50):
+    /// a trial that shows its result, sends nothing and earns no credit.
+    Replay { candidate: String },
 }
 
 impl RunOrigin {
@@ -39,16 +42,18 @@ impl RunOrigin {
             RunOrigin::Trial => "trial",
             RunOrigin::Agent { .. } => "agent",
             RunOrigin::Routine { .. } => "routine",
+            RunOrigin::Replay { .. } => "replay",
         }
     }
 
     /// What `runs.origin_ref` names: the earlier run, the worker, the run
-    /// upstream.
+    /// upstream, the playbook candidate.
     pub fn reference(&self) -> Option<&str> {
         match self {
             RunOrigin::Hand | RunOrigin::Trial => None,
             RunOrigin::Again { run_id } | RunOrigin::Routine { run_id } => Some(run_id),
             RunOrigin::Agent { worker_id } => Some(worker_id),
+            RunOrigin::Replay { candidate } => Some(candidate),
         }
     }
 }
@@ -211,6 +216,19 @@ pub trait RunStarter: Send + Sync {
     /// Cancels a run that has not ended. A run that is delivering cannot be
     /// stopped (409).
     fn stop<'a>(&'a self, run_id: &'a str, why: Reason) -> BoxFuture<'a, Result<(), Error>>;
+}
+
+/// Replays of past runs for memory's playbook check (01 G50, 04 G12c).
+pub trait RunReplays: Send + Sync {
+    /// Runs each of `run_ids`' items again, on the routine's head, shown
+    /// only, with playbook candidate `candidate`; answers the new runs' ids.
+    /// A past run with no item is left out.
+    fn replay<'a>(
+        &'a self,
+        routine_id: &'a str,
+        candidate: &'a str,
+        run_ids: &'a [String],
+    ) -> BoxFuture<'a, Result<Vec<String>, StartError>>;
 }
 
 /// The run a worker works for, and its place in it.

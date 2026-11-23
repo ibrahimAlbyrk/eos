@@ -35,6 +35,7 @@ fn request(trial: bool) -> RunPackRequest {
         item_cues: vec![],
         item_text: "review summaries comments".into(),
         trial,
+        playbook_candidate: None,
     }
 }
 

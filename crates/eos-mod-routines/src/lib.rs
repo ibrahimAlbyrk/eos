@@ -67,6 +67,9 @@
 //! A sentence the user wants done once becomes a one-off routine and its
 //! run (`POST /api/runs/once`, `once`).
 //!
+//! Memory checks a rewritten playbook by replaying past runs' items with it
+//! ([`RunReplays`], `replay`): trials that show their results only.
+//!
 //! The run routes start runs by hand (`POST /api/runs`), estimate them
 //! (`POST /api/runs/estimate`), list and show them (`GET /api/runs`,
 //! `…/:id`, `…/:id/result`, `…/:id/events`), steer them (`…/:id/message`,
@@ -79,6 +82,7 @@ mod engine;
 mod intent;
 mod once;
 mod patterns;
+mod replay;
 mod retention;
 mod routes;
 mod suggest;
@@ -96,7 +100,7 @@ use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{
     ArchitectTools, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake,
-    RunLookup, RunOutcomes, RunStarter,
+    RunLookup, RunOutcomes, RunReplays, RunStarter,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
@@ -320,6 +324,11 @@ impl RoutinesModule {
     /// What the tools of a run's sessions do.
     pub fn tools(&self) -> Arc<dyn RoutineTools> {
         Arc::new(engine::Tools(self.engine.clone()))
+    }
+
+    /// Replays past runs with a playbook candidate, for memory.
+    pub fn replays(&self) -> Arc<dyn RunReplays> {
+        Arc::new(replay::Replays(self.engine.clone()))
     }
 }
 

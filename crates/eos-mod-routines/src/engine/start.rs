@@ -32,6 +32,8 @@ pub(crate) fn priority(origin: &RunOrigin) -> i64 {
     match origin {
         RunOrigin::Hand | RunOrigin::Again { .. } | RunOrigin::Trial => 0,
         RunOrigin::Agent { .. } | RunOrigin::Routine { .. } => 1,
+        // Memory's night check waits for everything the user asked for.
+        RunOrigin::Replay { .. } => 2,
     }
 }
 
@@ -149,7 +151,8 @@ fn queue(
             }
         }
     }
-    let kind = if new.origin == RunOrigin::Trial { "trial" } else { kind_word(routine.kind) };
+    let is_trial = matches!(new.origin, RunOrigin::Trial | RunOrigin::Replay { .. });
+    let kind = if is_trial { "trial" } else { kind_word(routine.kind) };
     let version_id = version.id;
     // Only a start for one version binds it now; the others run the head as it is when they leave the queue.
     let bound = new.version.as_ref().map(|_| version_id.clone());
@@ -197,6 +200,7 @@ fn takes_origin(state: RoutineState, origin: &RunOrigin) -> bool {
     let by_hand = matches!(origin, RunOrigin::Hand | RunOrigin::Again { .. });
     match state {
         RoutineState::Active => true,
+        _ if matches!(origin, RunOrigin::Replay { .. }) => false,
         RoutineState::Paused | RoutineState::Transient => by_hand,
         RoutineState::Draft => *origin == RunOrigin::Trial,
         RoutineState::Archived | RoutineState::Deleted => false,
