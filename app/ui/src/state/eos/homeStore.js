@@ -39,7 +39,14 @@ export function useHome() {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+// The gallery draws Home from samples and leaves the user's own visit alone.
+let inMemory = false;
+export function holdHomeInMemory() {
+  inMemory = true;
+}
+
 export function lastSeenAt() {
+  if (inMemory) return null;
   try {
     const stored = Number(localStorage.getItem(LAST_SEEN_KEY));
     return Number.isFinite(stored) && stored > 0 ? stored : null;
@@ -99,6 +106,7 @@ export function resyncHome() {
 
 // Marks the visit once Home has shown for five seconds; answers the cancel.
 export function markSeenSoon(now = () => Date.now()) {
+  if (inMemory) return () => {};
   const timer = setTimeout(() => {
     try {
       localStorage.setItem(LAST_SEEN_KEY, String(now()));

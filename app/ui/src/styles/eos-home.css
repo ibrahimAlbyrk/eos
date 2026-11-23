@@ -152,3 +152,87 @@
 .eos-home-learned .eos-link { text-decoration: none; }
 
 .eos-home-learned { margin: 14px 0 0; font-size: 12.5px; color: var(--fg-dim2); }
+
+/* ── The input (Main.dc.html, RunIntent.dc.html) ──────────────────────────── */
+.eos-input {
+  margin-top: 28px;
+  border-radius: var(--r-composer);
+  padding: 18px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(28, 28, 28, 0.72);
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 22px 50px -14px rgba(0, 0, 0, 0.7), 0 6px 14px -4px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(var(--blur-md)) saturate(1.8);
+  transition: box-shadow 160ms ease;
+}
+.eos-input--drop {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 22px 50px -14px rgba(0, 0, 0, 0.7);
+}
+.eos-input__line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.eos-input__text {
+  flex: 1 1 200px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--fg);
+}
+.eos-input__text::placeholder { color: var(--fg-dim2); }
+.eos-input__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.eos-input__gap { flex: 1; }
+.eos-input__icon { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.eos-input__round,
+.eos-input__send {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.eos-input__round { background: none; color: var(--fg-dim); }
+.eos-input__round:hover { color: var(--fg-strong); background: var(--row-on); }
+.eos-input__send {
+  background: radial-gradient(circle at 34% 26%, #e8f1ff 0%, #a9cdf6 22%, var(--accent) 58%, #3f6fb5 100%);
+  box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--accent-fg);
+}
+.eos-input__send:disabled { cursor: default; filter: saturate(0.4) brightness(0.7); box-shadow: none; }
+
+.eos-things { margin: 0; padding: 0; list-style: none; display: contents; }
+.eos-thing {
+  height: 26px;
+  max-width: 260px;
+  padding: 0 4px 0 10px;
+  border-radius: 8px;
+  background: #2a2a2a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.eos-thing--uploading { color: var(--fg-dim); }
+.eos-thing__glyph { flex: none; fill: none; stroke: var(--fg-dim2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.eos-thing__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-thing__remove {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font: inherit;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.eos-thing__remove:hover { color: var(--fg-strong); background: var(--row-on); }

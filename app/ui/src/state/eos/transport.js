@@ -9,6 +9,8 @@ import { api } from "../../api/client.js";
 const coreTransport = {
   get: (path) => api.eosGet(path),
   send: (method, path, body) => api.eosSend(method, path, body),
+  // A file handed to Eos (a paste or a drop): kept by the core, answered { path }.
+  upload: (src) => api.uploadPaste(src),
 };
 
 let current = coreTransport;
@@ -45,6 +47,7 @@ export function useDevRunSeen() {
 export const transport = {
   get: (path) => current.get(path),
   send: (method, path, body) => current.send(method, path, body).then(noted),
+  upload: (src) => current.upload(src),
 };
 
 // The gallery and tests swap the transport; null puts the core back.
@@ -62,6 +65,7 @@ export function fixtureTransport(reads) {
       ? { ok: true, status: 200, body: reads[path] }
       : { ok: false, status: 404, body: { error: "not found", path } }),
     send: async () => ({ ok: false, status: 403, body: { error: "sample data" } }),
+    upload: async () => ({ ok: false, status: 403, body: { error: "sample data" } }),
   };
 }
 
