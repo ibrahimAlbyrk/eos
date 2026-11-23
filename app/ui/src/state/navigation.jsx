@@ -6,12 +6,21 @@ import { noteViewAtStart } from "./eos/movedShortcuts.js";
 
 const NavigationContext = createContext(null);
 
+// Every dashboard that ran before stored its pane layout, so a user who has it
+// but no stored view used Agents, the first view then, and never switched.
+const USED_BEFORE_KEY = "cm:paneTree";
+
 // A stored id is kept while its view is hidden, so a view that shows only once
 // the core has answered (Eos) still opens where the user left. A new user, or
 // an id no view has (e.g. the removed Home), starts on the first view, Eos
-// (D2): until the core answers, the first visible view stands in.
+// (D2): until the core answers, the first visible view stands in. A user with
+// no stored view is given one at once, so the next start knows them.
 export function initialView() {
-  const stored = localStorage.getItem("cm:activeView");
+  let stored = localStorage.getItem("cm:activeView");
+  if (stored === null) {
+    stored = localStorage.getItem(USED_BEFORE_KEY) !== null ? "agents" : TABS[0].id;
+    localStorage.setItem("cm:activeView", stored);
+  }
   noteViewAtStart(stored);
   return TABS.some((t) => t.id === stored) ? stored : TABS[0].id;
 }
