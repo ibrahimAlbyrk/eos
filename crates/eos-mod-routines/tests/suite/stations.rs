@@ -1,13 +1,15 @@
 //! Memory and surfaces at the stations: the lead's first start carries the
-//! notes memory packed for its item, memory hears how runs end, and a
-//! routine that makes a page takes its surface through its life.
+//! notes memory packed for its item, a playbook replay packs its candidate,
+//! memory hears how runs end, and a routine that makes a page takes its
+//! surface through its life.
 
 use eos_contracts::RoutineState;
 use eos_core::experience::RunPack;
-use eos_core::routine::RunOrigin;
+use eos_core::routine::{RunOrigin, StartError};
 use eos_domain::routine::run::{RunState, Station};
 use eos_runtime::access::Caller;
 use eos_runtime::http::Method;
+use eos_runtime::module::Module;
 use eos_testkit::{FeedbackCall, SurfaceCall};
 use serde_json::json;
 
@@ -89,4 +91,42 @@ async fn a_routine_that_makes_a_page_takes_its_surface_through_its_life() {
         [SurfaceCall::Archive(r()), SurfaceCall::Restore(r()), SurfaceCall::Archive(r()), SurfaceCall::Restore(r())],
         "a routine whose result is no surface asks nothing"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_replay_runs_a_past_item_as_a_show_only_trial_with_its_playbook_candidate() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
+    let past = bench.hand(&routine, Some(pull_request(7))).await;
+    bench.runs.stop(&past, eos_domain::routine::run::Reason::User).await.expect("stops");
+    let made = bench
+        .module
+        .replays()
+        .replay(&routine, "mv-candidate", &[past.clone(), "rn-none".into()])
+        .await
+        .expect("starts");
+    assert_eq!(made.len(), 1, "a run it does not find is left out");
+    let run = bench.run(&made[0]);
+    assert_eq!((run.kind.as_str(), run.origin.as_str()), ("trial", "replay"));
+    assert_eq!(run.origin_ref.as_deref(), Some("mv-candidate"));
+    let input: serde_json::Value = serde_json::from_str(&run.input).expect("json");
+    assert_eq!(
+        (input["result"].clone(), input["item"]["url"].clone()),
+        (json!("showOnly"), json!(pull_request(7).url))
+    );
+
+    bench.supervise().await;
+    bench.eventually(|| bench.packs.requests().len() == 1).await;
+    let asked = &bench.packs.requests()[0];
+    assert!(asked.trial, "a replay earns no credit");
+    assert_eq!(asked.playbook_candidate.as_deref(), Some("mv-candidate"));
+
+    let paused = bench.routine(RoutineState::Paused, blueprint(1));
+    let other = bench.module.replays().replay(&paused, "mv-candidate", std::slice::from_ref(&past)).await;
+    assert_eq!(other.ok(), Some(Vec::new()), "another routine's run is left out");
+    let paused_past = bench.hand(&paused, Some(pull_request(8))).await;
+    bench.runs.stop(&paused_past, eos_domain::routine::run::Reason::User).await.expect("stops");
+    let refused = bench.module.replays().replay(&paused, "mv-candidate", &[paused_past]).await;
+    assert_eq!(refused, Err(StartError::RoutineState(RoutineState::Paused)), "only an active routine is replayed");
+    bench.module.stop().await;
 }

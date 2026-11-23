@@ -13,6 +13,8 @@ use super::workspace::Place;
 
 /// The run kind of a trial: its notes come, but nothing is credited.
 const TRIAL: &str = "trial";
+/// The origin of a replay, whose reference is its playbook candidate.
+const REPLAY: &str = "replay";
 
 /// The notes for a run's lead, as the block its start carries; `None` when
 /// nothing applies.
@@ -24,8 +26,14 @@ pub(crate) async fn pack(
     place: &Place,
 ) -> Option<String> {
     let id = run_id.to_owned();
-    let trial = match engine.store.read(move |tx| Ok(tx.runs().find(&id)?.map(|run| run.kind == TRIAL))).await {
-        Ok(trial) => trial.unwrap_or(false),
+    let read = engine.store.read(move |tx| {
+        Ok(tx.runs().find(&id)?.map(|run| {
+            let candidate = run.origin_ref.filter(|_| run.origin == REPLAY);
+            (run.kind == TRIAL, candidate)
+        }))
+    });
+    let (trial, playbook_candidate) = match read.await {
+        Ok(found) => found.unwrap_or((false, None)),
         Err(error) => {
             tracing::warn!(run_id, %error, "a run's notes were not asked for");
             return None;
@@ -53,6 +61,7 @@ pub(crate) async fn pack(
         item_cues,
         item_text,
         trial,
+        playbook_candidate,
     };
     match engine.packs.for_run(request).await {
         Ok(pack) if !pack.text.trim().is_empty() => Some(pack.text),

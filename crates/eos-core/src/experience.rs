@@ -54,6 +54,9 @@ pub struct RunPackRequest {
     pub item_text: String,
     /// A trial or a replay: notes come, but nothing is recorded for credit.
     pub trial: bool,
+    /// A replay's playbook candidate, packed in place of the routine's
+    /// playbook (04 G12c).
+    pub playbook_candidate: Option<String>,
 }
 
 /// The notes a run's lead reads with its brief.
