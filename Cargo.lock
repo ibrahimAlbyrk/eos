@@ -2400,6 +2400,7 @@ dependencies = [
  "eos-runtime",
  "eos-sessions",
  "eos-store-files",
+ "eos-surface",
  "eos-testkit",
  "eos-workers",
  "serde",
