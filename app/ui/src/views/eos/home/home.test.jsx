@@ -41,6 +41,7 @@ describe("Eos › Home", () => {
     expect(html).toContain('<h1 class="eos-greeting">Good morning, Ada.<br/><span class="eos-greeting__dim">Eos handled 31 things overnight.</span> <span class="eos-greeting__need">Five need you.</span></h1>');
     expect(html).toContain("Review my pull requests");
     expect(html.match(/<article class="eos-home-card">/g)).toHaveLength(3);
+    expect(html).toContain('class="eos-home-card__glyph"><path');
     expect(html).toContain("All 5 in Needs you");
     expect(html).toContain("While you were away");
     expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "Morning Paper", "PR Review", "Mail Triage"]);

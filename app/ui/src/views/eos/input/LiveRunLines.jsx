@@ -85,7 +85,7 @@ export function LiveRunLines({ byId }) {
         {shown.map((line) => <Line key={line.runId} line={line} name={byId.get(line.routineId)?.name ?? "The routine"} now={now} />)}
       </ul>
       {lines.length > LINES_SHOWN && <p className="eos-live__more">+{lines.length - LINES_SHOWN} more running</p>}
-      {cards.map((item) => <NeedsCard key={item.id} item={item} routineName={byId.get(item.routineId)?.name} />)}
+      {cards.map((item) => <NeedsCard key={item.id} item={item} routineName={byId.get(item.routineId)?.name} routineIcon={byId.get(item.routineId)?.icon} />)}
     </div>
   );
 }
