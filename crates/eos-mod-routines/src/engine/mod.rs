@@ -169,6 +169,8 @@ pub(crate) struct Engine {
     pub(crate) trash: Arc<dyn FileSystem>,
     /// When the retention pass is next due, and the one at work.
     pub(crate) retention: Mutex<crate::retention::Schedule>,
+    /// When the night's suggestion read last looked, and the one at work.
+    pub(crate) suggest: Mutex<crate::suggest::Schedule>,
     pub(crate) packs: Arc<dyn ExperiencePacks>,
     pub(crate) feedback: Arc<dyn ExperienceFeedback>,
     pub(crate) surfaces: Arc<dyn SurfaceAuthoring>,
@@ -428,4 +430,5 @@ pub(crate) async fn stop_supervisor(engine: &Engine) {
     }
     // After the supervisor: a turn of it still running could start a pass.
     crate::retention::stop(engine).await;
+    crate::suggest::stop(engine).await;
 }

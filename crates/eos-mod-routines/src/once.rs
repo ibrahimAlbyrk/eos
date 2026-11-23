@@ -302,18 +302,17 @@ fn suggest_keeping_in(
 }
 
 /// The answer to "Keep as a routine?": "make it" keeps the one-off it
-/// names, if it is still one; either answer settles the suggestion. False:
-/// no run may leave the queue for it.
+/// names, if it is still one; either answer settles the suggestion.
 pub(crate) fn keep_answer_in(
     engine: &Engine,
     tx: &dyn Tx,
     out: &mut Outbox,
     item: &StoredItem,
     now: i64,
-) -> Result<bool, Error> {
+) -> Result<(), Error> {
     let payload: Value = serde_json::from_str(&item.payload).unwrap_or_default();
     let (Some(routine_id), Some(task_key)) = (payload["keep"].as_str(), payload["taskKey"].as_str()) else {
-        return Ok(false);
+        return Ok(());
     };
     let answer = item.answer.as_deref().and_then(|text| serde_json::from_str::<InboxAnswer>(text).ok());
     let take = matches!(answer, Some(InboxAnswer::Suggestion { choice: SuggestionChoice::MakeIt }));
@@ -322,5 +321,5 @@ pub(crate) fn keep_answer_in(
     if take && still_once {
         keep_in(tx, out, routine_id, now, &engine.patterns)?;
     }
-    Ok(false)
+    Ok(())
 }
