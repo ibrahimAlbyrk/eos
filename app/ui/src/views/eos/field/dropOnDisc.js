@@ -21,7 +21,8 @@ function matches(patterns, value) {
   });
 }
 
-// The item a dropped value gives the routine, or why it refuses it.
+// The item a dropped value gives the routine, or why it refuses it. A
+// dropped file or link is outside text: the run reads it wrapped (01 G46).
 export function droppedItem(routine, value) {
   const takes = routine.takes;
   if (!takesItems(takes)) return { refused: `${routine.name} takes nothing to work on.` };
@@ -29,7 +30,7 @@ export function droppedItem(routine, value) {
   if (patterns.length > 0 && !matches(patterns, value)) return { refused: `${routine.name} takes ${article(takes.label ?? "item")}.` };
   const name = value.replace(/\/$/, "").split("/").pop() || value;
   const item = LINK.test(value) ? { kind: takes.kind, url: value, title: value } : { kind: takes.kind, path: value, title: name };
-  return { item: { ...item, untrusted: false } };
+  return { item: { ...item, untrusted: true } };
 }
 
 // The run form a drop starts: the defaults, with the dropped item.
