@@ -84,6 +84,9 @@ function byPlace(a, b) {
   );
 }
 
+/// The three rings' radii at this window size.
+export const ringRadii = (W, H) => RADII.map((r) => r * scaleOf(W, H));
+
 export function scaleOf(W, H) {
   return clamp(Math.min(W / BASE_W, H / BASE_H), 0.8, 1.25);
 }
