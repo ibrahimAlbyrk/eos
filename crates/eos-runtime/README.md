@@ -70,6 +70,10 @@ job.finish(JobStatus::Completed, |j| j.detail = None);            // a start and
 
 A module lists what it contributes (`routes`, `topics`, `job_kinds`, `idle_hooks`, …) in its
 `Module` impl; `Runtime::build` composes the modules and fails, naming both owners, on any clash.
+Direct actions and named queries (`direct_actions`, `surface_queries`: what a surface's button or
+live part may do or read without an agent) are declared the same way by the feature that does the
+work; `Runtime::build` fills `kernel.actions` with them, so a module that dispatches holds that
+handle from the kernel and reads it once the app is built.
 `Module::shape_launch` has the last word on how a worker's session starts, at its spawn and at
 every resume (the routines feature sets a run session's folders and MCP there); modules shape it
 in composition order.

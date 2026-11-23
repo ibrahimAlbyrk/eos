@@ -4,6 +4,7 @@
 //! and the lifecycle. See the crate's README for the model in one page.
 
 pub mod access;
+pub mod actions;
 pub mod bus;
 pub mod error;
 pub mod http;

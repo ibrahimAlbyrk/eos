@@ -5,7 +5,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+use eos_contracts::ActionClass;
 use eos_runtime::access::{Access, Caller, Tier};
+use eos_runtime::actions::{
+    ActionCall, ActionDecl, ActionFailure, ActionHandler, ActionScope, QueryCall, QueryDecl, QueryHandler, no_args,
+};
 use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::http::{ApiError, Body, BodyStream, Method, Request, Response};
 use eos_runtime::idle::IdleHook;
@@ -92,8 +96,45 @@ impl Module for Notes {
     fn idle_hooks(&self) -> Vec<IdleHook> {
         vec![IdleHook::new("notes-nudge", 50, |_| std::future::ready(false))]
     }
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        vec![ActionDecl {
+            id: "notes.add",
+            title: "Add a note",
+            args: no_args(),
+            class: ActionClass::WriteLocal,
+            scope: ActionScope::Any,
+            handler: Arc::new(AddNote(self.count.clone())),
+        }]
+    }
+    fn surface_queries(&self) -> Vec<QueryDecl> {
+        vec![QueryDecl {
+            id: "notes.count",
+            title: "How many notes",
+            args: no_args(),
+            scope: ActionScope::Any,
+            handler: Arc::new(CountNotes(self.count.clone())),
+        }]
+    }
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         Box::pin(async { Ok(()) })
+    }
+}
+
+struct AddNote(Arc<AtomicU64>);
+
+impl ActionHandler for AddNote {
+    fn run(&self, _call: ActionCall) -> BoxFuture<'_, Result<Value, ActionFailure>> {
+        let id = self.0.fetch_add(1, Ordering::SeqCst) + 1;
+        Box::pin(async move { Ok(json!({ "id": id })) })
+    }
+}
+
+struct CountNotes(Arc<AtomicU64>);
+
+impl QueryHandler for CountNotes {
+    fn read(&self, _call: QueryCall) -> BoxFuture<'_, Result<Value, ActionFailure>> {
+        let count = self.0.load(Ordering::SeqCst);
+        Box::pin(async move { Ok(json!({ "count": count })) })
     }
 }
 
@@ -180,8 +221,32 @@ async fn two_features_claiming_one_route_do_not_compose() {
         "topic notes:change",
         "job kind note-export",
         "idle hook notes-nudge",
+        "action notes.add",
+        "query notes.count",
         "route POST /api/notes ",
     ] {
         assert!(text.contains(clash), "{clash} missing from:\n{text}");
     }
+}
+
+#[tokio::test]
+async fn the_kernel_holds_every_declared_action_and_query_once_the_app_is_built() {
+    let kernel = Kernel::new(KernelOptions::default());
+    let actions = kernel.actions.clone();
+    assert!(actions.registry().action("notes.add").is_none(), "empty until built");
+    let notes = Arc::new(Notes { kernel: kernel.clone(), count: Arc::default() });
+    let _runtime = Runtime::build(kernel, vec![notes], Arc::new(AllPluginsOn)).expect("composes");
+    let add = actions.registry().action("notes.add").expect("declared");
+    assert_eq!((add.class, add.scope), (ActionClass::WriteLocal, ActionScope::Any));
+    let call = ActionCall {
+        action_id: "notes.add".into(),
+        routine_id: None,
+        args: json!({}),
+        origin: "dashboard".into(),
+        record_id: "da-1".into(),
+    };
+    assert_eq!(add.handler.run(call).await, Ok(json!({"id": 1})));
+    let count = actions.registry().query("notes.count").expect("declared");
+    let read = count.handler.read(QueryCall { query_id: "notes.count".into(), routine_id: None, args: json!({}) });
+    assert_eq!(read.await, Ok(json!({"count": 1})));
 }
