@@ -128,10 +128,10 @@ describe("a drop on a disc", () => {
   it("starts with the dropped item when the routine takes it, and refuses it in words otherwise", () => {
     expect(droppedItem(PR, "/Users/a/notes.pdf")).toEqual({ refused: "PR Review takes a pull request." });
     const { item } = droppedItem(PR, "https://github.com/acme/game/pull/482");
-    expect(item).toMatchObject({ kind: "github.pull_request", url: "https://github.com/acme/game/pull/482" });
+    expect(item).toMatchObject({ kind: "github.pull_request", url: "https://github.com/acme/game/pull/482", untrusted: true });
     expect(dropForm(PR, item).items).toEqual([item]);
     const files = { ...PR, name: "Invoice Filer", takes: { kind: "file", label: "invoice", many: false, itemPatterns: [] } };
-    expect(droppedItem(files, "/Users/a/acme.pdf").item).toMatchObject({ path: "/Users/a/acme.pdf", title: "acme.pdf" });
+    expect(droppedItem(files, "/Users/a/acme.pdf").item).toMatchObject({ path: "/Users/a/acme.pdf", title: "acme.pdf", untrusted: true });
     expect(droppedItem({ ...PR, takes: { kind: "none" } }, "x")).toEqual({ refused: "PR Review takes nothing to work on." });
   });
 
@@ -142,6 +142,7 @@ describe("a drop on a disc", () => {
     const body = startBody(PR, optionsOf(PR), dropForm(PR, item), { ...DROP_START, clientRequestId: "c-1" });
     expect(doors).toContain(body.door);
     expect(body.door).toBe("field");
+    expect(body.input.item.untrusted).toBe(true);
   });
 });
 
