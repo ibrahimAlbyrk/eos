@@ -35,12 +35,26 @@ pub const BOOT_PARTS: [&str; 10] = [
     "/api/plugins",
 ];
 
+/// What Eos's Home reads for its first paint (`GET /api/boot?view=eos`), after
+/// [`BOOT_PARTS`] and before the handled count ([`eos_summary_target`]).
+pub const EOS_BOOT_PARTS: [&str; 5] =
+    ["/api/routines", "/api/inbox", "/api/runs?limit=200", "/api/signals/routines", "/api/memory/summary"];
+
+/// What signals handled since the user's last visit to Home (`since`, ms), or since the
+/// start of the user's day.
+pub fn eos_summary_target(since: Option<i64>) -> String {
+    match since {
+        Some(since) => format!("/api/signals/summary?since={since}"),
+        None => "/api/signals/summary".to_owned(),
+    }
+}
+
 /// The newest page of the chat on screen, as its transcript asks for it.
 pub fn boot_page_target(worker_id: &str) -> String {
     format!("/workers/{worker_id}/events?since=0&order=desc&limit=500")
 }
 
-/// `GET /api/boot[?focus=<worker id>]`.
+/// `GET /api/boot[?focus=<worker id>][&view=eos[&since=<ms>]]`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BootSnapshot {
     /// The data of the `hello` a stream opened before the parts were read would have got
@@ -48,7 +62,8 @@ pub struct BootSnapshot {
     /// change the parts may not show.
     #[schemars(with = "serde_json::Value")]
     pub hello: Box<RawValue>,
-    /// By target ([`BOOT_PARTS`], then the focused chat's page). A part whose answer is not
+    /// By target ([`BOOT_PARTS`], the focused chat's page, then Home's parts when the
+    /// dashboard opens in Eos). A part whose answer is not
     /// JSON, or is too large to carry, is left out: the dashboard asks its route itself.
     pub parts: IndexMap<String, RouteAnswer>,
 }
