@@ -150,6 +150,21 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("me-", Alphabet::Hex, 12)
     }
 
+    /// `sf-` + 12: a surface a routine shows its results on.
+    fn surface_id(&self) -> String {
+        self.prefixed("sf-", Alphabet::Hex, 12)
+    }
+
+    /// `si-` + 12: one issue of a surface.
+    fn surface_issue_id(&self) -> String {
+        self.prefixed("si-", Alphabet::Hex, 12)
+    }
+
+    /// `da-` + 12: the record of one direct action.
+    fn action_record_id(&self) -> String {
+        self.prefixed("da-", Alphabet::Hex, 12)
+    }
+
     /// 16 hex characters: one sign-in attempt.
     fn sign_in_id(&self) -> String {
         self.token(Alphabet::Hex, 16)
@@ -254,6 +269,9 @@ mod tests {
             (ids.note_id(), "mn-"),
             (ids.moment_id(), "mm-"),
             (ids.memory_row_id(), "me-"),
+            (ids.surface_id(), "sf-"),
+            (ids.surface_issue_id(), "si-"),
+            (ids.action_record_id(), "da-"),
         ] {
             assert!(shaped(&id, prefix, Alphabet::Hex, 12), "{id}");
         }
