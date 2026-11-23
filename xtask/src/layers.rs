@@ -102,6 +102,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-shell", Layer::Shell),
     ("eos-store-files", Layer::Adapter),
     ("eos-store-sqlite", Layer::Adapter),
+    ("eos-surface", Layer::Domain),
     ("eos-symbols", Layer::Adapter),
     ("eos-sync", Layer::Service),
     ("eos-sync-vault", Layer::Adapter),
