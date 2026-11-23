@@ -10,7 +10,7 @@
 use std::io::Write as _;
 use std::sync::{Arc, OnceLock, Weak};
 
-use eos_contracts::{BOOT_PARTS, boot_page_target};
+use eos_contracts::{BOOT_PARTS, EOS_BOOT_PARTS, boot_page_target, eos_summary_target};
 use eos_runtime::access::{Access, Caller};
 use eos_runtime::http::{ApiError, Body, Method, Request, Response};
 use eos_runtime::module::Module;
@@ -83,6 +83,11 @@ impl Shared {
         let mut targets: Vec<String> = BOOT_PARTS.iter().map(|t| (*t).to_owned()).collect();
         if let Some(worker) = req.query().get("focus").filter(|id| is_worker_id(id)) {
             targets.push(boot_page_target(&worker));
+        }
+        if req.query().get("view").as_deref() == Some("eos") {
+            targets.extend(EOS_BOOT_PARTS.iter().map(|t| (*t).to_owned()));
+            let since = req.query().get("since").and_then(|text| text.parse::<i64>().ok()).filter(|ms| *ms > 0);
+            targets.push(eos_summary_target(since));
         }
         let answers = join_all(targets.iter().map(|target| part(&router, target, &req.caller))).await;
         Ok(Response::json_bytes(200, assemble(&hello, targets.iter().zip(answers)).into()))

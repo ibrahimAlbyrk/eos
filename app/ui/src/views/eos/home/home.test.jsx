@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { endBoot, receiveBoot } from "../../../api/boot.js";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
-import { _resetHome, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore.js";
+import { _resetHome, refreshHome, RUNS_PATH, summaryPath } from "../../../state/eos/homeStore.js";
 import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetNotes, refreshMemorySummary } from "../../../state/eos/notesStore.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
@@ -106,5 +107,29 @@ describe("Eos › Home", () => {
     const html = draw();
     expect(html).toContain('<p class="eos-home__offline" role="status">Reconnecting…</p>');
     expect(html).toContain("Eos handled 31 things overnight.");
+  });
+});
+
+describe("Home's first paint", () => {
+  afterEach(() => {
+    endBoot();
+    vi.unstubAllGlobals();
+  });
+
+  it("draws from the boot snapshot's parts, keyed by the paths Home asks, without a request of its own", async () => {
+    const fetchMock = vi.fn(() => Promise.reject(new Error("no request expected")));
+    vi.stubGlobal("fetch", fetchMock);
+    const all = reads();
+    const paths = [ROUTES.profile, ROUTES.routines, ROUTES.inbox, RUNS_PATH, ROUTES.signalsRoutines, ROUTES.memorySummary, summaryPath(null)];
+    await receiveBoot(Promise.resolve({ hello: {}, parts: Object.fromEntries(paths.map((p) => [p, { status: 200, body: all[p] }])) }));
+    setEosTransport(null);
+    await Promise.all([refreshHome(), refreshInbox(), refreshRoutines(), refreshMemorySummary()]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(draw()).toContain("Good morning, Ada.");
+  });
+
+  it("asks the handled count since the last visit, as index.html names it", () => {
+    expect(summaryPath(null)).toBe("/api/signals/summary");
+    expect(summaryPath(1763452800000)).toBe("/api/signals/summary?since=1763452800000");
   });
 });

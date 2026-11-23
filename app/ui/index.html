@@ -16,7 +16,8 @@
 </script>
 <script>
   // The boot snapshot (src/api/boot.js): what the first paint reads, asked for in one
-  // request while the bundle loads. The chat on screen is the one the last session showed.
+  // request while the bundle loads. The chat on screen is the one the last session showed;
+  // in Eos, Home's parts.
   (function () {
     var base = window.__EOS_DAEMON_URL;
     if (!base || location.hash === "#plugin-preview" || location.hash === "#eos-gallery") return;
@@ -24,7 +25,14 @@
       var view = localStorage.getItem("cm:activeView");
       var chat = !view || view === "agents" ? localStorage.getItem("cm:selectedId") : null;
       var headers = window.__EOS_UI_TOKEN ? { "x-eos-ui-token": window.__EOS_UI_TOKEN } : {};
-      window.__EOS_BOOT = fetch(base + "/api/boot" + (chat ? "?focus=" + encodeURIComponent(chat) : ""), { headers: headers })
+      var query = chat ? ["focus=" + encodeURIComponent(chat)] : [];
+      // Eos opens on Home: its reads ride along, the handled count since the last visit.
+      if (view === "eos") {
+        var seen = localStorage.getItem("eos:lastSeenAt");
+        query.push("view=eos");
+        if (seen && /^[0-9]+$/.test(seen)) query.push("since=" + seen);
+      }
+      window.__EOS_BOOT = fetch(base + "/api/boot" + (query.length ? "?" + query.join("&") : ""), { headers: headers })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; });
     } catch (e) { /* the stores ask their own routes */ }

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{BOOT_PARTS, BootSnapshot, boot_page_target};
+use eos_contracts::{BOOT_PARTS, BootSnapshot, EOS_BOOT_PARTS, boot_page_target};
 use eos_mod_boot::{BootModule, PART_MAX_BYTES};
 use eos_runtime::access::{Access, Caller, Tier};
 use eos_runtime::http::{ApiError, Body, Method, Request, Response};
@@ -72,6 +72,21 @@ impl Module for Parts {
                 Ok::<_, ApiError>(Response::json_bytes(200, body.into()))
             })
             .access(open),
+            // Home's parts, for a dashboard that opens in Eos.
+            RouteDef::get("/api/routines", json("[]")).access(Access::open()),
+            RouteDef::get("/api/inbox", json(r#"{"items":[]}"#)).access(Access::open()),
+            RouteDef::get("/api/runs", |req: Request| async move {
+                let body = format!(r#"{{"limit":"{}"}}"#, req.query().get("limit").unwrap_or_default());
+                Ok::<_, ApiError>(Response::json_bytes(200, body.into()))
+            })
+            .access(Access::open()),
+            RouteDef::get("/api/signals/routines", json("[]")).access(Access::ui_token()),
+            RouteDef::get("/api/memory/summary", json(r#"{"weekly":3}"#)).access(Access::open()),
+            RouteDef::get("/api/signals/summary", |req: Request| async move {
+                let body = format!(r#"{{"since":"{}"}}"#, req.query().get("since").unwrap_or_default());
+                Ok::<_, ApiError>(Response::json_bytes(200, body.into()))
+            })
+            .access(Access::open()),
         ]
     }
 }
@@ -128,6 +143,37 @@ async fn the_focused_chat_is_named_by_a_plain_id_only() {
         assert_eq!((status, snapshot.parts.len()), (200, 8), "{target}: no page");
         assert!(snapshot.parts.keys().all(|k| BOOT_PARTS.contains(&k.as_str())), "{target}");
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn home_s_parts_ride_along_when_the_dashboard_opens_in_eos() {
+    let runtime = runtime(true);
+    let (_, body) = boot(&runtime, "/api/boot?view=eos&since=1763452800000", Caller::DASHBOARD).await;
+    let snapshot: BootSnapshot = serde_json::from_slice(&body).expect("the snapshot shape");
+    let home: Vec<_> = parts(&snapshot).into_iter().skip(8).collect();
+    assert_eq!(
+        home,
+        [
+            (EOS_BOOT_PARTS[0], 200, "[]"),
+            (EOS_BOOT_PARTS[1], 200, r#"{"items":[]}"#),
+            (EOS_BOOT_PARTS[2], 200, r#"{"limit":"200"}"#),
+            (EOS_BOOT_PARTS[3], 200, "[]"),
+            (EOS_BOOT_PARTS[4], 200, r#"{"weekly":3}"#),
+            ("/api/signals/summary?since=1763452800000", 200, r#"{"since":"1763452800000"}"#),
+        ]
+    );
+    for target in ["/api/boot?view=eos", "/api/boot?view=eos&since=soon", "/api/boot?view=eos&since=-4"] {
+        let (_, body) = boot(&runtime, target, Caller::DASHBOARD).await;
+        let snapshot: BootSnapshot = serde_json::from_slice(&body).expect("the snapshot shape");
+        assert_eq!(
+            snapshot.parts.keys().last().map(String::as_str),
+            Some("/api/signals/summary"),
+            "{target}: since the day began"
+        );
+    }
+    let (_, body) = boot(&runtime, "/api/boot?view=agents", Caller::DASHBOARD).await;
+    let snapshot: BootSnapshot = serde_json::from_slice(&body).expect("the snapshot shape");
+    assert_eq!(snapshot.parts.len(), 8, "Agents gets no Home parts");
 }
 
 #[tokio::test(flavor = "multi_thread")]
