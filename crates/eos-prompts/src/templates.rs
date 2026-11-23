@@ -93,6 +93,14 @@ pub mod memory {
         let request = render(prompts, "memory/generalize", &[("LESSONS", lessons)])?;
         Ok((system, request))
     }
+
+    /// Memory's playbook rewrite: `(system, request)` over the playbook's
+    /// lines and the routine's notes, one a line.
+    pub fn playbook(prompts: &PromptService, playbook: &str, notes: &str) -> Result<(String, String), Error> {
+        let system = render(prompts, "memory/playbook-system", &[])?;
+        let request = render(prompts, "memory/playbook", &[("PLAYBOOK", playbook), ("NOTES", notes)])?;
+        Ok((system, request))
+    }
 }
 
 /// Micro-tasks.

@@ -13,7 +13,8 @@
 //!   the host lets it ask one, the rules elsewhere) and [`merge`] writes
 //!   them beside the notes they meet, in one job.
 //! - [`night`] tidies once a night: states read again, the same lesson
-//!   kept once, forgotten text erased, lessons made general.
+//!   kept once, forgotten text erased, lessons made general; [`playbook`]
+//!   rewrites a routine's playbook and keeps it only after a better replay.
 //! - [`credit`] moves notes' counters and states by what followed their
 //!   recall: acted on, a good end, a surprise, "Not right".
 //! - [`edits`] reads the user's edits of routines' results as moments.
@@ -37,6 +38,7 @@ pub mod forget;
 pub mod merge;
 pub mod night;
 pub mod pack;
+pub mod playbook;
 pub mod recall;
 pub mod reflect;
 pub mod settings;

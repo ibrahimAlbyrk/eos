@@ -11,13 +11,14 @@ use eos_core::experience::{CheckVerdict, RunPack, RunPackRequest};
 use eos_core::store::{NoteQuery, Store, StoredMoment};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::experience::moments::Signal;
-use eos_domain::experience::{NoteState, ScopeLevel};
+use eos_domain::experience::{NoteKind, NoteState, ScopeLevel};
 
 use crate::credit::Credit;
 use crate::deliver::{How, Receiver, record};
 use crate::merge::{MEMORY_CHANGE, version};
 use crate::pack::run_pack;
-use crate::recall::{Cues, Recall, Situation};
+use crate::playbook;
+use crate::recall::{Cues, Recall, Recalled, Situation};
 use crate::settings;
 
 /// Notes recalled for a run before its pack is cut.
@@ -63,7 +64,17 @@ impl Feedback {
             Situation { routine: Some(request.routine_id.clone()), project: request.project.clone(), work_kind: None };
         let query = Some(request.item_text.clone()).filter(|t| !t.trim().is_empty());
         let cues = Cues { hooks: request.item_cues.clone(), query };
-        let recalled = self.recall.recall(&situation, &cues, RECALL_LIMIT).await?;
+        let mut recalled = self.recall.recall(&situation, &cues, RECALL_LIMIT).await?;
+        // The routine's playbook (or the candidate a replay checks) comes
+        // first, whatever was recalled.
+        let (routine, candidate, now) =
+            (request.routine_id.clone(), request.playbook_candidate.clone(), self.clock.now_ms());
+        let playbook =
+            self.store.read(move |tx| playbook::for_pack_in(tx, &routine, candidate.as_deref(), now)).await?;
+        recalled.retain(|r| r.note.note.kind != NoteKind::Playbook);
+        if let Some(note) = playbook {
+            recalled.insert(0, Recalled { note, score: 1.0 });
+        }
         let Some(pack) = run_pack(&recalled, &request.routine_id) else { return Ok(RunPack::default()) };
         if !request.trial {
             let to = Receiver { worker_id: None, run_id: Some(request.run_id.clone()), epoch: 0 };

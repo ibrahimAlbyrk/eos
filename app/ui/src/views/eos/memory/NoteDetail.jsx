@@ -3,7 +3,7 @@ import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { editNote, forgetNote, loadNote, restoreNote, useNotes } from "../../../state/eos/notesStore.js";
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
-import { comesBackLine, dayOf, headline, helpLine, RESTORE_MS, whenOf } from "./words.js";
+import { comesBackLine, dayOf, headline, helpLine, playbookLine, RESTORE_MS, whenOf } from "./words.js";
 
 const TEXT_MAX = 280;
 
@@ -60,6 +60,7 @@ export function NoteDetail({ id }) {
       <header className="eos-mem-detail__head">
         {editing ? <EditForm note={note} onDone={() => setEditing(false)} /> : <h2 className="eos-mem-detail__text">{note.text}</h2>}
         <p className="eos-mem-detail__line">{headline(detail, routines)}</p>
+        {playbookLine(detail) && <p className="eos-mem-detail__line">{playbookLine(detail)}</p>}
       </header>
 
       {note.forgottenAt && (

@@ -1924,6 +1924,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-testkit",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",

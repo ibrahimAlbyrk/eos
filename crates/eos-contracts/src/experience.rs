@@ -190,7 +190,7 @@ pub struct ExperienceHelp {
 pub struct ExperienceVersion {
     pub rev: i64,
     pub at: i64,
-    /// `learned`, `corrected`, `edited`, `merged`, `narrowed`, `restored` or `closed`.
+    /// `learned`, `corrected`, `edited`, `merged`, `narrowed`, `restored`, `rewritten` or `closed`.
     pub why: String,
 }
 

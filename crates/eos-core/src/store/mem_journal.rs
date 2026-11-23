@@ -75,6 +75,22 @@ pub struct StoredForgotten {
     pub at: i64,
 }
 
+/// A row of `mem_replays`: one check of a rewritten playbook (04 G12c).
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredReplay {
+    /// The candidate's id, as its replay runs name it.
+    pub id: String,
+    pub routine_id: String,
+    /// The playbook note's version after the check.
+    pub version: i64,
+    /// Past items both playbooks were scored on.
+    pub items: i64,
+    pub old_score: f64,
+    pub new_score: f64,
+    pub kept: bool,
+    pub at: i64,
+}
+
 /// A row of `mem_daily`: model calls on one local day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct DailyCalls {
@@ -142,6 +158,10 @@ pub trait MemBookRepo {
     fn remove_forgotten(&self, note_id: &str) -> Result<(), Error>;
     /// Deletes forgotten notes from before `before`; answers their ids.
     fn prune_forgotten(&self, before: i64) -> Result<Vec<String>, Error>;
+
+    fn add_replay(&self, replay: &StoredReplay) -> Result<(), Error>;
+    /// A routine's playbook checks, newest first.
+    fn replays(&self, routine_id: &str) -> Result<Vec<StoredReplay>, Error>;
 
     fn setting(&self, key: &str) -> Result<Option<String>, Error>;
     fn set_setting(&self, key: &str, value: &str) -> Result<(), Error>;

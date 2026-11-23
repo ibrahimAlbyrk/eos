@@ -9,6 +9,7 @@ mod eval;
 mod feedback;
 mod night;
 mod notes;
+mod playbook;
 mod recall;
 mod reflect;
 mod sync;

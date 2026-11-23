@@ -210,6 +210,7 @@ fn experience(mac: &Mac, temp: &TempStore, device: &str) -> Arc<ExperienceDomain
         sleeper: Arc::new(FakeSleeper::default()),
         ids: Arc::new(SeqIds::new()),
         runs: None,
+        replays: None,
         sink: Arc::new(NoSink),
         project_keys: Arc::new(PathKeys),
         profile: mac.profile.clone(),

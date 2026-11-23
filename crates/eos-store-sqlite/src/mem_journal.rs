@@ -1,10 +1,10 @@
 //! `mem_moments`, `mem_cursors`, `mem_uses`, `mem_stated`, `mem_forgotten`,
-//! `mem_settings` and `mem_daily`.
+//! `mem_replays`, `mem_settings` and `mem_daily`.
 
 use eos_core::Error;
 use eos_core::store::{
     DailyCall, DailyCalls, MemBookRepo, MemCursorRepo, MemMomentRepo, MemUseRepo, StoredForgotten, StoredMoment,
-    StoredStated, StoredUse,
+    StoredReplay, StoredStated, StoredUse,
 };
 use eos_domain::experience::Trust;
 use eos_kit_sqlite::rusqlite::{self, params};
@@ -205,6 +205,22 @@ fn forgotten(r: &rusqlite::Row<'_>) -> Result<StoredForgotten, Error> {
     read().map_err(failed)
 }
 
+fn replay(r: &rusqlite::Row<'_>) -> Result<StoredReplay, Error> {
+    let read = || -> rusqlite::Result<StoredReplay> {
+        Ok(StoredReplay {
+            id: r.get(0)?,
+            routine_id: r.get(1)?,
+            version: r.get(2)?,
+            items: r.get(3)?,
+            old_score: r.get(4)?,
+            new_score: r.get(5)?,
+            kept: r.get(6)?,
+            at: r.get(7)?,
+        })
+    };
+    read().map_err(failed)
+}
+
 impl MemBookRepo for SqliteTx<'_> {
     fn put_stated(&self, s: &StoredStated) -> Result<(), Error> {
         self.exec(
@@ -258,6 +274,24 @@ impl MemBookRepo for SqliteTx<'_> {
             })?;
         self.exec("DELETE FROM mem_forgotten WHERE at < ?1", [before])?;
         Ok(ids)
+    }
+
+    fn add_replay(&self, r: &StoredReplay) -> Result<(), Error> {
+        self.exec(
+            "INSERT INTO mem_replays (id, routine_id, version, items, old_score, new_score, kept, at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![r.id, r.routine_id, r.version, r.items, r.old_score, r.new_score, r.kept, r.at],
+        )
+        .map(drop)
+    }
+
+    fn replays(&self, routine_id: &str) -> Result<Vec<StoredReplay>, Error> {
+        self.rows(
+            "SELECT id, routine_id, version, items, old_score, new_score, kept, at FROM mem_replays \
+             WHERE routine_id = ?1 ORDER BY at DESC, id",
+            [routine_id],
+            replay,
+        )
     }
 
     fn setting(&self, key: &str) -> Result<Option<String>, Error> {
