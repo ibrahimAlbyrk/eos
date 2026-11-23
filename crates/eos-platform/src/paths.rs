@@ -67,6 +67,8 @@ pub const USER_DATA_ENTRIES: &[&str] = &[
     "routines",
     // Installed capability packages, each version as it was reviewed, and their code's own data.
     "capabilities",
+    // Images and exports of routine surfaces; old issues cannot fetch them again.
+    "surfaces",
 ];
 
 /// What no agent's file tool (Edit, Write, NotebookEdit) writes in the data
