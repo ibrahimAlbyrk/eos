@@ -114,14 +114,20 @@ impl CodePanes {
         Some((rows, cwd))
     }
 
-    /// Looks at the panes every [`POLL_MS`], and at once when one exits.
+    /// Looks at the panes every [`POLL_MS`] while there are any, and at once
+    /// when one comes or exits. Without panes it sleeps until one comes, so an
+    /// idle app is not woken for nothing.
     pub(crate) fn poll(&self, sleeper: Arc<dyn Sleeper>) -> impl Future<Output = ()> + Send + 'static {
         let inner = self.inner.clone();
         async move {
             loop {
-                tokio::select! {
-                    () = sleeper.sleep(POLL_MS) => {}
-                    () = inner.wake.notified() => {}
+                if lock(&inner.panes).is_empty() {
+                    inner.wake.notified().await;
+                } else {
+                    tokio::select! {
+                        () = sleeper.sleep(POLL_MS) => {}
+                        () = inner.wake.notified() => {}
+                    }
                 }
                 inner.look().await;
             }
@@ -157,6 +163,8 @@ impl Inner {
         let pane =
             Pane { claude_session_id, file, stamp: None, changed_at: self.clock.now_ms(), read: true, gone: false };
         panes.insert(session.session_id.clone(), pane);
+        // The poll sleeps while there are no panes.
+        self.wake.notify_one();
     }
 
     fn exited(&self, session_id: &str) {
