@@ -398,6 +398,7 @@ impl App {
         });
         let grants = Arc::new(crate::capabilities::LateGrants::default());
         let (given_sources, given_channels) = (capability_options.sources.clone(), capability_options.channels.clone());
+        let notifiers = Arc::new(crate::capabilities::LateNotifiers::default());
         let capabilities = crate::capabilities::service(crate::capabilities::Parts {
             reach,
             paths: &paths,
@@ -410,6 +411,7 @@ impl App {
             github,
             mail,
             grants: grants.clone(),
+            notifiers: notifiers.clone(),
             options: capability_options,
         })?;
         let policy = Arc::new(
@@ -470,6 +472,7 @@ impl App {
         let hooks = Arc::new(AppHooks::new(kernel.bus.clone(), leftovers.clone()));
         let questions =
             eos_mod_questions::Questions::new(store.clone(), kernel.bus.clone(), clock.clone(), ids.clone());
+        let questions_banner = questions.clone();
         // A routine run's questions wait in Needs you; every other worker asks as before.
         let run_questions = eos_inbox::RunQuestions::new(eos_inbox::RunQuestionParts {
             store: store.clone(),
@@ -660,6 +663,7 @@ impl App {
             boot: Arc::new(eos_mod_boot::BootModule::new(kernel.stream.clone())),
         };
         let remote = context.remote.clone();
+        notifiers.attach(Arc::new(questions_banner), reach.phone_notify(remote.phone_notify()));
         let features = modules::all(&context)?;
         let mut all = features.modules;
         all.extend(extra_modules);

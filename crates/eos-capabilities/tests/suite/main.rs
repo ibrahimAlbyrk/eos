@@ -6,4 +6,5 @@ mod health;
 mod install;
 mod limits;
 mod mail;
+mod notify;
 mod rig;

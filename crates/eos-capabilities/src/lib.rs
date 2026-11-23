@@ -44,6 +44,7 @@ mod install;
 mod limits;
 mod mail;
 mod manage;
+mod notify;
 mod output;
 mod pull;
 mod reads;
@@ -65,6 +66,7 @@ use eos_core::{BoxFuture, Clock, Error, Ids};
 
 pub use candidates::CANDIDATES_MAX;
 pub use install::Install;
+pub use notify::{NOTIFY, Notify};
 
 /// The topic a capability's state or version change is announced on, with
 /// `eos_contracts::CapabilitiesChange`.
