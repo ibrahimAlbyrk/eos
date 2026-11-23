@@ -2236,6 +2236,7 @@ dependencies = [
  "eos-kit-net",
  "eos-kit-proc",
  "eos-kit-sqlite",
+ "eos-mail-app",
  "eos-mod-accounts",
  "eos-mod-agent-jobs",
  "eos-mod-agents",
@@ -2604,6 +2605,18 @@ dependencies = [
  "crossbeam-channel",
  "rusqlite",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "eos-mail-app"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-domain",
+ "eos-kit-proc",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
