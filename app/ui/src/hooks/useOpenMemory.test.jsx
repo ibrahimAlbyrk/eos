@@ -7,7 +7,7 @@ vi.mock("../state/ui.jsx", () => ({ useUi: () => ui }));
 vi.mock("../state/settings.jsx", () => ({ useSettings: () => settings }));
 
 const { useOpenMemory } = await import("./useOpenMemory.js");
-const { probeEosStatus, setEosPreview } = await import("../state/eos/eosStatusStore.js");
+const { probeEosStatus } = await import("../state/eos/eosStatusStore.js");
 const { fixtureTransport, setEosTransport } = await import("../state/eos/transport.js");
 const { ROUTES } = await import("../api/routes.js");
 const { _resetEosNav, eosLocation } = await import("../views/eos/nav/eosNav.js");
@@ -43,7 +43,6 @@ afterEach(() => setEosTransport(null));
 describe("opening Memory", () => {
   it("opens Eos › Memory › About you while Eos is shown", async () => {
     setEosTransport(fixtureTransport({ [ROUTES.routines]: [] }));
-    setEosPreview(true);
     await probeEosStatus();
     open();
     expect(settings.closeSettings).toHaveBeenCalledOnce();

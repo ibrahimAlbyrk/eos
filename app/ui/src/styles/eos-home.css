@@ -236,3 +236,5 @@
   cursor: pointer;
 }
 .eos-thing__remove:hover { color: var(--fg-strong); background: var(--row-on); }
+
+.eos-home__moved { margin: 12px 32px 0; }

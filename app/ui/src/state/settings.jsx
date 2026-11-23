@@ -10,7 +10,6 @@ import { modifiers } from "../lib/platform.js";
 import { afterFirstPaint } from "../lib/firstPaint.js";
 import { peekBootPart } from "../api/boot.js";
 import { ROUTES } from "../api/routes.js";
-import { setEosPreview } from "./eos/eosStatusStore.js";
 
 const SettingsContext = createContext(null);
 
@@ -150,10 +149,6 @@ export function SettingsProvider({ children }) {
     } catch {}
     updateComposer({ provider: defaultProvider || null });
   }, [defaultProvider, updateComposer]);
-
-  // Eos mode shows only while the user has the Eos preview on.
-  const eosPreview = settings["eos.preview"] === true;
-  useEffect(() => { setEosPreview(eosPreview); }, [eosPreview]);
 
   // Dark only — apply once on mount and persist so index.html's pre-bundle
   // bootstrap paints dark too. The Appearance setting was removed.

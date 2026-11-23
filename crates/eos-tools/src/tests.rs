@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use eos_capabilities::{CapabilityPorts, CapabilityService};
 use eos_contracts::SessionFactsRole;
-use eos_contracts::SettingValue;
 use eos_core::agent::{HostTool, LaunchSpec, ToolCaller, ToolReply, ToolSets};
 use eos_core::capability::{AllInstalled, BuiltinCapability};
 use eos_core::routine::{RoutineTools, SubmittedResult};
@@ -14,7 +13,7 @@ use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
     FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeFeatures, FakeModelCatalog,
-    FakeSettings, FakeSleeper, FakeTimeZone, FakeTrash, SeqIds, TempStore,
+    FakeSleeper, FakeTimeZone, FakeTrash, SeqIds, TempStore,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::Value;
@@ -36,8 +35,6 @@ pub(crate) struct Bench {
     /// The capability service the capability tools call, on the same database.
     pub(crate) capabilities: Arc<CapabilityService>,
     pub(crate) runner: Arc<FakeActionRunner>,
-    /// The user's settings; the Eos preview is off until a test turns it on.
-    pub(crate) settings: Arc<FakeSettings>,
     /// What the run tools asked of the routines feature.
     pub(crate) runs: RunCalls,
 }
@@ -227,7 +224,6 @@ pub(crate) fn bench_with(
         store.port(),
         clock.clone(),
     ));
-    let settings = Arc::new(FakeSettings::default());
     let runs = RunCalls::default();
     let tools = Tools::new(Services {
         prompts: Arc::new(PromptRegistry::new(Arc::new(LibraryPromptSource::embedded()))),
@@ -251,11 +247,10 @@ pub(crate) fn bench_with(
         transfers: Some(features.clone()),
         reactions: Some(features.clone()),
         capabilities: Some(capabilities.clone()),
-        settings: settings.clone(),
         routines: Some(Arc::new(runs.clone())),
         architect: Some(Arc::new(runs.clone())),
     });
-    Bench { tools, runs, features, clock, store, capabilities, runner, settings }
+    Bench { tools, runs, features, clock, store, capabilities, runner }
 }
 
 fn session(role: SessionFactsRole, collaborate: bool) -> LaunchSpec {
@@ -284,12 +279,6 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
 }
 
 impl Bench {
-    /// Turns the Eos preview on or off, as Settings writes it.
-    pub(crate) fn preview(&self, on: bool) {
-        let mut settings = self.settings.0.lock().expect("settings");
-        settings.insert("eos.preview".into(), SettingValue::Flag(on));
-    }
-
     /// The tools a session of `kind` gets, by name.
     pub(crate) fn names(&self, kind: &str) -> Vec<String> {
         self.tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()
@@ -349,7 +338,6 @@ fn each_tool_is_described_to_the_model_as_today() {
     let registry = fixture("tools/registry.json");
     let descriptions = fixture("prompts/library.json");
     let bench = bench(FakeFeatures::new([]));
-    bench.preview(true);
     for tool in registry["tools"].as_array().expect("tools") {
         let name = tool["name"].as_str().expect("name");
         let ours = bench.any_tool(name);
@@ -372,7 +360,6 @@ fn each_tool_is_described_to_the_model_as_today() {
 fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
-    bench.preview(true);
     let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect"]
         .iter()
         .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
@@ -390,28 +377,32 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
 }
 
 #[test]
-fn the_capability_tools_are_handed_out_only_while_the_eos_preview_is_on() {
+fn every_agents_chat_gets_the_capability_tools() {
     let bench = bench(FakeFeatures::new([]));
     let capability_tools = |names: Vec<String>| -> Vec<String> {
         names.into_iter().filter(|name| name.ends_with("_capability") || name.ends_with("_capabilities")).collect()
     };
     for kind in ["orchestrator", "worker", "focused"] {
-        assert_eq!(capability_tools(bench.names(kind)), Vec::<String>::new(), "{kind}: off by default");
-        bench.preview(true);
-        assert_eq!(capability_tools(bench.names(kind)), ["list_capabilities", "call_capability"], "{kind}: on");
-        bench.preview(false);
-        assert_eq!(capability_tools(bench.names(kind)), Vec::<String>::new(), "{kind}: off again");
+        assert_eq!(capability_tools(bench.names(kind)), ["list_capabilities", "call_capability"], "{kind}");
     }
 }
 
 /// A run's lead is keyed on its reserved definition: its run tools, a
-/// question for the user, the date, memory search and, with the preview on,
-/// the capability tools; nothing of a chat's that reaches people or
+/// question for the user, the date, memory search and the capability tools; nothing of a chat's that reaches people or
 /// machines.
 #[test]
 fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
     let bench = bench(FakeFeatures::new([]));
-    let lead = ["report_progress", "submit_result", "report_failure", "ask_user", "current_datetime", "search_memory"];
+    let lead = [
+        "report_progress",
+        "submit_result",
+        "report_failure",
+        "ask_user",
+        "current_datetime",
+        "search_memory",
+        "list_capabilities",
+        "call_capability",
+    ];
     let team = ["start_specialist", "message_specialist", "stop_specialist", "list_specialists"];
     let team_lead: Vec<&str> = lead[..3].iter().chain(&team).chain(&lead[3..]).copied().collect();
     for (definition, expected) in
@@ -430,13 +421,12 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.tools.for_session(&specialist).iter().map(|t| t.definition().name.clone()).collect::<Vec<_>>(),
         bench.names("worker")
     );
-    bench.preview(true);
-    let with_preview = bench.names("run-lead");
-    assert_eq!(with_preview[6..], ["list_capabilities", "call_capability"]);
+    let lead = bench.names("run-lead");
+    assert_eq!(lead[6..], ["list_capabilities", "call_capability"]);
     for never in
         ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
     {
-        assert!(!with_preview.iter().any(|name| name == never), "{never}");
+        assert!(!lead.iter().any(|name| name == never), "{never}");
     }
     // A chat never gets a run's tools.
     for kind in ["orchestrator", "worker", "focused", "focused-peer"] {
@@ -444,8 +434,10 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         assert!(!names.iter().any(|name| name == "submit_result" || name == "submit_verdict"), "{kind}");
     }
     // The checker gives its verdict and reads; it hands in no result and asks nobody.
-    bench.preview(false);
-    assert_eq!(bench.names("run-checker"), ["submit_verdict", "current_datetime", "search_memory"]);
+    assert_eq!(
+        bench.names("run-checker"),
+        ["submit_verdict", "current_datetime", "search_memory", "list_capabilities", "call_capability"]
+    );
 }
 
 #[tokio::test]
@@ -551,14 +543,12 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         transfers: None,
         reactions: None,
         capabilities: None,
-        settings: Arc::new(FakeSettings::default()),
         routines: None,
         architect: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()
     };
-    full.preview(true);
     let bare = names(&tools, "focused-peer");
     assert!(!bare.iter().any(|n| n.contains("browser_") || n.contains("present") || n.contains("peer")), "{bare:?}");
     assert!(!bare.iter().any(|n| n.ends_with("send_to_machine") || n.ends_with("find_places")), "{bare:?}");

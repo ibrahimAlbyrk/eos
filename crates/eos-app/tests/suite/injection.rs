@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eos_app::{App, CapabilityOptions, Options};
-use eos_contracts::{Fact, Facts, SettingValue};
+use eos_contracts::{Fact, Facts};
 use eos_core::signals::SignalDraft;
 use eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED;
 use eos_runtime::http::{Method, Request};
@@ -125,8 +125,6 @@ async fn a_compromised_run_reaches_no_one_outside_goes_to_raises_nothing_and_tea
     let (home, agents, fakes) = (TempHome::new(), working_agents(), Fakes::new());
     let app = app(&fakes, &home, &agents);
     app.start().await.expect("starts");
-    let preview = [("eos.preview".to_owned(), SettingValue::Flag(true))].into_iter().collect();
-    app.settings().patch(preview).expect("the preview is on");
     let mut blueprint = review_blueprint("Review the pull request.");
     blueprint["freedom"] = json!({"rung": "on_its_own"});
     let routine = make(&app, blueprint).await;

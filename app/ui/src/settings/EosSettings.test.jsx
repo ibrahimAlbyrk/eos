@@ -6,7 +6,7 @@ import {
   _resetEosSettings, changeEosSetting, forgetAllLearned, loadEosSettings, sendTestPush, undoForgetAll,
 } from "../state/eos/eosSettingsStore.js";
 import { _resetHalt, loadHalt, stopEos } from "../state/eos/haltStore.js";
-import { probeEosStatus, setEosPreview } from "../state/eos/eosStatusStore.js";
+import { probeEosStatus } from "../state/eos/eosStatusStore.js";
 import { EosSettings } from "./EosSettings.jsx";
 import { visibleSections } from "./registry.jsx";
 
@@ -112,7 +112,6 @@ describe("Settings › Eos", () => {
     await probeEosStatus();
     expect(visibleSections({}).map((s) => s.id)).not.toContain("eos");
     setEosTransport(fixtureTransport({ [ROUTES.routines]: [] }));
-    setEosPreview(true);
     await probeEosStatus();
     expect(visibleSections({}).map((s) => s.id)).toContain("eos");
   });

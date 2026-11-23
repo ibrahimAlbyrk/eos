@@ -2,15 +2,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { TABS, visibleTabs } from "../views/tabs.js";
 import { useFeatures } from "./featuresStore.js";
 import { ensureEosStatusLoaded, useEosShown } from "./eos/eosStatusStore.js";
+import { noteViewAtStart } from "./eos/movedShortcuts.js";
 
 const NavigationContext = createContext(null);
 
 // A stored id is kept while its view is hidden, so a view that shows only once
-// the core has answered (Eos) still opens where the user left. An id no view
-// has (e.g. the removed Home) falls back to the first view.
+// the core has answered (Eos) still opens where the user left. A new user, or
+// an id no view has (e.g. the removed Home), starts on the first view, Eos
+// (D2): until the core answers, the first visible view stands in.
 export function initialView() {
   const stored = localStorage.getItem("cm:activeView");
-  return TABS.some((t) => t.id === stored) ? stored : visibleTabs()[0].id;
+  noteViewAtStart(stored);
+  return TABS.some((t) => t.id === stored) ? stored : TABS[0].id;
 }
 
 // The view on screen: the chosen one, or the first view while it is hidden.

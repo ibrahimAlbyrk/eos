@@ -15,6 +15,7 @@ import { Greeting } from "./Greeting.jsx";
 import { Horizon } from "./Horizon.jsx";
 import { awayLines, dayStart, handledLine, hello, needLine } from "./homeWords.js";
 import { LearnedLine } from "./LearnedLine.jsx";
+import { MovedShortcuts } from "./MovedShortcuts.jsx";
 import { NeedsYouCards } from "./NeedsYouCards.jsx";
 import { StarterChips } from "./StarterChips.jsx";
 
@@ -88,6 +89,7 @@ export function HomeScreen({ clock = Date.now }) {
     <main className={fieldOn ? "eos-screen eos-home is-field" : "eos-screen eos-home"}>
       <div className="pane-head pane-head--topleft eos-home__drag"><span className="pane-head-inset" aria-hidden="true" /></div>
       <HaltBand />
+      <MovedShortcuts />
       {home.offline && <p className="eos-home__offline" role="status">Reconnecting…</p>}
       <div className="eos-home__scroll">
         <div className="eos-home__glow" aria-hidden="true" />

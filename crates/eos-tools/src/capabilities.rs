@@ -6,7 +6,6 @@
 use std::sync::Arc;
 
 use eos_contracts::tool_scope::CALL_CAPABILITY_TOOL;
-use eos_contracts::{SettingValue, UserSettings};
 use eos_core::capability::{
     ActionCall, ActionCaller, ActionDescription, ActionError, CapabilityCalls, CapabilityDescription,
 };
@@ -101,20 +100,6 @@ impl Handler for CallAction {
 
 const LIST_CAPABILITIES_TOOL: &str = "list_capabilities";
 
-/// The flat `settings.json` key of the Eos preview: until the user turns it
-/// on, no session gets these tools.
-const PREVIEW_KEY: &str = "eos.preview";
-
-/// Whether `tool` is one of these, which only the Eos preview hands out.
-pub(crate) fn previewed(tool: &str) -> bool {
-    tool == LIST_CAPABILITIES_TOOL || tool == CALL_CAPABILITY_TOOL
-}
-
-/// Whether the user turned the Eos preview on.
-pub(crate) fn preview_on(settings: &UserSettings) -> bool {
-    matches!(settings.get(PREVIEW_KEY), Some(SettingValue::Flag(true)))
-}
-
 pub(crate) fn specs(calls: &Arc<dyn CapabilityCalls>) -> Vec<Spec> {
     let list = Spec::new(
         LIST_CAPABILITIES_TOOL,
@@ -197,7 +182,6 @@ run = ["/bin/sh", "list.sh"]
             FakeCapabilitySecrets::new()
         };
         let bench = bench_with(FakeFeatures::new([]), TempStore::new(), vec![builtin.clone()], secrets);
-        bench.preview(true);
         bench.capabilities.start().await.expect("starts");
         (bench, builtin)
     }

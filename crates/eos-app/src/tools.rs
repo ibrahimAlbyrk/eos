@@ -54,7 +54,6 @@ pub(crate) fn build(
         transfers: Some(transfer.agent_transfers()),
         reactions: Some(Arc::new(cx.sessions.clone())),
         capabilities: Some(cx.capabilities.clone()),
-        settings: cx.settings.clone(),
         routines: Some(routines.tools()),
         architect: Some(routines.architect()),
     })))

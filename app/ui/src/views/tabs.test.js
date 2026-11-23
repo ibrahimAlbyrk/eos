@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../state/eos/transport.js";
-import { probeEosStatus, setEosPreview } from "../state/eos/eosStatusStore.js";
+import { probeEosStatus } from "../state/eos/eosStatusStore.js";
 import { visibleTabs } from "./tabs.js";
 import { getViewComponent, getViewSidebar, keepsMounted } from "./registry.js";
 import { EosView } from "./eos/EosView.jsx";
@@ -17,7 +17,6 @@ vi.mock("./machines/MachinesSidebar.jsx", () => ({ MachinesSidebar: () => null }
 
 async function eosServed(served) {
   setEosTransport(fixtureTransport(served ? { [ROUTES.routines]: [] } : {}));
-  setEosPreview(true);
   await probeEosStatus();
 }
 

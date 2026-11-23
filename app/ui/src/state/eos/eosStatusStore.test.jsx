@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./transport.js";
-import { ensureEosStatusLoaded, isEosShown, probeEosStatus, setEosPreview, useEosShown } from "./eosStatusStore.js";
+import { ensureEosStatusLoaded, isEosShown, probeEosStatus, useEosShown } from "./eosStatusStore.js";
 import routinesEmpty from "../../views/eos/gallery/sample/routines-empty.json";
 
 const served = () => fixtureTransport({ [ROUTES.routines]: routinesEmpty });
@@ -11,8 +11,6 @@ const answering = (status, body) => ({ get: async () => ({ ok: status < 300, sta
 function Shown() {
   return useEosShown() ? "shown" : "hidden";
 }
-
-beforeEach(() => setEosPreview(true));
 
 afterEach(() => {
   setEosTransport(null);
@@ -25,18 +23,6 @@ describe("eosStatusStore", () => {
     await probeEosStatus();
     expect(isEosShown()).toBe(true);
     expect(renderToStaticMarkup(<Shown />)).toBe("shown");
-  });
-
-  it("hides Eos while the preview is off, even when the routine list answers 200", async () => {
-    setEosTransport(served());
-    setEosPreview(false);
-    await probeEosStatus();
-    expect(isEosShown()).toBe(false);
-    expect(renderToStaticMarkup(<Shown />)).toBe("hidden");
-    setEosPreview(true);
-    expect(isEosShown()).toBe(true);
-    setEosPreview(false);
-    expect(isEosShown()).toBe(false);
   });
 
   it("hides Eos when the core has no routines route (404)", async () => {

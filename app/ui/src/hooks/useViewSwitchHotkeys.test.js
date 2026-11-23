@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../state/eos/transport.js";
-import { probeEosStatus, setEosPreview } from "../state/eos/eosStatusStore.js";
+import { probeEosStatus } from "../state/eos/eosStatusStore.js";
 import { useViewSwitchHotkeys } from "./useViewSwitchHotkeys.js";
 
 let binding = null;
@@ -11,7 +11,6 @@ vi.mock("../state/navigation.jsx", () => ({ useNavigation: () => ({ setActiveVie
 
 async function eosServed(served) {
   setEosTransport(fixtureTransport(served ? { [ROUTES.routines]: [] } : {}));
-  setEosPreview(true);
   await probeEosStatus();
 }
 
