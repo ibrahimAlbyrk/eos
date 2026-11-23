@@ -134,6 +134,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/signals/replay"),
     // Needs you: an answer lets a run start, a routine resume or a change be kept.
     ("POST", "/api/inbox/{id}/answer"),
+    // A surface's button runs a declared action: it may start a run or answer for the user.
+    ("POST", "/api/actions/run"),
     // A send approves a delivery as the user.
     ("POST", "/api/inbox/{id}/send"),
     // Taking a send back reaches the service it went to as the user; trying a failed one again

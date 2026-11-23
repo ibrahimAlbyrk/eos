@@ -23,3 +23,15 @@ pub trait SurfaceAuthoring: Send + Sync {
     /// The routine came back from the archive or from Recently deleted.
     fn restore_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }
+
+/// Runs a surface's direct action the way a press of its button does: the
+/// dispatcher resolves the arguments from the stored issue, passes the gate
+/// and keeps the record. For Needs you's cards and the phone.
+pub trait DirectActions: Send + Sync {
+    /// `origin`: `dashboard`, `phone`, `mail_link` or `app`.
+    fn run<'a>(
+        &'a self,
+        request: eos_contracts::ActionRunRequest,
+        origin: &'a str,
+    ) -> BoxFuture<'a, Result<eos_contracts::ActionAnswer, Error>>;
+}

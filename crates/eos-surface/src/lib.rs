@@ -9,6 +9,7 @@
 
 pub mod limits;
 
+mod args;
 mod lifecycle;
 mod minimal;
 mod problem;
@@ -17,6 +18,7 @@ mod validate;
 mod view_check;
 mod words;
 
+pub use args::fill_args;
 pub use lifecycle::{IssueAge, PinError, VersionAge, arrange_pins, issues_to_drop, pin_slot, versions_to_drop};
 pub use minimal::minimal_data;
 pub use problem::{Problem, format_problems};

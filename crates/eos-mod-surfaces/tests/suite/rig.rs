@@ -1,22 +1,71 @@
 //! The module over the real store, with a routine's surface stored by the
 //! test.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use eos_contracts::ActionClass;
+use eos_core::inbox::ActionDecision;
 use eos_core::store::{StoredIssue, StoredSurface, StoredSurfaceVersion};
 use eos_mod_surfaces::{SurfacesModule, SurfacesParts};
 use eos_runtime::access::Caller;
+use eos_runtime::actions::{ActionCall, ActionDecl, ActionFailure, ActionHandler, ActionScope, no_args};
 use eos_runtime::http::{Method, Request};
-use eos_runtime::router::AllPluginsOn;
+use eos_runtime::module::Module;
+use eos_runtime::router::{AllPluginsOn, BoxFuture};
 use eos_runtime::{Kernel, KernelOptions, Runtime};
-use eos_surface::{IssueKind, IssueStatus, Level, MadeBy, Place, Role, VersionStatus};
-use eos_testkit::{FakeClock, FakeSettings, TempStore};
-use serde_json::Value;
+use eos_surface::{Field, IssueKind, IssueStatus, Level, MadeBy, Place, Role, Type, VersionStatus};
+use eos_testkit::{FakeActionGate, FakeClock, FakeSettings, SeqIds, TempStore};
+use serde_json::{Value, json};
 
 pub(crate) struct Rig {
     pub(crate) runtime: Runtime,
     pub(crate) temp: TempStore,
     pub(crate) settings: Arc<FakeSettings>,
+    pub(crate) clock: Arc<FakeClock>,
+    pub(crate) gate: Arc<FakeActionGate>,
+    /// Every call the test's actions heard, in order.
+    pub(crate) heard: Arc<Mutex<Vec<ActionCall>>>,
+}
+
+/// A feature with actions of every class, which records what it is called with.
+struct Probe(Arc<Mutex<Vec<ActionCall>>>);
+
+impl ActionHandler for Probe {
+    fn run(&self, call: ActionCall) -> BoxFuture<'_, Result<Value, ActionFailure>> {
+        let failing = call.action_id == "probe.fails";
+        self.0.lock().expect("heard").push(call.clone());
+        Box::pin(async move {
+            if failing { Err(ActionFailure::new("broken", "It broke")) } else { Ok(json!({"echo": call.args})) }
+        })
+    }
+}
+
+struct ProbeModule(Arc<Mutex<Vec<ActionCall>>>);
+
+impl Module for ProbeModule {
+    fn id(&self) -> &'static str {
+        "probe"
+    }
+
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        let decl = |id, class, scope, args| ActionDecl {
+            id,
+            title: "Probe",
+            args,
+            class,
+            scope,
+            handler: Arc::new(Probe(self.0.clone())),
+        };
+        let item = Type::Object {
+            fields: vec![Field::required("item", Type::Url), Field::optional("note", Type::Text { max: 20 })],
+        };
+        vec![
+            decl("probe.with", ActionClass::WriteLocal, ActionScope::OwnerRoutine, item),
+            decl("probe.again", ActionClass::WriteLocal, ActionScope::OwnerRoutine, no_args()),
+            decl("probe.fails", ActionClass::WriteLocal, ActionScope::OwnerRoutine, no_args()),
+            decl("probe.global", ActionClass::Read, ActionScope::Any, no_args()),
+        ]
+    }
 }
 
 impl Rig {
@@ -24,15 +73,22 @@ impl Rig {
         let kernel = Kernel::new(KernelOptions::default());
         let temp = TempStore::on_bus(&kernel.bus);
         let settings = Arc::new(FakeSettings::default());
+        let clock = Arc::new(FakeClock::at(5_000));
+        let gate = Arc::new(FakeActionGate::new(ActionDecision::Run));
+        let heard = Arc::new(Mutex::new(Vec::new()));
         let module = Arc::new(SurfacesModule::new(SurfacesParts {
             store: temp.port(),
-            clock: Arc::new(FakeClock::at(5_000)),
+            clock: clock.clone(),
+            ids: Arc::new(SeqIds::new()),
             settings: settings.clone(),
+            actions: kernel.actions.clone(),
+            gate: gate.clone(),
         }));
-        let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
+        let probe = Arc::new(ProbeModule(heard.clone()));
+        let runtime = Runtime::build(kernel, vec![module, probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, temp, settings }
+        Self { runtime, temp, settings, clock, gate, heard }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

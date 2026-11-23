@@ -6,13 +6,22 @@
 //! - `GET`/`PUT /api/surfaces/:id/state?scope=`: its small saved state, for
 //!   the whole surface or one of its issues, announced on `surfaces:state`;
 //! - `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac, kept
-//!   in `settings.json` under keys only that route writes.
+//!   in `settings.json` under keys only that route writes;
+//! - `GET /api/actions`, `POST /api/actions/run`, `GET /api/actions/records/:id`:
+//!   the direct actions, a press of a button through the dispatcher (also
+//!   the [`DirectActions`](eos_core::surface::DirectActions) port), and its
+//!   record, announced on `actions:record`. Surfaces offer
+//!   `surface.keep_issue` themselves.
 //!
 //! Surfaces belong to routines and hold the user's data: a surface's reads
 //! are open to the user's own pages and the phone, its state to the user's
 //! dashboard and the phone. Logs carry ids, levels, places and sizes, never
 //! a title, a body or state.
 
+mod action_routes;
+mod builtins;
+mod dispatch;
+mod records;
 mod routes;
 mod settings;
 mod wire;
@@ -20,11 +29,16 @@ mod wire;
 use std::sync::Arc;
 
 use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesIssue, SurfacesState};
-use eos_core::Clock;
+use eos_core::inbox::ActionGate;
 use eos_core::store::{Store, UserSettingsStore};
+use eos_core::surface::DirectActions;
+use eos_core::{Clock, Ids};
+use eos_runtime::actions::{ActionDecl, Actions};
 use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::module::{Module, ProtectedSettings};
 use eos_runtime::router::RouteDef;
+
+use dispatch::{DispatchParts, Dispatcher};
 
 pub const SURFACES_CHANGE: Topic<SurfacesChange> = Topic::new("surfaces:change");
 pub const SURFACES_ISSUE: Topic<SurfacesIssue> = Topic::new("surfaces:issue");
@@ -35,8 +49,13 @@ pub const ACTIONS_RECORD: Topic<ActionsRecord> = Topic::new("actions:record");
 pub struct SurfacesParts {
     pub store: Arc<dyn Store>,
     pub clock: Arc<dyn Clock>,
+    pub ids: Arc<dyn Ids>,
     /// `settings.json`, for the reading settings.
     pub settings: Arc<dyn UserSettingsStore>,
+    /// The kernel's registry of direct actions.
+    pub actions: Actions,
+    /// Needs you's gate every press passes.
+    pub gate: Arc<dyn ActionGate>,
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -47,6 +66,7 @@ impl std::fmt::Debug for SurfacesParts {
 
 pub struct SurfacesModule {
     parts: Arc<SurfacesParts>,
+    dispatcher: Arc<Dispatcher>,
 }
 
 impl std::fmt::Debug for SurfacesModule {
@@ -57,7 +77,20 @@ impl std::fmt::Debug for SurfacesModule {
 
 impl SurfacesModule {
     pub fn new(parts: SurfacesParts) -> Self {
-        SurfacesModule { parts: Arc::new(parts) }
+        let dispatcher = Arc::new(Dispatcher::new(DispatchParts {
+            store: parts.store.clone(),
+            clock: parts.clock.clone(),
+            ids: parts.ids.clone(),
+            actions: parts.actions.clone(),
+            gate: parts.gate.clone(),
+        }));
+        SurfacesModule { parts: Arc::new(parts), dispatcher }
+    }
+
+    /// The dispatcher, for the features that press a button on the user's
+    /// behalf (a Needs-you card, the phone).
+    pub fn direct(&self) -> Arc<dyn DirectActions> {
+        self.dispatcher.clone()
     }
 }
 
@@ -69,7 +102,12 @@ impl Module for SurfacesModule {
     fn routes(&self) -> Vec<RouteDef> {
         let mut out = routes::all(&self.parts);
         out.extend(settings::all(&self.parts));
+        out.extend(action_routes::all(&self.parts, &self.parts.actions, &self.dispatcher));
         out
+    }
+
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        builtins::declared(&self.parts.store)
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
