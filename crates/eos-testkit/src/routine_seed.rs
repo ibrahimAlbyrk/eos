@@ -33,13 +33,13 @@ pub const RUN_TRIAL: &str = "rn-sample000004";
 
 /// 2026-11-18 09:46:40 UTC: the sample day.
 pub const BASE_MS: i64 = 1_795_000_000_000;
-const MINUTE: i64 = 60_000;
-const DAY: i64 = 24 * 60 * MINUTE;
+pub(crate) const MINUTE: i64 = 60_000;
+pub(crate) const DAY: i64 = 24 * 60 * MINUTE;
 /// The day the sample spend is booked on.
 pub const SPEND_DAY: &str = "2026-11-18";
-const DEVICE: &str = "sample-mac";
+pub(crate) const DEVICE: &str = "sample-mac";
 
-fn agent(key: &str, name: &str, lead: bool, reads_outside: bool, workspace: &str) -> Value {
+pub(crate) fn agent(key: &str, name: &str, lead: bool, reads_outside: bool, workspace: &str) -> Value {
     json!({"key": key, "name": name, "lead": lead, "brief": format!("You are the {name}."), "model": "sonnet",
            "effort": "medium", "tools": {}, "readsOutside": reads_outside, "workspace": workspace})
 }
@@ -111,7 +111,7 @@ fn release_notes() -> Value {
 }
 
 /// A version of `blueprint` as this app stores it.
-fn version(
+pub(crate) fn version(
     id: &str,
     routine_id: &str,
     parent: Option<&str>,
@@ -146,7 +146,7 @@ fn version(
     }
 }
 
-fn routine(id: &str, name: &str, state: RoutineState, head: Option<&str>, origin: &str) -> StoredRoutine {
+pub(crate) fn routine(id: &str, name: &str, state: RoutineState, head: Option<&str>, origin: &str) -> StoredRoutine {
     StoredRoutine {
         id: id.to_owned(),
         slug: eos_domain::routine::slug::of_name(name),
