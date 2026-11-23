@@ -12,7 +12,7 @@
 //! - `cargo xtask install [--restore] …` builds Eos from this checkout and installs it as the
 //!   user's app, keeping the one it replaces (see `install.rs`).
 //! - `cargo xtask eos …` is the `eos` command (`scripts/eos` runs it; see `eos.rs`).
-//! - `cargo xtask sample <copy>` writes sample routines into a dev data copy's `state.db`
+//! - `cargo xtask sample <copy>` writes sample data into a dev data copy's `state.db`
 //!   and refuses `~/.eos` (see `sample.rs`).
 
 mod contracts;

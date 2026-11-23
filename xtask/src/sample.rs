@@ -1,5 +1,5 @@
-//! `cargo xtask sample <copy>`: writes the sample routines
-//! (`eos_testkit::routine_seed`) into the `state.db` of a dev data copy, for
+//! `cargo xtask sample <copy>`: writes the sample data of every Eos area
+//! (`eos_testkit::samples`) into the `state.db` of a dev data copy, for
 //! the dashboard's screens in a dev run. It migrates the file first, as the
 //! app would. It refuses the user's own data folder (`~/.eos`, or anything
 //! inside it, however the path reaches it) and a folder without `state.db`.
@@ -18,9 +18,9 @@ pub(crate) fn run(args: &[String]) -> anyhow::Result<()> {
     let home = eos_platform::home_dir().context("no home folder")?;
     let db = state_db(Path::new(copy), &home.join(".eos"))?;
     if seed(&db)? {
-        println!("sample routines written to {}", db.display());
+        println!("sample data written to {}", db.display());
     } else {
-        println!("{} has the sample routines already", db.display());
+        println!("{} has the sample data already", db.display());
     }
     Ok(())
 }
@@ -45,7 +45,7 @@ fn seed(db: &Path) -> anyhow::Result<bool> {
     let store = Arc::new(SqliteStore::new(db, Arc::new(Announced::default()), StoreOptions::default()));
     let runtime = tokio::runtime::Builder::new_current_thread().build()?;
     let port: Arc<dyn eos_core::store::Store> = store;
-    Ok(runtime.block_on(eos_testkit::routine_seed::seed(port.as_ref()))?)
+    Ok(runtime.block_on(eos_testkit::samples::seed(port.as_ref()))?)
 }
 
 #[cfg(test)]

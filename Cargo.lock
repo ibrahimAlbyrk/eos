@@ -2940,6 +2940,7 @@ dependencies = [
  "eos-runtime",
  "eos-store-files",
  "eos-store-sqlite",
+ "eos-surface",
  "flate2",
  "futures-util",
  "indexmap",
