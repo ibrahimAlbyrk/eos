@@ -412,6 +412,7 @@ impl App {
             mail,
             grants: grants.clone(),
             notifiers: notifiers.clone(),
+            views: shell.is_some(),
             options: capability_options,
         })?;
         let policy = Arc::new(

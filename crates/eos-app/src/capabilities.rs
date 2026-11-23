@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, OnceLock, Weak};
 
-use eos_capabilities::{CapabilityPorts, CapabilityService, Notify};
+use eos_capabilities::{Browser, CapabilityPorts, CapabilityService, Notify};
 use eos_core::BoxFuture;
 use eos_core::agent::UserNotifier;
 use eos_core::capability::{BuiltinCapability, CapabilityGrants, CapabilitySecrets, Grant};
@@ -121,13 +121,15 @@ pub(crate) struct Parts<'a> {
     pub(crate) mail: Option<Arc<dyn Script>>,
     pub(crate) grants: Arc<LateGrants>,
     pub(crate) notifiers: Arc<LateNotifiers>,
+    /// The app has a window whose views the browser tools drive.
+    pub(crate) views: bool,
     pub(crate) options: CapabilityOptions,
 }
 
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
 /// every chat and the routines feature's grant to run sessions, the GitHub and Mail built-ins (which reach GitHub and
-/// drive Mail only on the network) and the notify built-in. No package runner yet.
+/// drive Mail only on the network), the notify built-in and the browser's entry. No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
     let Parts {
         reach,
@@ -142,6 +144,7 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         mail,
         grants,
         notifiers,
+        views,
         options,
     } = parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths));
@@ -174,7 +177,7 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             clock,
             ids,
         },
-        [github, mail, Arc::new(Notify::new(notifiers.clone(), notifiers))]
+        [github, mail, Arc::new(Notify::new(notifiers.clone(), notifiers)), Arc::new(Browser::new(views))]
             .into_iter()
             .chain(options.builtins)
             .collect(),

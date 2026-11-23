@@ -34,6 +34,7 @@
 //! the outcome, the error's kind and the duration; never input, output,
 //! secrets, settings or account labels.
 
+mod browser;
 mod call;
 mod candidates;
 mod channels;
@@ -64,6 +65,7 @@ use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Error, Ids};
 
+pub use browser::{BROWSER, Browser};
 pub use candidates::CANDIDATES_MAX;
 pub use install::Install;
 pub use notify::{NOTIFY, Notify};
