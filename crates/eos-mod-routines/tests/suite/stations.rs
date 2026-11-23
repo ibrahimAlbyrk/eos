@@ -97,15 +97,26 @@ async fn a_routine_that_makes_a_page_takes_its_surface_through_its_life() {
 async fn a_replay_runs_a_past_item_as_a_show_only_trial_with_its_playbook_candidate() {
     let bench = Bench::new(true);
     let routine = bench.routine(RoutineState::Active, blueprint(1));
-    let past = bench.hand(&routine, Some(pull_request(7))).await;
+    let mut asked = new_run(&routine, RunOrigin::Hand, Some(pull_request(7)));
+    asked.input.options = [("depth".to_owned(), json!("deep"))].into_iter().collect();
+    asked.input.note = Some("the boss only".into());
+    let past = bench.start(asked).await.expect("starts").remove(0).id;
     bench.runs.stop(&past, eos_domain::routine::run::Reason::User).await.expect("stops");
+    let mut stale = new_run(&routine, RunOrigin::Hand, Some(pull_request(9)));
+    stale.input.options = [("depth".to_owned(), json!("deep"))].into_iter().collect();
+    let stale = bench.start(stale).await.expect("starts").remove(0).id;
+    bench.runs.stop(&stale, eos_domain::routine::run::Reason::User).await.expect("stops");
+    // Its option took a value an earlier version had.
+    bench.temp.exec(&format!(
+        "UPDATE runs SET input = replace(input, '\"depth\":\"deep\"', '\"depth\":\"gone\"') WHERE id = '{stale}'"
+    ));
     let made = bench
         .module
         .replays()
-        .replay(&routine, "mv-candidate", &[past.clone(), "rn-none".into()])
+        .replay(&routine, "mv-candidate", &[past.clone(), "rn-none".into(), stale])
         .await
         .expect("starts");
-    assert_eq!(made.len(), 1, "a run it does not find is left out");
+    assert_eq!(made.len(), 1, "a run it does not find, or whose options the head no longer takes, is left out");
     let run = bench.run(&made[0]);
     assert_eq!((run.kind.as_str(), run.origin.as_str()), ("trial", "replay"));
     assert_eq!(run.origin_ref.as_deref(), Some("mv-candidate"));
@@ -114,6 +125,7 @@ async fn a_replay_runs_a_past_item_as_a_show_only_trial_with_its_playbook_candid
         (input["result"].clone(), input["item"]["url"].clone()),
         (json!("showOnly"), json!(pull_request(7).url))
     );
+    assert_eq!((&input["options"], &input["note"]), (&json!({"depth": "deep"}), &json!("the boss only")), "as it ran");
 
     bench.supervise().await;
     bench.eventually(|| bench.packs.requests().len() == 1).await;
