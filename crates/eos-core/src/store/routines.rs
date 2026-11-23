@@ -168,4 +168,11 @@ pub trait RoutineSuggestionRepo {
     /// Every suggestion, newest first.
     fn list(&self) -> Result<Vec<StoredSuggestion>, Error>;
     fn set_state(&self, key: &str, state: &str) -> Result<(), Error>;
+    /// Notes a one-off of `task_key` made at `at`, for the count of its kind;
+    /// the note outlives the one-off.
+    fn note_once(&self, routine_id: &str, task_key: &str, at: i64) -> Result<(), Error>;
+    /// How many one-offs of `task_key` were made at or after `since`.
+    fn onces_since(&self, task_key: &str, since: i64) -> Result<usize, Error>;
+    /// Drops the notes of one-offs made before `before`; answers how many.
+    fn forget_onces(&self, before: i64) -> Result<usize, Error>;
 }

@@ -34,7 +34,8 @@ const PLAN_TIMEOUT_MS: u64 = 8_000;
 const RUN_MINUTES: i64 = 10;
 /// One-offs of one kind of task that bring the suggestion to keep one.
 const REPEATS: usize = 3;
-const REPEAT_WINDOW_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// Within this long; the notes of older one-offs leave with retention.
+pub(crate) const REPEAT_WINDOW_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 const KEY_MAX_CHARS: usize = 60;
 const PRODUCER: &str = "routines";
 pub(crate) const OPEN: &str = "open";
@@ -264,9 +265,9 @@ fn key_of(task_key: &str) -> String {
     format!("once:{task_key}")
 }
 
-/// Opens "Keep as a routine?" for `routine_id` when it is the third one-off
-/// of its kind in 30 days, the kind was never suggested, and no routine of
-/// that kind was kept.
+/// Notes the one-off `routine_id`, then opens "Keep as a routine?" for it
+/// when it is the third one-off of its kind in 30 days, the kind was never
+/// suggested, and no routine of that kind was kept.
 fn suggest_keeping_in(
     engine: &Arc<Engine>,
     tx: &dyn Tx,
@@ -275,23 +276,19 @@ fn suggest_keeping_in(
     task_key: &str,
     now: i64,
 ) -> Result<(), Error> {
+    // Counted from notes, not the one-offs: one nobody kept leaves 7 days
+    // after its run, inside the 30 days.
+    tx.routine_suggestions().note_once(routine_id, task_key, now)?;
     let key = key_of(task_key);
     if tx.routine_suggestions().find(&key)?.is_some() {
         return Ok(());
     }
-    let mut same = 0;
-    for routine in tx.routines().list()? {
-        if routine.origin != ONCE || routine.task_key.as_deref() != Some(task_key) {
-            continue;
-        }
-        if routine.state != RoutineState::Transient && routine.state != RoutineState::Deleted {
-            return Ok(());
-        }
-        if routine.state == RoutineState::Transient && routine.created_at >= now - REPEAT_WINDOW_MS {
-            same += 1;
-        }
-    }
-    if same < REPEATS {
+    let kept = tx.routines().list()?.into_iter().any(|routine| {
+        routine.origin == ONCE
+            && routine.task_key.as_deref() == Some(task_key)
+            && !matches!(routine.state, RoutineState::Transient | RoutineState::Deleted)
+    });
+    if kept || tx.routine_suggestions().onces_since(task_key, now - REPEAT_WINDOW_MS)? < REPEATS {
         return Ok(());
     }
     let name = tx.routines().find(routine_id)?.map(|routine| routine.name).unwrap_or_default();

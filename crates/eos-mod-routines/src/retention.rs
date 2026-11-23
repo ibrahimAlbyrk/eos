@@ -17,6 +17,8 @@
 //!   draft was left: its folder goes to the trash and every row of it goes.
 //!   A deleted routine first leaves one export in the trash, its versions
 //!   and run summaries as JSON, from which it can be brought back.
+//! - The note of each one-off made, which "Keep as a routine?" counts,
+//!   goes after [`REPEAT_WINDOW_MS`], the window it is counted in.
 //!
 //! Each page of [`PAGE`] rows is read, its files moved, then its rows
 //! deleted in one write job. A run or routine whose files or sessions
@@ -32,6 +34,7 @@ use tokio::task::JoinHandle;
 
 use crate::ROUTINE_CHANGE;
 use crate::engine::Engine;
+use crate::once::REPEAT_WINDOW_MS;
 use crate::routes::{run_summaries, with_blueprint};
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
@@ -78,6 +81,7 @@ struct Cleared {
     transcripts: usize,
     runs: usize,
     routines: usize,
+    asks: usize,
     left: usize,
 }
 
@@ -91,10 +95,15 @@ async fn pass(engine: Arc<Engine>, now: i64) {
         draft_by: now - DRAFTS_KEPT_DAYS * DAY_MS,
     };
     routines(&engine, &when, &mut cleared).await;
-    let Cleared { transcripts, runs, routines, left } = cleared;
-    if transcripts + runs + routines + left > 0 {
+    let before = now - REPEAT_WINDOW_MS;
+    match engine.store.write(move |tx, _| tx.routine_suggestions().forget_onces(before)).await {
+        Ok(forgotten) => cleared.asks = forgotten,
+        Err(error) => warn("one-off notes", &error),
+    }
+    let Cleared { transcripts, runs, routines, asks, left } = cleared;
+    if transcripts + runs + routines + asks + left > 0 {
         let ms = engine.clock.now_ms() - now;
-        tracing::info!(transcripts, runs, routines, left, ms, "old routine history was cleared");
+        tracing::info!(transcripts, runs, routines, asks, left, ms, "old routine history was cleared");
     }
 }
 

@@ -203,6 +203,26 @@ fn a_suggestion_is_written_found_listed_newest_first_and_changes_state() {
 }
 
 #[test]
+fn the_one_offs_of_a_kind_are_counted_from_a_time_and_old_notes_forgotten() {
+    let temp = TempStore::new();
+    let (all, recent, forgotten, left) = temp
+        .store
+        .write_blocking(|tx, _| {
+            let asks = tx.routine_suggestions();
+            asks.note_once("rt-1", "notes", 10)?;
+            asks.note_once("rt-2", "notes", 20)?;
+            asks.note_once("rt-3", "other", 20)?;
+            asks.note_once("rt-4", "notes", 30)?;
+            let (all, recent) = (asks.onces_since("notes", 0)?, asks.onces_since("notes", 20)?);
+            let forgotten = asks.forget_onces(20)?;
+            Ok((all, recent, forgotten, asks.onces_since("notes", 0)?))
+        })
+        .expect("writes");
+    assert_eq!((all, recent), (3, 2), "a note made at the time counts");
+    assert_eq!((forgotten, left), (1, 2), "only notes made before the time go");
+}
+
+#[test]
 fn a_draft_row_is_rewritten_and_a_draft_version_kept_with_its_trial_choice() {
     let temp = TempStore::new();
     let mut draft_version = version("rv-1", "rt-1", 20);
