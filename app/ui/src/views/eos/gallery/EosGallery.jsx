@@ -24,7 +24,8 @@ import triggerStatus from "./sample/trigger-status.json";
 import signals from "./sample/signals.json";
 import memory from "./sample/memory.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
-import { RUNS_PATH } from "../../../state/eos/homeStore.js";
+import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
+import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
@@ -86,5 +87,7 @@ export function EosGallery() {
 export function startEosGallery(rootEl) {
   setEosTransport(fixtureTransport(SAMPLE_READS));
   holdEosNavInMemory("eos:/");
+  holdHomeInMemory();
+  holdHomeDraftInMemory();
   createRoot(rootEl).render(<EosGallery />);
 }

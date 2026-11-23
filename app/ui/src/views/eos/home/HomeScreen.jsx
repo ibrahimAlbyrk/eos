@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { ensureHomeLoaded, lastSeenAt, markSeenSoon, refreshHome, useHome } from "../../../state/eos/homeStore.js";
+import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
+import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
 import { AwayList } from "./AwayList.jsx";
 import { Greeting } from "./Greeting.jsx";
@@ -27,10 +29,11 @@ function useMinute(clock) {
 }
 
 // eos:/ — Horizon (Main.dc.html): the day's arc, the greeting with what was
-// handled and what needs the user, the input (`input`), starter chips, the
-// first Needs-you cards, what happened while away and the week's learned
-// line. Empty sections are left out; entering Home never focuses anything.
-export function HomeScreen({ input = null, onChip, clock = Date.now }) {
+// handled and what needs the user, the input (`input`, the Home input by
+// default), starter chips that fill it, the first Needs-you cards, what
+// happened while away and the week's learned line. Empty sections are left
+// out; entering Home never focuses anything.
+export function HomeScreen({ input = <HomeInput />, clock = Date.now }) {
   const now = useMinute(clock);
   const home = useHome();
   const inbox = useInbox();
@@ -76,7 +79,7 @@ export function HomeScreen({ input = null, onChip, clock = Date.now }) {
           <p className="eos-home__date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
           <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled ?? 0} needs={waiting.length} firstRun={firstRun} />
           {input}
-          <StarterChips onPick={onChip} />
+          <StarterChips onPick={setHomeDraft} />
           {body}
         </div>
       </div>
