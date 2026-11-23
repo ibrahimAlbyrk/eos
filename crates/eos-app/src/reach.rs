@@ -22,6 +22,7 @@
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
 //! | The channels a run's results go out through (GitHub reviews) | every send answers `DevRun`: the delivery stays `frozen`, nothing is sent |
 //! | Memory's model calls nobody asked for (reflection, night tidying) | they never run; notes come from rules only |
+//! | Routines' night read for a routine to suggest | it never runs |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -145,8 +146,9 @@ impl Reach {
         self.network
     }
 
-    /// Whether memory may call the model when nobody asked (reflection,
-    /// night tidying): those calls spend the user's plan.
+    /// Whether memory and routines may call the model when nobody asked
+    /// (reflection, night tidying, the suggestion read): those calls spend
+    /// the user's plan.
     pub(crate) fn background_model_calls(self) -> bool {
         self.network
     }

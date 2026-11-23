@@ -170,3 +170,16 @@ async fn fewer_than_three_requests_ask_nothing_and_make_it_starts_the_architect(
     assert_eq!(state.as_deref(), Some("taken"));
     module.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn off_the_network_the_night_asks_the_model_nothing() {
+    let bench = Bench::new(false);
+    chats(&bench);
+    bench.model.data(suggestion());
+    bench.supervise().await;
+    another_night(&bench, 1).await;
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert!(bench.model.asked().is_empty(), "a dev run, a replay or a data copy spends nothing unasked");
+    assert!(suggestions(&bench).is_empty());
+    bench.module.stop().await;
+}

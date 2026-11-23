@@ -418,6 +418,8 @@ fn module(
         ids: ids.clone(),
         device: "mac-1".into(),
         autostart,
+        // The bench's installed app is the one that runs by itself.
+        background_model_calls: autostart,
         sessions: sessions.clone(),
         prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
         scratch: Arc::new(FakeScratch::default()),

@@ -55,8 +55,12 @@ pub(crate) struct Schedule {
     task: Option<JoinHandle<()>>,
 }
 
-/// Starts the night's read once its slot has passed, at most once a slot.
+/// Starts the night's read once its slot has passed, at most once a slot;
+/// never off the network, where it would spend the user's plan unasked.
 pub(crate) fn due(engine: &Arc<Engine>) {
+    if !engine.background_model_calls {
+        return;
+    }
     let now = engine.clock.now_ms();
     let slot = nightly_slot(now, SLOT, &|at| engine.zone.offset_minutes_at(at));
     let mut schedule = Engine::locked(&engine.suggest);

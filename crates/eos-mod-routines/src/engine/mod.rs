@@ -98,6 +98,9 @@ pub(crate) struct Engine {
     /// Off the network only runs the user started leave the queue by
     /// themselves (`Reach::autostart`).
     pub(crate) autostart: bool,
+    /// Off the network Eos never calls the model by itself
+    /// (`Reach::background_model_calls`).
+    pub(crate) background_model_calls: bool,
     /// Wakes the supervisor: a run was queued or ended.
     pub(crate) wake: Notify,
     /// Client request ids of the last ten minutes, with the runs they made.
