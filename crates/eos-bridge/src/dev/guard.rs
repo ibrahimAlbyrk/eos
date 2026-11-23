@@ -140,9 +140,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     // approves it as the user.
     ("POST", "/api/inbox/deliveries/{id}/undo"),
     ("POST", "/api/inbox/deliveries/{id}/retry"),
-    // Runs: a start, a message to a run's team and a resume set agents working; the items a
-    // routine may run on are read from the user's accounts.
+    // Runs: a start, a one-off, a message to a run's team and a resume set agents working; the
+    // items a routine may run on are read from the user's accounts.
     ("POST", "/api/runs"),
+    ("POST", "/api/runs/once"),
     ("GET", "/api/routines/{id}/candidates"),
     ("POST", "/api/runs/{id}/message"),
     ("POST", "/api/runs/{id}/resume"),

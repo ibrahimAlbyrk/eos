@@ -33,7 +33,7 @@ impl Bench {
         self.start(new_run(routine, agent, Some(pull_request(number)))).await.expect("starts").remove(0).id
     }
 
-    fn items_of(&self, routine: &str, kind: ItemKind) -> Vec<StoredItem> {
+    pub(crate) fn items_of(&self, routine: &str, kind: ItemKind) -> Vec<StoredItem> {
         let id = routine.to_owned();
         let items = self.temp.store.read_blocking(move |tx| tx.inbox_items().waiting_of_routine(&id));
         items.expect("reads").into_iter().filter(|item| item.kind == kind).collect()
@@ -45,7 +45,7 @@ impl Bench {
     }
 
     /// Answers `item` as the answering job does, announcing it.
-    fn answer(&self, item: &StoredItem, by: &str, answer: Value) {
+    pub(crate) fn answer(&self, item: &StoredItem, by: &str, answer: Value) {
         let (id, rev, at) = (item.id.clone(), item.rev, self.clock.now_ms());
         let (kind, routine_id) = (item.kind.as_str().to_owned(), item.routine_id.clone());
         let answer = ItemAnswer { by: by.into(), answer: Some(answer.to_string()), at };

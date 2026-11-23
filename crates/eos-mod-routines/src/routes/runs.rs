@@ -4,7 +4,9 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{RunMessageRequest, RunPage, RunsActive, StartRunRequest, StartRunResponse, StartedRun};
+use eos_contracts::{
+    OnceRequest, RunMessageRequest, RunPage, RunsActive, StartRunRequest, StartRunResponse, StartedRun,
+};
 use eos_core::Error;
 use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError, Unready};
 use eos_domain::routine::run::{Reason, RunState};
@@ -15,6 +17,7 @@ use serde_json::{Value, json};
 
 use super::{newer_format, param, run_summaries};
 use crate::engine::{self, Engine};
+use crate::once::OnceRefused;
 
 /// The largest start body: up to twenty items of 64 KiB text each.
 const START_MAX_BODY: usize = 2 * 1024 * 1024;
@@ -77,6 +80,23 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
                     Ok(Response::json(201, &StartRunResponse { runs }))
                 }
                 Err(refused) => start_refused(refused),
+            }
+        }
+    })
+    .max_body(START_MAX_BODY);
+
+    let asking = engine.clone();
+    let once = RouteDef::post("/api/runs/once", move |req: Request| {
+        let engine = asking.clone();
+        async move {
+            let asked: OnceRequest = req.parse()?;
+            if !DOORS.contains(&asked.door.as_str()) {
+                return Err(ApiError::Validation(format!("invalid request: door: {} is no door", asked.door)));
+            }
+            match crate::once::start(&engine, asked).await {
+                Ok(started) => Ok(Response::json(201, &started)),
+                Err(OnceRefused::Start(refused)) => start_refused(refused),
+                Err(OnceRefused::Unplanned(error)) => Err(error.into()),
             }
         }
     })
@@ -159,6 +179,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let user = |tier| Access::ui_token().phone_user(tier);
     vec![
         start.access(user(Tier::High)),
+        once.access(user(Tier::High)),
         page.access(user(Tier::Read)),
         // Two counts and no text of the user's.
         active.access(Access::open().phone(Tier::Read)),

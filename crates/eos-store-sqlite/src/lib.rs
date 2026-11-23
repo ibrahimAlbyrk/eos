@@ -23,6 +23,7 @@ mod message_queue;
 mod pending;
 mod reactions;
 mod routine_retention;
+mod routine_suggestions;
 mod routines;
 mod runs;
 mod signal_asks;

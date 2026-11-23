@@ -1,5 +1,5 @@
 //! The routine tables: `routines` with `routine_drafts`, `routine_versions`,
-//! `routine_sessions` and `routine_spend`.
+//! `routine_sessions`, `routine_spend` and `routine_suggestions`.
 
 use eos_contracts::{DraftStatus, RoutineKind, RoutineState, VersionAuthor, VersionStatus};
 use eos_domain::run_scope::Trust;
@@ -147,4 +147,25 @@ pub trait RoutineSpendRepo {
     fn of_day(&self, day: &str) -> Result<Vec<StoredSpend>, Error>;
     /// What a routine spent on `kind` over every day kept.
     fn total(&self, routine_id: &str, kind: &str) -> Result<f64, Error>;
+}
+
+/// A row of `routine_suggestions`: one task Eos offered to make or keep as a
+/// routine, so it is offered once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredSuggestion {
+    /// `once:<taskKey>` for a repeated one-off, `chat:<task>` for repeated
+    /// work in chats.
+    pub key: String,
+    /// `open`, `taken` or `dismissed`.
+    pub state: String,
+    pub inbox_id: Option<String>,
+    pub created_at: i64,
+}
+
+pub trait RoutineSuggestionRepo {
+    fn insert(&self, suggestion: &StoredSuggestion) -> Result<(), Error>;
+    fn find(&self, key: &str) -> Result<Option<StoredSuggestion>, Error>;
+    /// Every suggestion, newest first.
+    fn list(&self) -> Result<Vec<StoredSuggestion>, Error>;
+    fn set_state(&self, key: &str, state: &str) -> Result<(), Error>;
 }

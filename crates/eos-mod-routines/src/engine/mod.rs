@@ -48,7 +48,7 @@ pub(crate) use halt::hear as hear_halt;
 pub(crate) use handoffs::hear as hear_answers;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
-pub(crate) use lifecycle::{delete, keep, live, row, set_state, undelete};
+pub(crate) use lifecycle::{delete, keep, keep_in, live, row, set_state, undelete};
 pub(crate) use memory::routine_removed;
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
