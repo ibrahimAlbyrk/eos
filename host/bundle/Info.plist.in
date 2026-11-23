@@ -44,6 +44,8 @@
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>12.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Eos asks Mail to read and send the mail your routines handle. It sends only to the people you named.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
