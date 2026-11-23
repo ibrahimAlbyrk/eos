@@ -3,10 +3,12 @@
 
 use std::sync::{Arc, OnceLock, Weak};
 
-use eos_capabilities::{CapabilityPorts, CapabilityService};
+use eos_capabilities::{CapabilityPorts, CapabilityService, Notify};
 use eos_core::BoxFuture;
+use eos_core::agent::UserNotifier;
 use eos_core::capability::{BuiltinCapability, CapabilityGrants, CapabilitySecrets, Grant};
 use eos_core::delivery::Channels;
+use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome};
 use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{Clock, Ids, Sleeper};
@@ -68,6 +70,39 @@ impl CapabilityGrants for LateGrants {
     }
 }
 
+/// How the `notify` built-in tells the user, attached once the banner (the
+/// questions feature) and the phone link (the remote feature) are built,
+/// after the service. Until then nothing is told.
+#[derive(Default)]
+pub(crate) struct LateNotifiers {
+    banner: OnceLock<Arc<dyn UserNotifier>>,
+    phone: OnceLock<Arc<dyn PhoneNotify>>,
+}
+
+impl LateNotifiers {
+    pub(crate) fn attach(&self, banner: Arc<dyn UserNotifier>, phone: Arc<dyn PhoneNotify>) {
+        let _ = self.banner.set(banner);
+        let _ = self.phone.set(phone);
+    }
+}
+
+impl UserNotifier for LateNotifiers {
+    fn notify(&self, worker_id: &str, title: &str, body: &str) {
+        if let Some(banner) = self.banner.get() {
+            banner.notify(worker_id, title, body);
+        }
+    }
+}
+
+impl PhoneNotify for LateNotifiers {
+    fn push(&self, push: PhonePush) -> BoxFuture<'_, Result<PushOutcome, eos_core::Error>> {
+        match self.phone.get() {
+            Some(phone) => phone.push(push),
+            None => Box::pin(std::future::ready(Ok(PushOutcome::LinkOff))),
+        }
+    }
+}
+
 /// What the service is built from.
 pub(crate) struct Parts<'a> {
     pub(crate) reach: Reach,
@@ -85,16 +120,30 @@ pub(crate) struct Parts<'a> {
     /// How the app drives Mail, as the host hands it in.
     pub(crate) mail: Option<Arc<dyn Script>>,
     pub(crate) grants: Arc<LateGrants>,
+    pub(crate) notifiers: Arc<LateNotifiers>,
     pub(crate) options: CapabilityOptions,
 }
 
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
-/// every chat and the routines feature's grant to run sessions, and the GitHub and Mail built-ins (which reach GitHub
-/// and drive Mail only on the network). No package runner yet.
+/// every chat and the routines feature's grant to run sessions, the GitHub and Mail built-ins (which reach GitHub and
+/// drive Mail only on the network) and the notify built-in. No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
-    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, github, mail, grants, options } =
-        parts;
+    let Parts {
+        reach,
+        paths,
+        store,
+        clock,
+        ids,
+        sleeper,
+        github_client_id,
+        keychain,
+        github,
+        mail,
+        grants,
+        notifiers,
+        options,
+    } = parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths));
     let secrets: Arc<dyn CapabilitySecrets> = options.secrets.unwrap_or_else(|| reach.capabilities(keychain));
     let transport: Arc<dyn Transport> = match options.github {
@@ -125,6 +174,9 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             clock,
             ids,
         },
-        [github, mail].into_iter().chain(options.builtins).collect(),
+        [github, mail, Arc::new(Notify::new(notifiers.clone(), notifiers))]
+            .into_iter()
+            .chain(options.builtins)
+            .collect(),
     )))
 }

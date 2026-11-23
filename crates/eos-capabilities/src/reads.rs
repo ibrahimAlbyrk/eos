@@ -11,11 +11,12 @@ use eos_core::{BoxFuture, Error};
 use eos_domain::capability::health::{Event, StateCode};
 use eos_domain::capability::schema::input_error;
 use eos_domain::result_doc::shape::ResultShape;
-use eos_domain::result_doc::{GITHUB_REVIEW, MAIL};
+use eos_domain::result_doc::{GITHUB_REVIEW, MAIL, TEXT};
 use serde_json::{Map, Value};
 
 use crate::health::apply;
 use crate::mail::{MAIL_CHANNEL, mail_of, mail_shape, send_input};
+use crate::notify::{NOTIFY, text_of, text_shape};
 use crate::pull::{GITHUB, PULL_REQUEST, Pull, action_input, review_of, review_shape};
 use crate::{CapabilityService, call};
 
@@ -53,6 +54,7 @@ impl CapabilityService {
         match kind {
             GITHUB_REVIEW if self.builtins.contains_key(GITHUB) => Some(review_shape()),
             MAIL if self.builtins.contains_key(MAIL_CHANNEL) => Some(mail_shape()),
+            TEXT if self.builtins.contains_key(NOTIFY) => Some(text_shape()),
             _ => None,
         }
     }
@@ -73,6 +75,8 @@ impl CapabilityService {
             let (subject, text) = mail_of(body)?;
             // Whom it goes to is the delivery's; any address fits the schema here.
             send_input("someone@example.com", &subject, &text)
+        } else if kind == TEXT {
+            serde_json::json!({ "body": text_of(body)? })
         } else {
             let pull = Pull::of_item(item).ok_or_else(|| format!("a {kind} result needs a pull request"))?;
             let commit_id = pull.sha.clone().ok_or_else(|| "the pull request names no commit".to_owned())?;
