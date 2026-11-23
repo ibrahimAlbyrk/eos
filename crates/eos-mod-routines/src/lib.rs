@@ -132,6 +132,10 @@ pub struct RoutinesParts {
     /// Whether runs nobody started by hand may leave the queue by
     /// themselves: true only in the installed app.
     pub autostart: bool,
+    /// Whether Eos may call the model when nobody asked (the night's
+    /// suggestion read): true only in the installed app, as it spends the
+    /// user's plan.
+    pub background_model_calls: bool,
     /// Where run sessions start and are messaged.
     pub sessions: Sessions,
     pub prompts: Arc<PromptService>,
@@ -177,7 +181,10 @@ pub struct RoutinesParts {
 
 impl std::fmt::Debug for RoutinesParts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RoutinesParts").field("autostart", &self.autostart).finish_non_exhaustive()
+        f.debug_struct("RoutinesParts")
+            .field("autostart", &self.autostart)
+            .field("background_model_calls", &self.background_model_calls)
+            .finish_non_exhaustive()
     }
 }
 
@@ -204,6 +211,7 @@ impl RoutinesModule {
             ids,
             device,
             autostart,
+            background_model_calls,
             sessions,
             prompts,
             scratch,
@@ -233,6 +241,7 @@ impl RoutinesModule {
             ids,
             device,
             autostart,
+            background_model_calls,
             wake: Notify::new(),
             requests: Mutex::new(HashMap::new()),
             supervisor: Mutex::new(None),

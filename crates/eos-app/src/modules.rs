@@ -221,6 +221,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         ids: cx.ids.clone(),
         device: cx.peer.device_id(),
         autostart: cx.reach.autostart(),
+        background_model_calls: cx.reach.background_model_calls(),
         sessions: cx.sessions.clone(),
         prompts: cx.prompts.clone(),
         scratch: cx.scratch.clone(),
