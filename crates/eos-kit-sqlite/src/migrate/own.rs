@@ -32,4 +32,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("076_mem_fts"),
     // The one-offs made of each kind of task, kept past the one-offs themselves.
     embed!("077_routine_once_asks"),
+    // Surfaces: their designs, issues, edits, saved state, pins and the record of each action run from one.
+    embed!("078_surfaces"),
 ];

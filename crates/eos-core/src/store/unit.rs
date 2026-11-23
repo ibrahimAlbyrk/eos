@@ -5,18 +5,20 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use super::{
-    CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
-    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MemBookRepo, MemCreditRepo,
-    MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo, MemVectorRepo,
-    MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
-    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ActionLogRepo, CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo,
+    ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo,
+    MemBookRepo, MemCreditRepo, MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo,
+    MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
+    RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
+    RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
+    SignalScheduleRepo, SignalSourceRepo, SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
 /// The repositories over one transaction (a write) or one snapshot (a read).
 pub trait Tx {
+    fn action_log(&self) -> &dyn ActionLogRepo;
     fn capability_calls(&self) -> &dyn CapabilityCallRepo;
     fn capability_installs(&self) -> &dyn CapabilityInstallRepo;
     fn capability_versions(&self) -> &dyn CapabilityVersionRepo;
@@ -60,6 +62,10 @@ pub trait Tx {
     fn signal_schedules(&self) -> &dyn SignalScheduleRepo;
     fn signal_sources(&self) -> &dyn SignalSourceRepo;
     fn signals(&self) -> &dyn SignalRepo;
+    fn surface_issues(&self) -> &dyn SurfaceIssueRepo;
+    fn surface_state(&self) -> &dyn SurfaceStateRepo;
+    fn surface_versions(&self) -> &dyn SurfaceVersionRepo;
+    fn surfaces(&self) -> &dyn SurfaceRepo;
     fn transfers(&self) -> &dyn TransferRepo;
     fn worker_definitions(&self) -> &dyn WorkerDefinitionRepo;
     fn workers(&self) -> &dyn WorkerRepo;
