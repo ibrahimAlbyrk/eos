@@ -61,6 +61,9 @@
 //! routines that leave for good are cleared; what they leave on disk goes to
 //! the trash.
 //!
+//! A sentence the user wants done once becomes a one-off routine and its
+//! run (`POST /api/runs/once`, `once`).
+//!
 //! The run routes start runs by hand (`POST /api/runs`), estimate them
 //! (`POST /api/runs/estimate`), list and show them (`GET /api/runs`,
 //! `…/:id`, `…/:id/result`, `…/:id/events`), steer them (`…/:id/message`,
@@ -71,6 +74,7 @@
 mod architect;
 mod engine;
 mod intent;
+mod once;
 mod patterns;
 mod retention;
 mod routes;

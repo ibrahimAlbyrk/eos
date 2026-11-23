@@ -4,7 +4,7 @@
 use eos_contracts::{DraftStatus, RoutineKind, RoutineState, VersionAuthor, VersionStatus};
 use eos_core::store::{
     RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, StoredDraft, StoredRoutine, StoredRoutineSession, StoredRun,
-    StoredRunResult, StoredVersion,
+    StoredRunResult, StoredSuggestion, StoredVersion,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
@@ -173,6 +173,33 @@ fn a_routine_its_versions_draft_sessions_and_spend_read_back_as_written() {
         "INSERT INTO routine_suggestions (key, state, inbox_id, created_at) VALUES ('daily-notes', 'open', NULL, 1)",
     );
     assert_eq!(temp.count("SELECT COUNT(*) FROM routine_suggestions WHERE state = 'open'"), 1);
+}
+
+#[test]
+fn a_suggestion_is_written_found_listed_newest_first_and_changes_state() {
+    let temp = TempStore::new();
+    let (listed, found, missing) = temp
+        .store
+        .write_blocking(|tx, _| {
+            let made = |key: &str, at: i64| StoredSuggestion {
+                key: key.into(),
+                state: "open".into(),
+                inbox_id: Some(format!("in-{at}")),
+                created_at: at,
+            };
+            tx.routine_suggestions().insert(&made("once:notes", 1))?;
+            tx.routine_suggestions().insert(&made("chat:standup", 2))?;
+            tx.routine_suggestions().set_state("once:notes", "dismissed")?;
+            Ok((
+                tx.routine_suggestions().list()?,
+                tx.routine_suggestions().find("once:notes")?,
+                tx.routine_suggestions().find("once:none")?,
+            ))
+        })
+        .expect("writes");
+    assert_eq!(listed.iter().map(|s| s.key.as_str()).collect::<Vec<_>>(), ["chat:standup", "once:notes"]);
+    assert_eq!(found.map(|s| (s.state, s.inbox_id)), Some(("dismissed".to_owned(), Some("in-1".to_owned()))));
+    assert_eq!(missing, None);
 }
 
 #[test]

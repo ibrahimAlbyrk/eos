@@ -9,9 +9,9 @@ use super::{
     DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MemBookRepo, MemCreditRepo,
     MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo, MemVectorRepo,
     MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
-    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo,
-    SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
-    SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo, RunRepo,
+    RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
+    SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -48,6 +48,7 @@ pub trait Tx {
     fn routine_retention(&self) -> &dyn RoutineRetentionRepo;
     fn routine_sessions(&self) -> &dyn RoutineSessionRepo;
     fn routine_spend(&self) -> &dyn RoutineSpendRepo;
+    fn routine_suggestions(&self) -> &dyn RoutineSuggestionRepo;
     fn routine_versions(&self) -> &dyn RoutineVersionRepo;
     fn routines(&self) -> &dyn RoutineRepo;
     fn run_results(&self) -> &dyn RunResultRepo;

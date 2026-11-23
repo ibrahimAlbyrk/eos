@@ -94,8 +94,8 @@ pub use reactions::{ReactionRepo, StoredReaction};
 pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
 pub use retention::{EndedRun, Leaving, LeavingRoutine, RoutineRetentionRepo};
 pub use routines::{
-    RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, StoredDraft, StoredRoutine,
-    StoredRoutineSession, StoredSpend, StoredVersion,
+    RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo, StoredDraft,
+    StoredRoutine, StoredRoutineSession, StoredSpend, StoredSuggestion, StoredVersion,
 };
 pub use runs::{
     EndedCount, RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,

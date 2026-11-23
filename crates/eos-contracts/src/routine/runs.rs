@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use serde_json::Value;
 
-use super::{ItemRef, RunInput, RunSummary, UsualCost};
+use super::{IntentAttachment, ItemRef, RUN_NOTE_MAX_CHARS, ResultMode, RunInput, RunSummary, UsualCost};
 use crate::primitives::Num;
 use crate::validate::{Issues, Validate};
 
@@ -58,6 +58,44 @@ pub struct StartedRun {
 }
 
 impl Validate for StartedRun {}
+
+/// The most files a one-off takes along.
+pub const ONCE_ATTACHMENTS_MAX: usize = 20;
+
+/// `POST /api/runs/once`: do what the text asks, once.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OnceRequest {
+    pub text: String,
+    #[serde(default)]
+    pub attachments: Vec<IntentAttachment>,
+    pub result: ResultMode,
+    /// Where the user asked (`home`, `terminal`, …).
+    pub door: String,
+}
+
+impl Validate for OnceRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("text", |cx| {
+            cx.str_min(self.text.trim(), 1);
+            cx.str_max(&self.text, RUN_NOTE_MAX_CHARS);
+        });
+        cx.at("attachments", |cx| cx.arr_max(self.attachments.len(), ONCE_ATTACHMENTS_MAX));
+    }
+}
+
+/// What `POST /api/runs/once` answers: the one-off routine it made and its
+/// run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OnceStarted {
+    pub routine_id: String,
+    /// What the one-off is called, as its result card names it.
+    pub name: String,
+    pub run: StartedRun,
+}
+
+impl Validate for OnceStarted {}
 
 /// `run:change`: a run moved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

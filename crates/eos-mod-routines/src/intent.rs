@@ -12,7 +12,7 @@ use eos_contracts::{
     IntentAnswer, IntentAttachment, IntentChoice, IntentKind, IntentRequest, ItemRef, MatchItemAnswer, RoutineState,
 };
 use eos_core::Error;
-use eos_core::agent::{OneShotError, OneShotRequest};
+use eos_core::agent::{OneShotAnswer, OneShotError, OneShotRequest};
 use eos_core::capability::ItemRecogniser;
 use eos_domain::config::price_for_model;
 use eos_domain::cost::cost_usd;
@@ -176,9 +176,7 @@ pub(crate) async fn by_model(engine: &Engine, asked: &IntentRequest) -> Result<I
     let ms = engine.clock.now_ms() - started;
     let (cost, model_reading) = match replied {
         Ok(replied) => {
-            let config = engine.config.current();
-            let price = price_for_model(&config, Some(replied.model.as_deref().unwrap_or(SMALL_MODEL)));
-            let cost = replied.usage.as_ref().map_or(0.0, |usage| cost_usd(price, usage));
+            let cost = cost_of(engine, &replied, SMALL_MODEL);
             (cost, replied.structured.as_ref().and_then(|data| model_reading(data, &listed, &rules)))
         }
         Err(error) => {
@@ -191,7 +189,7 @@ pub(crate) async fn by_model(engine: &Engine, asked: &IntentRequest) -> Result<I
         .and_then(|reading| reading.routine_id.clone())
         .or_else(|| asked.routine_id.clone())
         .unwrap_or_default();
-    book(engine, &routine_id, cost).await?;
+    book(engine, &routine_id, SPEND_KIND, cost).await?;
     Ok(match model_reading {
         Some(reading) => {
             tracing::info!(intent = ?reading.intent, certain = reading.certain, ms, "the intent model answered");
@@ -222,11 +220,18 @@ async fn take_read(engine: &Engine) -> Result<bool, Error> {
     Ok(true)
 }
 
-/// Books one model read on today's `intent` spend; an empty routine id for
-/// a read that named no routine.
-async fn book(engine: &Engine, routine_id: &str, cost: f64) -> Result<(), Error> {
+/// Books one model call on today's spend of `kind`; an empty routine id for
+/// a call that named no routine.
+pub(crate) async fn book(engine: &Engine, routine_id: &str, kind: &'static str, cost: f64) -> Result<(), Error> {
     let (day, routine_id) = (today(engine), routine_id.to_owned());
-    engine.store.write(move |tx, _| tx.routine_spend().add(&day, &routine_id, SPEND_KIND, cost)).await
+    engine.store.write(move |tx, _| tx.routine_spend().add(&day, &routine_id, kind, cost)).await
+}
+
+/// What a model's answer cost, at the price of the model that gave it.
+pub(crate) fn cost_of(engine: &Engine, replied: &OneShotAnswer, asked_model: &str) -> f64 {
+    let config = engine.config.current();
+    let price = price_for_model(&config, Some(replied.model.as_deref().unwrap_or(asked_model)));
+    replied.usage.as_ref().map_or(0.0, |usage| cost_usd(price, usage))
 }
 
 fn request(engine: &Engine, asked: &IntentRequest, listed: &[Listed]) -> Result<OneShotRequest, Error> {

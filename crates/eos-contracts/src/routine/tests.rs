@@ -204,3 +204,28 @@ fn a_start_and_the_run_topics_read_and_write_back() {
     assert_eq!(serde_json::to_value(active).unwrap(), json!({"count": 2, "needsUser": 1}));
     assert_eq!(crate::read::<RunsActive>(&json!({"count": 2, "needsUser": 1})).unwrap(), active);
 }
+
+#[test]
+fn a_one_off_request_reads_with_its_bounds_and_its_answer_writes_back() {
+    let body = json!({"text": "summarise this", "attachments": [{"kind": "file", "value": "/tmp/a.md"}],
+                      "result": "usual", "door": "home"});
+    let request: OnceRequest = crate::parse(&body).unwrap();
+    assert_eq!(serde_json::to_value(&request).unwrap(), body);
+    let bare: OnceRequest = crate::parse(&json!({"text": "x", "result": "ask", "door": "terminal"})).unwrap();
+    assert!(bare.attachments.is_empty());
+    assert!(crate::parse::<OnceRequest>(&json!({"text": "  ", "result": "usual", "door": "home"})).is_err());
+    let many: Vec<Value> =
+        (0..=ONCE_ATTACHMENTS_MAX).map(|n| json!({"kind": "file", "value": n.to_string()})).collect();
+    assert!(
+        crate::parse::<OnceRequest>(&json!({"text": "x", "attachments": many, "result": "usual", "door": "home"}))
+            .is_err()
+    );
+
+    let started = OnceStarted {
+        routine_id: "rt-1".into(),
+        name: "Summary".into(),
+        run: StartedRun { id: "rn-1".into(), state: "queued".into(), not_before: None },
+    };
+    let written = json!({"routineId": "rt-1", "name": "Summary", "run": {"id": "rn-1", "state": "queued"}});
+    assert_eq!(serde_json::to_value(&started).unwrap(), written);
+}

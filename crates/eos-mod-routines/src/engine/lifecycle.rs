@@ -154,20 +154,23 @@ pub(crate) async fn undelete(engine: &Arc<Engine>, routine_id: &str) -> Result<O
 /// `POST …/keep`: a one-off the user keeps becomes a standing routine,
 /// active.
 pub(crate) async fn keep(engine: &Arc<Engine>, routine_id: &str) -> Result<Option<RoutineSummary>, Error> {
-    change(engine, routine_id, |tx, out, id, now, patterns| {
-        let routine = live(tx, id)?;
-        if routine.kind != RoutineKind::Once {
-            return Err(Error::Conflict("only a one-off routine is kept".into()));
-        }
-        let head = tx.routine_versions().head(id)?;
-        let head = head.ok_or_else(|| Error::Conflict("the one-off has no version to keep".into()))?;
-        if crate::routes::readable(&head)?.is_none() {
-            return Err(Error::Conflict(super::versions::NEWER_FORMAT.into()));
-        }
-        tx.routines().set_kind(id, RoutineKind::Standing, now)?;
-        tx.routines().set_state(id, RoutineState::Active, None, now)?;
-        tracing::info!(routine_id = id, "a one-off was kept");
-        announce(tx, out, id, RoutineChangeReason::State, now, patterns)
-    })
-    .await
+    change(engine, routine_id, keep_in).await
+}
+
+/// Keeps one-off `id` inside a write job: by hand, or as the answer to
+/// "Keep as a routine?".
+pub(crate) fn keep_in(tx: &dyn Tx, out: &mut Outbox, id: &str, now: i64, patterns: &ItemPatterns) -> Result<(), Error> {
+    let routine = live(tx, id)?;
+    if routine.kind != RoutineKind::Once {
+        return Err(Error::Conflict("only a one-off routine is kept".into()));
+    }
+    let head = tx.routine_versions().head(id)?;
+    let head = head.ok_or_else(|| Error::Conflict("the one-off has no version to keep".into()))?;
+    if crate::routes::readable(&head)?.is_none() {
+        return Err(Error::Conflict(super::versions::NEWER_FORMAT.into()));
+    }
+    tx.routines().set_kind(id, RoutineKind::Standing, now)?;
+    tx.routines().set_state(id, RoutineState::Active, None, now)?;
+    tracing::info!(routine_id = id, "a one-off was kept");
+    announce(tx, out, id, RoutineChangeReason::State, now, patterns)
 }

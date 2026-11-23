@@ -150,8 +150,11 @@ async fn act(engine: &Arc<Engine>, item: StoredItem) -> Result<bool, Error> {
             tell_lead(engine, &item).await?;
             consume(engine, item, |_, _, _, _| Ok(false)).await
         }
-        // A suggestion is only acknowledged until "Keep as a routine?" acts on
-        // it (RT-27); an alert's answer was acted on where it was given.
+        ItemKind::Suggestion => {
+            let job = engine.clone();
+            consume(engine, item, move |tx, out, item, now| crate::once::keep_answer_in(&job, tx, out, item, now)).await
+        }
+        // An alert's answer was acted on where it was given.
         _ => consume(engine, item, |_, _, _, _| Ok(false)).await,
     }
 }

@@ -13,6 +13,7 @@ mod halt;
 mod handoffs;
 mod intent;
 mod isolation;
+mod once;
 mod ports;
 mod recover;
 mod retention;

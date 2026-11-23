@@ -369,6 +369,8 @@ bundle![
     NoticeChoice,
     NotifyRequest,
     OfferChoice,
+    OnceRequest,
+    OnceStarted,
     Op,
     OpenBatch,
     OpenInRequest,

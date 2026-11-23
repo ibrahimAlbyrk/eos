@@ -326,6 +326,7 @@ pub const ROUTINES_MATCH_ITEM: Route = Route::new("routinesMatchItem", "/api/rou
 pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/routines/:id/candidates", &[Get]).added();
 pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
 pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
+pub const RUNS_ONCE: Route = Route::new("runsOnce", "/api/runs/once", &[Post]).added();
 pub const RUNS_ACTIVE: Route = Route::new("runsActive", "/api/runs/active", &[Get]).added();
 pub const RUNS_SUMMARY: Route = Route::new("runsSummary", "/api/runs/summary", &[Get]).added();
 pub const RUN: Route = Route::new("run", "/api/runs/:id", &[Get]).added();
@@ -700,6 +701,7 @@ pub const ROUTES: &[Route] = &[
     ROUTINES_MATCH_ITEM,
     RUNS,
     RUNS_ESTIMATE,
+    RUNS_ONCE,
     RUNS_ACTIVE,
     RUNS_SUMMARY,
     RUN,

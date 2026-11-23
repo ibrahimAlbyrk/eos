@@ -342,6 +342,8 @@ export const ROUTES = {
   routineCandidates: (id) => `/api/routines/${id}/candidates`,
   runs: "/api/runs",
   runsEstimate: "/api/runs/estimate",
+  // Do what a sentence asks, once.
+  runsOnce: "/api/runs/once",
   // What runs:active carries, before its first event.
   runsActive: "/api/runs/active",
   // The runs that ended since a time, counted by how and by routine.
