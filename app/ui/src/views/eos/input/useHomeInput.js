@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ensureAccountsLoaded, useAccounts } from "../../../state/accountsStore.js";
 import { setHomeDraft, setHomePick, useHomeDraft, useHomePick } from "../../../state/eos/homeDraftStore.js";
-import { loadCandidates, useRoutines } from "../../../state/eos/routinesStore.js";
+import { loadCandidates, offeredRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { comboKey, withChosen } from "../runform/CandidateCombobox.jsx";
 import { billsByRun, takesItems } from "../runform/runFormModel.js";
 import { itemRows, menuRows } from "./CandidateList.jsx";
@@ -19,7 +19,8 @@ const CLOSED = { open: true, active: -1 };
 export function useHomeInput(cardRef) {
   const text = useHomeDraft();
   const picked = useHomePick();
-  const routines = useRoutines().list;
+  const all = useRoutines().list;
+  const routines = useMemo(() => (all ? offeredRoutines(all) : null), [all]);
   const { accounts } = useAccounts();
   const byId = useMemo(() => new Map((routines ?? []).map((r) => [r.id, r])), [routines]);
   const routine = picked ? byId.get(picked) ?? null : null;

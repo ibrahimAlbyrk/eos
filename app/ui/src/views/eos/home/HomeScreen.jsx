@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ensureHomeLoaded, lastSeenAt, markSeenSoon, refreshHome, useHome } from "../../../state/eos/homeStore.js";
 import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
-import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
+import { ensureRoutinesLoaded, offeredRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
@@ -48,6 +48,7 @@ export function HomeScreen({ clock = Date.now }) {
   const home = useHome();
   const inbox = useInbox();
   const routines = useRoutines().list;
+  const offered = useMemo(() => offeredRoutines(routines), [routines]);
   const summary = useNotes().summary;
   const [lastSeen] = useState(lastSeenAt);
   useEffect(() => {
@@ -108,7 +109,7 @@ export function HomeScreen({ clock = Date.now }) {
         </div>
       </div>
       <FieldLayer
-        routines={routines ?? []}
+        routines={offered}
         needs={needs}
         next={next}
         caption={[hello(new Date(now).getHours(), home.name), needLine(waiting.length)].filter(Boolean).join(" ")}

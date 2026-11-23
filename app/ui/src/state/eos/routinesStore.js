@@ -37,6 +37,12 @@ export function useRoutines() {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+// The routines Home offers (the field, the `/` menu, the intent): those the
+// core's intent reader knows, so a one-off, an archived routine or one in
+// Recently deleted is not read as one (eos-mod-routines intent.rs).
+const NOT_OFFERED = new Set(["transient", "archived", "deleted"]);
+export const offeredRoutines = (list) => (list ?? []).filter((r) => !NOT_OFFERED.has(r.state));
+
 // The list with `row` in place of its old self; a routine new to the list
 // joins at the end.
 function withRow(list, row) {
