@@ -8,7 +8,7 @@ import { OutcomeLine } from "../input/OutcomeLine.jsx";
 import { RoutinesList } from "../routines/RoutinesList.jsx";
 import { Disc, PlusDisc } from "./Disc.jsx";
 import { discStatus, discsMatching } from "./discWords.js";
-import { DROP_STARTS_AT_ONCE, dropForm, droppedItem, droppedValue } from "./dropOnDisc.js";
+import { DROP_START, DROP_STARTS_AT_ONCE, dropForm, droppedItem, droppedValue } from "./dropOnDisc.js";
 import { closeField, setFieldView, shownView, useField } from "./fieldStore.js";
 import { discOf, placeDiscs, ringRadii } from "./placeDiscs.js";
 import { discDelays, dotDelay } from "./transition.js";
@@ -120,7 +120,7 @@ export function FieldLayer({ routines, needs, next, caption, handled, inputRef, 
     if (dropped.refused) return setNotice({ error: dropped.refused });
     setNotice(null);
     if (!DROP_STARTS_AT_ONCE) return openRunSheet({ routineId: id, anchor: null, input: dropForm(routine, dropped.item) });
-    if (!(await acts.run(routine, dropForm(routine, dropped.item), { stoppable: true, door: "drop" }))) setNotice("outcome");
+    if (!(await acts.run(routine, dropForm(routine, dropped.item), DROP_START))) setNotice("outcome");
   };
   const onKeyDown = (e) => {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];

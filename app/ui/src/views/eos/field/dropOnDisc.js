@@ -38,6 +38,9 @@ export function dropForm(routine, item) {
   return routine.takes.many ? { ...form, items: [item] } : { ...form, item };
 }
 
+// How a drop's run starts: from the field's door (01 §3), with Stop offered.
+export const DROP_START = { stoppable: true, door: "field" };
+
 // What was dropped: a link, else a file (its path, or its bytes kept by the
 // core first). Null when nothing usable came.
 export async function droppedValue(dataTransfer) {

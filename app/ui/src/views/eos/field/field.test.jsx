@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { _resetHome, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore.js";
@@ -12,7 +13,8 @@ import { homeNext, homeRuns } from "../gallery/sample/home.js";
 import routines from "../gallery/sample/routines.json";
 import { HomeScreen } from "../home/HomeScreen.jsx";
 import { discStatus, discsMatching } from "./discWords.js";
-import { dropForm, droppedItem } from "./dropOnDisc.js";
+import { DROP_START, dropForm, droppedItem } from "./dropOnDisc.js";
+import { optionsOf, startBody } from "../runform/runFormModel.js";
 import { _resetField, armField, closeField, FIELD_VIEW_KEY, openField, setFieldView, shownView, useField } from "./fieldStore.js";
 import { discDelays, dotDelay, ENTER_MS, LEAVE_MS, nextPhase } from "./transition.js";
 import { FieldLayer } from "./FieldLayer.jsx";
@@ -131,6 +133,15 @@ describe("a drop on a disc", () => {
     const files = { ...PR, name: "Invoice Filer", takes: { kind: "file", label: "invoice", many: false, itemPatterns: [] } };
     expect(droppedItem(files, "/Users/a/acme.pdf").item).toMatchObject({ path: "/Users/a/acme.pdf", title: "acme.pdf" });
     expect(droppedItem({ ...PR, takes: { kind: "none" } }, "x")).toEqual({ refused: "PR Review takes nothing to work on." });
+  });
+
+  it("starts from a door the core takes, the field's", () => {
+    const runs = readFileSync(new URL("../../../../../../crates/eos-mod-routines/src/routes/runs.rs", import.meta.url), "utf8");
+    const doors = [...runs.match(/const DOORS: \[&str; \d+\] = \[([^\]]*)\]/)[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    const { item } = droppedItem(PR, "https://github.com/acme/game/pull/482");
+    const body = startBody(PR, optionsOf(PR), dropForm(PR, item), { ...DROP_START, clientRequestId: "c-1" });
+    expect(doors).toContain(body.door);
+    expect(body.door).toBe("field");
   });
 });
 
