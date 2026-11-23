@@ -95,7 +95,7 @@ async fn not_now_waits_for_ten_more_and_an_edit_resets_the_streak() {
 }
 
 #[tokio::test]
-async fn never_ends_offers_and_no_rung_that_sends_alone_is_offered_while_locked() {
+async fn never_ends_offers_and_a_draft_routine_is_offered_sending_by_itself() {
     let held = Held::through(at_rung("ask"), review_traits(ActionClass::Speak)).await;
     held.rig.temp.exec("INSERT INTO inbox_offers (routine_id, state, updated_at) VALUES ('rt-1', 'never', 1)");
     earlier(&held, &["sent_unedited"; 12]);
@@ -105,8 +105,7 @@ async fn never_ends_offers_and_no_rung_that_sends_alone_is_offered_while_locked(
     let draft = Held::new().await;
     earlier(&draft, &["sent_unedited"; 12]);
     send_unedited(&draft).await;
-    let expected = i64::from(!eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED);
-    assert_eq!(offer_items(&draft), expected);
+    assert_eq!(offer_items(&draft), 1);
 }
 
 /// `rt-1` kept a new head at `rung` that differs from the one before by

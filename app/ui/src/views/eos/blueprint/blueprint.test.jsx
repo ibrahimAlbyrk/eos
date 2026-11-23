@@ -361,27 +361,14 @@ describe("the Freedom ladder", () => {
   const ladder = (rung, onApply = () => {}) => renderToStaticMarkup(<FreedomLadder blueprint={{ ...pr, freedom: { rung } }} onApply={onApply} />);
   const rungs = (html) => [...html.matchAll(/<button([^>]*)>([^<]*)<\/button>/g)].map((m) => ({ label: m[2], attrs: m[1] }));
 
-  it("keeps the two unattended rungs locked with the line that says until when", () => {
-    const html = ladder("draft");
-    const [ask, draft, sendThenTell, onItsOwn] = rungs(html);
-    for (const locked of [sendThenTell, onItsOwn]) {
-      expect(locked.attrs).toContain('aria-disabled="true"');
-      expect(locked.attrs).toContain('tabindex="-1"');
-      expect(locked.attrs).toMatch(/aria-describedby="[^"]+"/);
-    }
-    for (const open of [ask, draft]) {
-      expect(open.attrs).not.toContain("aria-disabled");
-      expect(open.attrs).not.toContain("tabindex");
-    }
-    const describedBy = sendThenTell.attrs.match(/aria-describedby="([^"]+)"/)[1];
-    expect(html).toContain(`<p id="${describedBy}" class="eos-note">After the safety suite passes</p>`);
-  });
-
-  it("shows Draft, I send as what applies to a routine set higher", () => {
-    for (const rung of ["send_then_tell", "on_its_own"]) {
-      const checked = rungs(ladder(rung)).filter((r) => r.attrs.includes('aria-checked="true"'));
-      expect(checked.map((r) => r.label)).toEqual(["Draft, I send"]);
-    }
-    expect(rungs(ladder("ask")).find((r) => r.attrs.includes('aria-checked="true"')).label).toBe("Ask each time");
+  it("offers all four rungs and checks the one the routine is at", () => {
+    const labels = ["Ask each time", "Draft, I send", "Send, then tell me", "On its own"];
+    ["ask", "draft", "send_then_tell", "on_its_own"].forEach((rung, at) => {
+      const all = rungs(ladder(rung));
+      expect(all.map((r) => r.label)).toEqual(labels);
+      for (const one of all) expect(one.attrs).not.toContain("aria-disabled");
+      expect(all.filter((r) => r.attrs.includes('aria-checked="true"')).map((r) => r.label)).toEqual([labels[at]]);
+    });
   });
 });
+
