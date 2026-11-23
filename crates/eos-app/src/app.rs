@@ -138,6 +138,10 @@ pub struct Options {
     /// when the run [`reaches_network`](Self::reaches_network). Without it
     /// GitHub is sent nothing: a request would act as the user.
     pub github: Option<Arc<dyn eos_github::Transport>>,
+    /// How the Mail app is driven ([`crate::mail`] in the real app), used
+    /// only when the run [`reaches_network`](Self::reaches_network). Without
+    /// it Mail is never asked: a send would go out as the user.
+    pub mail: Option<Arc<dyn eos_mail_app::Script>>,
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
@@ -199,6 +203,7 @@ impl Options {
             relay: None,
             keychain: None,
             github: None,
+            mail: None,
             keep_awake: None,
             extra_modules: Vec::new(),
             capabilities: CapabilityOptions::default(),
@@ -294,6 +299,7 @@ impl App {
             relay,
             keychain,
             github,
+            mail,
             keep_awake,
             extra_modules,
             capabilities: capability_options,
@@ -402,6 +408,7 @@ impl App {
             github_client_id: current.github.client_id.clone(),
             keychain,
             github,
+            mail,
             grants: grants.clone(),
             options: capability_options,
         })?;

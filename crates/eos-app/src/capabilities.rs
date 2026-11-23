@@ -11,6 +11,7 @@ use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{Clock, Ids, Sleeper};
 use eos_github::{GitHub, Transport};
+use eos_mail_app::{MailApp, Script};
 use eos_platform::DataPaths;
 use eos_store_files::capabilities::FsCapabilityFiles;
 
@@ -30,6 +31,10 @@ pub struct CapabilityOptions {
     /// the host's [`Options::github`](crate::Options::github), and nothing
     /// off the network.
     pub github: Option<Arc<dyn Transport>>,
+    /// How the Mail capability drives Mail: a test's own fake. `None`: the
+    /// host's [`Options::mail`](crate::Options::mail), and nothing off the
+    /// network.
+    pub mail: Option<Arc<dyn Script>>,
     /// The signal sources routines read, in place of the built-ins'.
     pub sources: Option<Arc<dyn SignalSources>>,
     /// The channels results go out through, in place of the built-ins'.
@@ -77,16 +82,19 @@ pub(crate) struct Parts<'a> {
     pub(crate) keychain: Option<Arc<dyn CapabilitySecrets>>,
     /// How the app reaches GitHub, as the host hands it in.
     pub(crate) github: Option<Arc<dyn Transport>>,
+    /// How the app drives Mail, as the host hands it in.
+    pub(crate) mail: Option<Arc<dyn Script>>,
     pub(crate) grants: Arc<LateGrants>,
     pub(crate) options: CapabilityOptions,
 }
 
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
-/// every chat and the routines feature's grant to run sessions, and the GitHub built-in (which reaches GitHub only on the
-/// network). No package runner yet.
+/// every chat and the routines feature's grant to run sessions, and the GitHub and Mail built-ins (which reach GitHub
+/// and drive Mail only on the network). No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
-    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, github, grants, options } = parts;
+    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, github, mail, grants, options } =
+        parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths));
     let secrets: Arc<dyn CapabilitySecrets> = options.secrets.unwrap_or_else(|| reach.capabilities(keychain));
     let transport: Arc<dyn Transport> = match options.github {
@@ -98,9 +106,15 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         transport,
         secrets: secrets.clone(),
         clock: clock.clone(),
-        sleeper,
+        sleeper: sleeper.clone(),
         client_id: github_client_id,
     }));
+    let script = match options.mail {
+        Some(script) => script,
+        None => reach.mail(mail),
+    };
+    let mail: Arc<dyn BuiltinCapability> =
+        Arc::new(MailApp::new(eos_mail_app::Parts { script, clock: clock.clone(), sleeper }));
     Ok(Arc::new(CapabilityService::new(
         CapabilityPorts {
             store,
@@ -111,6 +125,6 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             clock,
             ids,
         },
-        std::iter::once(github).chain(options.builtins).collect(),
+        [github, mail].into_iter().chain(options.builtins).collect(),
     )))
 }

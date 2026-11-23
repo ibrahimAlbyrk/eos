@@ -10,11 +10,12 @@ use eos_core::signals::SourceError;
 use eos_core::{BoxFuture, Error};
 use eos_domain::capability::health::{Event, StateCode};
 use eos_domain::capability::schema::input_error;
-use eos_domain::result_doc::GITHUB_REVIEW;
 use eos_domain::result_doc::shape::ResultShape;
+use eos_domain::result_doc::{GITHUB_REVIEW, MAIL};
 use serde_json::{Map, Value};
 
 use crate::health::apply;
+use crate::mail::{MAIL_CHANNEL, mail_of, mail_shape, send_input};
 use crate::pull::{GITHUB, PULL_REQUEST, Pull, action_input, review_of, review_shape};
 use crate::{CapabilityService, call};
 
@@ -49,11 +50,15 @@ impl CapabilityService {
 
     /// The shapes the built-in channels declare.
     fn shape_of(&self, kind: &str) -> Option<ResultShape> {
-        (kind == GITHUB_REVIEW && self.builtins.contains_key(GITHUB)).then(review_shape)
+        match kind {
+            GITHUB_REVIEW if self.builtins.contains_key(GITHUB) => Some(review_shape()),
+            MAIL if self.builtins.contains_key(MAIL_CHANNEL) => Some(mail_shape()),
+            _ => None,
+        }
     }
 
-    /// A review result against its shape, then against the input schema of
-    /// the action that sends it.
+    /// A result against its shape, then against the input schema of the
+    /// action that sends it.
     async fn check_result(&self, kind: &str, body: &ResultDoc, item: &ItemRef) -> Result<(), Vec<String>> {
         let shape = self.shape_of(kind).ok_or_else(|| vec![format!("no channel here sends a {kind} result")])?;
         let misfits = shape.check(body);
@@ -64,14 +69,19 @@ impl CapabilityService {
     }
 
     async fn fits_action(&self, kind: &str, body: &ResultDoc, item: &ItemRef) -> Result<(), String> {
-        let pull = Pull::of_item(item).ok_or_else(|| format!("a {kind} result needs a pull request"))?;
-        let commit_id = pull.sha.clone().ok_or_else(|| "the pull request names no commit".to_owned())?;
-        let review = review_of(body, &pull, &commit_id)?;
+        let input = if kind == MAIL {
+            let (subject, text) = mail_of(body)?;
+            // Whom it goes to is the delivery's; any address fits the schema here.
+            send_input("someone@example.com", &subject, &text)
+        } else {
+            let pull = Pull::of_item(item).ok_or_else(|| format!("a {kind} result needs a pull request"))?;
+            let commit_id = pull.sha.clone().ok_or_else(|| "the pull request names no commit".to_owned())?;
+            action_input(&body.action, &review_of(body, &pull, &commit_id)?)
+        };
         let loaded = self.load_one(&body.channel).await.map_err(|e| e.to_string())?;
         let loaded = loaded.ok_or_else(|| format!("no capability sends through {}", body.channel))?;
         let action = loaded.capability.manifest.action(&body.action);
         let action = action.ok_or_else(|| format!("{} has no action {}", body.channel, body.action))?;
-        let input = action_input(&body.action, &review);
         let issues = action.input.as_ref().map(|schema| call::issues(schema, &input)).unwrap_or_default();
         if issues.is_empty() { Ok(()) } else { Err(input_error(&body.channel, &body.action, &issues)) }
     }

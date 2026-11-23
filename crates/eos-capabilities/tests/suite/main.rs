@@ -5,4 +5,5 @@ mod calls;
 mod health;
 mod install;
 mod limits;
+mod mail;
 mod rig;
