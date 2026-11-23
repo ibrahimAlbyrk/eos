@@ -9,6 +9,7 @@ import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
 import { FieldLayer } from "../field/FieldLayer.jsx";
 import { closeField, openField, useField } from "../field/fieldStore.js";
+import { useInputFlight } from "../field/flight.js";
 import { AwayList } from "./AwayList.jsx";
 import { Greeting } from "./Greeting.jsx";
 import { Horizon } from "./Horizon.jsx";
@@ -39,7 +40,10 @@ function useMinute(clock) {
 export function HomeScreen({ clock = Date.now }) {
   const now = useMinute(clock);
   const inputRef = useRef(null);
-  const { open: fieldOpen } = useField();
+  const blockRef = useRef(null);
+  const placeRef = useRef(null);
+  const { open: fieldOpen, on: fieldOn } = useField();
+  useInputFlight(blockRef, placeRef);
   const home = useHome();
   const inbox = useInbox();
   const routines = useRoutines().list;
@@ -81,7 +85,7 @@ export function HomeScreen({ clock = Date.now }) {
   );
 
   return (
-    <main className={fieldOpen ? "eos-screen eos-home is-field" : "eos-screen eos-home"}>
+    <main className={fieldOn ? "eos-screen eos-home is-field" : "eos-screen eos-home"}>
       <div className="pane-head pane-head--topleft eos-home__drag"><span className="pane-head-inset" aria-hidden="true" /></div>
       <HaltBand />
       {home.offline && <p className="eos-home__offline" role="status">Reconnecting…</p>}
@@ -93,7 +97,8 @@ export function HomeScreen({ clock = Date.now }) {
             <p className="eos-home__date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
             <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled ?? 0} needs={waiting.length} firstRun={firstRun} />
           </div>
-          <HomeInput inputRef={inputRef} onFocus={openField} />
+          <div ref={placeRef} className="eos-input-place" />
+          <HomeInput inputRef={inputRef} blockRef={blockRef} onFocus={openField} />
           <div className="eos-home__below" inert={inert}>
             <StarterChips onPick={setHomeDraft} />
             {body}

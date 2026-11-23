@@ -1,17 +1,14 @@
 /* ── The field (HomeField.dc.html, RunInput.dc.html) ───────────────────────── */
+/* The layer is transparent: Home itself turns into the field beneath it. */
 .eos-field {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: radial-gradient(900px 620px at 50% 50%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%), var(--bg);
   color: var(--fg);
 }
 .eos-field__backdrop { position: absolute; inset: 0; }
 .eos-field__rings { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .eos-field__ring { fill: none; stroke-width: 1; }
-.eos-field__ring--1 { stroke: #262626; }
-.eos-field__ring--2 { stroke: #1f1f1f; }
-.eos-field__ring--3 { stroke: #1b1b1b; }
 .eos-field__ringlabel {
   position: absolute;
   left: calc(50% + var(--x));
@@ -71,7 +68,6 @@
   top: calc(50% + var(--y) - var(--d) / 2);
   width: 168px;
   margin-left: -84px;
-  transition: opacity 200ms ease;
 }
 .eos-disc__pick {
   width: 100%;
@@ -224,3 +220,119 @@
   cursor: pointer;
 }
 .eos-field__back:hover { color: var(--fg-strong); }
+
+/* ── The transition (Transition.dc.html; 08 §4.6) ─────────────────────────────
+   `.is-field` on Home, `.is-on` on the field and `.eos-mode--field` on the
+   mode head for the field; without them every part goes back, from where it
+   is, on the base timings. */
+.eos-mode { --k: 1; --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.2, 1.25, .35, 1); }
+
+.eos-mode > .side { transition: transform calc(var(--k) * 460ms) var(--ease); }
+.eos-mode > .side > * { transition: opacity calc(var(--k) * 320ms) var(--ease); }
+.eos-mode--field > .side { transform: translateX(-100%); }
+.eos-mode--field > .side > * { opacity: 0; }
+
+.eos-home__glow { transition: transform calc(var(--k) * 900ms) var(--ease); }
+.is-field .eos-home__glow { transform: translateY(calc(50vh - 350px)); }
+
+.eos-horizon__day, .eos-horizon__past, .eos-horizon__now, .eos-horizon__now-halo, .eos-horizon__clock {
+  transition: opacity calc(var(--k) * 320ms) var(--ease) calc(var(--k) * 400ms);
+}
+.is-field :is(.eos-horizon__day, .eos-horizon__past, .eos-horizon__now, .eos-horizon__now-halo, .eos-horizon__clock) {
+  opacity: 0;
+  transition: opacity calc(var(--k) * 240ms) var(--ease) calc(var(--k) * 90ms);
+}
+.eos-horizon__dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform calc(var(--k) * 560ms) var(--ease), opacity calc(var(--k) * 240ms) linear calc(var(--k) * 240ms);
+}
+.is-field .eos-horizon__dot {
+  opacity: 0;
+  transform: translate(var(--fx, 0), var(--fy, 0)) scale(.4);
+  transition: transform calc(var(--k) * 940ms) var(--ease) calc(var(--k) * var(--dd, 220ms)),
+    opacity calc(var(--k) * 260ms) linear calc(var(--k) * (var(--dd, 220ms) + 680ms));
+}
+
+.eos-home__date, .eos-greeting {
+  transition: opacity calc(var(--k) * 360ms) var(--ease) calc(var(--k) * 380ms), transform calc(var(--k) * 520ms) var(--ease) calc(var(--k) * 280ms);
+}
+.is-field :is(.eos-home__date, .eos-greeting) {
+  opacity: 0;
+  transform: translateY(-16px) scale(.97);
+  transition: opacity calc(var(--k) * 220ms) var(--ease), transform calc(var(--k) * 420ms) var(--ease);
+}
+.eos-home__below > * {
+  transition: opacity calc(var(--k) * 420ms) var(--ease) calc(var(--k) * 440ms), transform calc(var(--k) * 560ms) var(--ease) calc(var(--k) * 340ms);
+}
+.is-field .eos-home__below > :first-child {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity calc(var(--k) * 200ms) var(--ease) calc(var(--k) * 40ms), transform calc(var(--k) * 420ms) var(--ease) calc(var(--k) * 40ms);
+}
+.is-field .eos-home__below > :not(:first-child) {
+  opacity: 0;
+  transform: translateY(44px) scale(.97);
+  transition: opacity calc(var(--k) * 240ms) var(--ease), transform calc(var(--k) * 460ms) var(--ease);
+}
+
+/* The day arc's circle becomes the three rings. */
+.eos-field__ring {
+  cx: var(--hx);
+  cy: var(--hy);
+  r: var(--hr);
+  stroke: #5c5c5c;
+  opacity: 0;
+  transition: cx calc(var(--k) * 760ms) var(--ease) var(--bd), cy calc(var(--k) * 760ms) var(--ease) var(--bd),
+    r calc(var(--k) * 760ms) var(--ease) var(--bd), stroke calc(var(--k) * 760ms) linear var(--bd),
+    opacity calc(var(--k) * 300ms) linear var(--bo);
+}
+.eos-field__ring--1 { --bd: 0s; --bo: calc(var(--k) * 460ms); }
+.eos-field__ring--2 { --bd: calc(var(--k) * 60ms); --bo: calc(var(--k) * 520ms); }
+.eos-field__ring--3 { --bd: calc(var(--k) * 120ms); --bo: calc(var(--k) * 580ms); }
+.is-on .eos-field__ring {
+  cx: var(--cx);
+  cy: var(--cy);
+  opacity: 1;
+  transition: cx calc(var(--k) * 1080ms) var(--ease) var(--d), cy calc(var(--k) * 1080ms) var(--ease) var(--d),
+    r calc(var(--k) * 1080ms) var(--ease) var(--d), stroke calc(var(--k) * 1080ms) linear var(--d),
+    opacity calc(var(--k) * 260ms) linear var(--fo);
+}
+.is-on .eos-field__ring--3 { r: var(--r3); stroke: #1c1c1c; --d: calc(var(--k) * 100ms); --fo: 0s; }
+.is-on .eos-field__ring--2 { r: var(--r2); stroke: #202020; --d: calc(var(--k) * 210ms); --fo: calc(var(--k) * 210ms); }
+.is-on .eos-field__ring--1 { r: var(--r1); stroke: #272727; --d: calc(var(--k) * 320ms); --fo: calc(var(--k) * 320ms); }
+
+.eos-disc {
+  opacity: 0;
+  transform: scale(.5);
+  transform-origin: 50% calc(var(--d) / 2);
+  transition: opacity calc(var(--k) * 200ms) linear, transform calc(var(--k) * 320ms) var(--ease);
+}
+.is-on .eos-disc {
+  opacity: var(--dim, 1);
+  transform: none;
+  transition: opacity calc(var(--k) * 320ms) linear calc(var(--k) * var(--dd)), transform calc(var(--k) * 780ms) var(--spring) calc(var(--k) * var(--dd));
+}
+.is-on:not(.is-moving) .eos-disc { transition: opacity 200ms ease, transform 400ms var(--ease); }
+.is-moving .eos-disc, .is-moving .eos-horizon__dot { will-change: transform, opacity; }
+
+.eos-field__caption {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity calc(var(--k) * 160ms) linear, transform calc(var(--k) * 160ms) var(--ease);
+}
+.is-on .eos-field__caption {
+  opacity: 1;
+  transform: translateX(-50%);
+  transition: opacity calc(var(--k) * 420ms) var(--ease) calc(var(--k) * 640ms), transform calc(var(--k) * 520ms) var(--ease) calc(var(--k) * 640ms);
+}
+.eos-field__fx { opacity: 0; transition: opacity calc(var(--k) * 160ms) linear; }
+.is-on .eos-field__fx { opacity: 1; transition: opacity calc(var(--k) * 420ms) var(--ease) calc(var(--k) * 860ms); }
+.is-on .eos-field__fx--early { transition-delay: calc(var(--k) * 380ms); }
+.eos-field:not(.is-on) { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eos-mode { --k: 0; }
+  .eos-home__below > *, .eos-home__date, .eos-greeting, .eos-field__fx, .eos-field__caption, .eos-disc, .eos-field__ring,
+  .is-on :is(.eos-disc, .eos-field__fx, .eos-field__caption, .eos-field__ring) { transition: opacity 120ms linear !important; }
+}

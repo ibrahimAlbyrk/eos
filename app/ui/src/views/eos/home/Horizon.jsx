@@ -3,11 +3,14 @@ import { BUCKETS, bucketTitle, clockOf, dayStart, horizonBuckets, horizonSummary
 // The day as an arc (Main.dc.html): a circle far larger than the band, so
 // only its crest shows. Dashed for the whole day, solid up to now; one dot a
 // 15-minute bucket in its most urgent state, the now dot brightest.
-const W = 760;
+export const ARC_W = 760;
+const W = ARC_W;
 const H = 96;
-const R = 900;
+export const ARC_R = 900;
+const R = ARC_R;
 const CX = W / 2;
-const CY = 8 + R;
+export const ARC_TOP = 8;
+const CY = ARC_TOP + R;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const yAt = (x) => CY - Math.sqrt(R * R - (x - CX) ** 2);
@@ -19,7 +22,7 @@ function Dot({ bucket }) {
   const x = xOf((bucket.index + 0.5) / BUCKETS);
   const r = SIZE[bucket.state] / 2;
   return (
-    <circle className={`eos-horizon__dot eos-horizon__dot--${bucket.state}`} cx={x} cy={yAt(x)} r={r}>
+    <circle className={`eos-horizon__dot eos-horizon__dot--${bucket.state}`} data-routine={bucket.routineId} cx={x} cy={yAt(x)} r={r}>
       <title>{bucketTitle(bucket)}</title>
     </circle>
   );
