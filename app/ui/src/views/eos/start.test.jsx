@@ -36,17 +36,16 @@ afterEach(() => {
   setEosTransport(null);
 });
 
-// Until Home arrives (P5), Eos starts on what needs the user.
-describe("where Eos opens until Home", () => {
-  it("is eos:/ when no place is stored, and eos:/ shows the Needs-you list", async () => {
+describe("where Eos opens", () => {
+  it("is eos:/ when no place is stored, and eos:/ shows Home", async () => {
     globalThis.localStorage = stubStorage();
     setEosTransport(fixtureTransport({ [ROUTES.inbox]: inbox, [ROUTES.routines]: routines }));
     await refreshRoutines();
     await refreshInbox();
     expect(eosLocation()).toBe("eos:/");
     const html = renderToStaticMarkup(<EosMain />);
-    expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
-    expect(html).toContain('<h2 class="eos-label">To check and send</h2>');
+    expect(html).toContain('<main class="eos-screen eos-home">');
+    expect(html).toContain('<h1 class="eos-greeting">');
   });
 
   it("keeps a stored place", () => {
@@ -54,10 +53,10 @@ describe("where Eos opens until Home", () => {
     expect(eosLocation()).toBe("eos:/capabilities");
   });
 
-  it("selects Needs you in the sidebar, and New routine opens eos:/routines/new", () => {
+  it("selects Home in the sidebar, and New routine opens eos:/routines/new", () => {
     globalThis.localStorage = stubStorage();
     renderToStaticMarkup(<NavRows screen="home" />);
-    expect(rows.filter((r) => r.selected).map((r) => r.label)).toEqual(["Needs you"]);
+    expect(rows.filter((r) => r.selected).map((r) => r.label)).toEqual(["Home"]);
     rows.find((r) => r.label === "New routine").onClick();
     expect(eosLocation()).toBe("eos:/routines/new");
   });

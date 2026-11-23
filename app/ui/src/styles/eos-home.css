@@ -1,0 +1,154 @@
+/* eos-home.css — Eos › Home, Horizon (design-variants Main.dc.html): the day's
+   arc, the date and greeting, starter chips, the first Needs-you cards, the
+   away list and the learned line, in one centred column on a faint glow.
+   Text follows eos.css's contrast rule: never dimmer than --fg-dim2. */
+
+.eos-home { position: relative; }
+.eos-home__drag { position: absolute; inset: 0 0 auto 0; z-index: 1; border-bottom: 0; background: transparent; }
+.eos-home__offline {
+  margin: 0;
+  padding: 6px 32px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+
+.eos-home__scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 64px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.eos-home__glow {
+  position: absolute;
+  left: 50%;
+  top: 120px;
+  width: 980px;
+  height: 460px;
+  margin-left: -490px;
+  background: radial-gradient(ellipse at 50% 55%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 62%);
+  pointer-events: none;
+}
+.eos-home__column {
+  position: relative;
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Horizon ──────────────────────────────────────────────────────────────── */
+.eos-horizon { position: relative; width: 100%; aspect-ratio: 760 / 96; }
+.eos-horizon__arc { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.eos-horizon__day { fill: none; stroke: var(--dot-idle); stroke-width: 1; stroke-dasharray: 3 3; }
+.eos-horizon__past { fill: none; stroke: #5c5c5c; stroke-width: 1; }
+.eos-horizon__dot--done { fill: var(--fg-dim2); }
+.eos-horizon__dot--now { fill: var(--fg-mid); }
+.eos-horizon__dot--waiting { fill: var(--accent); }
+.eos-horizon__dot--scheduled { fill: var(--bg); stroke: var(--fg-faint); stroke-width: 1; }
+.eos-horizon__now { fill: var(--fg-strong); }
+.eos-horizon__now-halo { fill: color-mix(in srgb, var(--fg-strong) 10%, transparent); }
+.eos-horizon__clock {
+  position: absolute;
+  top: 56%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-dim2);
+}
+.eos-horizon__clock--start { left: 0; }
+.eos-horizon__clock--end { right: 0; }
+.eos-horizon__clock--now { top: 26%; transform: translateX(-50%); color: var(--fg-mid); }
+
+/* ── Greeting ─────────────────────────────────────────────────────────────── */
+.eos-home__date {
+  margin: 20px 0 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-dim2);
+}
+.eos-greeting {
+  margin: 8px 0 0;
+  font-size: 32px;
+  line-height: 1.25;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--fg-strong);
+  text-wrap: balance;
+}
+.eos-greeting__dim { color: var(--fg-dim2); }
+.eos-greeting__need { white-space: nowrap; }
+
+/* ── Starter chips ────────────────────────────────────────────────────────── */
+.eos-starters { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.eos-starter {
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid #2a2a2a;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.eos-starter:hover { color: var(--fg-mid); border-color: var(--border-strong); }
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+.eos-home-part { margin-top: 40px; display: flex; flex-direction: column; gap: 12px; }
+.eos-home-part + .eos-home-part { margin-top: 36px; }
+.eos-home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 12px;
+}
+.eos-home-card {
+  border-radius: 14px;
+  background: #1b1b1b;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.eos-home-card__meta { display: flex; align-items: center; gap: 7px; font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-home-card__glyph {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--chip);
+  font-size: 9.5px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--fg-mid);
+}
+.eos-home-card__routine { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-home-card__time { font-family: var(--font-mono); font-size: 11.5px; }
+.eos-home-card__title { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--fg-strong); }
+.eos-home-card__summary { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); }
+.eos-home-card__actions { display: flex; gap: 6px; margin-top: 8px; }
+.eos-home-card .eos-btn { height: 32px; }
+.eos-btn--quiet { background: none; }
+.eos-home-all { align-self: flex-start; font-size: var(--text-sm); text-decoration: none; }
+
+.eos-away { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.eos-away__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 7px 0;
+  border-bottom: 1px solid #1f1f1f;
+  font-size: var(--text-sm);
+}
+.eos-away__line:last-child { border-bottom: 0; }
+.eos-away__time { width: 44px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-away__routine { width: 112px; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-away__text { flex: 1 1 260px; min-width: 0; color: var(--fg-dim); }
+.eos-away__line .eos-link,
+.eos-home-learned .eos-link { text-decoration: none; }
+
+.eos-home-learned { margin: 14px 0 0; font-size: 12.5px; color: var(--fg-dim2); }

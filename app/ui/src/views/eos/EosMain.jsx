@@ -1,4 +1,5 @@
 import { NewRoutine } from "./blueprint/NewRoutine.jsx";
+import { HomeScreen } from "./home/HomeScreen.jsx";
 import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosMemoryScreen } from "./memory/EosMemoryScreen.jsx";
@@ -43,8 +44,8 @@ function PlaceholderScreen({ location }) {
 // as the app does.
 export function EosMain() {
   const location = parseLocation(useEosLocation());
-  // Until Home arrives (P5), Eos's start shows what needs the user.
-  if (location?.screen === "home" || location?.screen === "needs") return <NeedsYouList />;
+  if (location?.screen === "home") return <HomeScreen />;
+  if (location?.screen === "needs") return <NeedsYouList />;
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
   if (location?.screen === "new-routine") return <NewRoutine />;
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
