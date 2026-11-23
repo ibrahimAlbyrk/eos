@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { endBoot, receiveBoot } from "../../../api/boot.js";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
-import { _resetHome, refreshHome, RUNS_PATH, summaryPath } from "../../../state/eos/homeStore.js";
+import { _resetHome, LAST_SEEN_KEY, openHomeVisit, refreshHome, RUNS_PATH, summaryPath } from "../../../state/eos/homeStore.js";
 import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetNotes, refreshMemorySummary } from "../../../state/eos/notesStore.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
@@ -107,6 +107,37 @@ describe("Eos › Home", () => {
     const html = draw();
     expect(html).toContain('<p class="eos-home__offline" role="status">Reconnecting…</p>');
     expect(html).toContain("Eos handled 31 things overnight.");
+  });
+});
+
+describe("the visit Home counts from", () => {
+  afterEach(() => { delete globalThis.localStorage; });
+
+  it("is the mark found when Home opened, for the greeting and every later read, until Home opens again", async () => {
+    const data = new Map();
+    globalThis.localStorage = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => data.set(k, String(v)), removeItem: (k) => data.delete(k) };
+    const before = NOW - 10 * 3600 * 1000;
+    data.set(LAST_SEEN_KEY, String(before));
+    const asked = [];
+    const fixtures = fixtureTransport(reads({
+      [summaryPath(before)]: { since: before, counts: { handled: 12 }, byRoutine: {} },
+      [summaryPath(NOW)]: { since: NOW, counts: { handled: 0 }, byRoutine: {} },
+    }));
+    setEosTransport({ ...fixtures, get: (path) => { asked.push(path); return fixtures.get(path); } });
+    await Promise.all([refreshInbox(), refreshRoutines(), refreshMemorySummary()]);
+    openHomeVisit();
+    await vi.waitFor(() => expect(draw()).toContain("Eos handled 12 things"));
+
+    // Five seconds on Home marked this visit; a run changing reads again.
+    data.set(LAST_SEEN_KEY, String(NOW));
+    await refreshHome();
+    expect(asked.filter((p) => p.startsWith(ROUTES.signalsSummary))).toEqual([summaryPath(before), summaryPath(before)]);
+    expect(draw()).toContain("Eos handled 12 things");
+
+    // Coming back to Home counts from the visit before.
+    openHomeVisit();
+    await vi.waitFor(() => expect(asked.filter((p) => p.startsWith(ROUTES.signalsSummary)).at(-1)).toBe(summaryPath(NOW)));
+    await vi.waitFor(() => expect(draw()).not.toContain("handled 12"));
   });
 });
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ensureHomeLoaded, lastSeenAt, markSeenSoon, refreshHome, useHome } from "../../../state/eos/homeStore.js";
+import { markSeenSoon, openHomeVisit, refreshHome, useHome, visitSince } from "../../../state/eos/homeStore.js";
 import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
@@ -50,9 +50,9 @@ export function HomeScreen({ clock = Date.now }) {
   const routines = useRoutines().list;
   const offered = useMemo(() => offeredRoutines(routines), [routines]);
   const summary = useNotes().summary;
-  const [lastSeen] = useState(lastSeenAt);
+  const lastSeen = visitSince();
   useEffect(() => {
-    ensureHomeLoaded();
+    openHomeVisit();
     ensureInboxLoaded();
     ensureRoutinesLoaded();
     void refreshMemorySummary();
