@@ -40,7 +40,9 @@
 //! ([`ExperiencePacks`]); memory hears how each run ended, each check that
 //! failed and each routine that left for good ([`ExperienceFeedback`]). A
 //! routine that makes a view, a page or an app takes its surface through its
-//! life ([`SurfaceAuthoring`]).
+//! life ([`SurfaceAuthoring`]). Its surface's buttons run it again, run it
+//! on an item and open a run, and its live parts read how it stands and its
+//! last runs, through the direct-action registry.
 //!
 //! A handed-in result waits at the check while its lead is held: the rules,
 //! then a checker session (`eos-run-checker`) when the routine asks for one.
@@ -77,6 +79,7 @@
 //! (`GET /api/routines/:id/candidates`) and name the run a worker works for
 //! (`GET /api/run-agents/:workerId`).
 
+mod actions;
 mod architect;
 mod engine;
 mod intent;
@@ -106,6 +109,7 @@ use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
+use eos_runtime::actions::{ActionDecl, QueryDecl};
 use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
 use eos_runtime::module::{Module, ModuleError, ProtectedSettings};
@@ -352,6 +356,14 @@ impl Module for RoutinesModule {
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.engine)
+    }
+
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        actions::declared(&self.engine)
+    }
+
+    fn surface_queries(&self) -> Vec<QueryDecl> {
+        actions::queries(&self.engine)
     }
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {
