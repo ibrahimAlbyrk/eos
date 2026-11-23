@@ -2,3 +2,4 @@
 
 mod contract;
 mod lifecycle;
+mod view_check;
