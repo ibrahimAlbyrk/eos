@@ -66,6 +66,16 @@ pub fn github() -> Result<std::sync::Arc<dyn eos_github::Transport>, Error> {
     Ok(std::sync::Arc::new(eos_github::HttpTransport::new()?))
 }
 
+/// How the installed app drives the Mail app: `osascript`. Hand it to
+/// [`Options::mail`]; an app built without it, or one that does not
+/// [reach the network](Options::reaches_network), never runs it.
+pub fn mail() -> std::sync::Arc<dyn eos_mail_app::Script> {
+    let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+        eos_platform::kill_process_tree(pid).is_ok()
+    });
+    std::sync::Arc::new(eos_mail_app::Osascript::new(eos_kit_proc::Runner::new(trees)))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The data folder cannot be used (created, read, written).

@@ -370,3 +370,21 @@ async fn a_release_install_never_asks_its_update_feed() {
     until("the installed app asks its feed", || feed.accepted() > 0).await;
     installed.shutdown(Duration::from_secs(5)).await;
 }
+
+/// Driving Mail sends as the user: a run that turns the network on for its
+/// local fakes, without the host's own program runner, never runs
+/// `osascript`; Mail reads as a step the user takes.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_without_the_host_s_mail_runner_never_drives_mail() {
+    let home = TempHome::new();
+    let options = options(&home, true);
+    assert!(options.mail.is_none(), "only the host hands in the Mail runner");
+    let app = App::build(options).expect("builds");
+    app.start().await.expect("starts");
+
+    let (status, checked) = call(&app, Method::Post, "/api/capabilities/mail/check", None).await;
+    assert_eq!(status, 200, "{checked}");
+    let (_, detail) = call(&app, Method::Get, "/api/capabilities/mail", None).await;
+    assert_eq!((&detail["state"], &detail["stateCode"]), (&json!("needs_setup"), &json!("automation_denied")));
+    app.shutdown(Duration::from_secs(5)).await;
+}

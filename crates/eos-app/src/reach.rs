@@ -17,6 +17,7 @@
 //! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
 //! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
 //! | GitHub, for its capability's calls, checks and sign-in | every request is refused unsent, as when GitHub does not answer |
+//! | The Mail app, for its capability's reads, sends and checks | `osascript` never runs; every program answers as macOS refusing Apple Events, so Mail reads `needs_setup` |
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
@@ -46,6 +47,7 @@ use eos_core::{BoxFuture, Error};
 use eos_domain::sync::SyncIdentity;
 use eos_domain::update::UpdateInstall;
 use eos_github::{HttpRequest, HttpResponse, Transport};
+use eos_mail_app::{Program, Script, ScriptError};
 
 /// Why sync does nothing on another data folder, as Settings › Sync shows it.
 const SYNC_OFF: &str = "Sync runs only in the installed Eos on your own data folder";
@@ -126,6 +128,16 @@ impl Reach {
         }
     }
 
+    /// How the Mail capability drives Mail: through the program runner only
+    /// the host hands in, so a run without it or off the network never
+    /// runs `osascript`.
+    pub(crate) fn mail(self, script: Option<Arc<dyn Script>>) -> Arc<dyn Script> {
+        match script.filter(|_| self.network) {
+            Some(script) => script,
+            None => Arc::new(NoMail),
+        }
+    }
+
     /// The channels results go out through: off the network each still says
     /// what its actions are, and every call answers `DevRun`.
     pub(crate) fn channels(self, channels: Arc<dyn Channels>) -> Arc<dyn Channels> {
@@ -197,6 +209,19 @@ struct NoGitHub;
 impl Transport for NoGitHub {
     fn send(&self, _request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, eos_github::Error>> {
         Box::pin(std::future::ready(Err(eos_github::Error::Transport(GITHUB_OFF.into()))))
+    }
+}
+
+/// Mail that is never asked: every program answers as a refused Apple Event.
+struct NoMail;
+
+impl Script for NoMail {
+    fn run(
+        &self,
+        _program: Program,
+        _input: serde_json::Value,
+    ) -> BoxFuture<'_, Result<serde_json::Value, ScriptError>> {
+        Box::pin(std::future::ready(Err(ScriptError::Denied)))
     }
 }
 

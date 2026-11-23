@@ -1,7 +1,8 @@
 //! The channels deliveries go out through (03's contract), over the
 //! built-ins' actions. `github` sends a review result as one review that
 //! ends with the delivery's marker, so a send repeated after a crash finds
-//! the first; it is taken back by withdrawing the review.
+//! the first; it is taken back by withdrawing the review. `mail` is in
+//! [`crate::mail`].
 
 use std::sync::Arc;
 
@@ -15,6 +16,7 @@ use eos_core::delivery::{
 use serde_json::{Value, json};
 
 use crate::CapabilityService;
+use crate::mail::{MAIL_CHANNEL, MailChannel};
 use crate::pull::{GITHUB, Pull, action_input, review_of};
 
 /// The largest review body GitHub takes.
@@ -27,8 +29,14 @@ pub(crate) struct BuiltinChannels(pub(crate) Arc<CapabilityService>);
 
 impl Channels for BuiltinChannels {
     fn get(&self, channel: &str) -> Option<Arc<dyn Channel>> {
-        (channel == GITHUB && self.0.builtins.contains_key(GITHUB))
-            .then(|| Arc::new(GitHubChannel(self.0.clone())) as Arc<dyn Channel>)
+        if !self.0.builtins.contains_key(channel) {
+            return None;
+        }
+        match channel {
+            GITHUB => Some(Arc::new(GitHubChannel(self.0.clone()))),
+            MAIL_CHANNEL => Some(Arc::new(MailChannel(self.0.clone()))),
+            _ => None,
+        }
     }
 }
 

@@ -283,6 +283,7 @@ fn start_core(
                 .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
                 .ok()?,
         ),
+        mail: Some(eos_app::mail()),
         reaches_network: network,
         dashboard: Some(dist.to_path_buf()).filter(|dist| dist.join("index.html").is_file()),
         callers: Some(callers),

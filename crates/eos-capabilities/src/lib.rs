@@ -42,6 +42,7 @@ mod early;
 mod health;
 mod install;
 mod limits;
+mod mail;
 mod manage;
 mod output;
 mod pull;
