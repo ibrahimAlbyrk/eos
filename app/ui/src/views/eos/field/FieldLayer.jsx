@@ -6,6 +6,8 @@ import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { useHomeActs } from "../input/useHomeActs.js";
 import { OutcomeLine } from "../input/OutcomeLine.jsx";
 import { RoutinesList } from "../routines/RoutinesList.jsx";
+import { LoadFailed } from "../capabilities/parts.jsx";
+import { refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { Disc, PlusDisc } from "./Disc.jsx";
 import { discStatus, discsMatching } from "./discWords.js";
 import { DROP_START, DROP_STARTS_AT_ONCE, dropForm, droppedItem, droppedValue } from "./dropOnDisc.js";
@@ -17,6 +19,8 @@ import { ARC_R, ARC_TOP, ARC_W } from "../home/Horizon.jsx";
 
 // The field's input is this wide (08 §4.6).
 export const FIELD_INPUT_WIDTH = 580;
+// The caption while there is no routine yet (08 §4.12).
+const FIRST_RUN_CAPTION = "Your routines will gather here.";
 
 function useWindowSize() {
   const read = () => (typeof window === "undefined" ? { W: 1440, H: 900 } : { W: window.innerWidth, H: window.innerHeight });
@@ -69,8 +73,10 @@ const isCmdB = (e) => (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.
 // header, the legend, Field or List, and Back to home. Typing dims the
 // discs the text is not about; a click picks a routine for the input; a drop
 // starts a run. `routines`, `needs` (routine id → open items) and `next`
-// (routine id → next run) come from Home's stores.
-export function FieldLayer({ routines, needs, next, caption, handled, inputRef, now = Date.now() }) {
+// (routine id → next run) come from Home's stores; `status` is "loading"
+// or "failed" while the routines are not read, "offline" while the core
+// does not answer, else null.
+export function FieldLayer({ routines, needs, next, caption, handled, status = null, inputRef, now = Date.now() }) {
   const { open, on, phase, view } = useField();
   const { W, H } = useWindowSize();
   const text = useHomeDraft();
@@ -132,6 +138,7 @@ export function FieldLayer({ routines, needs, next, caption, handled, inputRef, 
     refs.current[at]?.focus();
   };
   const outcome = notice === "outcome" ? acts.outcome : notice;
+  const shownCaption = status !== "loading" && status !== "failed" && routines.length === 0 ? FIRST_RUN_CAPTION : caption;
 
   return (
     <div
@@ -153,9 +160,9 @@ export function FieldLayer({ routines, needs, next, caption, handled, inputRef, 
       ))}
       <header className="eos-field__head eos-field__fx eos-field__fx--early">
         <span className="eos-input__gap" />
-        {handled && <span className="eos-field__handled">{handled}</span>}
+        {status === "offline" ? <span className="eos-field__handled" role="status">Reconnecting…</span> : handled && <span className="eos-field__handled">{handled}</span>}
       </header>
-      {caption && <p className="eos-field__caption">{caption}</p>}
+      {shownCaption && <p className="eos-field__caption">{shownCaption}</p>}
       {shown === "field" ? (
         <div className="eos-field__discs" role="group" aria-label="Your routines" onKeyDown={onKeyDown}>
           {order.map((place, i) => (
@@ -182,7 +189,9 @@ export function FieldLayer({ routines, needs, next, caption, handled, inputRef, 
           <RoutinesList discs={discs} rows={rows} statusOf={statusOf} picked={picked} onPick={pick} onOpen={openPage} />
         </div>
       )}
-      <div className="eos-field__notice" aria-live="polite">{outcome && <OutcomeLine outcome={outcome} again={() => void acts.again()} />}</div>
+      <div className="eos-field__notice" aria-live="polite">
+        {status === "failed" ? <LoadFailed what="routines" retry={() => void refreshRoutines()} /> : outcome && <OutcomeLine outcome={outcome} again={() => void acts.again()} />}
+      </div>
       <p className="eos-field__legend eos-field__fx">
         {shown === "field" ? "The closer a routine sits to the centre, the sooner it needs you. Its size shows how much it does." : "Click a routine to give it something. Its arrow opens its page."}
       </p>
