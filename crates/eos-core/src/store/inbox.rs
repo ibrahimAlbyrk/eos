@@ -272,6 +272,8 @@ pub trait DeliveryRepo {
     fn in_state(&self, state: &str) -> Result<Vec<StoredDelivery>, Error>;
     /// A run's rows, oldest first.
     fn of_run(&self, run_id: &str) -> Result<Vec<StoredDelivery>, Error>;
+    /// A routine's rows to one Goes-to recipient, oldest first.
+    fn to_recipient(&self, routine_id: &str, target_ref: &str) -> Result<Vec<StoredDelivery>, Error>;
     /// When the earliest row in `state` is next due; none when no row in it
     /// has a time.
     fn next_due(&self, state: &str) -> Result<Option<i64>, Error>;

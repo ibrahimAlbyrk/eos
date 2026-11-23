@@ -37,6 +37,7 @@ fn each_cap() -> Vec<(&'static str, Caps)> {
             Caps { waiting: Some(Waiting::Automatic { for_ms: AUTOMATIC_FRESH_MS + 1 }), ..none },
         ),
         ("halt", Caps { halted: true, ..none }),
+        ("a repeat to the same recipient and subject", Caps { repeat: true, ..none }),
     ]
 }
 
