@@ -23,12 +23,17 @@ pub trait AskRouting: Send + Sync {
 }
 
 /// An action a surface wants to take for a routine.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ActionRequest {
+    /// Empty for an action pressed outside any routine's surface.
     pub routine_id: String,
     pub class: ActionClass,
     /// The action, as its capability names it.
     pub action_id: String,
+    /// What the user sees it called.
+    pub title: String,
+    /// Its arguments as the core typed them, kept with a held draft.
+    pub args: serde_json::Value,
     /// Where it was asked from.
     pub origin: String,
 }

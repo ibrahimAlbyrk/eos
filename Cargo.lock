@@ -2183,6 +2183,7 @@ dependencies = [
  "eos-inbox",
  "eos-policy",
  "eos-runtime",
+ "eos-surface",
  "eos-testkit",
  "indexmap",
  "serde_json",

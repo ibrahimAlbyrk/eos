@@ -7,12 +7,15 @@
 //!   Goes to the user confirmed;
 //! - `apply`: the decision, from the channel action's class, the outbound
 //!   check and the rung under every cap; and taking back a held result;
-//! - `repeat`: whether the same place already had a send of the subject.
+//! - `repeat`: whether the same place already had a send of the subject;
+//! - `actions`: the gate a surface's direct action passes.
 
+mod actions;
 mod apply;
 mod repeat;
 mod targets;
 
+pub use actions::{ActionGateParts, DirectActionGate};
 pub(crate) use apply::DRAFT_PRODUCER;
 pub use apply::TARGET_REFUSED;
 
