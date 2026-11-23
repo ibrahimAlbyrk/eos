@@ -6,7 +6,7 @@ import { _resetHome, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore
 import { _resetHomeDraft, setHomeDraft, setHomePick } from "../../../state/eos/homeDraftStore.js";
 import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetNotes, refreshMemorySummary } from "../../../state/eos/notesStore.js";
-import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
+import { _resetRoutines, offeredRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import { homeNext, homeRuns } from "../gallery/sample/home.js";
@@ -104,6 +104,22 @@ describe("the field", () => {
     expect(html).toContain("eos-screen eos-home is-field");
     expect(html).toContain("eos-field is-on is-moving");
     expect(html.match(/inert=""/g)).toHaveLength(2);
+  });
+});
+
+describe("the routines on the field", () => {
+  it("leave out one-offs, archived routines and those in Recently deleted, as the core's intent does", async () => {
+    const gone = ["transient", "archived", "deleted"].map((state, i) => ({ ...routines[0], id: `rt-gone-${i}`, name: `Gone ${i}`, state }));
+    const draft = { ...routines[1], id: "rt-draft", name: "Being made", state: "draft" };
+    const live = routines.filter((r) => r.state !== "archived");
+    expect(live.length).toBe(routines.length - 1);
+    expect(offeredRoutines([...routines, ...gone, draft]).map((r) => r.id)).toEqual([...live.map((r) => r.id), "rt-draft"]);
+    setEosTransport(fixtureTransport({ ...SAMPLE_READS, [ROUTES.routines]: [...routines, ...gone], [RUNS_PATH]: { runs: homeRuns(NOW) }, [ROUTES.signalsRoutines]: homeNext(NOW) }));
+    await Promise.all([refreshHome(), refreshInbox(), refreshRoutines(), refreshMemorySummary()]);
+    openField();
+    const html = renderToStaticMarkup(<HomeScreen clock={() => NOW} />);
+    expect(html.match(/class="eos-disc /g)).toHaveLength(live.length);
+    expect(html).not.toContain("Gone ");
   });
 });
 
