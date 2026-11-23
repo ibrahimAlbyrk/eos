@@ -22,6 +22,10 @@
 //! without being copied into them; each is answered through its own recorded
 //! route, which a write here names in its 409.
 //!
+//! Through the direct-action registry a surface may answer an item of its
+//! own routine with one of its kind's choices (`needs_you.answer`), put one
+//! aside (`needs_you.later`) and read what waits (`needs_you.summary`).
+//!
 //! Every route answers the user's text, so only the user's dashboard and
 //! phone reach them. Writes are announced on `inbox:change`.
 //!
@@ -41,6 +45,7 @@
 //! ([`Notifier`](eos_inbox::attention::Notifier)); the same task wakes at
 //! each digest time.
 
+mod actions;
 mod project;
 mod routes;
 
@@ -58,6 +63,7 @@ use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_inbox::attention::{Notifier, NotifierParts};
 use eos_inbox::delivery::{Delivery, DeliveryParts};
 use eos_inbox::{Items, ItemsParts, QuestionWaiters};
+use eos_runtime::actions::{ActionDecl, QueryDecl};
 use eos_runtime::bus::{Bus, RecvError, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
@@ -308,6 +314,14 @@ impl Module for InboxModule {
 
     fn routes(&self) -> Vec<RouteDef> {
         routes::all(&self.parts)
+    }
+
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        actions::declared(&self.parts)
+    }
+
+    fn surface_queries(&self) -> Vec<QueryDecl> {
+        actions::queries(&self.parts)
     }
 
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
