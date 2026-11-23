@@ -118,6 +118,45 @@ async fn ready(engine: &Engine, new: &NewRun) -> Result<(), StartError> {
     super::ready::check(engine, &blueprint, &inputs).await
 }
 
+/// Whether this Mac takes a start by `origin` now: not while everything is
+/// stopped, and the user's own start not once today's cap is spent (it asks
+/// to raise the cap rather than wait for tomorrow).
+fn taking_in(tx: &dyn Tx, origin: &RunOrigin, day: &super::budget::Day) -> Result<(), StartError> {
+    if tx.inbox_halt().get()?.on {
+        return Err(StartError::Halted);
+    }
+    if by_the_user(origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
+        return Err(StartError::DayCap);
+    }
+    Ok(())
+}
+
+/// [`taking_in`] on its own read, for a start that would spend before it
+/// queues (a one-off's plan).
+pub(crate) async fn taking(engine: &Engine, origin: RunOrigin) -> Result<(), StartError> {
+    let day = super::budget::day(engine);
+    engine.store.read(move |tx| Ok(taking_in(tx, &origin, &day))).await?
+}
+
+/// The runs of a routine written in the same job, `blueprint` its head (a
+/// one-off): what they need checked first, then the checks and the writes
+/// in `write`, so a refusal leaves nothing of the routine either.
+pub(crate) async fn ready_for(engine: &Engine, blueprint: &Blueprint, new: &NewRun) -> Result<(), StartError> {
+    super::ready::check(engine, blueprint, &inputs(new, blueprint)?).await
+}
+
+/// [`queue`] inside another write job; the job wakes the supervisor once it
+/// has kept the runs.
+pub(crate) fn queue_with(
+    engine: &Engine,
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    new: &NewRun,
+    now: i64,
+) -> Result<Vec<RunCreated>, StartError> {
+    queue(tx, out, new, now, &super::budget::day(engine), engine.ids.as_ref(), &engine.device)
+}
+
 /// The checks, then the writes. A refusal writes nothing.
 fn queue(
     tx: &dyn Tx,
@@ -130,15 +169,9 @@ fn queue(
 ) -> Result<Vec<RunCreated>, StartError> {
     let routine =
         tx.routines().find(&new.routine_id)?.ok_or_else(|| StartError::UnknownRoutine(new.routine_id.clone()))?;
-    if tx.inbox_halt().get()?.on {
-        return Err(StartError::Halted);
-    }
+    taking_in(tx, &new.origin, day)?;
     if !takes_origin(routine.state, &new.origin) {
         return Err(StartError::RoutineState(routine.state));
-    }
-    // The user's own start asks to raise today's cap rather than wait for tomorrow.
-    if by_the_user(new.origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
-        return Err(StartError::DayCap);
     }
     let (version, blueprint) = version_in(tx, new)?;
     check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin)?;

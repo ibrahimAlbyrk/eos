@@ -17,7 +17,7 @@ use eos_contracts::{
 };
 use eos_core::Error;
 use eos_core::agent::{OneShotError, OneShotRequest};
-use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError};
+use eos_core::routine::{NewRun, RunCreated, RunOrigin, StartError};
 use eos_core::store::{Outbox, StoredItem, StoredRoutine, StoredSuggestion, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::{limits::fill_defaults, slug};
@@ -63,14 +63,15 @@ struct Planned {
     task_key: String,
 }
 
-/// `POST /api/runs/once`.
+/// `POST /api/runs/once`. Nothing is planned, so nothing spent, while this
+/// Mac takes no start; a start refused after the plan leaves no routine.
 pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<OnceStarted, OnceRefused> {
+    engine::taking_starts(engine, RunOrigin::Hand).await.map_err(OnceRefused::Start)?;
     let planned = plan(engine, &asked).await?;
     let prepared = match engine::prepare(engine, blueprint(&planned)).await? {
         Ok(prepared) => prepared,
         Err(issues) => return Err(Error::Validation(format!("the one-off's blueprint was refused: {issues:?}")).into()),
     };
-    let routine_id = make(engine, prepared, &planned.task_key).await?;
     let input = RunInput {
         item: None,
         items: None,
@@ -81,7 +82,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<On
         at: None,
     };
     let new = NewRun {
-        routine_id: routine_id.clone(),
+        routine_id: engine.ids.routine_id(),
         version: None,
         input,
         items: Vec::new(),
@@ -90,8 +91,10 @@ pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<On
         confirm_repeat: false,
         client_request_id: None,
     };
-    let made = engine::Runs(engine.clone()).start(new).await.map_err(OnceRefused::Start)?;
-    let run = made.into_iter().next().ok_or_else(|| Error::storage("the one-off's run was not made"))?;
+    engine::ready_to_start(engine, &prepared.blueprint, &new).await.map_err(OnceRefused::Start)?;
+    let routine_id = new.routine_id.clone();
+    let run = make(engine, prepared, &planned.task_key, new).await?.map_err(OnceRefused::Start)?;
+    engine.wake.notify_one();
     tracing::info!(routine_id = %routine_id, run_id = %run.id, "a one-off started");
     let run = StartedRun { id: run.id, state: run.state.as_str().to_owned(), not_before: run.not_before };
     Ok(OnceStarted { routine_id, name: planned.name, run })
@@ -189,10 +192,16 @@ fn blueprint(planned: &Planned) -> Value {
     value
 }
 
-/// The one-off routine and its one version, its head; and, at its kind of
-/// task's third time, the suggestion to keep it.
-async fn make(engine: &Arc<Engine>, prepared: Prepared, task_key: &str) -> Result<String, Error> {
-    let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
+/// The one-off routine, its one version as its head, and its run, in one
+/// job; and, at its kind of task's third time, the suggestion to keep it. A
+/// refused start rolls the routine back, so nothing of it is kept.
+async fn make(
+    engine: &Arc<Engine>,
+    prepared: Prepared,
+    task_key: &str,
+    new: NewRun,
+) -> Result<Result<RunCreated, StartError>, Error> {
+    let (id, version_id, now) = (new.routine_id.clone(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (zones, data_dir, device) = (engine.zones.clone(), engine.data_dir.clone(), engine.device.clone());
     let (job, task_key) = (engine.clone(), task_key.to_owned());
     engine
@@ -234,9 +243,18 @@ async fn make(engine: &Arc<Engine>, prepared: Prepared, task_key: &str) -> Resul
             };
             engine::insert_version(tx, version)?;
             tx.routines().set_head(&id, &version_id, now)?;
+            let run = match engine::queue_runs_in(&job, tx, out, &new, now) {
+                Ok(made) => made.into_iter().next().ok_or_else(|| Error::storage("the one-off's run was not made"))?,
+                Err(StartError::Store(error)) => return Err(error),
+                // Its checks wrote nothing, nor was the routine announced.
+                Err(refused) => {
+                    tx.routine_retention().delete_routine(&id)?;
+                    return Ok(Err(refused));
+                }
+            };
             announce_routine(tx, out, &id, RoutineChangeReason::Created, now, &job.patterns)?;
             suggest_keeping_in(&job, tx, out, &id, &task_key, now)?;
-            Ok(id)
+            Ok(Ok(run))
         })
         .await
 }

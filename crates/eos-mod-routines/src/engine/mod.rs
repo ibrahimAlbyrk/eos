@@ -55,6 +55,7 @@ pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
 pub(crate) use recover::recover;
 pub(crate) use start::start as start_runs;
+pub(crate) use start::{queue_with as queue_runs_in, ready_for as ready_to_start, taking as taking_starts};
 pub(crate) use steer::{message, pause, resume};
 pub(crate) use surfaces::{Move as SurfaceMove, moved as surface_moved};
 pub(crate) use team::shape_report;

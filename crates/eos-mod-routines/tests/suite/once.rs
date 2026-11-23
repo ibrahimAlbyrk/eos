@@ -118,6 +118,30 @@ async fn no_plan_starts_nothing_and_a_wrong_request_is_refused() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_refused_one_off_keeps_nothing_and_asks_no_model_while_everything_is_stopped() {
+    let routes = Routes::new();
+    let routines = || routes.bench.temp.store.read_blocking(|tx| tx.routines().list()).expect("reads");
+    routes.bench.switch_halt(true);
+    let (status, body) = routes.post("/api/runs/once", asked("summarise this README")).await;
+    assert_eq!((status, &body["code"]), (409, &json!("halted")), "{body}");
+    assert!(routes.bench.model.asked().is_empty(), "nothing planned, so nothing spent");
+    routes.bench.switch_halt(false);
+
+    // Stopped while the model wrote the plan: refused, and no routine stays.
+    let gate = routes.bench.model.hold();
+    routes.bench.model.data(planned("notes"));
+    let stop_meanwhile = async {
+        routes.bench.model.until_asked(1).await;
+        routes.bench.switch_halt(true);
+        gate.notify_one();
+    };
+    let ((status, body), ()) =
+        tokio::join!(routes.post("/api/runs/once", asked("summarise this README")), stop_meanwhile);
+    assert_eq!((status, &body["code"]), (409, &json!("halted")), "{body}");
+    assert!(routines().is_empty(), "a refused start leaves no one-off: {:?}", routines());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_unkept_one_off_leaves_seven_days_after_its_run() {
     let routes = Routes::new();
     let gone = once_ended(&routes, "notes").await;
