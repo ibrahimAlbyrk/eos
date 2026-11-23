@@ -13,6 +13,7 @@ fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 #[derive(Debug, Default)]
 pub struct FakeWorkHold {
     live: Arc<Mutex<HashMap<HoldReason, usize>>>,
+    taken: Mutex<usize>,
 }
 
 struct Hold {
@@ -39,11 +40,17 @@ impl FakeWorkHold {
     pub fn live(&self, why: HoldReason) -> usize {
         locked(&self.live).get(&why).copied().unwrap_or(0)
     }
+
+    /// Holds begun, of any reason, dropped or not.
+    pub fn taken(&self) -> usize {
+        *locked(&self.taken)
+    }
 }
 
 impl WorkHold for FakeWorkHold {
     fn begin(&self, why: HoldReason) -> Option<Box<dyn AwakeHold>> {
         *locked(&self.live).entry(why).or_default() += 1;
+        *locked(&self.taken) += 1;
         Some(Box::new(Hold { why, live: self.live.clone() }))
     }
 }
