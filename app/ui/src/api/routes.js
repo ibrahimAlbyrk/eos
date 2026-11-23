@@ -419,4 +419,19 @@ export const ROUTES = {
   memoryTidy: "/api/memory/tidy",
   memoryForgetAll: "/api/memory/forget-all",
   memoryExport: "/api/memory/export",
+  // Surfaces (eos-contracts `surfaces.rs`): a routine's surfaces, one
+  // surface, its versions and one version, its issues and one issue, its
+  // saved state, how surfaces read; the direct actions, running one, and
+  // one recorded run.
+  surfaces: "/api/surfaces",
+  surface: (id) => `/api/surfaces/${id}`,
+  surfaceVersions: (id) => `/api/surfaces/${id}/versions`,
+  surfaceVersion: (id, version) => `/api/surfaces/${id}/versions/${version}`,
+  surfaceIssues: (id) => `/api/surfaces/${id}/issues`,
+  surfaceIssue: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}`,
+  surfaceState: (id) => `/api/surfaces/${id}/state`,
+  settingsSurfaces: "/api/settings/surfaces",
+  actions: "/api/actions",
+  actionsRun: "/api/actions/run",
+  actionRecord: (id) => `/api/actions/records/${id}`,
 };
