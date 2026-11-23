@@ -23,6 +23,7 @@ import signInFailed from "./sample/sign-in-failed.json";
 import triggerStatus from "./sample/trigger-status.json";
 import signals from "./sample/signals.json";
 import memory from "./sample/memory.json";
+import surfaceSample from "./sample/surfaces.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
@@ -53,6 +54,9 @@ export const SAMPLE_READS = {
   ...Object.fromEntries(runResults.map((result) => [ROUTES.runResult(result.runId), result])),
   [ROUTES.inbox]: inbox,
   ...Object.fromEntries(inboxItems.map((detail) => [ROUTES.inboxItem(detail.item.id), detail])),
+  [`${ROUTES.surfaces}?place=needs_you`]: { surfaces: [surfaceSample.surface] },
+  [`${ROUTES.surfaceIssues(surfaceSample.surface.id)}?limit=1`]: { issues: [surfaceSample.issue], more: true },
+  [ROUTES.surfaceIssue(surfaceSample.surface.id, surfaceSample.issue.id)]: { issue: surfaceSample.issue, body: surfaceSample.body },
   [ROUTES.capabilities]: capabilities.map(rowOf),
   ...Object.fromEntries(capabilities.map((detail) => [ROUTES.capability(detail.id), detail])),
   [ROUTES.capabilitySignIn("github")]: signInFailed,

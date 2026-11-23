@@ -388,5 +388,55 @@
       "rung": "send_then_tell",
       "streak": 10
     }
+  },
+  {
+    "item": {
+      "id": "ib-3c8v1b5n9m2q",
+      "kind": "capability_install",
+      "state": "open",
+      "attention": "digest",
+      "title": "Add Calendar?",
+      "summary": "Reads your calendar so the morning routine knows your meetings.",
+      "rev": 1,
+      "createdAt": 1763438000000,
+      "updatedAt": 1763438000000
+    },
+    "payload": {
+      "capabilityId": "calendar",
+      "name": "Calendar",
+      "summary": "Reads today's events from the Calendar app.",
+      "actions": [
+        {
+          "name": "list_events",
+          "summary": "List today's events",
+          "class": "read"
+        }
+      ],
+      "reach": {
+        "hosts": [],
+        "apps": [
+          "com.apple.iCal"
+        ],
+        "files": []
+      }
+    }
+  },
+  {
+    "item": {
+      "id": "ib-7x2z6c0v4b8n",
+      "kind": "capability_attention",
+      "state": "open",
+      "attention": "interrupt",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "title": "Mail needs your permission",
+      "summary": "macOS refused Eos's request to drive Mail.",
+      "rev": 1,
+      "createdAt": 1763437000000,
+      "updatedAt": 1763437000000
+    },
+    "payload": {
+      "capabilityId": "mail",
+      "stateCode": "automation_denied"
+    }
   }
 ]

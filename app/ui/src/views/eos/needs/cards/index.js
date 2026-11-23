@@ -12,6 +12,9 @@ import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
 import { editedGuess, MemoryQuestion } from "./MemoryQuestion.jsx";
 import { PlainCard } from "./PlainCard.jsx";
+import { CapabilityProblem, CapabilityProposal } from "./CapabilityCards.jsx";
+import { FreedomOffer } from "./FreedomOffer.jsx";
+import { checkCapability } from "../../../../state/eos/capabilitiesStore.js";
 
 const answer = (kind, choice, label, primary = false) => ({
   label,
@@ -113,7 +116,35 @@ const KINDS = {
       answer("delivery_problem", "discard", "Don't send"),
     ],
   },
-  freedom_offer: { Body: PlainCard, actions: [answer("freedom_offer", "accept", "Allow", true), answer("freedom_offer", "not_now", "Not now")] },
+  freedom_offer: { Body: FreedomOffer, actions: [answer("freedom_offer", "accept", "Allow", true), answer("freedom_offer", "not_now", "Not now")] },
+  capability_install: {
+    Body: CapabilityProposal,
+    actions: [answer("capability_install", "install", "Install", true), answer("capability_install", "decline", "Not now")],
+  },
+  capability_attention: {
+    Body: CapabilityProblem,
+    actions: [
+      {
+        label: "Check again",
+        primary: true,
+        write: true,
+        when: (detail) => Boolean(detail.payload?.capabilityId),
+        // The item stays until the core sees the capability working again.
+        run: async (detail) => {
+          await checkCapability(detail.payload.capabilityId);
+          return false;
+        },
+      },
+      {
+        label: "Open",
+        when: (detail) => Boolean(detail.payload?.capabilityId),
+        run: (detail) => {
+          openLocation(`eos:/capabilities/${encodeURIComponent(detail.payload.capabilityId)}`);
+          return false;
+        },
+      },
+    ],
+  },
   about_you: {
     Body: MemoryQuestion,
     actions: [
