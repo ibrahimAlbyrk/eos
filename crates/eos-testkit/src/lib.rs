@@ -93,6 +93,7 @@ pub mod relay;
 mod routine;
 pub mod routine_seed;
 mod runs;
+pub mod samples;
 mod secrets;
 mod signals;
 mod surface;
