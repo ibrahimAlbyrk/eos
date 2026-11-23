@@ -87,6 +87,7 @@ eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
+eos-surface = { path = "crates/eos-surface" }
 eos-symbols = { path = "crates/eos-symbols" }
 eos-sync = { path = "crates/eos-sync" }
 eos-sync-vault = { path = "crates/eos-sync-vault" }
