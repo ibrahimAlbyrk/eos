@@ -64,6 +64,7 @@ export function HomeScreen({ clock = Date.now }) {
   }, []);
 
   const names = Object.fromEntries((routines ?? []).map((r) => [r.id, r.name]));
+  const icons = Object.fromEntries((routines ?? []).map((r) => [r.id, r.icon]));
   const firstRun = routines !== null && routines.length === 0;
   const runs = home.runs ?? [];
   const today = runs.filter((r) => (r.startedAt ?? r.createdAt) >= dayStart(now));
@@ -80,7 +81,7 @@ export function HomeScreen({ clock = Date.now }) {
   else if (home.runs === null) body = <Loading blocks={3} />;
   else body = (
     <>
-      {!firstRun && <NeedsYouCards items={waiting} names={names} />}
+      {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}
       {!firstRun && <AwayList runs={away} names={names} />}
       {!firstRun && <LearnedLine weekly={summary?.weekly ?? 0} />}
     </>

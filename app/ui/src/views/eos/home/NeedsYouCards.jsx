@@ -3,13 +3,14 @@ import { openLocation } from "../nav/eosNav.js";
 import { itemLocation } from "../needs/NeedsYouList.jsx";
 import { isShownOnly, primaryAction } from "../needs/words.js";
 import { clockOf, NEEDS_CARDS } from "./homeWords.js";
+import { RoutineGlyph } from "../routines/RoutineGlyph.jsx";
 
-export function NeedsCard({ item, routineName }) {
+export function NeedsCard({ item, routineName, routineIcon }) {
   const open = () => openLocation(itemLocation(item.id));
   return (
     <article className="eos-home-card">
       <div className="eos-home-card__meta">
-        <span className="eos-home-card__glyph" aria-hidden="true">{(routineName ?? "Eos").slice(0, 1).toUpperCase()}</span>
+        <RoutineGlyph icon={routineIcon} name={routineName ?? "Eos"} size={13} part="eos-home-card" />
         <span className="eos-home-card__routine">{routineName ?? "Eos"}</span>
         <span className="eos-home-card__time">{clockOf(item.createdAt)}</span>
       </div>
@@ -26,13 +27,13 @@ export function NeedsCard({ item, routineName }) {
 }
 
 // The first three open items in Needs you's order, then "All N in Needs you".
-export function NeedsYouCards({ items, names }) {
+export function NeedsYouCards({ items, names, icons = {} }) {
   if (items.length === 0) return null;
   return (
     <section className="eos-home-part" aria-labelledby="eos-home-needs">
       <h2 id="eos-home-needs" className="eos-label">Needs you</h2>
       <div className="eos-home-cards">
-        {items.slice(0, NEEDS_CARDS).map((item) => <NeedsCard key={item.id} item={item} routineName={names[item.routineId]} />)}
+        {items.slice(0, NEEDS_CARDS).map((item) => <NeedsCard key={item.id} item={item} routineName={names[item.routineId]} routineIcon={icons[item.routineId]} />)}
       </div>
       {items.length > NEEDS_CARDS && (
         <button type="button" className="eos-link eos-home-all" onClick={() => openLocation("eos:/needs")}>All {items.length} in Needs you</button>
