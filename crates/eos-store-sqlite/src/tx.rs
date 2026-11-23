@@ -5,13 +5,14 @@ use std::sync::Mutex;
 
 use eos_core::Error;
 use eos_core::store::{
-    CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
-    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MemBookRepo, MemCreditRepo,
-    MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo, MemVectorRepo,
-    MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
-    RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ActionLogRepo, CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo,
+    ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo,
+    MemBookRepo, MemCreditRepo, MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo,
+    MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
+    RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
+    RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
+    SignalScheduleRepo, SignalSourceRepo, SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -33,6 +34,10 @@ pub(crate) struct SqliteTx<'c> {
 /// Every repository is this one struct: a job reads and writes through any of
 /// them inside the same transaction.
 impl Tx for SqliteTx<'_> {
+    fn action_log(&self) -> &dyn ActionLogRepo {
+        self
+    }
+
     fn capability_calls(&self) -> &dyn CapabilityCallRepo {
         self
     }
@@ -202,6 +207,22 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn signals(&self) -> &dyn SignalRepo {
+        self
+    }
+
+    fn surface_issues(&self) -> &dyn SurfaceIssueRepo {
+        self
+    }
+
+    fn surface_state(&self) -> &dyn SurfaceStateRepo {
+        self
+    }
+
+    fn surface_versions(&self) -> &dyn SurfaceVersionRepo {
+        self
+    }
+
+    fn surfaces(&self) -> &dyn SurfaceRepo {
         self
     }
 

@@ -12,6 +12,7 @@ bytes.workspace = true
 eos-contracts.workspace = true
 eos-domain.workspace = true
 eos-genui.workspace = true
+eos-surface.workspace = true
 getrandom.workspace = true
 indexmap.workspace = true
 serde.workspace = true

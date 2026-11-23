@@ -58,6 +58,7 @@ mod routines;
 mod runs;
 mod session;
 mod signals;
+mod surfaces;
 mod templates;
 mod unit;
 mod workers;
@@ -106,6 +107,10 @@ pub use signals::{
     BatchedSignal, MANUAL_SCOPE_HASH, ManualSignal, NewSignal, SignalAskRepo, SignalRepo, SignalRetentionRepo,
     SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SignalTally, SlotTally, StoredSignal,
     StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
+};
+pub use surfaces::{
+    ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceState, StoredSurfaceVersion,
+    SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
 };
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};

@@ -1,5 +1,5 @@
 //! The smaller tables: what the TypeScript repositories did, on the seeded rows;
-//! and this app's routine, run, signal, Needs-you, capability and memory tables.
+//! and this app's routine, run, signal, Needs-you, capability, memory and surface tables.
 
 use eos_contracts::WorkerDefinition;
 use eos_core::store::{NewPending, NewQueuedMessage, WorktreeRemoval};
@@ -20,6 +20,8 @@ mod retention;
 mod routines;
 #[path = "other_tables/signals.rs"]
 mod signals;
+#[path = "other_tables/surfaces.rs"]
+mod surfaces;
 
 fn seeded() -> TempStore {
     TempStore::seeded("{sandbox}")
