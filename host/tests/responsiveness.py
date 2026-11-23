@@ -196,6 +196,7 @@ def seed_layout(chat):
         "cm:paneTree": json.dumps({"t": "leaf", "id": "p1_rsp", "agentId": chat}),
         "cm:paneFocusedLeaf": "p1_rsp",
         "cm:sidePanels": json.dumps({"p1_rsp": {"open": False, "openTabs": ["files", "browser"], "activeTab": "files", "tabHistory": ["files"], "windowWidth": None}}),
+        "cm:activeView": "agents",
         "cm:sideCollapsed": "0",
     }
     seed_json = os.path.join(OUT, "layout.json")

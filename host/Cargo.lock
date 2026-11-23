@@ -2613,6 +2613,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "serde",
  "serde_json",
  "tracing",
 ]

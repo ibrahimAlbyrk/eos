@@ -68,20 +68,16 @@ pub(crate) fn events(bus: &Bus, bridge: &Arc<Bridge>, rt: &Handle) {
 
 /// Changes to Needs you and to routines come in bursts: one read per burst.
 const DUTY_SETTLE: Duration = Duration::from_millis(250);
-/// The Eos preview is a setting with no event of its own: it is read this often.
-const PREVIEW_EVERY: Duration = Duration::from_secs(5);
 
 /// What the menu-bar item shows, kept current from the core's events and read through the
 /// core's routes as the dashboard reads them. Counts and the next routine's name only. The
-/// item shows while the Eos preview is on or a routine exists.
+/// item shows once a routine exists.
 pub(crate) struct Duty {
     core: Arc<dyn Core>,
     rt: Handle,
     push: Arc<dyn Fn(MenuState) + Send + Sync>,
     state: Mutex<MenuState>,
     settling: AtomicBool,
-    /// `settings['eos.preview']` is on.
-    preview: AtomicBool,
     /// A routine exists.
     routines: AtomicBool,
 }
@@ -124,7 +120,6 @@ impl Duty {
             push,
             state: Mutex::default(),
             settling: AtomicBool::new(false),
-            preview: AtomicBool::new(false),
             routines: AtomicBool::new(false),
         });
         follow(bus, rt, &duty, "runs:active", |duty, payload| match payload.get("count") {
@@ -143,17 +138,9 @@ impl Duty {
             first.clone().read_runs().await;
             first.clone().read_halt().await;
             first.clone().read_waiting().await;
-            first.clone().read_preview().await;
             // The item is drawn from the first reads on, whatever they found.
             let state = first.state.lock().unwrap_or_else(|p| p.into_inner()).clone();
             (first.push)(state);
-            let duty = Arc::downgrade(&first);
-            drop(first);
-            loop {
-                tokio::time::sleep(PREVIEW_EVERY).await;
-                let Some(duty) = duty.upgrade() else { return };
-                duty.read_preview().await;
-            }
         });
         duty
     }
@@ -168,7 +155,7 @@ impl Duty {
             let mut state = self.state.lock().unwrap_or_else(|p| p.into_inner());
             let before = state.clone();
             edit(&mut state);
-            state.shown = self.preview.load(Ordering::SeqCst) || self.routines.load(Ordering::SeqCst);
+            state.shown = self.routines.load(Ordering::SeqCst);
             (*state != before).then(|| state.clone())
         };
         if let Some(state) = changed {
@@ -215,14 +202,6 @@ impl Duty {
     async fn read_halt(self: Arc<Self>) {
         if let Some(halt) = self.get("/api/eos/halt").await {
             self.change(|state| state.halted = halt.get("on").and_then(Value::as_bool).unwrap_or(false));
-        }
-    }
-
-    async fn read_preview(self: Arc<Self>) {
-        if let Some(settings) = self.get("/api/settings").await {
-            let on = settings.pointer("/settings/eos.preview").and_then(Value::as_bool) == Some(true);
-            self.preview.store(on, Ordering::SeqCst);
-            self.change(|_| {});
         }
     }
 

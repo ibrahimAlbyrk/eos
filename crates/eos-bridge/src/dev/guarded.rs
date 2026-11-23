@@ -96,11 +96,13 @@ impl Core for Guarded {
     }
 
     fn status(&self) -> Value {
+        let rust = self.rust.status();
         json!({
             "rust": self.rust.served(),
             "refused": self.refused.load(Ordering::Relaxed),
             "agentsAllowed": self.allow_agents,
-            "lane": self.rust.status().get("lane").cloned(),
+            "lane": rust.get("lane").cloned(),
+            "wakes": rust.get("wakes").cloned(),
             "routes": self.served_routes.lock().map(|routes| routes.iter().cloned().collect::<Vec<_>>()).unwrap_or_default(),
         })
     }

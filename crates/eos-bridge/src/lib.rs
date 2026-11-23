@@ -41,7 +41,7 @@ pub mod window_state;
 pub use bridge::{Bridge, Notified, Parts, download_destination, sanitize_filename};
 pub use core::{Core, LateCore, NoCore, Plane};
 pub use host::{Banner, BannerTarget, EditCommand, LoginItem, ShellHost, Theme};
-pub use router::{Classify, RouterCore};
+pub use router::{Classify, RouterCore, Wakes};
 pub use transport::{Body, Head, Initiator, Read, Req, Service, Sink, channel};
 
 #[derive(Debug, thiserror::Error)]

@@ -322,7 +322,11 @@ fn start_core(
     let core = Arc::new(
         RouterCore::new(app.router(), ui_token, classify, rt.clone())
             .with_raw(app.raw_router())
-            .with_lane(app.runtime().kernel.ordered.clone()),
+            .with_lane(app.runtime().kernel.ordered.clone())
+            .with_wakes({
+                let wakes = app.wakes();
+                Arc::new(move || wakes.snapshot())
+            }),
     );
     Some((app, core))
 }
