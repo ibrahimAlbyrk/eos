@@ -13,6 +13,7 @@ import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
 import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
 import { applySignalsChange, resyncSignals } from "./signalsStore.js";
+import { applySurfacesChange, resyncSurfaces } from "./surfacesStore.js";
 
 const ignored = () => {};
 const both = (a, b) => (payload) => {
@@ -36,8 +37,8 @@ const HANDLERS = {
   "inbox:halt": applyHalt,
   "memory:change": applyMemoryChange,
   "memory:recalled": applyMemoryRecalled,
-  "surfaces:change": ignored,
-  "surfaces:issue": ignored,
+  "surfaces:change": applySurfacesChange,
+  "surfaces:issue": applySurfacesChange,
   "surfaces:pins": ignored,
   "surfaces:design": ignored,
   "actions:record": ignored,
@@ -65,4 +66,5 @@ export function resyncEos() {
   resyncHalt();
   resyncMemory();
   resyncHome();
+  resyncSurfaces();
 }

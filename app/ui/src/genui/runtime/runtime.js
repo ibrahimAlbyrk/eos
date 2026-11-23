@@ -416,7 +416,7 @@ export function createViewRuntime({
     const fill = (v, it) => (typeof v === "string" ? fillTemplate(v, { item: it, state: st, data }, { formatNumber }) : v);
     switch (a.kind) {
       case "send": {
-        if (!VIEW_ID_RE.test(viewId ?? "")) return { ok: false, reason: "the view is still being written" };
+        if (!host.directActions && !VIEW_ID_RE.test(viewId ?? "")) return { ok: false, reason: "the view is still being written" };
         if (isSendPending(viewId)) return { ok: false, reason: "busy" };
         const shown = String(fill(a.label, item) || actionId);
         const text = String(fill(a.text ?? a.label, item) || shown);

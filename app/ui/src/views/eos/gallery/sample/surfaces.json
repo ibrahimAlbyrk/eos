@@ -1,0 +1,19 @@
+{
+  "surface": {
+    "id": "sf-5a3b1e000001", "routineId": "rt-2x8k5n1q6w0r", "level": "view", "place": "needs_you", "role": "result",
+    "title": "Mail Triage", "createdAt": 1763400000000, "updatedAt": 1763452000000
+  },
+  "issue": {
+    "id": "si-5a3b1e000003", "surfaceId": "sf-5a3b1e000001", "seq": 3, "runId": "rn-5f2a8c1d9e3b", "kind": "view",
+    "status": "ready", "rev": 1, "trial": false, "kept": false, "createdAt": 1763452000000, "updatedAt": 1763452000000
+  },
+  "body": {
+    "view": {
+      "title": "Overnight mail",
+      "summary": "12 mails came in; two need a reply.",
+      "ui": "<Callout action=\"again\">12 mails came in overnight. Two need a reply from you.</Callout>",
+      "actions": { "again": { "label": "Run again", "kind": "send", "text": "again" } }
+    },
+    "actions": ["again"]
+  }
+}

@@ -13,6 +13,9 @@ import { isRemoteView } from "../../lib/host.js";
 import { notify } from "../../lib/notify.js";
 
 // { workerId, cwd, project, send(text, opts) → Promise<{ok}>, superseded: Map<viewId, {title}>, fixedBelow: Set<callId> }
+// Eos's surfaces provide { send, directActions: true }: a send runs the
+// declared action through the direct action route, and their views carry
+// the issue's own id instead of a conversation's.
 export const GenuiHostContext = createContext(null);
 
 export const useGenuiConversation = () => useContext(GenuiHostContext);
@@ -35,6 +38,7 @@ export function useActionHost() {
   const sessionKey = useBrowserSessionKey();
   const { openPanel, openFile } = ui;
   return useMemo(() => ({
+    directActions: Boolean(conv?.directActions),
     send: (text, opts) => (conv?.send ? conv.send(text, opts) : Promise.resolve({ ok: false, status: 0, body: { error: "no conversation" } })),
     prefill: (text) => pushTextHandoff(paneId, text),
     openUrl: (url) => {

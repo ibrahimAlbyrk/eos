@@ -123,6 +123,8 @@ describe("the other cards", () => {
       delivery_problem: ["Try again", "Edit and retry", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
       about_you: ["Yes, keep it", "No", "Edit"],
       freedom_offer: ["Allow", "Not now", "Later", "Discard"],
+      capability_install: ["Install", "Not now", "Later", "Discard"],
+      capability_attention: ["Check again", "Open", "Later", "Discard"],
     };
     for (const [kind, labels] of Object.entries(expected)) expect(buttons(await screen(kind)), kind).toEqual(labels);
   });
@@ -135,6 +137,28 @@ describe("the other cards", () => {
     const guess = await screen("about_you");
     expect(guess).toContain("You prefer short reviews with the blocking findings first.");
     expect(guess).toContain("Is this right about you?");
+  });
+
+  it("show a capability proposal, a capability's problem and a freedom offer in words", async () => {
+    const proposal = await screen("capability_install");
+    expect(proposal).toContain("<strong>Calendar</strong> · Reads today&#x27;s events from the Calendar app.");
+    expect(proposal).toContain("List today&#x27;s events");
+    expect(proposal).toContain("Reaches com.apple.iCal");
+    const problem = await screen("capability_attention");
+    expect(problem).toContain("macOS has not let it control the app it needs.");
+    const offer = await screen("freedom_offer");
+    expect(offer).toContain("<span>Draft, I send</span><span aria-hidden=\"true\"> → </span><strong>Send, then tell me</strong>");
+    expect(offer).toContain("10 in a row went out as written.");
+  });
+
+  it("install a proposed capability through the inbox, and check a capability again through its own route", async () => {
+    const t = recording();
+    setEosTransport(t);
+    await refreshInbox();
+    await act("capability_install", "Install");
+    expect(await act("capability_attention", "Check again")).toBe(false);
+    expect(t.send.mock.calls[0][2].answer).toEqual({ kind: "capability_install", choice: "install" });
+    expect(t.send.mock.calls[1].slice(0, 2)).toEqual(["POST", ROUTES.capabilityCheck("mail")]);
   });
 
   it("show a notice's one action under its own name, beside Dismiss", async () => {
@@ -247,10 +271,10 @@ describe("the other cards", () => {
   });
 
   it("show a kind with no card as its title and summary, with Open and Later", async () => {
-    const other = { ...byKind.confirm_change, item: { ...byKind.confirm_change.item, id: "ib-other0000001", kind: "capability_attention", title: "GitHub needs you", summary: "Its sign-in ran out." } };
-    const html = await screen("capability_attention", other);
-    expect(html).toContain('<h1 class="eos-title">GitHub needs you</h1>');
-    expect(html).toContain("Its sign-in ran out.");
+    const other = { ...byKind.confirm_change, item: { ...byKind.confirm_change.item, id: "ib-other0000001", kind: "suggestion", title: "Make it a routine?", summary: "You often ask for this." } };
+    const html = await screen("suggestion", other);
+    expect(html).toContain('<h1 class="eos-title">Make it a routine?</h1>');
+    expect(html).toContain("You often ask for this.");
     expect(buttons(html)).toEqual(["Open", "Later", "Discard"]);
   });
 });
