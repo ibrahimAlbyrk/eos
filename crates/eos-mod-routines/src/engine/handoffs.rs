@@ -150,13 +150,35 @@ async fn act(engine: &Arc<Engine>, item: StoredItem) -> Result<bool, Error> {
             tell_lead(engine, &item).await?;
             consume(engine, item, |_, _, _, _| Ok(false)).await
         }
-        ItemKind::Suggestion => {
-            let job = engine.clone();
-            consume(engine, item, move |tx, out, item, now| crate::once::keep_answer_in(&job, tx, out, item, now)).await
-        }
+        ItemKind::Suggestion => suggestion(engine, item).await,
         // An alert's answer was acted on where it was given.
         _ => consume(engine, item, |_, _, _, _| Ok(false)).await,
     }
+}
+
+/// The answer to a suggestion: a one-off kept, or the suggestion settled,
+/// in the job that marks it consumed; then "make it" of a suggestion from
+/// chats starts the architect with its sentence. A make refused then (three
+/// architects at work) is not tried again: the item is answered.
+async fn suggestion(engine: &Arc<Engine>, item: StoredItem) -> Result<bool, Error> {
+    let (job, now) = (engine.clone(), engine.clock.now_ms());
+    let sentence = engine
+        .store
+        .write(move |tx, out| {
+            if !consume_in(tx, &item.id, now)? {
+                return Ok(None);
+            }
+            crate::once::keep_answer_in(&job, tx, out, &item, now)?;
+            crate::suggest::answer_in(tx, &item)
+        })
+        .await?;
+    if let Some(sentence) = sentence {
+        match crate::architect::make(engine, &sentence, &[]).await {
+            Ok(saved) => tracing::info!(version_id = %saved.version_id, "a suggested routine went to its architect"),
+            Err(error) => tracing::warn!(%error, "a suggested routine could not go to its architect"),
+        }
+    }
+    Ok(false)
 }
 
 /// Marks `item` consumed and does `act` in the same job; nothing when an

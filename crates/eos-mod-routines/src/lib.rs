@@ -57,6 +57,9 @@
 //! What each of a run's agents is doing goes out on `run:activity`, one
 //! line a second per run at most, to the tabs that show the run.
 //!
+//! Once a night (`suggest`) the user's first requests of recent chats may
+//! bring one suggestion of a routine for work they repeat by hand.
+//!
 //! Once a day (`retention`) old runs, their agents' transcripts and the
 //! routines that leave for good are cleared; what they leave on disk goes to
 //! the trash.
@@ -78,6 +81,7 @@ mod once;
 mod patterns;
 mod retention;
 mod routes;
+mod suggest;
 mod trial;
 
 use std::collections::HashMap;
@@ -262,6 +266,7 @@ impl RoutinesModule {
             intent_reads: Mutex::new(None),
             trash,
             retention: Mutex::default(),
+            suggest: Mutex::default(),
             packs,
             feedback,
             surfaces,
