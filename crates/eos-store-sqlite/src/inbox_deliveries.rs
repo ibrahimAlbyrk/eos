@@ -143,6 +143,17 @@ impl DeliveryRepo for SqliteTx<'_> {
         )
     }
 
+    fn to_recipient(&self, routine_id: &str, target_ref: &str) -> Result<Vec<StoredDelivery>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {DELIVERY_COLUMNS} FROM inbox_deliveries WHERE target_ref = ?2 AND routine_id = ?1 \
+                 ORDER BY created_at, rowid"
+            ),
+            params![routine_id, target_ref],
+            delivery,
+        )
+    }
+
     fn next_due(&self, state: &str) -> Result<Option<i64>, Error> {
         let at = self.row("SELECT MIN(next_attempt_at) FROM inbox_deliveries WHERE state = ?1", [state], |r| {
             r.get::<_, Option<i64>>(0).map_err(failed)

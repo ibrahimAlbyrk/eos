@@ -14,10 +14,7 @@ pub const APPROVED_FRESH_MS: i64 = 60 * 60 * 1000;
 pub const AUTOMATIC_FRESH_MS: i64 = 24 * 60 * 60 * 1000;
 /// Nothing goes out without the user until automatic sending is proven
 /// safe (decisions, risk 1): every result is held as a draft at most,
-/// whatever its class, Freedom or grants. Still open: a confirmed repeat
-/// beside a live run of the same item can send twice to a fixed recipient
-/// (D54), and an untrusted run can still teach memory through a lesson that
-/// paraphrases its outside text.
+/// whatever its class, Freedom or grants.
 pub const AUTOMATIC_RUNGS_LOCKED: bool = true;
 
 /// What holds a result as a draft whatever its rung.
@@ -36,6 +33,10 @@ pub struct Caps {
     pub waiting: Option<Waiting>,
     /// The user stopped Eos.
     pub halted: bool,
+    /// A result of the same routine for the same recipient and subject was
+    /// sent or is on its way (D55): a second one is never sent by itself,
+    /// so a confirmed repeat beside a live run of the item sends once.
+    pub repeat: bool,
 }
 
 /// Who decided a send that has not gone out yet, and how long ago.
@@ -52,7 +53,7 @@ impl Caps {
             Some(Waiting::Automatic { for_ms }) => for_ms > AUTOMATIC_FRESH_MS,
             None => false,
         };
-        self.agent_origin || self.unbounded_place || self.flagged || self.stale || too_old || self.halted
+        self.agent_origin || self.unbounded_place || self.flagged || self.stale || too_old || self.halted || self.repeat
     }
 }
 

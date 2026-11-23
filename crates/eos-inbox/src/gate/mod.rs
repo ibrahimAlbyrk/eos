@@ -6,9 +6,11 @@
 //! - `targets`: where the result would go, each target checked against the
 //!   Goes to the user confirmed;
 //! - `apply`: the decision, from the channel action's class, the outbound
-//!   check and the rung under every cap; and taking back a held result.
+//!   check and the rung under every cap; and taking back a held result;
+//! - `repeat`: whether the same place already had a send of the subject.
 
 mod apply;
+mod repeat;
 mod targets;
 
 pub(crate) use apply::DRAFT_PRODUCER;

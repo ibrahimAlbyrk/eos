@@ -1,6 +1,7 @@
 //! The gate over the real store: show-only and trial write nothing, an
 //! unconfirmed target refuses and pauses, caps hold a result as a draft,
-//! automatic sending stays locked, and a held result is taken back.
+//! automatic sending stays locked, a second result to one place is held
+//! (D55), and a held result is taken back.
 
 use std::sync::Arc;
 
@@ -247,4 +248,61 @@ async fn a_newer_runs_draft_on_the_same_subject_ends_the_run_it_replaced() {
         "SELECT COUNT(*) FROM inbox_outcomes WHERE run_id = 'rn-1' AND outcome = 'replaced' AND item_id = '{first}'"
     ));
     assert_eq!(rows, 1);
+}
+
+/// Gives `run` the pull request `acme/game#<number>` at version `abc` as
+/// its item, so its subject is `github:pr:acme/game#<number>`.
+fn about(gated: &Gated, run: &str, number: u32) {
+    gated.rig.temp.exec(&format!(
+        "INSERT OR IGNORE INTO runs (id, routine_id, kind, origin, input, state, priority, device, created_at, \
+         updated_at) VALUES ('{run}', 'rt-1', 'standing', 'hand', '{{}}', 'checking', 0, 'mac-1', 2, 2)"
+    ));
+    gated.rig.temp.exec(&format!(
+        "UPDATE runs SET item_key = 'github:pr:acme/game#{number}@abc', \
+         input = '{{\"item\":{{\"version\":\"abc\"}}}}' WHERE id = '{run}'"
+    ));
+}
+
+/// A send of `run` to the pull request recipient, in `state`.
+fn delivered(gated: &Gated, id: &str, run: &str, state: &str) {
+    gated.rig.temp.exec(&format!(
+        "INSERT INTO inbox_deliveries (id, run_id, routine_id, channel, action, target_ref, target, body, body_hash, \
+         class, mode, state, created_at, updated_at) VALUES ('{id}', '{run}', 'rt-1', 'github', 'post_review', 'pr', \
+         '{{}}', '{{}}', 'h', 'speak', 'auto', '{state}', 1, 1)"
+    ));
+}
+
+#[tokio::test]
+async fn a_second_result_of_one_subject_to_one_recipient_is_held_while_the_first_went_or_waits() {
+    let gated = Gated::new();
+    about(&gated, "rn-1", 482);
+    for (n, state) in ["queued", "holding", "sending", "uncertain", "sent"].into_iter().enumerate() {
+        gated.rig.temp.exec("DELETE FROM inbox_deliveries");
+        delivered(&gated, "dl-first", "rn-1", state);
+        let run = format!("rn-repeat-{n}");
+        about(&gated, &run, 482);
+        let item_id = held(&gated.apply(GateInput { run_id: run.clone(), ..input("on_its_own") }).await);
+        let item = gated.rig.find(&item_id).await;
+        let payload: Value = serde_json::from_str(&item.payload).expect("json");
+        assert_eq!(payload["rung"], json!("draft"), "{state}");
+    }
+    assert_eq!(gated.rows(), 1, "nothing more is queued");
+}
+
+#[tokio::test]
+async fn a_send_that_never_reached_the_recipient_or_another_subject_is_no_repeat() {
+    let gated = Gated::new();
+    about(&gated, "rn-1", 482);
+    for (n, state) in ["failed", "stopped", "undone"].into_iter().enumerate() {
+        delivered(&gated, &format!("dl-{n}"), "rn-1", state);
+    }
+    about(&gated, "rn-2", 482);
+    about(&gated, "rn-3", 483);
+    delivered(&gated, "dl-other", "rn-3", "sent");
+    let decision = gated.apply(GateInput { run_id: "rn-2".into(), ..input("on_its_own") }).await;
+    if eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED {
+        held(&decision);
+    } else {
+        assert!(matches!(decision, GateDecision::Delivering { .. }), "goes out: {decision:?}");
+    }
 }
