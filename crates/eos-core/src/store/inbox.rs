@@ -163,7 +163,8 @@ pub struct StoredOffer {
     pub state: String,
     /// The open offer's item.
     pub item_id: Option<String>,
-    /// The streak's last outcome when it was offered or declined.
+    /// The streak's last outcome when it was offered or declined, or when
+    /// the routine's work changed: the streak counts only after it.
     pub streak_at: Option<i64>,
     /// No offer before then.
     pub next_at: Option<i64>,

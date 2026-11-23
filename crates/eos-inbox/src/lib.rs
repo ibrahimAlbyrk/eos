@@ -85,7 +85,7 @@ pub use handoff::consume_in;
 pub use items::{
     NewItem, Opening, ROUTINE_CAP, TOO_MANY_WAITING, notice_in, open_in, withdraw_routine_in, withdraw_run_start_in,
 };
-pub use offers::INBOX_FREEDOM;
+pub use offers::{HeadChange, INBOX_FREEDOM, head_changed_in};
 pub use questions::{QuestionWaiters, RunQuestionParts, RunQuestions, WITHDRAWN};
 pub use routing::RunAsks;
 pub use stale::SUBJECT_CLOSED;
