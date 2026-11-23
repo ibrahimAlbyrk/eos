@@ -2,8 +2,9 @@
 // user's name, how many things signals handled since the user was last here,
 // the newest runs (today's for the horizon, the ended ones for the away list)
 // and when each routine runs next. `eos:lastSeenAt` is the user's last visit,
-// marked after five seconds on Home. A refresh that gets no answer keeps what
-// Home shows and says it is reconnecting.
+// marked after five seconds on Home; a visit counts from the mark it found
+// when Home opened, for the greeting and the handled count alike. A refresh
+// that gets no answer keeps what Home shows and says it is reconnecting.
 
 import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
@@ -14,11 +15,12 @@ export const LAST_SEEN_KEY = "eos:lastSeenAt";
 export const RUNS_PATH = `${ROUTES.runs}?limit=200`;
 const SEEN_AFTER_MS = 5000;
 
-// name: the profile's, "" without one. handled: signals' handled count since
-// the last visit. runs: RunSummary[], newest first. next: RoutineNext[].
-// null until loaded; failed: the first read got no data; offline: a later
-// read got no answer at all.
-const EMPTY = { name: "", handled: null, runs: null, next: [], failed: false, offline: false };
+// name: the profile's, "" without one. since: the last visit's mark this
+// visit counts from, null without one. handled: signals' handled count since
+// then. runs: RunSummary[], newest first. next: RoutineNext[]. null until
+// loaded; failed: the first read got no data; offline: a later read got no
+// answer at all.
+const EMPTY = { name: "", since: null, handled: null, runs: null, next: [], failed: false, offline: false };
 let state = EMPTY;
 let started = false;
 const subs = new Set();
@@ -64,9 +66,12 @@ export function summaryPath(lastSeen) {
 const read = (path) => transport.get(path).catch(() => null);
 
 export async function refreshHome() {
+  const since = state.since;
   const [profile, summary, runs, next] = await Promise.all([
-    read(ROUTES.profile), read(summaryPath(lastSeenAt())), read(RUNS_PATH), read(ROUTES.signalsRoutines),
+    read(ROUTES.profile), read(summaryPath(since)), read(RUNS_PATH), read(ROUTES.signalsRoutines),
   ]);
+  // A visit that opened meanwhile has asked for its own count.
+  if (since !== state.since) return;
   const answered = [profile, summary, runs, next].some((r) => r != null);
   if (!runs?.ok || !Array.isArray(runs.body?.runs)) {
     if (state.runs === null) set({ failed: true, offline: false });
@@ -83,9 +88,18 @@ export async function refreshHome() {
   });
 }
 
-export function ensureHomeLoaded() {
-  if (started) return;
+// The mark the visit counts from: before Home opened, the one it will find.
+export function visitSince() {
+  return started ? state.since : lastSeenAt();
+}
+
+// Home opened: the visit counts from the mark the last visit left. A visit
+// that finds the same mark keeps what was read; a new mark reads again.
+export function openHomeVisit() {
+  const since = lastSeenAt();
+  if (started && since === state.since) return;
   started = true;
+  set({ since });
   void refreshHome();
 }
 
