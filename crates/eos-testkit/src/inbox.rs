@@ -150,6 +150,8 @@ mod tests {
             routine_id: "rt-1".into(),
             class: ActionClass::Speak,
             action_id: "github.post_review".into(),
+            title: "Post the review".into(),
+            args: serde_json::json!({}),
             origin: "surface".into(),
         };
         assert_eq!(gate.decide(&request).await, Ok(ActionDecision::Run));
