@@ -1917,6 +1917,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mail-app"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-proc",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-memory"
 version = "0.0.1"
 dependencies = [
@@ -2889,6 +2903,7 @@ dependencies = [
  "eos-genui",
  "eos-github",
  "eos-kit-sqlite",
+ "eos-mail-app",
  "eos-platform",
  "eos-relay",
  "eos-runtime",
