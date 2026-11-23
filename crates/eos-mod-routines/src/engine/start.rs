@@ -52,6 +52,9 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
             }
             match queue(tx, out, &new, now, &day, job.ids.as_ref(), &job.device) {
                 Ok(made) => {
+                    if new.origin == RunOrigin::Hand {
+                        super::defaults::learn_in(&job, tx, out, &new.routine_id, now)?;
+                    }
                     if let Some(id) = request {
                         Engine::locked(&job.requests).insert(id.to_owned(), (now, made.clone()));
                     }
