@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 
 pub(crate) struct Rig {
     pub(crate) runtime: Runtime,
+    pub(crate) module: Arc<SurfacesModule>,
     pub(crate) temp: TempStore,
     pub(crate) settings: Arc<FakeSettings>,
     pub(crate) clock: Arc<FakeClock>,
@@ -85,10 +86,10 @@ impl Rig {
             gate: gate.clone(),
         }));
         let probe = Arc::new(ProbeModule(heard.clone()));
-        let runtime = Runtime::build(kernel, vec![module, probe], Arc::new(AllPluginsOn)).expect("composes");
+        let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, temp, settings, clock, gate, heard }
+        Self { runtime, module, temp, settings, clock, gate, heard }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
@@ -104,6 +105,18 @@ impl Rig {
 
     pub(crate) async fn ask(&self, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
         self.ask_as(Caller::DASHBOARD, method, path, body).await
+    }
+
+    /// Routine `routine` named `name`, with run `run` of `kind` whose lead is `worker`.
+    pub(crate) fn run_worker(&self, routine: &str, name: &str, run: &str, kind: &str, worker: &str) {
+        self.temp.exec(&format!(
+            "INSERT OR IGNORE INTO routines (id, slug, name, kind, state, origin, created_at, updated_at, changed_at) \
+             VALUES ('{routine}', '{routine}', '{name}', 'standing', 'active', 'hand', 1, 1, 1); \
+             INSERT INTO runs (id, routine_id, version_id, kind, origin, input, state, priority, device, \
+             created_at, updated_at) VALUES ('{run}', '{routine}', 'rv-1', '{kind}', 'hand', '{{}}', 'running', 0, 'd', 1, 1); \
+             INSERT INTO routine_sessions (worker_id, routine_id, run_id, role, created_at) \
+             VALUES ('{worker}', '{routine}', '{run}', 'solo', 1);"
+        ));
     }
 
     /// Stores surfaces, versions and issues as a run would have left them.

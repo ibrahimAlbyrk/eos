@@ -1,7 +1,7 @@
 //! Stored rows as the wire carries them.
 
-use eos_contracts::{SurfaceRow, SurfaceVersion, SurfaceVersionMeta};
-use eos_core::store::{StoredSurface, StoredSurfaceVersion};
+use eos_contracts::{SurfaceIssueRow, SurfaceRow, SurfaceVersion, SurfaceVersionMeta};
+use eos_core::store::{StoredIssue, StoredSurface, StoredSurfaceVersion};
 use serde_json::Value;
 
 fn json(text: &str) -> Value {
@@ -41,4 +41,21 @@ pub(crate) fn version_meta(v: &StoredSurfaceVersion) -> SurfaceVersionMeta {
 
 pub(crate) fn version(v: &StoredSurfaceVersion) -> SurfaceVersion {
     SurfaceVersion { meta: version_meta(v), body: json(&v.body_json), checks: json(&v.checks_json) }
+}
+
+pub(crate) fn issue_row(i: &StoredIssue) -> SurfaceIssueRow {
+    SurfaceIssueRow {
+        id: i.id.clone(),
+        surface_id: i.surface_id.clone(),
+        seq: i.seq,
+        run_id: i.run_id.clone(),
+        version: i.version,
+        kind: i.kind.as_str().to_owned(),
+        status: i.status.as_str().to_owned(),
+        rev: i.rev,
+        trial: i.trial,
+        kept: i.kept,
+        created_at: i.created_at,
+        updated_at: i.updated_at,
+    }
 }

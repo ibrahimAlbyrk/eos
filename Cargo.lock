@@ -2451,9 +2451,11 @@ version = "0.0.1"
 dependencies = [
  "eos-contracts",
  "eos-core",
+ "eos-genui",
  "eos-runtime",
  "eos-surface",
  "eos-testkit",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
