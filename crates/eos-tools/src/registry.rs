@@ -15,7 +15,7 @@ use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
 use eos_core::routine::{ArchitectTools, RoutineTools};
-use eos_core::store::{Store, UserSettingsStore};
+use eos_core::store::Store;
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
 use eos_prompts::PromptRegistry;
@@ -57,8 +57,6 @@ pub struct Services {
     pub reactions: Option<Arc<dyn AgentReactions>>,
     /// What Eos can reach for the user: GitHub, Mail, the packages installed.
     pub capabilities: Option<Arc<dyn CapabilityCalls>>,
-    /// The user's settings: the Eos preview hands out the capability tools.
-    pub settings: Arc<dyn UserSettingsStore>,
     /// Routines: the tools of a run's sessions.
     pub routines: Option<Arc<dyn RoutineTools>>,
     /// Routines: the tools of a routine's architect.
@@ -82,7 +80,6 @@ struct Handed {
 pub struct Tools {
     prompts: Arc<PromptRegistry>,
     plugins: Arc<dyn Plugins>,
-    settings: Arc<dyn UserSettingsStore>,
     pub(crate) orchestrator: Vec<Spec>,
     pub(crate) worker: Vec<Spec>,
     pub(crate) peer: Vec<Spec>,
@@ -200,7 +197,6 @@ impl Tools {
         Self {
             prompts: s.prompts,
             plugins: s.plugins,
-            settings: s.settings,
             orchestrator,
             worker,
             peer,
@@ -216,11 +212,7 @@ impl Tools {
     /// The registry entries a session of this kind gets, in order.
     fn listed(&self, spec: &LaunchSpec) -> Vec<&Spec> {
         let off = self.plugins.disabled_builtins();
-        let preview = capabilities::preview_on(&self.settings.read());
-        let on = |tool: &&Spec| {
-            tool.plugin.is_none_or(|plugin| !off.iter().any(|id| id == plugin))
-                && (preview || !capabilities::previewed(tool.name))
-        };
+        let on = |tool: &&Spec| tool.plugin.is_none_or(|plugin| !off.iter().any(|id| id == plugin));
         if spec.role == SessionFactsRole::Orchestrator {
             return self.orchestrator.iter().filter(on).collect();
         }

@@ -12,15 +12,11 @@ use crate::tests::{bench, call, run_session, session_of};
 #[test]
 fn an_architect_gets_its_own_list() {
     let bench = bench(FakeFeatures::new([]));
-    let own = ["get_routine", "propose_blueprint", "ask_choice", "find_past_items", "start_trial"];
-    assert_eq!(bench.names("architect"), own);
+    let own = ["get_routine", "propose_blueprint", "ask_choice", "find_past_items", "start_trial", "list_capabilities"];
+    assert_eq!(bench.names("architect"), own, "it never calls a capability itself");
     let as_worker = LaunchSpec { worker_definition: Some("eos-architect".into()), ..session_of("peer") };
     let names: Vec<String> = bench.tools.for_session(&as_worker).iter().map(|t| t.definition().name.clone()).collect();
     assert_eq!(names, own, "the definition decides, not the role");
-    bench.preview(true);
-    let mut with_preview = own.to_vec();
-    with_preview.push("list_capabilities");
-    assert_eq!(bench.names("architect"), with_preview, "it never calls a capability itself");
     for kind in ["orchestrator", "focused-peer", "run-lead", "run-checker"] {
         assert!(!bench.names(kind).iter().any(|name| name == "propose_blueprint"), "{kind}");
     }

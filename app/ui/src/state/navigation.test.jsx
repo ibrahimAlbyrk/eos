@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./eos/transport.js";
-import { probeEosStatus, setEosPreview } from "./eos/eosStatusStore.js";
+import { probeEosStatus } from "./eos/eosStatusStore.js";
 import { NavigationProvider, initialView, shownView, useNavigation } from "./navigation.jsx";
 
 function stubStorage() {
@@ -12,7 +12,6 @@ function stubStorage() {
 
 async function eosServed(served) {
   setEosTransport(fixtureTransport(served ? { [ROUTES.routines]: [] } : {}));
-  setEosPreview(true);
   await probeEosStatus();
 }
 
@@ -54,5 +53,13 @@ describe("the stored view", () => {
     }
     localStorage.setItem("cm:activeView", "home");
     expect(render()).toBe("agents");
+  });
+
+  it("lands a new user on Eos once the core serves routines (D2)", async () => {
+    await eosServed(false);
+    expect(initialView()).toBe("eos");
+    expect(render()).toBe("agents");
+    await eosServed(true);
+    expect(render()).toBe("eos");
   });
 });

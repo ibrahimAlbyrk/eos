@@ -20,8 +20,7 @@
 //! | a routine's architect (`eos-architect`) | its routine tools, `list_capabilities` |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions
-//! started meanwhile; so are the capability tools while the Eos preview
-//! (`eos.preview` in `settings.json`) is off. A feature that has not been handed over
+//! started meanwhile. A feature that has not been handed over
 //! ([`Services`]' optional parts) leaves its tools out of every session.
 //! Under tool search (focused sessions) every tool but `present`, `react`
 //! and `no_reply` waits behind the search. No subagent is offered an Eos tool: the permission

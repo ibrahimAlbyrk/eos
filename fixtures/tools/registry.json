@@ -1949,6 +1949,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "present",
     "present_app",
     "find_places",
@@ -1990,6 +1992,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "present",
     "present_app",
     "find_places",
@@ -2041,6 +2045,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "present",
     "present_app",
     "find_places",
@@ -2082,6 +2088,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "present",
     "present_app",
     "find_places",
@@ -2134,6 +2142,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "present",
     "present_app",
     "find_places",
@@ -2178,6 +2188,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview"
    ]
@@ -2202,6 +2214,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview"
    ]
@@ -2236,6 +2250,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview"
    ]
@@ -2260,6 +2276,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview"
    ]
@@ -2295,6 +2313,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview"
    ]
@@ -2333,6 +2353,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2360,6 +2382,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2397,6 +2421,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2424,6 +2450,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2462,6 +2490,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2503,6 +2533,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "send_to_machine",
@@ -2534,6 +2566,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "send_to_machine",
@@ -2575,6 +2609,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "send_to_machine",
@@ -2606,6 +2642,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "send_to_machine",
@@ -2648,6 +2686,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "send_to_machine",
@@ -2693,6 +2733,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2727,6 +2769,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2771,6 +2815,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2805,6 +2851,8 @@
     "search_memory",
     "suggest_memory",
     "recall_experience",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2850,6 +2898,8 @@
     "browser_close_tab",
     "browser_mute",
     "browser_show",
+    "list_capabilities",
+    "call_capability",
     "plugin_status",
     "plugin_preview",
     "list_peers",
@@ -2876,7 +2926,9 @@
     "report_failure",
     "ask_user",
     "current_datetime",
-    "search_memory"
+    "search_memory",
+    "list_capabilities",
+    "call_capability"
    ]
   },
   {
@@ -2892,7 +2944,9 @@
     "list_specialists",
     "ask_user",
     "current_datetime",
-    "search_memory"
+    "search_memory",
+    "list_capabilities",
+    "call_capability"
    ]
   },
   {
@@ -2904,7 +2958,9 @@
    "names": [
     "submit_verdict",
     "current_datetime",
-    "search_memory"
+    "search_memory",
+    "list_capabilities",
+    "call_capability"
    ]
   },
   {
@@ -2918,7 +2974,8 @@
     "propose_blueprint",
     "ask_choice",
     "find_past_items",
-    "start_trial"
+    "start_trial",
+    "list_capabilities"
    ]
   }
  ]
