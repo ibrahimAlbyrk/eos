@@ -51,6 +51,7 @@ fn night(temp: &TempStore, gate: Gate, model: &Arc<ScriptedOneShot>) -> Night {
         recall: Arc::new(Recall::new(temp.port(), clock)),
         scrubber: Arc::new(Scrubber::new(None)),
         device: "mac-a".into(),
+        playbooks: None,
     })
 }
 

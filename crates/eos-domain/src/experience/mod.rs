@@ -12,6 +12,7 @@ pub mod merge;
 pub mod moments;
 pub mod night;
 pub mod note;
+pub mod playbook;
 pub mod rank;
 pub mod reflect;
 pub mod render;

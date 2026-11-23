@@ -71,6 +71,17 @@ export function headline(detail, routines) {
   return `${kindWord(detail.note.kind)}, ${scopePhrase(detail.note.scope, routines)}. ${state} since ${dayOf(first)}.`;
 }
 
+// A playbook's version: each one was kept only after replays on past items
+// came closer to what the user sent (04 G12c). "Version 2, kept 23 November
+// after a replay on past items came closer to what you sent."
+export function playbookLine(detail) {
+  if (detail.note.kind !== "playbook") return null;
+  const kept = detail.versions.filter((v) => v.why === "rewritten");
+  if (kept.length === 0) return null;
+  const last = kept.reduce((a, b) => (b.rev > a.rev ? b : a));
+  return `Version ${last.rev}, kept ${dayOf(last.at)} after a replay on past items came closer to what you sent.`;
+}
+
 // "Came back five times, used four. It helped three times."
 export function helpLine(help) {
   if (help.recalled === 0) return "It has not come back yet.";

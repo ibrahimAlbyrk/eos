@@ -192,3 +192,13 @@ describe("memory in the other screens", () => {
     expect(storeNow().recalled[`run:${runId}`].filter((n) => n.row.id === summaryNote.id).every((n) => n.row.strength === 0.4)).toBe(true);
   });
 });
+
+describe("a playbook's version", () => {
+  it("names the version a replay kept, and nothing for other notes", async () => {
+    const { playbookLine } = await import("./words.js");
+    const at = Date.UTC(2026, 10, 23, 12);
+    const playbook = { note: { kind: "playbook" }, versions: [{ rev: 1, at, why: "rewritten" }, { rev: 2, at, why: "rewritten" }] };
+    expect(playbookLine(playbook)).toMatch(/^Version 2, kept .+ after a replay on past items came closer to what you sent\.$/);
+    expect(playbookLine({ note: { kind: "lesson" }, versions: [{ rev: 1, at, why: "rewritten" }] })).toBeNull();
+  });
+});

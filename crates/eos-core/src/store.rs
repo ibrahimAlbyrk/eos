@@ -83,7 +83,7 @@ pub use mem::{
 };
 pub use mem_journal::{
     DailyCall, DailyCalls, MEM_FORGOTTEN_KEPT_MS, MEM_MOMENTS_DONE_KEPT_MS, MEM_USES_KEPT_MS, MemBookRepo,
-    MemCursorRepo, MemMomentRepo, MemUseRepo, StoredForgotten, StoredMoment, StoredStated, StoredUse,
+    MemCursorRepo, MemMomentRepo, MemUseRepo, StoredForgotten, StoredMoment, StoredReplay, StoredStated, StoredUse,
 };
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};

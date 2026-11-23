@@ -106,6 +106,7 @@ pub(crate) fn parts(temp: &TempStore, sleeper: Arc<FakeSleeper>, embedder: Optio
         sleeper,
         ids: Arc::new(SeqIds::new()),
         runs: None,
+        replays: None,
         sink: Arc::new(Sink::default()),
         project_keys: Arc::new(Keys),
         profile: Arc::new(Profile(Mutex::new(empty_user_profile()))),

@@ -79,7 +79,7 @@ pub struct StoredNoteVersion {
     pub scope_level: ScopeLevel,
     pub scope_key: String,
     pub state: NoteState,
-    /// `learned`, `corrected`, `edited`, `merged`, `narrowed`, `restored` or `closed`.
+    /// `learned`, `corrected`, `edited`, `merged`, `narrowed`, `restored`, `rewritten` or `closed`.
     pub why: String,
     pub at: i64,
 }

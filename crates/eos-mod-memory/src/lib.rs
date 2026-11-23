@@ -55,12 +55,13 @@ use eos_core::git::ProjectKeys;
 use eos_core::inbox::ResultEdits;
 use eos_core::os::TimeZone;
 use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
-use eos_core::routine::RunLookup;
+use eos_core::routine::{RunLookup, RunReplays};
 use eos_core::store::Store;
 use eos_core::terminal::ClaudeTranscripts;
 use eos_core::{BoxFuture, Clock, Error, Ids, Sleeper};
 use eos_domain::redact::Scrubber;
 use eos_memory::night::{Night, NightParts};
+use eos_memory::playbook::PlaybookParts;
 use eos_memory::{Capture, Credit, Feedback, Recall, ReflectParts, Reflector};
 use eos_prompts::PromptService;
 use eos_runtime::bus::{Bus, Topic, TopicDecl};
@@ -73,7 +74,7 @@ use tokio::sync::Notify;
 use crate::code::CodePanes;
 use crate::edits::EditWatch;
 use crate::hooks::Capturer;
-use crate::night::{LibraryGeneralize, Nightly};
+use crate::night::{LibraryGeneralize, LibraryPlaybook, Nightly};
 use crate::reflection::{LibraryPrompt, Moments, PlanGate, Reflecting};
 pub use crate::reminders::NoteSink;
 use crate::reminders::Reminders;
@@ -157,6 +158,9 @@ pub struct MemoryParts {
     pub ids: Arc<dyn Ids>,
     /// Which run a worker belongs to, when routines are composed.
     pub runs: Option<Arc<dyn RunLookup>>,
+    /// Replays of past runs, to check a rewritten playbook, when routines
+    /// are composed.
+    pub replays: Option<Arc<dyn RunReplays>>,
     /// Where reminders are handed to live sessions.
     pub sink: Arc<dyn NoteSink>,
     /// How a project folder is named in notes' scopes.
@@ -223,6 +227,7 @@ impl MemoryModule {
             sleeper,
             ids,
             runs,
+            replays,
             sink,
             project_keys,
             profile,
@@ -263,6 +268,8 @@ impl MemoryModule {
                 recall: recall.clone(),
                 scrubber: scrubber.clone(),
                 device: device.clone(),
+                playbooks: replays
+                    .map(|replays| PlaybookParts { prompt: Arc::new(LibraryPlaybook(learn.prompts.clone())), replays }),
             });
             nightly = Some(Arc::new(Nightly {
                 night,

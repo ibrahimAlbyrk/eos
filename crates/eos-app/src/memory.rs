@@ -13,7 +13,7 @@ use eos_core::BoxFuture;
 use eos_core::agent::WorkerSessions;
 use eos_core::experience::Embedder;
 use eos_core::profile::{UserMemoryKeeper, UserMemoryReader, UserProfileReader};
-use eos_core::routine::{RunLookup, RunRef};
+use eos_core::routine::{RunLookup, RunRef, RunReplays, StartError};
 use eos_domain::config::Env;
 
 use crate::modules::Context;
@@ -31,8 +31,8 @@ pub(crate) fn model_dir(resources: Option<&Path>, env: &Env) -> Option<PathBuf> 
     resources.map(|r| r.join(BUNDLED_MODEL)).filter(|dir| dir.is_dir())
 }
 
-/// Which run a worker works for, once routines are built: routines hold
-/// memory, so memory holds them weakly.
+/// Which run a worker works for, and replays of past runs, once routines
+/// are built: routines hold memory, so memory holds them weakly.
 #[derive(Default)]
 pub(crate) struct LateRuns(OnceLock<Weak<eos_mod_routines::RoutinesModule>>);
 
@@ -51,6 +51,20 @@ impl RunLookup for LateRuns {
     }
 }
 
+impl RunReplays for LateRuns {
+    fn replay<'a>(
+        &'a self,
+        routine_id: &'a str,
+        candidate: &'a str,
+        run_ids: &'a [String],
+    ) -> BoxFuture<'a, Result<Vec<String>, StartError>> {
+        match self.0.get().and_then(Weak::upgrade) {
+            Some(routines) => Box::pin(async move { routines.replays().replay(routine_id, candidate, run_ids).await }),
+            None => Box::pin(std::future::ready(Err(StartError::UnknownRoutine(routine_id.to_owned())))),
+        }
+    }
+}
+
 /// Reminders go to a worker's live session, with its next request.
 struct SessionNotes(eos_sessions::Sessions);
 
@@ -63,7 +77,7 @@ impl eos_mod_memory::NoteSink for SessionNotes {
 
 pub(crate) fn module(
     cx: &Context,
-    runs: Arc<dyn RunLookup>,
+    runs: Arc<LateRuns>,
     profile: Arc<dyn UserProfileReader>,
     keeper: Arc<dyn UserMemoryKeeper>,
     memories: Arc<dyn UserMemoryReader>,
@@ -78,7 +92,8 @@ pub(crate) fn module(
         clock: cx.clock.clone(),
         sleeper: cx.sleeper.clone(),
         ids: cx.ids.clone(),
-        runs: Some(runs),
+        runs: Some(runs.clone()),
+        replays: Some(runs),
         sink: Arc::new(SessionNotes(cx.sessions.clone())),
         project_keys: cx.project_keys.clone(),
         profile,

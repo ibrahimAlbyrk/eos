@@ -19,6 +19,8 @@
   "lane/in-process.prompt.md": "973dcc06853eae58bf4c2fe08cb8551786dc010301a83999a11a49b58ef61940",
   "memory/generalize-system.prompt.md": "7c20c58b0e00ef3e338162749fcff6a2d624c21cb50e35febc4e38899499d7a5",
   "memory/generalize.prompt.md": "21f67a8a465006b6473c49c279b038f3ca9de9082bb840bb60499d16da11f786",
+  "memory/playbook-system.prompt.md": "119fc027184832aa5eb97b15e3efebc85919ceb75c4f1bb8c92ac3a3d33292ca",
+  "memory/playbook.prompt.md": "86e92eed5bda64d6456506f304be460e97610026f6da7daacb0e91012e56f5c3",
   "memory/reflect-system.prompt.md": "e04b54332387265a8c23f4b2e3a0a1a59e4a2b166a8afd3b7d2acbc869094979",
   "memory/reflect.prompt.md": "28352748816497df508177b2dd520e5e267edcaa78bd4f9c7525a6cae1b7c74d",
   "message-ids.prompt.md": "dac45912d9ffb88e6a446f4ba8d8f3b14d274ce5df9950536ec34478f637a72c",

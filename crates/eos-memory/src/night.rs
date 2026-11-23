@@ -5,7 +5,8 @@
 //! journal and the record of uses are pruned. Then, where the host lets a
 //! model be asked (the same gate as reflection), at most
 //! [`NIGHT_CALLS_PER_DAY`] calls a day turn lessons learned in several places
-//! into one general note. The Learning switch stops the model steps.
+//! into one general note, and playbooks are rewritten and checked
+//! ([`crate::playbook`]). The Learning switch stops the model steps.
 
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
@@ -27,6 +28,7 @@ use serde_json::json;
 use crate::credit::restand_in;
 use crate::forget::{FORGOTTEN_KEPT_MS, RESTORE_MS};
 use crate::merge::{MEMORY_CHANGE, version};
+use crate::playbook::{PlaybookParts, Rewritten};
 use crate::recall::Recall;
 use crate::reflect::{Gate, MODEL, ModelGate, TIMEOUT_MS};
 use crate::settings;
@@ -58,6 +60,8 @@ pub struct NightParts {
     pub recall: Arc<Recall>,
     pub scrubber: Arc<Scrubber>,
     pub device: String,
+    /// Playbook rewrites, when routines are composed.
+    pub playbooks: Option<PlaybookParts>,
 }
 
 impl std::fmt::Debug for NightParts {
@@ -77,6 +81,8 @@ pub struct Tidied {
     pub generalized: usize,
     /// Forgotten notes whose text went.
     pub erased: usize,
+    /// Playbooks rewritten, scored and kept.
+    pub playbooks: Rewritten,
     /// Stopped before the end.
     pub stopped: bool,
 }
@@ -107,7 +113,7 @@ struct Seen {
     hooks: BTreeSet<String>,
 }
 
-pub struct Night(NightParts);
+pub struct Night(pub(crate) NightParts);
 
 impl std::fmt::Debug for Night {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -133,9 +139,13 @@ impl Night {
         let notes = self.read().await?;
         tidied.moved = self.restand(&notes, started).await?;
         tidied.deduped = self.dedupe(&notes).await?;
+        self.settle_playbooks(&mut tidied.playbooks).await?;
         let learning = self.0.store.read(|tx| Ok(settings::read_in(tx)?.learning)).await?;
         if learning && !stop.load(Ordering::SeqCst) && self.0.gate.gate().await == Gate::Model {
             tidied.generalized = self.generalize(&notes, stop).await?;
+            if let Some(parts) = &self.0.playbooks {
+                self.rewrite_playbooks(parts, stop, &mut tidied.playbooks).await?;
+            }
         }
         tidied.stopped = stop.load(Ordering::SeqCst);
         tracing::info!(
@@ -143,6 +153,8 @@ impl Night {
             deduped = tidied.deduped,
             generalized = tidied.generalized,
             erased = tidied.erased,
+            playbooks_tried = tidied.playbooks.tried,
+            playbooks_kept = tidied.playbooks.kept,
             stopped = tidied.stopped,
             ms = self.0.clock.now_ms() - started,
             "memory: night tidied"
@@ -296,7 +308,7 @@ impl Night {
     }
 
     /// One more night call today, unless the day's are spent.
-    async fn count_call(&self) -> Result<bool, Error> {
+    pub(crate) async fn count_call(&self) -> Result<bool, Error> {
         let day = self.day(self.0.clock.now_ms());
         self.0
             .store

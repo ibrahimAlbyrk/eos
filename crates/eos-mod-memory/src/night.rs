@@ -13,6 +13,7 @@ use eos_core::store::Store;
 use eos_core::{Clock, Error, Sleeper};
 use eos_domain::time::nightly_slot;
 use eos_memory::night::{GeneralizePrompt, Night};
+use eos_memory::playbook::PlaybookPrompt;
 use eos_prompts::PromptService;
 use eos_runtime::jobs::{JobActionError, JobRegistry, JobSpec, JobStatus};
 
@@ -43,6 +44,15 @@ pub(crate) struct LibraryGeneralize(pub(crate) Arc<PromptService>);
 impl GeneralizePrompt for LibraryGeneralize {
     fn render(&self, lessons: &str) -> Result<(String, String), Error> {
         eos_prompts::templates::memory::generalize(&self.0, lessons)
+    }
+}
+
+/// The playbook prompt from the library, so the user's override applies.
+pub(crate) struct LibraryPlaybook(pub(crate) Arc<PromptService>);
+
+impl PlaybookPrompt for LibraryPlaybook {
+    fn render(&self, playbook: &str, notes: &str) -> Result<(String, String), Error> {
+        eos_prompts::templates::memory::playbook(&self.0, playbook, notes)
     }
 }
 
