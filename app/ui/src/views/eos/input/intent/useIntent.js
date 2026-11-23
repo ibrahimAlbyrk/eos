@@ -13,7 +13,7 @@ const askCore = (body) => transport.send("POST", ROUTES.routinesIntentModel, bod
 // and Enter, which acts only on a certain reading or a choice the user moved
 // to. An Enter pressed while the core decides acts when a clear answer comes,
 // and shows the choices when it does not. `onAct(choice)` does the act.
-export function useIntent({ text, things, routines, onAct }) {
+export function useIntent({ text, things, routines, routineId = null, onAct }) {
   const [input, dispatch] = useReducer(inputReducer, initialInput);
   const [, rerender] = useState(0);
   const askerRef = useRef(null);
@@ -22,18 +22,18 @@ export function useIntent({ text, things, routines, onAct }) {
 
   const attachments = useMemo(() => things.filter((t) => t.status === "ready").map((t) => ({ kind: t.kind, value: t.value })), [things]);
   const local = useMemo(
-    () => readIntent({ text, attachments: attachments.map((a) => a.value), forced: input.forced, routineId: input.routineId }, routines ?? []),
-    [text, attachments, input.forced, input.routineId, routines],
+    () => readIntent({ text, attachments: attachments.map((a) => a.value), forced: input.forced, routineId }, routines ?? []),
+    [text, attachments, input.forced, routineId, routines],
   );
   const asking = text.trim() !== "" && !text.trim().startsWith("/") && needsCore(local);
 
   useEffect(() => {
-    if (asking) asker.ask({ text, attachments, forced: input.forced, routineId: input.routineId });
+    if (asking) asker.ask({ text, attachments, forced: input.forced, routineId });
     else asker.stop();
-  }, [asker, asking, text, attachments, input.forced, input.routineId]);
+  }, [asker, asking, text, attachments, input.forced, routineId]);
   useEffect(() => () => asker.stop(), [asker]);
 
-  const verdict = verdictOf({ text, things, routineId: input.routineId, local, asked: asking ? asker.state() : { status: "idle" } });
+  const verdict = verdictOf({ text, things, routineId, local, asked: asking ? asker.state() : { status: "idle" } });
   const options = optionsOf(verdict);
   const chosen = actionable(verdict, input);
 

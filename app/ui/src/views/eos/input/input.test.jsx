@@ -66,13 +66,14 @@ describe("the Home input", () => {
     expect(html).toContain('placeholder="What should Eos take care of?"');
     expect(html).toContain('value="review 482"');
     expect(html).toContain('aria-label="Attach"');
-    expect(html).toContain('aria-label="Send" disabled=""');
+    setHomeDraft("");
+    expect(renderToStaticMarkup(<HomeInput />)).toContain('aria-label="Send" disabled=""');
   });
 
   it("is filled by a starter chip and cleared with it", () => {
     setHomeDraft("Watch my inbox");
     expect(globalThis.localStorage.data.get(HOME_DRAFT_KEY)).toBe("Watch my inbox");
-    expect(renderToStaticMarkup(<HomeInput onAct={() => {}} />)).toContain('aria-label="Send">');
+    expect(renderToStaticMarkup(<HomeInput />)).toContain('aria-label="Send">');
     setHomeDraft("");
     expect(globalThis.localStorage.data.has(HOME_DRAFT_KEY)).toBe(false);
   });
@@ -83,12 +84,12 @@ describe("the Home input", () => {
     _resetRoutines();
     await refreshRoutines();
     setHomeDraft("review #470");
-    const html = renderToStaticMarkup(<HomeInput onAct={() => {}} />);
+    const html = renderToStaticMarkup(<HomeInput />);
     expect(html).toContain("Run PR Review on #470, draft for you");
     expect(html).toContain("Tab for other choices");
     expect(html).toContain('aria-label="Send">');
     setHomeDraft("");
-    expect(renderToStaticMarkup(<HomeInput onAct={() => {}} />)).toContain("Click a routine around the input, drop a file on one, or just type.");
+    expect(renderToStaticMarkup(<HomeInput />)).toContain("Click a routine around the input, drop a file on one, or just type.");
     _resetRoutines();
   });
 });

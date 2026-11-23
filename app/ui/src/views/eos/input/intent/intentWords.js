@@ -37,9 +37,13 @@ function onWhat(routine, item) {
   return ` on the latest ${routine.takes.label ?? "item"}`;
 }
 
-export function runLine(routine, item, { showOnly = false, detail = null } = {}) {
-  const where = showOnly ? "shown to you only" : RUNG_WORDS[routine.rung];
-  return `Run ${routine.name}${onWhat(routine, item)}${detail ? `, ${detail}` : ""}${where ? `, ${where}` : ""}`;
+// "Run PR Review on #470, deep, shown to you only": the item (or the
+// latest), what the user changed, where the result goes, and any `tail`
+// (a later time, the cost of several).
+export function runLine(routine, item, { result = "usual", detail = null, tail = null } = {}) {
+  const where = result === "showOnly" ? "shown to you only" : result === "ask" ? RUNG_WORDS.ask : RUNG_WORDS[routine.rung];
+  const parts = [`Run ${routine.name}${onWhat(routine, item)}`, detail, where, tail].filter(Boolean);
+  return parts.join(", ");
 }
 
 // The line of one choice ({ intent, routineId, item }); `byId` holds the

@@ -1,6 +1,6 @@
 // homeDraftStore — the text typed in the Home input, kept per viewer in
 // `eos:homeDraft` so leaving Home (or the field) loses nothing. A starter
-// chip fills it; Enter's act clears it.
+// chip fills it; Enter's act clears it. Beside it, the routine token.
 
 import { useSyncExternalStore } from "react";
 
@@ -46,6 +46,22 @@ export function setHomeDraft(next) {
   for (const cb of subs) cb();
 }
 
+// The routine token picked for the input: from its `/` menu or a disc in
+// the field. In memory only; the text beside it is its item.
+let picked = null;
+const pickedSnapshot = () => picked;
+
+export function useHomePick() {
+  return useSyncExternalStore(subscribe, pickedSnapshot, pickedSnapshot);
+}
+
+export function setHomePick(routineId) {
+  if (picked === routineId) return;
+  picked = routineId;
+  for (const cb of subs) cb();
+}
+
 export function _resetHomeDraft() {
   text = null;
+  picked = null;
 }

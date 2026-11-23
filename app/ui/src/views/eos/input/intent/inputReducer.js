@@ -1,12 +1,12 @@
-// The Home input's own state (08 §4.4), beside its text: the mode the user
-// forced, the routine token picked, which choice Tab moved to, and an Enter
+// The Home input's own state (08 §4.4), beside its text and its routine
+// token: the mode the user forced, which choice Tab moved to, and an Enter
 // pressed while the core was still deciding.
 
 // D39: Tab cycles the alternatives while there are two or more, announced
 // as "Tab for other choices"; with one, Tab moves focus as usual.
 export const TAB_CYCLES_CHOICES = true;
 
-export const initialInput = { forced: null, routineId: null, tab: 0, tabbed: false, pendingEnter: false };
+export const initialInput = { forced: null, tab: 0, tabbed: false, pendingEnter: false };
 
 export function inputReducer(state, action) {
   switch (action.type) {
@@ -25,10 +25,6 @@ export function inputReducer(state, action) {
       return { ...state, pendingEnter: true };
     case "settled":
       return { ...state, pendingEnter: false };
-    case "pick":
-      return { ...state, routineId: action.routineId, forced: null, tab: 0, tabbed: false, pendingEnter: false };
-    case "unpick":
-      return { ...state, routineId: null, tab: 0, tabbed: false, pendingEnter: false };
     case "acted":
       return initialInput;
     default:
@@ -39,8 +35,8 @@ export function inputReducer(state, action) {
 // The phase the input is in, for the screen around it: idle, text, menu
 // (after `/`), token (a routine picked), waiting (the core asked), choices
 // (unsure).
-export function phaseOf(state, text, verdict) {
-  if (state.routineId) return "token";
+export function phaseOf(text, verdict, routineId = null) {
+  if (routineId) return "token";
   if (verdict.kind === "menu") return "menu";
   if (verdict.kind === "waiting") return "waiting";
   if (verdict.kind === "choices" || verdict.kind === "failed") return "choices";

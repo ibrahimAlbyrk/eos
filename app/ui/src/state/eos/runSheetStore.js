@@ -39,7 +39,7 @@ export function registerHost() {
 
 export function open({ routineId, anchor, input, againOf }) {
   if (state.hosted === 0) return;
-  set({ request: againOf ? { routineId, anchor, input, againOf } : { routineId, anchor } });
+  set({ request: { routineId, anchor, ...(input ? { input } : {}), ...(againOf ? { againOf } : {}) } });
 }
 
 export function close() {

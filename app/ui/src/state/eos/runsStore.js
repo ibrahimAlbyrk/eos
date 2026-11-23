@@ -153,6 +153,18 @@ export async function startRun(body) {
   return { error: r.body?.error ?? "Eos could not start the run." };
 }
 
+// POST /api/runs/once: do what the sentence asks, once. → { started:
+// { routineId, name, runId } }, or { devRun }, { dayCap }, { offline } or
+// { error } in words.
+export async function startOnce(body) {
+  const r = await transport.send("POST", ROUTES.runsOnce, body).catch(() => null);
+  if (r?.ok && typeof r.body?.run?.id === "string") return { started: { routineId: r.body.routineId, name: r.body.name, runId: r.body.run.id } };
+  if (r === null) return { offline: true };
+  if (r.status === 409 && r.body?.code === "day_cap") return { dayCap: true };
+  if (isDevRunRefusal(r)) return { devRun: true };
+  return { error: r.body?.error ?? "Eos could not do it." };
+}
+
 // POST /api/runs/estimate → { usd, ms, basis, n }, or null.
 export async function estimateRun(body) {
   const r = await transport.send("POST", ROUTES.runsEstimate, body).catch(() => null);
