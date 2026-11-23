@@ -1,0 +1,360 @@
+//! What the surface and direct-action routes take and answer, and what
+//! `surfaces:change`, `surfaces:issue`, `surfaces:state` and `actions:record`
+//! carry. Levels, places, roles and statuses travel as the words
+//! `eos_surface` stores. Titles, issue bodies, state and action arguments
+//! and results are the user's: these types are never logged.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::freedom::ActionClass;
+use crate::validate::{Issues, Validate};
+
+/// A row of `GET /api/surfaces`: one interface a routine answers with.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceRow {
+    pub id: String,
+    pub routine_id: String,
+    /// `view`, `page` or `app`.
+    pub level: String,
+    /// `routine_page`, `needs_you`, `side_panel` or `tool`.
+    pub place: String,
+    /// `result`, `decisions`, `page` or `app`.
+    pub role: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_version: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate_version: Option<i64>,
+    /// The problem paths that made Eos fall back, while a redesign is due.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs_redesign: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub archived_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl Validate for SurfaceRow {}
+
+/// `GET /api/surfaces`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SurfaceList {
+    pub surfaces: Vec<SurfaceRow>,
+}
+
+impl Validate for SurfaceList {}
+
+/// A row of `GET /api/surfaces/{id}/versions`: one design, without its body.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceVersionMeta {
+    pub version: i64,
+    /// `checking`, `candidate`, `kept`, `discarded` or `superseded`.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_version: Option<i64>,
+    /// `designer`, `user`, `arrange`, `restore` or `builder`.
+    pub made_by: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    /// The maker's one-line summary of the change.
+    pub note: String,
+    pub body_bytes: i64,
+    pub created_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kept_at: Option<i64>,
+}
+
+impl Validate for SurfaceVersionMeta {}
+
+/// `GET /api/surfaces/{id}/versions`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SurfaceVersionList {
+    pub versions: Vec<SurfaceVersionMeta>,
+}
+
+impl Validate for SurfaceVersionList {}
+
+/// `GET /api/surfaces/{id}/versions/{n}`: one design with its body and the
+/// report of its checks.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SurfaceVersion {
+    pub meta: SurfaceVersionMeta,
+    pub body: Value,
+    pub checks: Value,
+}
+
+impl Validate for SurfaceVersion {}
+
+/// A row of `GET /api/surfaces/{id}/issues`: one answer of a run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceIssueRow {
+    pub id: String,
+    pub surface_id: String,
+    /// The issue's number; a trial issue has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seq: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_id: Option<String>,
+    /// The design version it was made with; a View has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<i64>,
+    /// `page`, `view` or `fallback`.
+    pub kind: String,
+    /// `preparing`, `ready` or `failed`.
+    pub status: String,
+    pub rev: i64,
+    pub trial: bool,
+    pub kept: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl Validate for SurfaceIssueRow {}
+
+/// `GET /api/surfaces/{id}/issues?before=&limit=`, newest first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SurfaceIssueList {
+    pub issues: Vec<SurfaceIssueRow>,
+    /// Older issues exist past the last one.
+    pub more: bool,
+}
+
+impl Validate for SurfaceIssueList {}
+
+/// `GET /api/surfaces/{id}/issues/{issueId}`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SurfaceIssue {
+    pub issue: SurfaceIssueRow,
+    /// A View: `{view, actions}`, the View as `present` takes it and the ids of
+    /// its bound actions. A Page: its data.
+    pub body: Value,
+}
+
+impl Validate for SurfaceIssue {}
+
+/// `GET /api/surfaces/{id}/state?scope=` and the body of its `PUT`: a
+/// surface's small saved state, for the whole surface (`scope` empty) or one
+/// issue (its id).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceStateDoc {
+    #[serde(default)]
+    pub scope: String,
+    pub data: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
+}
+
+impl Validate for SurfaceStateDoc {}
+
+/// `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceSettings {
+    /// 100, 115 or 130 (percent).
+    pub text_scale: u16,
+    /// `normal` or `more`.
+    pub contrast: String,
+    /// Every issue in Eos's own plain look.
+    pub plain: bool,
+}
+
+impl Default for SurfaceSettings {
+    fn default() -> Self {
+        SurfaceSettings { text_scale: 100, contrast: "normal".into(), plain: false }
+    }
+}
+
+impl Validate for SurfaceSettings {
+    fn validate(&self, cx: &mut Issues) {
+        if ![100, 115, 130].contains(&self.text_scale) {
+            cx.push_at("textScale", "must be 100, 115 or 130");
+        }
+        if !matches!(self.contrast.as_str(), "normal" | "more") {
+            cx.push_at("contrast", "must be normal or more");
+        }
+    }
+}
+
+/// A row of `GET /api/actions`: one direct action a surface may run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionDefRow {
+    /// `routine.run_again`.
+    pub id: String,
+    pub title: String,
+    pub class: ActionClass,
+    /// `owner_routine` (only a surface of the routine it acts on) or `any`.
+    pub scope: String,
+    /// The argument type in the surface type language.
+    pub args: Value,
+}
+
+impl Validate for ActionDefRow {}
+
+/// `GET /api/actions`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ActionList {
+    pub actions: Vec<ActionDefRow>,
+}
+
+impl Validate for ActionList {}
+
+/// `POST /api/actions/run`. There is no field for arguments: the core reads
+/// them from the stored issue, so a frame cannot pass its own. What the user
+/// typed or chose comes as `state` and is typed against the action's
+/// argument type.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionRunRequest {
+    /// The issue whose button was pressed. Without it, `actionId` names a
+    /// registry action that takes no arguments of the issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    /// A Page's button, by its part.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub button: Option<String>,
+    /// A View's action id with an issue; a registry action id without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action_id: Option<String>,
+    /// The item of a repeat the button sits in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Value>,
+    /// Chosen by the caller; a repeated id answers the first record.
+    pub client_id: String,
+    /// The token of Eos's own confirmation, when it asked for one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm: Option<String>,
+}
+
+impl Validate for ActionRunRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("clientId", |cx| {
+            cx.str_min(self.client_id.trim(), 1);
+            cx.str_max(&self.client_id, 128);
+        });
+        if self.action_id.is_none() && self.button.is_none() {
+            cx.push_at("actionId", "actionId or button is required");
+        }
+        if self.button.is_some() && self.issue_id.is_none() {
+            cx.push_at("issueId", "is required with a button");
+        }
+    }
+}
+
+/// What `POST /api/actions/run` answers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ActionAnswer {
+    #[serde(rename_all = "camelCase")]
+    Done {
+        record_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<Value>,
+    },
+    /// Eos asks the user in its own dialog, outside the frame, and repeats the
+    /// call with `token` (single use, two minutes).
+    #[serde(rename_all = "camelCase")]
+    Confirm { record_id: String, token: String, prompt: String },
+    /// Held in Needs you as the item named.
+    #[serde(rename_all = "camelCase")]
+    Held { record_id: String, item_id: String },
+    #[serde(rename_all = "camelCase")]
+    Refused {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        record_id: Option<String>,
+        reason: String,
+    },
+}
+
+impl Validate for ActionAnswer {}
+
+/// `GET /api/actions/records/{id}`: one press of a button, as Eos ran it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionRecord {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    pub action_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub routine_id: Option<String>,
+    /// `dashboard`, `phone`, `mail_link` or `app`.
+    pub origin: String,
+    pub class: ActionClass,
+    /// The arguments as the core typed them.
+    pub args: Value,
+    /// `run`, `confirm`, `hold` or `refuse`.
+    pub decision: String,
+    /// `running`, `done`, `failed`, `confirming`, `held` or `refused`.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+    pub created_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<i64>,
+}
+
+impl Validate for ActionRecord {}
+
+/// `surfaces:change`: a surface was made, renamed, archived or restored, or
+/// its versions moved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfacesChange {
+    pub surface_id: String,
+    pub routine_id: String,
+    /// `created`, `version`, `archived`, `restored` or `redesign`.
+    pub what: String,
+}
+
+impl Validate for SurfacesChange {}
+
+/// `surfaces:issue`: an issue was stored or moved on.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfacesIssue {
+    pub surface_id: String,
+    pub issue_id: String,
+    pub status: String,
+    pub rev: i64,
+}
+
+impl Validate for SurfacesIssue {}
+
+/// `surfaces:state`: a surface's saved state changed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfacesState {
+    pub surface_id: String,
+    pub scope: String,
+}
+
+impl Validate for SurfacesState {}
+
+/// `actions:record`: a press was recorded or finished.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionsRecord {
+    pub record_id: String,
+    pub action_id: String,
+    pub status: String,
+}
+
+impl Validate for ActionsRecord {}
+
+#[cfg(test)]
+mod tests;
