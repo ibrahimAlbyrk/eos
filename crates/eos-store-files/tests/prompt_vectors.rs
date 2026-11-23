@@ -409,3 +409,43 @@ fn an_override_edit_reaches_the_next_reload_and_nothing_else_reparses() {
     assert_eq!(body("custom/two"), None);
     assert_eq!(registry.list().len(), first.len());
 }
+
+/// The library files Eos changed on purpose for an existing user's sessions, each with the
+/// spec item that meant it.
+const CHANGED_ON_PURPOSE: [(&str, &str); 3] = [
+    ("role/focused/01-user-profile.prompt.md", "04 G7: a rule the user states is kept"),
+    ("role/orchestrator/12c-memory.prompt.md", "04 G7: a rule the user states is kept"),
+    ("role/worker/10c-memory.prompt.md", "04 G7: a rule the user states is kept"),
+];
+
+/// Where Eos adds files: its routine roles, memory's and routines' one-shots, the signal
+/// question and its tools' descriptions.
+const ADDED_UNDER: [&str; 6] =
+    ["memory/", "routine/", "micro-tasks/signal-match.", "role/focused/2", "role/worker/2", "tool/"];
+
+#[test]
+fn an_existing_users_prompts_change_only_where_eos_meant_them_to() {
+    let before: Files = fixture("files-before-eos.json");
+    let now: Files = fixture("files.json");
+    let changed: Vec<&str> = before
+        .sha256
+        .iter()
+        .filter(|(file, sha)| now.sha256.get(*file).is_some_and(|now| now != *sha))
+        .map(|(file, _)| file.as_str())
+        .collect();
+    let meant: Vec<&str> = CHANGED_ON_PURPOSE.iter().map(|(file, _)| *file).collect();
+    assert_eq!(changed, meant, "only the files changed on purpose");
+    let gone: Vec<&String> = before.sha256.keys().filter(|file| !now.sha256.contains_key(*file)).collect();
+    assert!(gone.is_empty(), "no file is gone: {gone:?}");
+    let added: Vec<&String> = now.sha256.keys().filter(|file| !before.sha256.contains_key(*file)).collect();
+    for file in &added {
+        assert!(ADDED_UNDER.iter().any(|place| file.starts_with(place)), "{file} is added outside Eos's places");
+    }
+    // A chat, an orchestrator, a worker or the git agent never gets an added fragment.
+    let assembled: Assembled = fixture("assembled.json");
+    let added: Vec<String> = added.iter().map(|file| file.trim_end_matches(".prompt.md").to_owned()).collect();
+    for case in &assembled.cases {
+        let leaked: Vec<&String> = case.active_fragment_ids.iter().filter(|id| added.contains(id)).collect();
+        assert!(leaked.is_empty(), "{:?} gets {leaked:?}", case.ctx.role);
+    }
+}
