@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { _resetHomeDraft, HOME_DRAFT_KEY, setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { fixtureTransport, setEosTransport, transport } from "../../../state/eos/transport.js";
+import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
+import { ROUTES } from "../../../api/routes.js";
+import routines from "../gallery/sample/routines.json";
 import { HomeInput } from "./HomeInput.jsx";
 import { ThingChips } from "./ThingChips.jsx";
 import { attachmentsOf, isLink, LONG_TEXT, linkThing, pathThing, textThing, uploadThing } from "./things.js";
@@ -69,8 +72,23 @@ describe("the Home input", () => {
   it("is filled by a starter chip and cleared with it", () => {
     setHomeDraft("Watch my inbox");
     expect(globalThis.localStorage.data.get(HOME_DRAFT_KEY)).toBe("Watch my inbox");
-    expect(renderToStaticMarkup(<HomeInput onSubmit={() => {}} />)).toContain('aria-label="Send">');
+    expect(renderToStaticMarkup(<HomeInput onAct={() => {}} />)).toContain('aria-label="Send">');
     setHomeDraft("");
     expect(globalThis.localStorage.data.has(HOME_DRAFT_KEY)).toBe(false);
+  });
+
+  it("says under the card what Enter will do, from the user's routines", async () => {
+    const pr = { ...routines[0], takes: { ...routines[0].takes, itemPatterns: ["(?:^|\\s)#(\\d+)\\b"] } };
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: [pr] }));
+    _resetRoutines();
+    await refreshRoutines();
+    setHomeDraft("review #470");
+    const html = renderToStaticMarkup(<HomeInput onAct={() => {}} />);
+    expect(html).toContain("Run PR Review on #470, draft for you");
+    expect(html).toContain("Tab for other choices");
+    expect(html).toContain('aria-label="Send">');
+    setHomeDraft("");
+    expect(renderToStaticMarkup(<HomeInput onAct={() => {}} />)).toContain("Click a routine around the input, drop a file on one, or just type.");
+    _resetRoutines();
   });
 });
