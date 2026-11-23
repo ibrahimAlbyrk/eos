@@ -54,10 +54,11 @@ pub(crate) fn begin(engine: &Arc<Engine>, run_id: &str) {
     tokio::spawn(async move {
         if let Err(error) = check(&engine, &run_id).await {
             tracing::warn!(run_id, %error, "a run's result could not be checked");
+            // Let go first, so the lead is never held by a run that ended.
+            release_lead(&engine, &run_id).await;
             if let Err(error) = super::fail(&engine, &run_id, Reason::CheckError, None).await {
                 tracing::error!(run_id, %error, "a run whose check broke could not be failed");
             }
-            release_lead(&engine, &run_id).await;
         }
     });
 }
@@ -355,8 +356,8 @@ pub(crate) async fn checker_failed(engine: &Arc<Engine>, worker_id: &str) -> Res
         .await?;
     tracing::warn!(run_id, worker_id, again, "a run's checker ended without a verdict");
     if !again {
-        super::fail(engine, &run_id, Reason::CheckError, None).await?;
         release_lead(engine, &run_id).await;
+        super::fail(engine, &run_id, Reason::CheckError, None).await?;
         return Ok(());
     }
     let Some(checking) = read(engine, &run_id).await? else { return Ok(()) };
