@@ -41,7 +41,12 @@ pub struct RouterCore {
     served: AtomicU64,
     /// The core's ordered lane, whose counters the status shows.
     lane: Option<Ordered>,
+    /// How often the core's timers woke it, for the status.
+    wakes: Option<Wakes>,
 }
+
+/// Reads the core's wake counts (`eos_app::WakeCounter::snapshot`).
+pub type Wakes = Arc<dyn Fn() -> serde_json::Value + Send + Sync>;
 
 impl std::fmt::Debug for RouterCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -80,7 +85,16 @@ impl RouterCore {
         classify: Classify,
         rt: tokio::runtime::Handle,
     ) -> Self {
-        RouterCore { router, raw: None, ui_token: ui_token.into(), classify, rt, served: AtomicU64::new(0), lane: None }
+        RouterCore {
+            router,
+            raw: None,
+            ui_token: ui_token.into(),
+            classify,
+            rt,
+            served: AtomicU64::new(0),
+            lane: None,
+            wakes: None,
+        }
     }
 
     /// The router that answers the raw-content origin (`http://raw.eos.localhost`): files as
@@ -95,6 +109,13 @@ impl RouterCore {
     #[must_use]
     pub fn with_lane(mut self, lane: Ordered) -> Self {
         self.lane = Some(lane);
+        self
+    }
+
+    /// The core's wake counts: the status shows them, for the idle measurement.
+    #[must_use]
+    pub fn with_wakes(mut self, wakes: Wakes) -> Self {
+        self.wakes = Some(wakes);
         self
     }
 
@@ -186,10 +207,14 @@ impl Core for RouterCore {
     }
 
     fn status(&self) -> serde_json::Value {
-        match &self.lane {
-            Some(lane) => serde_json::json!({ "rust": self.served(), "lane": lane.stats() }),
-            None => serde_json::json!({ "rust": self.served() }),
+        let mut status = serde_json::json!({ "rust": self.served() });
+        if let Some(lane) = &self.lane {
+            status["lane"] = serde_json::json!(lane.stats());
         }
+        if let Some(wakes) = &self.wakes {
+            status["wakes"] = wakes();
+        }
+        status
     }
 
     fn call(&self, plane: Plane, req: Req, sink: Sink) {
@@ -555,5 +580,13 @@ mod tests {
         let (sink, body) = channel();
         drop(Unanswered { sink, armed: false });
         assert!(body.head().is_none());
+    }
+
+    #[tokio::test]
+    async fn the_status_shows_the_wakes_it_was_given() {
+        let (core, _, _) = core();
+        assert_eq!(core.status(), serde_json::json!({"rust": 0}));
+        let core = core.with_wakes(Arc::new(|| serde_json::json!({"total": 3})));
+        assert_eq!(core.status()["wakes"], serde_json::json!({"total": 3}));
     }
 }

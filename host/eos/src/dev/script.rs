@@ -30,9 +30,8 @@
 //! `every_ms` in a row, with a `Run` work hold taken when `hold` is true, and returns how
 //! late each fired: `{"held", "lateMs": [..], "wallLateMs": [..]}` (the App Nap drift check).
 //! `{"hide": null}` hides the window as its close button does (the dashboard's release).
-//! `{"preview": true}` turns the Eos preview on (`false` off), as the dashboard's setting does:
-//! the one setting a script may change. `{"runs": 2}` announces that many runs of routines
-//! working (`runs:active`), as the core does when they start; nothing starts.
+//! `{"runs": 2}` announces that many runs of routines working (`runs:active`), as the core
+//! does when they start; nothing starts.
 //! The output file gets one result per step, in order.
 //!
 //! A responsiveness run (`tests/responsiveness.py`, with the shell's probe on) also has
@@ -261,14 +260,6 @@ impl Run {
                 let hide = self.ports.hide_window.clone();
                 tokio::task::spawn_blocking(move || hide()).await.map_err(|e| e.to_string())?;
                 Ok(Value::Null)
-            }
-            "preview" => {
-                let router = self.router.as_ref().ok_or("the Rust core is not running")?;
-                let body = json!({ "settings": { "eos.preview": arg.as_bool().unwrap_or(false) } });
-                let request = Request::new(Method::Put, "/api/settings", Caller::DASHBOARD)
-                    .header("content-type", "application/json")
-                    .body(body.to_string());
-                Ok(json!({ "status": router.handle(request).await.status }))
             }
             "runs" => {
                 let bus = self.bus.as_ref().ok_or("the Rust core is not running")?;

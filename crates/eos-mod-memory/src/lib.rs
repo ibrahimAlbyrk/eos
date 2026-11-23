@@ -430,7 +430,11 @@ async fn load_meaning(load: LoadEmbedder, recall: Arc<Recall>, health: Arc<Mutex
     let loaded = tokio::task::spawn_blocking(load).await.map_err(|e| e.to_string()).and_then(|r| r);
     let ready = match loaded {
         Ok(embedder) => match recall.with_meaning(embedder).await {
-            Ok(()) => true,
+            Ok(()) => {
+                // The idle measurement (`host/tests/memory.py --idle`) waits for this line.
+                tracing::info!("memory: the meaning model is loaded");
+                true
+            }
             Err(e) => {
                 tracing::warn!(error = %e, "memory: the meaning vectors did not load");
                 false

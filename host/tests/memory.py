@@ -5,6 +5,7 @@ fixed time after the dashboard is ready, the window painting, a fresh shell prof
 
   memory.py <Eos.app> [--runs 5] [--wait 40] [--label NAME] [--network-in-process]
             [--no-core] [--covered] [--closed] [--vmmap]
+  memory.py <Eos.app> --idle [--runs 1] [--wait 600] [--label NAME]
 
   --network-in-process  Chromium's network service inside the browser process (the setting)
   --no-core             the shell alone, without the Rust core in process
@@ -14,6 +15,10 @@ fixed time after the dashboard is ready, the window painting, a fresh shell prof
   --vmmap               on the last run, how much of the CEF framework's constant data is
                         dirty in the dashboard's renderer (clean when the framework is
                         mapped at launch, about 12 MB when it is dlopen()ed)
+  --idle                the idle cost (`idle_run`): 20 routines armed on a data copy of
+                        their own, the window hidden and the dashboard's view released, the
+                        meaning model loaded; `--wait` seconds of nothing, measured from the
+                        first minute after the release
 
   MEM_CHAT   the name of the chat to have open (default: the first top-level chat). The name
              is private data: it is read from the environment and never written anywhere.
@@ -23,6 +28,7 @@ The chat is opened by restoring a layout through the storage carry-over; which c
 then loaded is read from the app's own request log. The window opens without taking the
 focus and with audio muted. Results go to the private output folder, never into git.
 """
+import ctypes
 import json
 import os
 import re
@@ -111,6 +117,7 @@ def prepare(chat):
             "cm:selectedId": chat,
             "cm:paneTree": json.dumps({"t": "leaf", "id": "p1_mem", "agentId": chat}),
             "cm:paneFocusedLeaf": "p1_mem",
+            "cm:activeView": "agents",
             "cm:sideCollapsed": "0",
         }
         seed = os.path.join(OUT, "layout.json")
@@ -192,6 +199,155 @@ def one_run(chat, wait, env_extra, vmmap, closed):
     return run
 
 
+# ---- the idle cost (09 §9.1, XC-08)
+
+IDLE_ROUTINES = 20
+# After the release, before the first sample: the release's own work settles.
+IDLE_SETTLE = 60
+# §9.1: no loop of the core wakes more than once a minute while nothing happens. A timer
+# shorter than that may fire this often in the whole window (a debounce after the release).
+SHORT_WAKES_ALLOWED = 2
+
+
+class RUsage(ctypes.Structure):
+    """rusage_info_v2 (<sys/resource.h>): times in Mach absolute units."""
+    _fields_ = [("uuid", ctypes.c_uint8 * 16)] + [(name, ctypes.c_uint64) for name in (
+        "user_time", "system_time", "pkg_idle_wkups", "interrupt_wkups", "pageins", "wired_size",
+        "resident_size", "phys_footprint", "proc_start_abstime", "proc_exit_abstime", "child_user_time",
+        "child_system_time", "child_pkg_idle_wkups", "child_interrupt_wkups", "child_pageins",
+        "child_elapsed_abstime", "diskio_bytesread", "diskio_byteswritten")]
+
+
+class Timebase(ctypes.Structure):
+    _fields_ = [("numer", ctypes.c_uint32), ("denom", ctypes.c_uint32)]
+
+
+LIBSYSTEM = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+
+
+def usage(pids):
+    """Per pid: (CPU seconds, wake-ups) so far, from proc_pid_rusage."""
+    base = Timebase()
+    LIBSYSTEM.mach_timebase_info(ctypes.byref(base))
+    out = {}
+    for pid in pids:
+        r = RUsage()
+        if LIBSYSTEM.proc_pid_rusage(pid, 2, ctypes.byref(r)) == 0:
+            cpu = (r.user_time + r.system_time) * base.numer / base.denom / 1e9
+            out[pid] = (cpu, r.pkg_idle_wkups + r.interrupt_wkups)
+    return out
+
+
+def core_wakes():
+    """The core's timer wakes by wait length in seconds (eos-app's WakeCounter)."""
+    wakes = (smoke.bridge_of(smoke.ctl("--status")).get("core") or {}).get("wakes") or {}
+    return {int(k): v for k, v in (wakes.get("bySeconds") or {}).items()}
+
+
+def kinds_of(rows, fp):
+    """Each pid's kind, the dashboard's renderer told apart from a spare one by size."""
+    renderers = sorted((fp.get(pid, 0.0), pid) for pid, kind in rows if kind == "renderer")
+    return {pid: ("spare-renderer" if kind == "renderer" and pid != renderers[-1][1] else kind) for pid, kind in rows}
+
+
+def idle_run(home, wait):
+    subprocess.run(["rm", "-rf", SHELL_DATA], check=True)
+    os.makedirs(SHELL_DATA)
+    log = os.path.join(smoke.DEV_OUT, "app.err")
+    if os.path.exists(log):
+        os.remove(log)
+    steps = os.path.join(OUT, "steps.jsonl")
+    open(steps, "w").close()
+    env = dict(os.environ, EOS_DEV_HOME=home, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none",
+               EOS_LOG="warn,eos=info,eos_mod_memory=info", EOS_DEV_SCRIPT=steps,
+               EOS_DEV_SCRIPT_OUT=os.path.join(OUT, "steps-out.jsonl"), EOS_DEV_SCRIPT_FOLLOW="1",
+               EOS_DEV_DASHBOARD_RELEASE_MS="5000")
+    subprocess.run([os.path.join(smoke.HOST, "scripts", "launch.sh"), smoke.APP, "--quiet"], check=True, env=env)
+    st = smoke.wait_for("ready", lambda: (lambda s: s if smoke.bridge_of(s).get("ready") else None)(smoke.ctl("--status")), 60)
+    if not st:
+        stop_app()
+        return {"void": "the dashboard did not become ready"}
+    time.sleep(10)
+    with open(steps, "a") as f:
+        f.write(json.dumps({"hide": None}) + "\n")
+    if not smoke.wait_for("released", lambda: smoke.ctl("--status").get("dashboard") == "released", 40):
+        stop_app()
+        return {"void": "the dashboard's view was not released"}
+    # A followed script looks for new steps every few milliseconds: ended here, so the
+    # measurement counts the app and not the script.
+    with open(steps, "a") as f:
+        f.write(json.dumps({"end": None}) + "\n")
+    time.sleep(IDLE_SETTLE)
+    rows = processes()
+    began, wakes0, use0 = time.time(), core_wakes(), usage([pid for pid, _ in rows])
+    time.sleep(wait)
+    elapsed, wakes1 = time.time() - began, core_wakes()
+    rows = processes()
+    use1, fp = usage([pid for pid, _ in rows]), footprints([pid for pid, _ in rows])
+    kinds = kinds_of(rows, fp)
+    run = {"seconds": round(elapsed), "by": {}, "load1": round(os.getloadavg()[0], 1)}
+    for pid, kind in kinds.items():
+        part = run["by"].setdefault(kind, {"mb": 0.0, "cpuPct": 0.0, "wakesPerS": 0.0})
+        part["mb"] = round(part["mb"] + fp.get(pid, 0.0), 1)
+        if pid in use0 and pid in use1:
+            part["cpuPct"] = round(part["cpuPct"] + (use1[pid][0] - use0[pid][0]) / elapsed * 100, 2)
+            part["wakesPerS"] = round(part["wakesPerS"] + (use1[pid][1] - use0[pid][1]) / elapsed, 1)
+    run["total"] = round(sum(p["mb"] for p in run["by"].values()), 1)
+    by = {k: wakes1.get(k, 0) - wakes0.get(k, 0) for k in sorted(set(wakes0) | set(wakes1))}
+    run["coreWakes"] = {str(k): n for k, n in by.items() if n}
+    # Lengths past the counter's kept ones (-1) are unknown: counted as short.
+    run["shortWakes"] = sum(n for k, n in by.items() if k < 60)
+    after = smoke.ctl("--status")
+    try:
+        with open(log) as f:
+            text = f.read()
+    except OSError:
+        text = ""
+    if not wakes1:
+        run["void"] = "the status shows no wake counts"
+    elif "memory: the meaning model is loaded" not in text:
+        run["void"] = "the meaning model did not load"
+    elif len(fp) != len(rows) or not after.get("running") or after.get("pid") != st.get("pid"):
+        run["void"] = "a process of the app went away"
+    elif after.get("dashboard") != "released":
+        run["void"] = "the dashboard's view came back"
+    stop_app()
+    return run
+
+
+def measure_idle(runs, wait, label):
+    home = os.path.join(OUT, "idle-home")
+    subprocess.run(["rm", "-rf", home], check=True)
+    smoke.arm(home, IDLE_ROUTINES)
+    try:
+        results = []
+        for i in range(runs):
+            run = idle_run(home, wait)
+            results.append(run)
+            if "void" in run:
+                print(f"run {i + 1}: void: {run['void']}", flush=True)
+                continue
+            minutes = run["seconds"] / 60
+            print(f"run {i + 1}: {run['total']:.0f} MB, core timers woke {sum(int(n) for n in run['coreWakes'].values())} "
+                  f"times in {minutes:.1f} min {run['coreWakes']}, load {run['load1']}", flush=True)
+            for kind, part in sorted(run["by"].items()):
+                print(f"  {kind:<16} {part['mb']:>7.1f} MB  {part['cpuPct']:>6.2f} % CPU  {part['wakesPerS']:>7.1f} wake-ups/s")
+        with open(os.path.join(OUT, "results", label + ".json"), "w") as f:
+            json.dump({"label": label, "idle": True, "routines": IDLE_ROUTINES, "wait": wait, "runs": results}, f, indent=1)
+    finally:
+        subprocess.run(["rm", "-rf", home], check=True)
+    good = [r for r in results if "void" not in r]
+    if not good:
+        print("no run counted")
+        return 1
+    over = [r["shortWakes"] for r in good if r["shortWakes"] > SHORT_WAKES_ALLOWED]
+    print(f"\n{label}: n={len(good)} of {len(results)}, {IDLE_ROUTINES} routines armed, window released, "
+          f"meaning model loaded")
+    print(f"  timers under 60 s woke the core {max(r['shortWakes'] for r in good)} times at most "
+          f"(allowed {SHORT_WAKES_ALLOWED}): {'over the bound' if over else 'within the bound'}")
+    return 1 if over else 0
+
+
 def spread(values):
     return f"{statistics.median(values):.0f} ({min(values):.0f}–{max(values):.0f})"
 
@@ -200,16 +356,17 @@ def main():
     if not os.path.isfile(smoke.BIN):
         print(__doc__)
         return 2
-    runs, wait = option("--runs", 5), option("--wait", 40)
+    idle = flag("--idle")
+    runs, wait = option("--runs", 1 if idle else 5), option("--wait", 600 if idle else 40)
     label = option("--label", "default")
     os.makedirs(os.path.join(OUT, "results"), exist_ok=True)
     if smoke.ctl("--status").get("running"):
         print("an app is already running on the memory data folder; quit it first")
         return 2
     global RUN
-    RUN = smoke.Run(max_seconds=runs * (wait + 120) + 120)
+    RUN = smoke.Run(max_seconds=runs * (wait + 240) + 600)
     try:
-        return measure(runs, wait, label)
+        return measure_idle(runs, wait, label) if idle else measure(runs, wait, label)
     finally:
         RUN.close()
 

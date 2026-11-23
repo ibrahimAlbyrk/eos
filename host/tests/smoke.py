@@ -15,9 +15,9 @@ What it checks:
   7. a number set on the Dock icon is what the icon shows;
   8. a window kept hidden releases the dashboard's view (after a shortened time), keeps the
      other child views, and showing it again makes the view again;
-  9. the menu-bar item shows only while the Eos preview is on (the data copy has no routine),
-     follows the setting and the working runs live, and `--quit` with runs working quits
-     without asking.
+  9. the menu-bar item shows only once a routine exists (the data copy has none; a copy
+     with one is made for it), follows the working runs live, and `--quit` with runs working
+     quits without asking.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -226,6 +226,8 @@ def released(run):
     if not check("a plain start reports the dashboard loaded", st and st.get("dashboard") == "loaded", st and st.get("dashboard")):
         return run.stop_app()
     kept = wait_for("kept view", lambda: ctl("--status").get("views"), 20)
+    # The item's first reads are done well before the view is released.
+    check("no menu-bar item while no routine exists", ctl("--status").get("tray") is None)
     with open(steps_file, "a") as f:
         f.write(json.dumps({"hide": None}) + "\n")
     st = wait_for("released", lambda: (lambda s: s if s.get("dashboard") == "released" else None)(ctl("--status")), 30)
@@ -244,13 +246,26 @@ def released(run):
     check("--quit stops the released run", run.stop_app())
 
 
+def arm(home, count):
+    """A private copy of the data folder at `home` with `count` routines armed
+    (crates/eos-app/examples/arm_routines.rs, on a scripted engine)."""
+    if not os.path.isdir(home):
+        subprocess.run(["cp", "-R", os.path.join(DATA, "home"), home], check=True)
+        subprocess.run(["chmod", "-R", "go-rwx", home], check=True)
+    made = subprocess.run(["cargo", "run", "-q", "-p", "eos-app", "--example", "arm_routines", "--", home, str(count)],
+                          cwd=os.path.dirname(HOST), capture_output=True, text=True)
+    if made.returncode != 0:
+        raise SystemExit("the routines were not armed: " + made.stderr.strip()[-300:])
+
+
 def menu_bar(run):
-    """9. The menu-bar item and quitting with runs working, on a shell data folder thrown away
-    afterwards. The data copy's Eos preview setting is put back as it was."""
+    """9. The menu-bar item and quitting with runs working, on a data copy with one routine
+    and a shell data folder, both thrown away afterwards."""
     subprocess.run(["rm", "-rf", SHELL_DATA], check=True)
     os.makedirs(SHELL_DATA)
-    settings_file = os.path.join(DEV_HOME, "settings.json")
-    before = read_json(settings_file)
+    home = os.path.join(OUT, "menu-home")
+    subprocess.run(["rm", "-rf", home], check=True)
+    arm(home, 1)
     steps_file, steps_out = os.path.join(OUT, "menu-steps.jsonl"), os.path.join(OUT, "menu-out.jsonl")
 
     def step(value):
@@ -258,31 +273,22 @@ def menu_bar(run):
             f.write(json.dumps(value) + "\n")
 
     open(steps_file, "w").close()
-    step({"preview": False})
-    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none",
+    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_DEV_HOME=home, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none",
                EOS_DEV_SCRIPT=steps_file, EOS_DEV_SCRIPT_OUT=steps_out, EOS_DEV_SCRIPT_FOLLOW="1")
     subprocess.run([os.path.join(HOST, "scripts", "launch.sh"), APP, "--quiet"], check=True, env=env)
     try:
         st = wait_for("ready", lambda: (lambda s: s if bridge_of(s).get("ready") else None)(ctl("--status")), 40)
         if not check("the menu-bar run comes up", st, "" if st else "not within 40 s"):
             return
-        # The item's first reads, and a preview read after the setting went off.
-        time.sleep(7)
         tray = lambda: ctl("--status").get("tray")
-        check("no menu-bar item without the preview or a routine", tray() is None, tray())
-        step({"preview": True})
         shown = wait_for("item", tray, 15)
         items = (shown or {}).get("items") or []
-        check("the menu-bar item shows with the preview on, its icon in the menu bar",
+        check("the menu-bar item shows once a routine exists, its icon in the menu bar",
               shown and (shown.get("rect") or [0, 0, 0])[2] > 0 and items[:2] == ["Eos (dev)", "Nothing running"]
               and "Stop all routines" in items and items[-1] == "Quit Eos", shown)
         step({"runs": 2})
         working = wait_for("working", lambda: (lambda t: t if t and "2 runs working" in t["items"] else None)(tray()), 10)
         check("... and counts the runs working", working, tray())
-        step({"preview": False})
-        check("... and goes when the preview is turned off", wait_for("gone", lambda: tray() is None, 15), tray())
-        step({"preview": True})
-        check("... and comes back when it is on again", wait_for("back", tray, 15), tray())
         pid = ctl("--status").get("pid")
         quit = ctl("--quit")
         gone = wait_for("exit", lambda: not alive(pid), 15)
@@ -292,9 +298,7 @@ def menu_bar(run):
         wait_for("helpers", lambda: not helpers(), 10)
     finally:
         run.stop_app()
-        if before is not None:
-            with open(settings_file, "w") as f:
-                json.dump(before, f, indent=2)
+        subprocess.run(["rm", "-rf", home], check=True)
 
 
 def checks(run):
@@ -317,6 +321,7 @@ def checks(run):
         "cm:paneTree": json.dumps({"t": "leaf", "id": "p1_smoke", "agentId": chat}),
         "cm:paneFocusedLeaf": "p1_smoke",
         "cm:sidePanels": json.dumps({"p1_smoke": {"open": True, "openTabs": ["browser"], "activeTab": "browser", "tabHistory": ["browser"], "windowWidth": None}}),
+        "cm:activeView": "agents",
         "cm:sideCollapsed": "0",
         "smoke:non-ascii": "ğüşiöç — ✓ 😀",
     }

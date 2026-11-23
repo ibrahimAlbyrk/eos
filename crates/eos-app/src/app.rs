@@ -256,6 +256,8 @@ pub struct App {
     work_hold: Arc<dyn WorkHold>,
     /// Told when the app shuts down, so a run's open questions stay open.
     run_questions: eos_inbox::RunQuestions,
+    /// How often the core's timers woke it.
+    wakes: crate::wakes::WakeCounter,
 }
 
 impl std::fmt::Debug for App {
@@ -298,6 +300,8 @@ impl App {
             callers,
         } = options;
         let reach = Reach::new(reaches_network);
+        let wakes = crate::wakes::WakeCounter::default();
+        let sleeper: Arc<dyn Sleeper> = Arc::new(crate::wakes::CountingSleeper::new(sleeper, wakes.clone()));
         let relay = reach.relay(relay);
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
@@ -723,6 +727,7 @@ impl App {
             vacuum: crate::maintenance::Vacuum::default(),
             work_hold,
             run_questions,
+            wakes,
         })
     }
 
@@ -802,6 +807,11 @@ impl App {
 
     pub fn store(&self) -> Arc<dyn Store> {
         self.store.clone()
+    }
+
+    /// How often the core's own timers have woken it since it was built.
+    pub fn wakes(&self) -> crate::wakes::WakeCounter {
+        self.wakes.clone()
     }
 
     /// The database writer's counters and what waits for it now.

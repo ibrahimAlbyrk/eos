@@ -12,8 +12,7 @@ use tauri::tray::TrayIconBuilder;
 /// What the menu-bar item shows. Plain data: the app hands a new one in on every change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MenuState {
-    /// The Eos preview is on or a routine exists: the item, and the Quit confirm, show only
-    /// then.
+    /// A routine exists: the item, and the Quit confirm, show only then.
     pub shown: bool,
     /// Runs of routines working now.
     pub working: u32,
@@ -174,7 +173,7 @@ impl Tray {
         *self.state.lock().unwrap_or_else(|p| p.into_inner()) = Some(state);
     }
 
-    /// Whether the item shows: the Eos preview is on or a routine exists.
+    /// Whether the item shows: a routine exists.
     pub(crate) fn shown(&self) -> bool {
         self.state.lock().unwrap_or_else(|p| p.into_inner()).as_ref().is_some_and(|state| state.shown)
     }

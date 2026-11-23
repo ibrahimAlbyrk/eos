@@ -8,7 +8,7 @@ use crate::QuitCheck;
 pub(crate) const TITLE: &str = "Quit Eos?";
 
 /// The alert's detail when quitting must be confirmed; `None` quits at once. `shown`: the
-/// menu-bar item shows (the Eos preview is on or a routine exists); the confirm comes only
+/// menu-bar item shows (a routine exists); the confirm comes only
 /// with it. A quiet run is automated: nobody is there to answer.
 pub(crate) fn ask(check: QuitCheck, shown: bool, quiet: bool) -> Option<String> {
     if quiet || !shown {
