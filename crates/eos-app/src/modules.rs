@@ -389,7 +389,16 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_surfaces::SurfacesModule::new(eos_mod_surfaces::SurfacesParts {
             store: cx.store.clone(),
             clock: cx.clock.clone(),
+            ids: cx.ids.clone(),
             settings: cx.settings.clone(),
+            actions: cx.kernel.actions.clone(),
+            gate: Arc::new(eos_inbox::gate::DirectActionGate::new(eos_inbox::gate::ActionGateParts {
+                store: cx.store.clone(),
+                clock: cx.clock.clone(),
+                ids: cx.ids.clone(),
+                zone: Arc::new(crate::host::HostTimeZone),
+                control: routines.control(),
+            })),
         })),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),

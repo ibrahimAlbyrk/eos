@@ -53,3 +53,18 @@ fn prefill_unbound_sends_and_bad_bindings_are_refused() {
     assert!(view_check(&v, Some(&json!([])), known).is_err());
     assert!(view_check(&view(json!({})), None, known).expect("nothing to bind").is_empty());
 }
+
+#[test]
+fn argument_templates_fill_from_the_stored_data_and_the_users_input_only() {
+    let template = json!({
+        "item": "{data.lead.url}", "rev": "{data.rev}", "note": "About {data.lead.title}: {state.note}{data.gone}",
+        "list": ["{data.items.1}", 3], "plain": "no slots", "missing": "{data.nowhere}"});
+    let data = json!({"lead": {"url": "https://example.com/a", "title": "Invoice"}, "rev": 2, "items": ["a", "b"]});
+    let state = json!({"note": "call back"});
+    let filled = eos_surface::fill_args(template.as_object().expect("an object"), &data, &state);
+    assert_eq!(
+        filled,
+        json!({"item": "https://example.com/a", "rev": 2, "note": "About Invoice: call back",
+               "list": ["b", 3], "plain": "no slots", "missing": null})
+    );
+}
