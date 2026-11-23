@@ -89,6 +89,51 @@ pub(crate) fn sent_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, routine_i
     Ok(())
 }
 
+/// How a routine's new head differs from the one before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeadChange {
+    /// The user changed its Freedom by hand.
+    pub freedom_by_hand: bool,
+    /// Who works, how or what it makes changed.
+    pub work: bool,
+}
+
+/// A routine kept a new head at `rung`: a Freedom the user changed by hand
+/// lifts a "Never" on offers, and a change of who works, how or what it
+/// makes counts the streak again from here (03 G3, §4.8).
+pub fn head_changed_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    routine_id: &str,
+    rung: Rung,
+    change: HeadChange,
+    now: i64,
+) -> Result<(), Error> {
+    let (count, mut offer) = standing_in(tx, routine_id, now)?;
+    let lifts = change.freedom_by_hand && OfferState::parse(&offer.state) == OfferState::Never;
+    if !lifts && !change.work {
+        return Ok(());
+    }
+    if lifts {
+        offer.state = OfferState::None.as_str().to_owned();
+    }
+    let mut count = count;
+    if change.work {
+        offer.streak_at = tx.inbox_outcomes().by_routine(routine_id, 1)?.first().map(|row| row.id).or(offer.streak_at);
+        count = 0;
+    }
+    offer.updated_at = now;
+    tx.inbox_offers().put(&offer)?;
+    tracing::info!(
+        routine_id,
+        lifted = lifts,
+        reset = change.work,
+        "a routine's new head changed where it stands with offers"
+    );
+    announce(out, routine_id, rung, count, &offer);
+    Ok(())
+}
+
 fn offer_item(tx: &dyn Tx, routine_id: &str, from: Rung, to: Rung, count: i64) -> Result<NewItem, Error> {
     let name = tx.routines().find(routine_id)?.map(|routine| routine.name).unwrap_or_else(|| "This routine".into());
     let (title, summary) = match to {

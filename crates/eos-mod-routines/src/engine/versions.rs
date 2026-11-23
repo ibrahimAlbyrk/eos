@@ -21,6 +21,7 @@ use eos_domain::routine::blueprint::{self, Context, Readable, Severity, canonica
 use eos_domain::routine::limits::{RUN_AT_LEAST_USD, RUN_ESTIMATE_TIMES, fill_defaults, per_run_usd};
 use eos_domain::routine::{slug, trust};
 use eos_domain::run_scope::Trust;
+use eos_inbox::{HeadChange, head_changed_in};
 use serde_json::Value;
 
 use super::Engine;
@@ -311,6 +312,7 @@ pub(crate) fn add_in(tx: &dyn Tx, out: &mut Outbox, added: Added<'_>) -> Result<
     let routine = live(tx, routine_id)?;
     let shown = showing_version(tx, routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))?;
     let kept = routine.state != RoutineState::Draft;
+    let before = if kept { readable(&shown)? } else { None };
     let version = NewVersion {
         id: version_id,
         routine_id,
@@ -325,6 +327,15 @@ pub(crate) fn add_in(tx: &dyn Tx, out: &mut Outbox, added: Added<'_>) -> Result<
     insert_version(tx, version)?;
     if kept {
         tx.routines().set_head(routine_id, version_id, now)?;
+    }
+    if let Some(before) = before {
+        let after = &prepared.blueprint;
+        let change = HeadChange {
+            freedom_by_hand: matches!(author, VersionAuthor::User | VersionAuthor::Restore)
+                && before.freedom != after.freedom,
+            work: before.who != after.who || before.how != after.how || before.makes != after.makes,
+        };
+        head_changed_in(tx, out, routine_id, after.freedom.rung, change, now)?;
     }
     if routine.name != prepared.blueprint.name {
         tx.routines().set_name(routine_id, &prepared.blueprint.name, now)?;

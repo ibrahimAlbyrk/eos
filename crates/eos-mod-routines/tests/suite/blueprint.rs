@@ -1,7 +1,8 @@
 //! A routine's blueprint written by hand: made from a blueprint, a new
 //! version kept from the head (409 on a stale base), its rules' errors and
-//! warnings, its trust, an old version restored, a copy; the budgets for all
-//! routines and who may call what.
+//! warnings, its trust, an old version restored, a copy; what a new head
+//! does to the routine's offers; the budgets for all routines and who may
+//! call what.
 
 use eos_contracts::{RoutineState, SettingValue};
 use eos_core::capability::Capability;
@@ -270,4 +271,45 @@ async fn only_the_users_dashboard_writes_a_blueprint_or_the_budgets_and_anyone_r
     }
     let (status, _) = routes.call(Method::Get, Caller::UNTRUSTED, "/api/routines/settings", None).await;
     assert_eq!(status, 200, "the literal path wins over /api/routines/{{id}}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_head_whose_freedom_the_user_changed_lifts_never_and_one_with_other_work_resets_the_streak() {
+    let routes = Routes::new();
+    let routine = routes.bench.routine(RoutineState::Active, blueprint(1));
+    let (offers, outcomes) = (routine.clone(), routine.clone());
+    routes
+        .bench
+        .temp
+        .exec(&format!("INSERT INTO inbox_offers (routine_id, state, updated_at) VALUES ('{offers}', 'never', 1)"));
+    for _ in 0..3 {
+        routes.bench.temp.exec(&format!(
+            "INSERT INTO inbox_outcomes (routine_id, run_id, outcome, rung, at) \
+             VALUES ('{outcomes}', 'rn-old', 'sent_unedited', 'draft', 1)"
+        ));
+    }
+    let offer = |routes: &Routes| {
+        let id = routine.clone();
+        let row = routes.bench.temp.store.read_blocking(move |tx| tx.inbox_offers().find(&id)).expect("reads");
+        let row = row.expect("an offer row");
+        (row.state, row.streak_at)
+    };
+    let head = |routes: &Routes| routes.versions(&routine).last().expect("a head").id.clone();
+
+    let mut renamed = blueprint(1);
+    renamed["name"] = json!("PR Review, renamed");
+    assert_eq!(routes.keep(&routine, &head(&routes), renamed.clone()).await.0, 200);
+    assert_eq!(offer(&routes), ("never".to_owned(), None), "neither Freedom nor the work changed");
+
+    let mut freer = renamed.clone();
+    freer["freedom"] = json!({"rung": "ask"});
+    assert_eq!(routes.keep(&routine, &head(&routes), freer.clone()).await.0, 200);
+    assert_eq!(offer(&routes), ("none".to_owned(), None), "a hand change of Freedom lifts never");
+
+    let mut deeper = freer;
+    deeper["how"]["steps"] = json!(["Read every changed file."]);
+    assert_eq!(routes.keep(&routine, &head(&routes), deeper).await.0, 200);
+    let (state, streak_at) = offer(&routes);
+    assert_eq!(state, "none");
+    assert!(streak_at.is_some(), "the streak counts from the new head");
 }

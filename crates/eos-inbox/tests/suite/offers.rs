@@ -1,11 +1,14 @@
 //! The freedom a routine earns: ten sends in a row as Eos made them open one
 //! offer; Accept raises the routine after the answer, Not now counts ten
 //! again, an edit resets the streak; a send held again after an edited send
-//! stays edited.
+//! stays edited; a hand change of Freedom lifts Never, and a new head that
+//! changes the work resets the streak.
 
 use eos_contracts::{ActionClass, InboxAnswer, OfferChoice, Rung};
+use eos_core::Clock;
 use eos_core::routine::Confirmed;
 use eos_domain::inbox::{ItemKind, ItemState};
+use eos_inbox::{HeadChange, head_changed_in};
 use eos_testkit::ControlCall;
 use serde_json::json;
 
@@ -104,4 +107,36 @@ async fn never_ends_offers_and_no_rung_that_sends_alone_is_offered_while_locked(
     send_unedited(&draft).await;
     let expected = i64::from(!eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED);
     assert_eq!(offer_items(&draft), expected);
+}
+
+/// `rt-1` kept a new head at `rung` that differs from the one before by
+/// `change`.
+async fn head_changed(held: &Held, rung: Rung, change: HeadChange) {
+    let now = held.rig.clock.now_ms();
+    held.rig
+        .temp
+        .port()
+        .write(move |tx, out| head_changed_in(tx, out, "rt-1", rung, change, now))
+        .await
+        .expect("written");
+}
+
+#[tokio::test]
+async fn a_hand_change_of_freedom_lifts_never_and_a_change_of_the_work_resets_the_streak() {
+    let held = Held::through(at_rung("ask"), review_traits(ActionClass::Speak)).await;
+    held.rig.temp.exec("INSERT INTO inbox_offers (routine_id, state, updated_at) VALUES ('rt-1', 'never', 1)");
+    earlier(&held, &["sent_unedited"; 4]);
+    let neither = HeadChange { freedom_by_hand: false, work: false };
+    head_changed(&held, Rung::Ask, neither).await;
+    let view = held.rig.items.freedom("rt-1").await.expect("read");
+    assert_eq!((view.streak, view.offer.as_str()), (4, "never"), "an unrelated change leaves both");
+
+    head_changed(&held, Rung::Ask, HeadChange { freedom_by_hand: true, work: false }).await;
+    let view = held.rig.items.freedom("rt-1").await.expect("read");
+    assert_eq!((view.streak, view.offer.as_str()), (4, "none"), "the hand change lifts never only");
+
+    head_changed(&held, Rung::Ask, HeadChange { freedom_by_hand: false, work: true }).await;
+    assert_eq!(held.rig.items.freedom("rt-1").await.expect("read").streak, 0);
+    earlier(&held, &["sent_unedited"; 2]);
+    assert_eq!(held.rig.items.freedom("rt-1").await.expect("read").streak, 2, "it counts from the new head");
 }
