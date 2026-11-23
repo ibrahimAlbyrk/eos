@@ -1,0 +1,88 @@
+/* ── The Home input's intent line and choices (RunIntent.dc.html) ─────────── */
+.eos-input-block { display: flex; flex-direction: column; gap: 12px; }
+
+.eos-intent { display: flex; flex-direction: column; gap: 8px; }
+.eos-intent__line {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-size: var(--text-sm);
+  transition: opacity 120ms ease;
+}
+.eos-intent__line--dim { opacity: 0.55; }
+.eos-intent__line--dim .eos-intent__key { color: var(--fg-dim2); }
+.eos-intent__line--hint { justify-content: center; }
+.eos-intent__line--hint .eos-intent__text { flex: none; color: var(--fg-dim); }
+.eos-intent__key {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: #262626;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-mid);
+}
+.eos-intent__text { flex: 1; min-width: 0; color: var(--fg-strong); }
+.eos-intent__text--unsure { flex: none; color: #d9b57c; }
+.eos-intent__tab { flex: none; color: var(--fg-dim2); }
+
+.eos-intent__verb { position: relative; flex: none; display: flex; }
+.eos-intent__verbbtn {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-dim2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.eos-intent__verbbtn:hover,
+.eos-intent__verbbtn[aria-expanded="true"] { background: var(--row-on); color: var(--fg-strong); }
+.eos-intent__verbbtn--forced { background: #262626; color: var(--fg-strong); }
+.eos-intent__menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 140px;
+  padding: 4px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  background: #171717;
+  box-shadow: inset 0 0 0 1px var(--line), 0 18px 40px -14px rgba(0, 0, 0, 0.7);
+}
+.eos-intent__menuitem {
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.eos-intent__menuitem:hover,
+.eos-intent__menuitem[aria-checked="true"] { background: var(--row-on); }
+
+.eos-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 8px; }
+.eos-choice {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: #262626;
+  color: var(--fg-strong);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.eos-choice:hover { background: var(--row-on); }
+.eos-choice--on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); background: var(--row-on); }
