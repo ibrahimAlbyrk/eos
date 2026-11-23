@@ -157,6 +157,7 @@ def bundle_contents():
           os.access(os.path.join(helper, "MacOS", "eos-location"), os.X_OK) and "<string>eos-location</string>" in helper_plist
           and ".location</string>" in helper_plist and "NSLocationUsageDescription" in helper_plist)
     check("the app says why it may use the local network", "NSLocalNetworkUsageDescription" in plist)
+    check("the app says why it may drive Mail", "NSAppleEventsUsageDescription" in plist)
     screen_saver(os.path.join(res, "Eos.saver"))
 
 
