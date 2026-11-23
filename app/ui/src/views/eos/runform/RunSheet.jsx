@@ -46,7 +46,7 @@ export const sheetEscape = (e) => e.key === "Escape" && e.target?.getAttribute?.
 
 function OpenSheet({ request, routine, blueprint }) {
   const options = optionsOf(routine, blueprint);
-  const [form, setFormState] = useState(() => (kept.get(routine.id) && !request.againOf ? kept.get(routine.id) : initialForm(options, request.input, Date.now(), routine.takes?.many)));
+  const [form, setFormState] = useState(() => (kept.get(routine.id) && !request.againOf && !request.input ? kept.get(routine.id) : initialForm(options, request.input, Date.now(), routine.takes?.many)));
   const setForm = (next) => {
     keepForm(routine.id, next);
     setFormState(next);

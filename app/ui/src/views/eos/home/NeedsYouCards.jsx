@@ -4,7 +4,7 @@ import { itemLocation } from "../needs/NeedsYouList.jsx";
 import { isShownOnly, primaryAction } from "../needs/words.js";
 import { clockOf, NEEDS_CARDS } from "./homeWords.js";
 
-function Card({ item, routineName }) {
+export function NeedsCard({ item, routineName }) {
   const open = () => openLocation(itemLocation(item.id));
   return (
     <article className="eos-home-card">
@@ -32,7 +32,7 @@ export function NeedsYouCards({ items, names }) {
     <section className="eos-home-part" aria-labelledby="eos-home-needs">
       <h2 id="eos-home-needs" className="eos-label">Needs you</h2>
       <div className="eos-home-cards">
-        {items.slice(0, NEEDS_CARDS).map((item) => <Card key={item.id} item={item} routineName={names[item.routineId]} />)}
+        {items.slice(0, NEEDS_CARDS).map((item) => <NeedsCard key={item.id} item={item} routineName={names[item.routineId]} />)}
       </div>
       {items.length > NEEDS_CARDS && (
         <button type="button" className="eos-link eos-home-all" onClick={() => openLocation("eos:/needs")}>All {items.length} in Needs you</button>

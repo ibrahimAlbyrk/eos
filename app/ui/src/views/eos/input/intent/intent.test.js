@@ -134,11 +134,11 @@ describe("the input reducer and Enter", () => {
   it("names its phases", () => {
     const local = read("write a haiku");
     const v = (text, asked = { status: "waiting" }) => verdictOf({ text, local: text === "" ? read("") : local, asked });
-    expect(phaseOf(initialInput, "", v(""))).toBe("idle");
-    expect(phaseOf(initialInput, "/pr", verdictOf({ text: "/pr", local, asked: {} }))).toBe("menu");
-    expect(phaseOf(initialInput, "write a haiku", v("write a haiku"))).toBe("waiting");
-    expect(phaseOf(initialInput, "write a haiku", v("write a haiku", { status: "failed" }))).toBe("choices");
-    expect(phaseOf({ ...initialInput, routineId: "rt-pr" }, "", v(""))).toBe("token");
+    expect(phaseOf("", v(""))).toBe("idle");
+    expect(phaseOf("/pr", verdictOf({ text: "/pr", local, asked: {} }))).toBe("menu");
+    expect(phaseOf("write a haiku", v("write a haiku"))).toBe("waiting");
+    expect(phaseOf("write a haiku", v("write a haiku", { status: "failed" }))).toBe("choices");
+    expect(phaseOf("", v(""), "rt-pr")).toBe("token");
     expect(optionsOf(v("write a haiku", { status: "failed" })).map((c) => c.intent)).toEqual(["make", "once", "menu"]);
   });
 });
@@ -149,7 +149,7 @@ describe("the intent line", () => {
   it("says what Enter will do in the routine's words", () => {
     expect(choiceLine({ intent: "run", routineId: "rt-pr", item: "#470" }, byId)).toBe("Run PR Review on #470, draft for you");
     expect(choiceLine({ intent: "run", routineId: "rt-pr", item: null }, byId)).toBe("Run PR Review on the latest pull request, draft for you");
-    expect(runLine({ name: "Paper", takes: { kind: "none" } }, null, { showOnly: true })).toBe("Run Paper, shown to you only");
+    expect(runLine({ name: "Paper", takes: { kind: "none" } }, null, { result: "showOnly" })).toBe("Run Paper, shown to you only");
     expect(choiceLine({ intent: "make" }, byId)).toBe(MAKE_LINE);
   });
 

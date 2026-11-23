@@ -138,6 +138,14 @@ export async function deleteRoutine(id) {
   return Boolean(r);
 }
 
+// Keep a one-off as a routine (01 G41): the core answers its row, now a
+// routine of its own; true when it took it.
+export async function keepRoutine(id) {
+  const r = await routineWrite("POST", ROUTES.routineKeep(id));
+  if (r?.body?.id === id) putRoutineRow(r.body);
+  return Boolean(r);
+}
+
 // "Start another like this": a draft copy (01 §6). The core answers
 // RoutineSaved, the copy's row in `row`; the copy's id, or null.
 export async function copyRoutine(id) {
