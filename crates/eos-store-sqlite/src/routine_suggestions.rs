@@ -1,4 +1,5 @@
-//! `routine_suggestions`: the tasks Eos offered as routines.
+//! `routine_suggestions`: the tasks Eos offered as routines; and
+//! `routine_once_asks`: the one-offs made of each kind of task.
 
 use eos_core::Error;
 use eos_core::store::{RoutineSuggestionRepo, StoredSuggestion};
@@ -34,5 +35,28 @@ impl RoutineSuggestionRepo for SqliteTx<'_> {
 
     fn set_state(&self, key: &str, state: &str) -> Result<(), Error> {
         self.exec("UPDATE routine_suggestions SET state = ?2 WHERE key = ?1", params![key, state]).map(drop)
+    }
+
+    fn note_once(&self, routine_id: &str, task_key: &str, at: i64) -> Result<(), Error> {
+        self.exec(
+            "INSERT INTO routine_once_asks (routine_id, task_key, created_at) VALUES (?1, ?2, ?3)",
+            params![routine_id, task_key, at],
+        )
+        .map(drop)
+    }
+
+    fn onces_since(&self, task_key: &str, since: i64) -> Result<usize, Error> {
+        let count: i64 = self
+            .row(
+                "SELECT COUNT(*) FROM routine_once_asks WHERE task_key = ?1 AND created_at >= ?2",
+                params![task_key, since],
+                |r| r.get(0).map_err(failed),
+            )?
+            .unwrap_or(0);
+        Ok(usize::try_from(count).unwrap_or(0))
+    }
+
+    fn forget_onces(&self, before: i64) -> Result<usize, Error> {
+        self.exec("DELETE FROM routine_once_asks WHERE created_at < ?1", [before])
     }
 }

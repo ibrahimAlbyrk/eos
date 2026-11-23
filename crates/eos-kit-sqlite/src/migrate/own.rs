@@ -30,4 +30,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("075_mem_journal"),
     // Search of memory notes by words.
     embed!("076_mem_fts"),
+    // The one-offs made of each kind of task, kept past the one-offs themselves.
+    embed!("077_routine_once_asks"),
 ];

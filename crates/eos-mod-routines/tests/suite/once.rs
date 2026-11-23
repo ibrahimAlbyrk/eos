@@ -142,6 +142,37 @@ async fn a_refused_one_off_keeps_nothing_and_asks_no_model_while_everything_is_s
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn one_offs_of_a_kind_ten_days_apart_ask_on_the_third_though_the_first_have_left() {
+    let routes = Routes::new();
+    let first = once_ended(&routes, "weekly-report").await;
+    routes.bench.clock.advance(10 * DAY);
+    let second = once_ended(&routes, "weekly-report").await;
+    routes.bench.clock.advance(10 * DAY);
+    let module = routes.bench.another_module();
+    module.after_ready().await.expect("starts");
+    routes.bench.eventually(|| routine(&routes, &first).is_none() && routine(&routes, &second).is_none()).await;
+    module.stop().await;
+    let third = once_ended(&routes, "weekly-report").await;
+    assert_eq!(routes.bench.items_of(&third, ItemKind::Suggestion).len(), 1, "three of a kind in 30 days");
+
+    // Past the 30 days the notes leave too: two more of another kind, a
+    // month apart, then a third, do not ask.
+    once_ended(&routes, "inbox-zero").await;
+    routes.bench.clock.advance(31 * DAY);
+    once_ended(&routes, "inbox-zero").await;
+    let module = routes.bench.another_module();
+    module.after_ready().await.expect("starts");
+    let notes = || {
+        let count = routes.bench.temp.store.read_blocking(|tx| tx.routine_suggestions().onces_since("inbox-zero", 0));
+        count.expect("reads")
+    };
+    routes.bench.eventually(|| notes() == 1).await;
+    module.stop().await;
+    let last = once_ended(&routes, "inbox-zero").await;
+    assert!(routes.bench.items_of(&last, ItemKind::Suggestion).is_empty(), "two in 30 days");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_unkept_one_off_leaves_seven_days_after_its_run() {
     let routes = Routes::new();
     let gone = once_ended(&routes, "notes").await;
