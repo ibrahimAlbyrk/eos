@@ -14,7 +14,7 @@ use crate::run_routes::Routes;
 
 impl Bench {
     /// Switches halt as Needs you does: the row and `inbox:halt` in one job.
-    fn switch_halt(&self, on: bool) {
+    pub(crate) fn switch_halt(&self, on: bool) {
         let since = on.then_some(1);
         self.temp
             .store
