@@ -6,6 +6,7 @@ import { AboutYouTab } from "./memory/AboutYou.jsx";
 import { AboutYouSlot } from "./memory/aboutYouSlot.js";
 import { RunSheet } from "./runform/RunSheet.jsx";
 import { EosSidebar } from "./sidebar/EosSidebar.jsx";
+import { useField } from "./field/fieldStore.js";
 import { goBack, goForward, openLocation } from "./nav/eosNav.js";
 
 // ⌘N opens a new routine. ⌘[ / ⌘] walk Eos's own history. Matched by the key's place, as ⌘⌃1…9 are,
@@ -21,5 +22,6 @@ export function EosView({ live }) {
   useKeybinding({ match: historyKey("BracketLeft"), run: (ctx, e) => { e.preventDefault(); goBack(); } }, []);
   useKeybinding({ match: historyKey("BracketRight"), run: (ctx, e) => { e.preventDefault(); goForward(); } }, []);
   useKeybinding({ match: combo("mod+n"), run: (ctx, e) => { e.preventDefault(); openLocation("eos:/routines/new"); } }, []);
-  return <AppLayout gridClass="eos-mode" sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<AboutYouSlot.Provider value={AboutYouTab}><EosMain /><RunSheet /></AboutYouSlot.Provider>} />;
+  const { on: fieldOn } = useField();
+  return <AppLayout gridClass={fieldOn ? "eos-mode eos-mode--field" : "eos-mode"} sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<AboutYouSlot.Provider value={AboutYouTab}><EosMain /><RunSheet /></AboutYouSlot.Provider>} />;
 }

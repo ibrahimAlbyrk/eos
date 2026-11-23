@@ -21,7 +21,7 @@ function Glyph({ icon, name, size }) {
 // sized by how much it does and ringed by what it needs, its name and status
 // under it, and a small arrow that opens its page. A click picks it for the
 // input; a file or link dropped on it starts a run (D40).
-export const Disc = forwardRef(function Disc({ place, row, status, picked, dim, hidden, focusable, onPick, onOpen, onDrop, onFocus }, ref) {
+export const Disc = forwardRef(function Disc({ place, delay = 0, row, status, picked, dim, focusable, onPick, onOpen, onDrop, onFocus }, ref) {
   const [over, setOver] = useState(false);
   const tierClass = row.kind === "project" ? "eos-disc--project" : `eos-disc--t${place.tier}`;
   const classes = ["eos-disc", tierClass, place.compact && "eos-disc--compact", picked && "eos-disc--picked", over && "eos-disc--over"].filter(Boolean).join(" ");
@@ -29,7 +29,7 @@ export const Disc = forwardRef(function Disc({ place, row, status, picked, dim, 
   return (
     <div
       className={classes}
-      style={{ "--x": `${place.x}px`, "--y": `${place.y}px`, "--d": `${d}px`, opacity: hidden ? 0 : dim ? 0.3 : undefined }}
+      style={{ "--x": `${place.x}px`, "--y": `${place.y}px`, "--d": `${d}px`, "--dd": `${Math.round(delay)}ms`, "--dim": dim ? 0.3 : 1 }}
       onDragOver={(e) => { e.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); onDrop(e); }}

@@ -43,7 +43,7 @@ function UnderLine({ h }) {
 // candidates; then the runs it started and the tasks done once. Entering
 // Home never focuses it (08 G10): a click or `/` does. The text survives
 // leaving Home.
-export function HomeInput({ onFocus, onBlur, inputRef: givenRef }) {
+export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef }) {
   const cardRef = useRef(null);
   const ownRef = useRef(null);
   const inputRef = givenRef ?? ownRef;
@@ -67,7 +67,7 @@ export function HomeInput({ onFocus, onBlur, inputRef: givenRef }) {
   const label = routine?.takes?.label;
   const removeItem = (item) => h.setForm(routine.takes.many ? { ...h.form, items: h.form.items.filter((i) => i !== item) } : { ...h.form, item: null });
   return (
-    <div className="eos-input-block">
+    <div ref={blockRef} className="eos-input-block">
       <div ref={cardRef} className={dragging ? "eos-input eos-input--drop" : "eos-input"}>
         <div className="eos-input__line">
           <ThingChips things={things} onRemove={remove} />
