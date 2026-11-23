@@ -13,6 +13,7 @@ use std::sync::Arc;
 use eos_contracts::{AgentEvent, WorkflowRunProgress};
 use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, LaunchSpec, NoteTurn, ToolInputDelta};
 
+use crate::actions::{ActionDecl, ActionRegistry, QueryDecl};
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
 use crate::idle::IdleHook;
@@ -148,6 +149,16 @@ pub trait Module: Send + Sync + 'static {
         Vec::new()
     }
 
+    /// The direct actions it does the work of (`routine.run_again`).
+    fn direct_actions(&self) -> Vec<ActionDecl> {
+        Vec::new()
+    }
+
+    /// The named read-only queries it answers (`routine.status`).
+    fn surface_queries(&self) -> Vec<QueryDecl> {
+        Vec::new()
+    }
+
     /// True while this feature holds the worker: every message to it queues.
     fn holds_worker(&self, _worker_id: &str) -> bool {
         false
@@ -238,6 +249,7 @@ pub struct Composed {
     pub slash_commands: Vec<SlashCommandDecl>,
     pub protected_settings: Vec<ProtectedSettings>,
     pub sync: Vec<SyncContribution>,
+    pub actions: ActionRegistry,
 }
 
 impl std::fmt::Debug for Composed {
@@ -284,8 +296,8 @@ fn valid_job_kind(kind: &str) -> bool {
 
 /// Collects what every module contributes. Fails — listing every clash — when
 /// two modules share an id, a route (same method and shape), a topic, a job
-/// kind, an idle hook id, a slash command, a protected settings key or a sync
-/// domain. Order of `modules` is start order; nothing else depends on it.
+/// kind, an idle hook id, a slash command, a protected settings key, a sync
+/// domain, a direct action or a named query. Order of `modules` is start order; nothing else depends on it.
 pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) -> Result<Composed, Error> {
     let mut conflicts = Vec::new();
     let mut ids = Claims::new("module");
@@ -295,6 +307,9 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
     let mut commands = Claims::new("slash command");
     let mut keys = Claims::new("settings key");
     let mut domains = Claims::new("sync domain");
+    let mut action_ids = Claims::new("action");
+    let mut query_ids = Claims::new("query");
+    let (mut actions, mut queries) = (Vec::new(), Vec::new());
 
     let mut out = Composed {
         modules: Modules { list: modules.into(), plugins, failed: Arc::default() },
@@ -305,6 +320,7 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
         slash_commands: Vec::new(),
         protected_settings: Vec::new(),
         sync: Vec::new(),
+        actions: ActionRegistry::default(),
     };
     for module in out.modules.list.iter() {
         let id = module.id();
@@ -351,7 +367,16 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
             domains.claim(contribution.domain, id, &mut conflicts);
             out.sync.push(contribution);
         }
+        for action in module.direct_actions() {
+            action_ids.claim(action.id, id, &mut conflicts);
+            actions.push(action);
+        }
+        for query in module.surface_queries() {
+            query_ids.claim(query.id, id, &mut conflicts);
+            queries.push(query);
+        }
     }
+    out.actions = ActionRegistry::new(actions, queries);
     // The router is what knows two patterns have one shape; build one to ask.
     match Router::builder().tolerate_undeclared().routes(out.routes.iter().cloned()).build() {
         Ok(_) => {}

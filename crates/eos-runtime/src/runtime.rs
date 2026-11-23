@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
+use crate::actions::Actions;
 use crate::bus::{Bus, BusOptions, Subscription, TopicDecl};
 use crate::error::Error;
 use crate::idle::IdleHooks;
@@ -71,6 +72,8 @@ pub struct Kernel {
     pub stream: StreamHub,
     pub live_text: LiveText,
     pub jobs: JobRegistry,
+    /// The direct actions and named queries, filled by `Runtime::build`.
+    pub actions: Actions,
     ids: Arc<IdsBox>,
     _wiring: Arc<Subscription>,
 }
@@ -103,7 +106,16 @@ impl Kernel {
                 registry.forget_worker(&removed.worker_id);
             }
         });
-        Self { ordered, bus, stream, live_text, jobs, ids: Arc::new(IdsBox(options.ids)), _wiring: Arc::new(wiring) }
+        Self {
+            ordered,
+            bus,
+            stream,
+            live_text,
+            jobs,
+            actions: Actions::default(),
+            ids: Arc::new(IdsBox(options.ids)),
+            _wiring: Arc::new(wiring),
+        }
     }
 }
 
@@ -131,11 +143,13 @@ impl std::fmt::Debug for Runtime {
 }
 
 impl Runtime {
-    /// Composes the modules (failing on any clash between them), builds the
+    /// Composes the modules (failing on any clash between them, actions and
+    /// queries included, and filling the kernel's [`Actions`]), builds the
     /// router from their routes plus the stream's (failing on a route without
     /// an access rule), and collects their idle hooks. Nothing runs yet.
     pub fn build(kernel: Kernel, modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) -> Result<Self, Error> {
         let composed = compose(modules, plugins.clone())?;
+        kernel.actions.fill(composed.actions);
         let failed = composed.modules.failed().clone();
         // The user hears of a feature that could not start, as of any other trouble.
         let bus = kernel.bus.clone();

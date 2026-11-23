@@ -2775,6 +2775,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-platform",
+ "eos-surface",
  "futures-core",
  "serde",
  "serde_json",

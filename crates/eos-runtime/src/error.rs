@@ -30,7 +30,8 @@ pub enum Error {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Conflict {
-    /// "route", "topic", "job kind", "idle hook", "slash command", "settings key", "module".
+    /// "route", "topic", "job kind", "idle hook", "slash command", "settings key", "module",
+    /// "sync domain", "action", "query".
     pub what: &'static str,
     pub name: String,
     pub first: String,
