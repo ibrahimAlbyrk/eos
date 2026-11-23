@@ -6,6 +6,7 @@
 import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blueprintStore.js";
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
 import { applyHalt, resyncHalt } from "./haltStore.js";
+import { applyHomeRunChange, resyncHome } from "./homeStore.js";
 import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.js";
 import { applyMemoryChange, applyMemoryRecalled, resyncMemory } from "./notesStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
@@ -21,7 +22,11 @@ const both = (a, b) => (payload) => {
 
 const HANDLERS = {
   "routine:change": both(applyRoutineChange, applyBlueprintChange),
-  "run:change": both(applyRunChange, applyTrialChange),
+  "run:change": (payload) => {
+    applyRunChange(payload);
+    applyTrialChange(payload);
+    applyHomeRunChange();
+  },
   "runs:active": applyRunsActive,
   "run:activity": applyRunActivity,
   "signals:change": applySignalsChange,
@@ -59,4 +64,5 @@ export function resyncEos() {
   resyncSignals();
   resyncHalt();
   resyncMemory();
+  resyncHome();
 }

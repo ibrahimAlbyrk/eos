@@ -23,6 +23,8 @@ import signInFailed from "./sample/sign-in-failed.json";
 import triggerStatus from "./sample/trigger-status.json";
 import signals from "./sample/signals.json";
 import memory from "./sample/memory.json";
+import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
+import { RUNS_PATH } from "../../../state/eos/homeStore.js";
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
@@ -35,7 +37,7 @@ import memory from "./sample/memory.json";
 // catch-up and an open batch, with a signal of each group in its list; Mail
 // Triage's source needs a sign-in. Memory holds notes learned for PR Review,
 // a project and everywhere, one of them cooling; PR Review's run was given
-// four of them.
+// four of them. Home's day is drawn around the moment the gallery opens.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
   [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
@@ -59,6 +61,10 @@ export const SAMPLE_READS = {
   [ROUTES.memoryNotes]: memory.notes,
   ...Object.fromEntries(memory.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
   [`${ROUTES.memoryRecalled}?runId=${memory.recalled.runId}`]: { notes: memory.recalled.notes },
+  [ROUTES.profile]: HOME_PROFILE,
+  [ROUTES.signalsSummary]: HOME_SUMMARY,
+  [RUNS_PATH]: { runs: homeRuns(Date.now()) },
+  [ROUTES.signalsRoutines]: homeNext(Date.now()),
 };
 
 // Eos's columns in the app's grid. The chrome around them (the mode switcher,
