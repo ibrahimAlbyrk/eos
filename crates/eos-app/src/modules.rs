@@ -386,6 +386,11 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             data_dir: cx.paths.home().to_owned(),
             autostart: cx.reach.autostart(),
         })),
+        Arc::new(eos_mod_surfaces::SurfacesModule::new(eos_mod_surfaces::SurfacesParts {
+            store: cx.store.clone(),
+            clock: cx.clock.clone(),
+            settings: cx.settings.clone(),
+        })),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),
             cx.features.clone(),

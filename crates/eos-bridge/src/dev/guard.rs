@@ -413,6 +413,9 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/signals/which/preview"),
     // Keeping the computer awake for schedules is a setting in the data folder.
     ("PUT", "/api/signals/settings"),
+    // Surfaces: a surface's saved state and how surfaces read are data in the data folder.
+    ("PUT", "/api/surfaces/{id}/state"),
+    ("PUT", "/api/settings/surfaces"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

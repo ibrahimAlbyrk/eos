@@ -60,6 +60,7 @@ eos-mod-remote.workspace = true
 eos-mod-routines.workspace = true
 eos-mod-settings.workspace = true
 eos-mod-signals.workspace = true
+eos-mod-surfaces.workspace = true
 eos-mod-sync.workspace = true
 eos-mod-system.workspace = true
 eos-mod-templates.workspace = true
