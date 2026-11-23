@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ensureHomeLoaded, lastSeenAt, markSeenSoon, refreshHome, useHome } from "../../../state/eos/homeStore.js";
 import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
@@ -7,10 +7,12 @@ import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesSt
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
+import { FieldLayer } from "../field/FieldLayer.jsx";
+import { closeField, openField, useField } from "../field/fieldStore.js";
 import { AwayList } from "./AwayList.jsx";
 import { Greeting } from "./Greeting.jsx";
 import { Horizon } from "./Horizon.jsx";
-import { awayLines, dayStart } from "./homeWords.js";
+import { awayLines, dayStart, handledLine, hello, needLine } from "./homeWords.js";
 import { LearnedLine } from "./LearnedLine.jsx";
 import { NeedsYouCards } from "./NeedsYouCards.jsx";
 import { StarterChips } from "./StarterChips.jsx";
@@ -29,12 +31,15 @@ function useMinute(clock) {
 }
 
 // eos:/ — Horizon (Main.dc.html): the day's arc, the greeting with what was
-// handled and what needs the user, the input (`input`, the Home input by
-// default), starter chips that fill it, the first Needs-you cards, what
-// happened while away and the week's learned line. Empty sections are left
-// out; entering Home never focuses anything.
-export function HomeScreen({ input = <HomeInput />, clock = Date.now }) {
+// handled and what needs the user, the input, starter chips that fill it,
+// the first Needs-you cards, what happened while away and the week's
+// learned line. Empty sections are left
+// out; entering Home never focuses anything. Focusing the input turns Home
+// into the field (FieldLayer); the rest of Home is inert meanwhile.
+export function HomeScreen({ clock = Date.now }) {
   const now = useMinute(clock);
+  const inputRef = useRef(null);
+  const { open: fieldOpen } = useField();
   const home = useHome();
   const inbox = useInbox();
   const routines = useRoutines().list;
@@ -45,7 +50,11 @@ export function HomeScreen({ input = <HomeInput />, clock = Date.now }) {
     ensureInboxLoaded();
     ensureRoutinesLoaded();
     void refreshMemorySummary();
-    return markSeenSoon();
+    const stopSeen = markSeenSoon();
+    return () => {
+      stopSeen?.();
+      closeField();
+    };
   }, []);
 
   const names = Object.fromEntries((routines ?? []).map((r) => [r.id, r.name]));
@@ -55,6 +64,10 @@ export function HomeScreen({ input = <HomeInput />, clock = Date.now }) {
   const scheduled = home.next.filter((n) => n.nextAt != null).map((n) => ({ routineId: n.routineId, at: n.nextAt }));
   const waiting = (inbox.list?.items ?? []).filter((i) => i.state === "open");
   const away = awayLines(runs, lastSeen ?? dayStart(now));
+  const needs = {};
+  for (const item of waiting) if (item.routineId) needs[item.routineId] = (needs[item.routineId] ?? 0) + 1;
+  const next = Object.fromEntries(home.next.filter((n) => n.nextAt != null).map((n) => [n.routineId, n.nextAt]));
+  const inert = fieldOpen ? "" : undefined;
 
   let body;
   if (home.failed) body = <LoadFailed what="runs" retry={() => void refreshHome()} />;
@@ -68,21 +81,34 @@ export function HomeScreen({ input = <HomeInput />, clock = Date.now }) {
   );
 
   return (
-    <main className="eos-screen eos-home">
+    <main className={fieldOpen ? "eos-screen eos-home is-field" : "eos-screen eos-home"}>
       <div className="pane-head pane-head--topleft eos-home__drag"><span className="pane-head-inset" aria-hidden="true" /></div>
       <HaltBand />
       {home.offline && <p className="eos-home__offline" role="status">Reconnecting…</p>}
       <div className="eos-home__scroll">
         <div className="eos-home__glow" aria-hidden="true" />
         <div className="eos-home__column">
-          <Horizon runs={today} scheduled={scheduled} names={names} now={now} />
-          <p className="eos-home__date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
-          <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled ?? 0} needs={waiting.length} firstRun={firstRun} />
-          {input}
-          <StarterChips onPick={setHomeDraft} />
-          {body}
+          <div className="eos-home__above" inert={inert}>
+            <Horizon runs={today} scheduled={scheduled} names={names} now={now} />
+            <p className="eos-home__date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+            <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled ?? 0} needs={waiting.length} firstRun={firstRun} />
+          </div>
+          <HomeInput inputRef={inputRef} onFocus={openField} />
+          <div className="eos-home__below" inert={inert}>
+            <StarterChips onPick={setHomeDraft} />
+            {body}
+          </div>
         </div>
       </div>
+      <FieldLayer
+        routines={routines ?? []}
+        needs={needs}
+        next={next}
+        caption={[hello(new Date(now).getHours(), home.name), needLine(waiting.length)].filter(Boolean).join(" ")}
+        handled={home.handled ? handledLine(home.handled, now, lastSeen) : null}
+        inputRef={inputRef}
+        now={now}
+      />
     </main>
   );
 }

@@ -47,6 +47,7 @@
 @import "./styles/eos-memory.css";
 @import "./styles/eos-home.css";
 @import "./styles/eos-input.css";
+@import "./views/eos/field/field.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }
