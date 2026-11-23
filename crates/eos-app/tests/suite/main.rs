@@ -30,3 +30,4 @@ mod routine_e2e;
 mod routines;
 mod samples;
 mod skeleton;
+mod upgrade;
