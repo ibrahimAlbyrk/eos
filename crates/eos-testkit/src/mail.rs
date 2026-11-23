@@ -6,7 +6,10 @@
 use std::sync::{Arc, Mutex};
 
 use eos_core::BoxFuture;
-use eos_mail_app::{Program, Script, ScriptError};
+use eos_core::capability::BuiltinCapability;
+use eos_mail_app::{MailApp, Parts, Program, Script, ScriptError};
+
+use crate::{FakeClock, FakeSleeper};
 use serde_json::{Value, json};
 
 /// One mail Eos sent: who it went to and what it said.
@@ -71,6 +74,16 @@ impl FakeMail {
 
     pub fn sent(&self) -> Vec<SentMail> {
         self.lock().sent.clone()
+    }
+
+    /// The real mail built-in, driving this fake: for a crate below the
+    /// adapters that needs a mail capability in its tests.
+    pub fn builtin(&self, now: i64) -> Arc<dyn BuiltinCapability> {
+        Arc::new(MailApp::new(Parts {
+            script: Arc::new(self.clone()),
+            clock: Arc::new(FakeClock::at(now)),
+            sleeper: Arc::new(FakeSleeper::default()),
+        }))
     }
 
     /// Every program run, in order.

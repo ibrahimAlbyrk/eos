@@ -2,24 +2,16 @@
 //! the one address its delivery's target holds, whatever its parts name,
 //! and its result shape is told and checked.
 
-use std::sync::Arc;
-
 use eos_contracts::{ItemRef, Part, ResultDoc};
 use eos_core::capability::CapabilityReads;
 use eos_core::delivery::{Idempotency, Place, SendErrorKind, SendRequest, Target, Undo};
-use eos_mail_app::{MailApp, Parts};
-use eos_testkit::{FakeClock, FakeMail, FakeSleeper};
+use eos_testkit::FakeMail;
 
 use crate::rig::{Rig, Setup, rig};
 
 async fn mail_rig() -> (Rig, FakeMail) {
     let fake = FakeMail::new();
-    let parts = Parts {
-        script: Arc::new(fake.clone()),
-        clock: Arc::new(FakeClock::at(1_000)),
-        sleeper: Arc::new(FakeSleeper::default()),
-    };
-    let rig = rig(Setup { builtins: vec![Arc::new(MailApp::new(parts))], ..Setup::default() }).await;
+    let rig = rig(Setup { builtins: vec![fake.builtin(1_000)], ..Setup::default() }).await;
     (rig, fake)
 }
 
