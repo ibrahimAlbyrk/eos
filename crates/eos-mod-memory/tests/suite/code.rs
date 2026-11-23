@@ -1,5 +1,6 @@
 //! Code-view panes: a pane's conversation is read from its transcript once
-//! it has been quiet for a minute, and at once when the pane exits.
+//! it has been quiet for a minute, and at once when the pane exits; without
+//! panes nothing is polled.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -98,6 +99,20 @@ async fn a_pane_is_read_only_after_its_transcript_was_quiet_for_a_minute() {
     // The poll's first look sees the change, so the minute starts.
     panes.poll_once_and_go_on().await;
     assert_eq!(panes.temp.count("SELECT COUNT(*) FROM mem_moments"), 0, "still writing");
+    panes.clock.advance(60_000);
+    panes.poll_once_and_go_on().await;
+    assert_eq!(panes.moments(1).await, 1);
+    panes.memory.stop().await;
+}
+
+#[tokio::test]
+async fn without_panes_nothing_is_polled_until_one_comes() {
+    let panes = Panes::start().await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!panes.sleeper.pending().contains(&15_000), "an idle app is not woken for nothing");
+    panes.open_pane().await;
+    panes.write_correction();
+    panes.poll_once_and_go_on().await;
     panes.clock.advance(60_000);
     panes.poll_once_and_go_on().await;
     assert_eq!(panes.moments(1).await, 1);
