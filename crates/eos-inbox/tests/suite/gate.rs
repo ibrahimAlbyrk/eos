@@ -191,16 +191,13 @@ async fn a_held_mail_names_each_recipient_readably() {
 }
 
 #[tokio::test]
-async fn while_automatic_sending_is_locked_a_routine_on_its_own_is_held_as_a_draft() {
-    let gated = Gated::new();
+async fn a_routine_that_sends_by_itself_queues_its_clean_result() {
     for rung in ["send_then_tell", "on_its_own"] {
-        let item_id = held(&gated.apply(input(rung)).await);
-        let item = gated.rig.find(&item_id).await;
-        let payload: Value = serde_json::from_str(&item.payload).expect("json");
-        assert_eq!((item.kind.as_str(), &payload["rung"]), ("draft", &json!("draft")), "{rung}");
+        let gated = Gated::new();
+        let decision = gated.apply(input(rung)).await;
+        assert!(matches!(decision, GateDecision::Delivering { .. }), "{rung} goes out: {decision:?}");
+        assert_eq!(gated.rows(), 1, "{rung}: one send queued");
     }
-    assert_eq!(gated.rows(), 0, "nothing is queued");
-    assert!(gated.channels.sent().is_empty());
 }
 
 #[tokio::test]
@@ -300,9 +297,5 @@ async fn a_send_that_never_reached_the_recipient_or_another_subject_is_no_repeat
     about(&gated, "rn-3", 483);
     delivered(&gated, "dl-other", "rn-3", "sent");
     let decision = gated.apply(GateInput { run_id: "rn-2".into(), ..input("on_its_own") }).await;
-    if eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED {
-        held(&decision);
-    } else {
-        assert!(matches!(decision, GateDecision::Delivering { .. }), "goes out: {decision:?}");
-    }
+    assert!(matches!(decision, GateDecision::Delivering { .. }), "goes out: {decision:?}");
 }

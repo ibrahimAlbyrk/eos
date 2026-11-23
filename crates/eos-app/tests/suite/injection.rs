@@ -12,7 +12,6 @@ use std::time::Duration;
 use eos_app::{App, CapabilityOptions, Options};
 use eos_contracts::{Fact, Facts};
 use eos_core::signals::SignalDraft;
-use eos_domain::freedom::AUTOMATIC_RUNGS_LOCKED;
 use eos_runtime::http::{Method, Request};
 use eos_testkit::agent::Turn;
 use eos_testkit::{FakeBuiltin, FakeSignalSources, ScriptedRuntime, TempHome};
@@ -60,8 +59,8 @@ fn planted_pull(n: u64, sha: &str) -> SignalDraft {
     }
 }
 
-/// The app with the source, the channels and the mailer.
-fn app(fakes: &Fakes, home: &TempHome, agents: &ScriptedRuntime) -> App {
+/// The app with the source, the channels and the mailer, as the installed app reaches them.
+pub(crate) fn app(fakes: &Fakes, home: &TempHome, agents: &ScriptedRuntime) -> App {
     let capabilities = CapabilityOptions {
         sources: Some(Arc::new(FakeSignalSources::new().with("github.pulls", fakes.source.clone()))),
         channels: Some(Arc::new(fakes.channels.clone())),
@@ -105,8 +104,8 @@ fn clean() -> Value {
            "parts": [{"key": "summary", "role": "summary", "text": "The change reads well."}]})
 }
 
-async fn hand_in(app: &App, agents: &ScriptedRuntime, lead: &str, doc: Value, checkers_before: usize) {
-    let result = json!({"kind": "github.review", "headline": "Review", "body": doc});
+pub(crate) async fn hand_in(app: &App, agents: &ScriptedRuntime, lead: &str, doc: Value, checkers_before: usize) {
+    let result = json!({"kind": doc["kind"], "headline": "Review", "body": doc});
     let reply = call_tool(app, agents, lead, "submit_result", result).await;
     assert!(!reply.is_error, "{}", reply.text);
     let checkers = || {
@@ -215,22 +214,14 @@ async fn a_compromised_run_reaches_no_one_outside_goes_to_raises_nothing_and_tea
         assert_eq!(request.target.place, eos_core::delivery::Place::Item(format!("github:pr:{REPO}#7")));
     }
 
-    // A clean result of the same routine goes out on its own only once automatic sending is unlocked.
+    // A clean result of the same routine goes out on its own.
     fakes.source.page(page(vec![crate::routines_rig::pull(8, "b1", "opened", "Tidy the docs")], false));
     fakes.poll_again(&app);
     eventually("the next pull request admits a run", || async { runs(&app, &routine).await.len() >= 2 }).await;
     let clean_run = runs(&app, &routine).await.into_iter().find(|r| r.id != planted_run).expect("the run").id;
     let clean_lead = lead(&app, &agents, &clean_run).await;
     hand_in(&app, &agents, &clean_lead, clean(), 1).await;
-    if AUTOMATIC_RUNGS_LOCKED {
-        eventually("the clean result is held", || async {
-            inbox(&app).await.iter().any(|i| i["runId"].as_str() == Some(clean_run.as_str()))
-        })
-        .await;
-        assert_eq!(fakes.channels.sent().len(), 1, "held while automatic sending is locked");
-    } else {
-        eventually("the clean result goes out on its own", || async { fakes.channels.sent().len() == 2 }).await;
-    }
+    eventually("the clean result goes out on its own", || async { fakes.channels.sent().len() == 2 }).await;
     assert_eq!(freedom().await, confirmed);
 
     // The planted rule never became a note, whatever the run's sessions said.
