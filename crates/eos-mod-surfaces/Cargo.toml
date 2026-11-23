@@ -10,8 +10,10 @@ publish.workspace = true
 [dependencies]
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-genui.workspace = true
 eos-runtime.workspace = true
 eos-surface.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true

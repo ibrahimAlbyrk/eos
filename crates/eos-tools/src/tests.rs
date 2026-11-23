@@ -56,6 +56,21 @@ impl RunCalls {
     }
 }
 
+impl eos_core::surface::SurfaceTools for RunCalls {
+    fn return_view<'a>(
+        &'a self,
+        worker_id: &'a str,
+        view: eos_core::surface::ReturnedView,
+    ) -> eos_core::BoxFuture<'a, Result<String, eos_core::Error>> {
+        if view.place == "question" {
+            let problems = "view.ui: is required\nbindings.go: binds no send action of the view".to_owned();
+            return Box::pin(std::future::ready(Err(eos_core::Error::Validation(problems))));
+        }
+        self.0.lock().expect("calls").push(format!("view {worker_id} {} {}", view.place, view.view));
+        Box::pin(std::future::ready(Ok("issue si-000000000001 · 0 bound actions".to_owned())))
+    }
+}
+
 impl RoutineTools for RunCalls {
     fn report_progress<'a>(
         &'a self,
@@ -249,6 +264,7 @@ pub(crate) fn bench_with(
         capabilities: Some(capabilities.clone()),
         routines: Some(Arc::new(runs.clone())),
         architect: Some(Arc::new(runs.clone())),
+        surfaces: Some(Arc::new(runs.clone())),
     });
     Bench { tools, runs, features, clock, store, capabilities, runner }
 }
@@ -397,6 +413,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         "report_progress",
         "submit_result",
         "report_failure",
+        "return_view",
         "ask_user",
         "current_datetime",
         "search_memory",
@@ -422,7 +439,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.names("worker")
     );
     let lead = bench.names("run-lead");
-    assert_eq!(lead[6..], ["list_capabilities", "call_capability"]);
+    assert_eq!(lead[7..], ["list_capabilities", "call_capability"]);
     for never in
         ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
     {
@@ -438,6 +455,22 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.names("run-checker"),
         ["submit_verdict", "current_datetime", "search_memory", "list_capabilities", "call_capability"]
     );
+}
+
+#[tokio::test]
+async fn a_run_hands_back_a_view_and_reads_every_problem_at_once() {
+    let bench = bench(FakeFeatures::new([]));
+    let view = serde_json::json!({"place": "result", "view": {"title": "Digest"}});
+    let returned = call(&bench.tool("run-team-lead", "return_view"), "w-lead", view).await;
+    assert_eq!((returned.text.as_str(), returned.is_error), ("issue si-000000000001 · 0 bound actions", false));
+    assert_eq!(*bench.runs.0.lock().expect("calls"), [r#"view w-lead result {"title":"Digest"}"#]);
+    let bad = serde_json::json!({"place": "question", "view": {}, "bindings": {"go": {"action": "x"}}});
+    let refused = call(&bench.tool("run-lead", "return_view"), "w-lead", bad).await;
+    assert!(refused.is_error);
+    assert_eq!(refused.text, "view.ui: is required\nbindings.go: binds no send action of the view");
+    let elsewhere =
+        call(&bench.tool("run-lead", "return_view"), "w-lead", serde_json::json!({"place": "aside", "view": {}})).await;
+    assert!(elsewhere.is_error, "{}", elsewhere.text);
 }
 
 #[tokio::test]
@@ -545,6 +578,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         capabilities: None,
         routines: None,
         architect: None,
+        surfaces: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()

@@ -16,6 +16,7 @@ use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
 use eos_core::routine::{ArchitectTools, RoutineTools};
 use eos_core::store::Store;
+use eos_core::surface::SurfaceTools;
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
 use eos_prompts::PromptRegistry;
@@ -26,8 +27,8 @@ use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
 use crate::{
-    architect, browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, time, transfer,
-    user, visual,
+    architect, browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, surfaces, time,
+    transfer, user, visual,
 };
 
 /// What the tools call. The optional parts belong to features that may not
@@ -61,6 +62,8 @@ pub struct Services {
     pub routines: Option<Arc<dyn RoutineTools>>,
     /// Routines: the tools of a routine's architect.
     pub architect: Option<Arc<dyn ArchitectTools>>,
+    /// Surfaces: a run hands back a View.
+    pub surfaces: Option<Arc<dyn SurfaceTools>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -183,6 +186,7 @@ impl Tools {
         let mut run_team_lead = lead();
         run_team_lead.extend(s.routines.as_ref().map(routines::team_specs).unwrap_or_default());
         for list in [&mut run_lead, &mut run_team_lead] {
+            list.extend(s.surfaces.as_ref().map(surfaces::specs).unwrap_or_default());
             list.push(user::ask_user(&s.questions));
             list.extend(run_shared());
         }

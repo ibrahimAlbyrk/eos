@@ -35,3 +35,22 @@ pub trait DirectActions: Send + Sync {
         origin: &'a str,
     ) -> BoxFuture<'a, Result<eos_contracts::ActionAnswer, Error>>;
 }
+
+/// What a run hands back with `return_view`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReturnedView {
+    /// `result` or `question`.
+    pub place: String,
+    /// The View as `present` takes it.
+    pub view: serde_json::Value,
+    /// `{viewActionId: {action, args}}`: what each `send` runs.
+    pub bindings: Option<serde_json::Value>,
+}
+
+/// The surface tools of a run's sessions.
+pub trait SurfaceTools: Send + Sync {
+    /// Stores the View as an issue of the caller's routine's View surface and
+    /// answers the line the agent reads; every problem is a validation error
+    /// listing them all.
+    fn return_view<'a>(&'a self, worker_id: &'a str, view: ReturnedView) -> BoxFuture<'a, Result<String, Error>>;
+}

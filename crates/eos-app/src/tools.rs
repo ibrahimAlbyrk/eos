@@ -25,6 +25,7 @@ pub(crate) fn build(
     transfer: &TransferModule,
     routines: &RoutinesModule,
     memory: &MemoryModule,
+    surfaces: &eos_mod_surfaces::SurfacesModule,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
     let control = Arc::new(ToolControl::new(agents)?);
@@ -56,5 +57,6 @@ pub(crate) fn build(
         capabilities: Some(cx.capabilities.clone()),
         routines: Some(routines.tools()),
         architect: Some(routines.architect()),
+        surfaces: Some(surfaces.tools()),
     })))
 }

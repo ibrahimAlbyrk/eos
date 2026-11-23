@@ -40,6 +40,7 @@ mod reactions;
 mod registry;
 mod routines;
 mod schema;
+mod surfaces;
 #[cfg(test)]
 mod tests;
 mod time;

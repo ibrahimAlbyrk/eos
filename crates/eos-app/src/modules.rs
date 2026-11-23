@@ -242,7 +242,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
         packs: memory.experience_packs(),
         feedback: memory.experience_feedback(),
-        surfaces: Arc::new(crate::surfaces::NoSurfaces),
+        surfaces: Arc::new(eos_mod_surfaces::SurfaceAuthor::new(cx.store.clone(), cx.clock.clone(), cx.ids.clone())),
     }));
     runs.attach(&routines);
     cx.grants.attach(&routines.grants());
@@ -250,9 +250,23 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     let run_outcomes = routines.outcomes();
     gate.attach(&routines.control(), &run_outcomes);
     cx.run_questions.attach(&routines.control());
+    let surfaces = Arc::new(eos_mod_surfaces::SurfacesModule::new(eos_mod_surfaces::SurfacesParts {
+        store: cx.store.clone(),
+        clock: cx.clock.clone(),
+        ids: cx.ids.clone(),
+        settings: cx.settings.clone(),
+        actions: cx.kernel.actions.clone(),
+        gate: Arc::new(eos_inbox::gate::DirectActionGate::new(eos_inbox::gate::ActionGateParts {
+            store: cx.store.clone(),
+            clock: cx.clock.clone(),
+            ids: cx.ids.clone(),
+            zone: Arc::new(crate::host::HostTimeZone),
+            control: routines.control(),
+        })),
+    }));
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
-        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory)?;
+        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory, &surfaces)?;
     cx.tools.attach(&tools);
     let workers = Arc::new(
         eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
@@ -386,20 +400,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             data_dir: cx.paths.home().to_owned(),
             autostart: cx.reach.autostart(),
         })),
-        Arc::new(eos_mod_surfaces::SurfacesModule::new(eos_mod_surfaces::SurfacesParts {
-            store: cx.store.clone(),
-            clock: cx.clock.clone(),
-            ids: cx.ids.clone(),
-            settings: cx.settings.clone(),
-            actions: cx.kernel.actions.clone(),
-            gate: Arc::new(eos_inbox::gate::DirectActionGate::new(eos_inbox::gate::ActionGateParts {
-                store: cx.store.clone(),
-                clock: cx.clock.clone(),
-                ids: cx.ids.clone(),
-                zone: Arc::new(crate::host::HostTimeZone),
-                control: routines.control(),
-            })),
-        })),
+        surfaces.clone(),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),
             cx.features.clone(),

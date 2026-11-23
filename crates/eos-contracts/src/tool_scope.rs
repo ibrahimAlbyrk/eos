@@ -55,6 +55,7 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "ask_choice",
     "find_past_items",
     "start_trial",
+    "return_view",
 ];
 
 /// Calls one action of a capability. Not a control tool: the permission gate
