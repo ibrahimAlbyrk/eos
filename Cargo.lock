@@ -1547,6 +1547,7 @@ dependencies = [
  "eos-mod-routines",
  "eos-mod-settings",
  "eos-mod-signals",
+ "eos-mod-surfaces",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -2437,6 +2438,20 @@ dependencies = [
  "eos-prompts",
  "eos-runtime",
  "eos-store-files",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-surfaces"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-surface",
  "eos-testkit",
  "serde_json",
  "tokio",
