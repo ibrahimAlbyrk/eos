@@ -1,14 +1,15 @@
 import Foundation
 
 // A Page's button on the phone (05 Q10, 07 §4.8): the document route writes each button as an
-// `eos-action:<issueId>/<button>/<index>` link. The phone intercepts it, asks the user natively,
+// `eos-action:<issueId>/<button>/<index>` link, with an empty index for a button outside a repeat. The phone intercepts it, asks the user natively,
 // and sends it to `POST /api/actions/run`, where the Mac's gate and the phone's tier decide.
 public struct EosAction: Equatable, Sendable {
     public let issueId: String
     public let button: String
-    public let index: Int
+    /// The item of the repeat the button sits in; nil outside a repeat.
+    public let index: Int?
 
-    public init(issueId: String, button: String, index: Int) {
+    public init(issueId: String, button: String, index: Int?) {
         self.issueId = issueId; self.button = button; self.index = index
     }
 
@@ -17,9 +18,14 @@ public struct EosAction: Equatable, Sendable {
         guard url.scheme == "eos-action" else { return nil }
         let rest = url.absoluteString.dropFirst("eos-action:".count)
         let parts = rest.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count == 3, !parts[0].isEmpty, !parts[1].isEmpty, let index = Int(parts[2]), index >= 0,
+        guard parts.count == 3, !parts[0].isEmpty, !parts[1].isEmpty,
               let issue = parts[0].removingPercentEncoding, let button = parts[1].removingPercentEncoding
         else { return nil }
+        var index: Int?
+        if !parts[2].isEmpty {
+            guard let n = Int(parts[2]), n >= 0 else { return nil }
+            index = n
+        }
         return EosAction(issueId: issue, button: button, index: index)
     }
 
@@ -28,9 +34,9 @@ public struct EosAction: Equatable, Sendable {
         var body: [String: JSONValue] = [
             "issueId": .string(issueId),
             "button": .string(button),
-            "index": .number(Double(index)),
             "clientId": .string(clientId),
         ]
+        if let index { body["index"] = .number(Double(index)) }
         if let confirm { body["confirm"] = .string(confirm) }
         if let typed { body["typed"] = .string(typed) }
         return .object(body)
