@@ -7,7 +7,8 @@
 //! one, finds the review a delivery sent by its marker, approves, polls a
 //! repository's pull requests with conditional requests, and lists pull
 //! requests for the user to pick (a repository's, done ones too, for a
-//! routine's past items). Its health check
+//! routine's past items), and registers a webhook that pushes a repository's
+//! pull requests to the relay's hook inbox. Its health check
 //! is `GET /user` with the `repo` scope. It signs in by GitHub's device flow
 //! (`DeviceSignIn`) with the client id from `github.clientId`, and keeps the
 //! token with the capability's secrets as `token`. Writes stay under its
@@ -26,6 +27,7 @@ mod manifest;
 mod rate;
 mod reviews;
 mod source;
+mod webhooks;
 
 use std::sync::Arc;
 
@@ -36,6 +38,8 @@ use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_domain::capability::health::{Event, StateCode};
 use eos_domain::capability::manifest::{DEFAULT_TIMEOUT_S, Manifest};
 use serde_json::Value;
+
+use crate::webhooks::webhook_secret;
 
 pub use client::{API, HttpRequest, HttpResponse, HttpTransport, Method, Transport, WEB};
 pub use manifest::{ID, PULL_REQUEST, TOKEN};
@@ -107,7 +111,7 @@ impl GitHub {
         let timeout_s = self.manifest.action(action).map_or(DEFAULT_TIMEOUT_S, |action| action.timeout_s);
         let token = Self::token(ctx)?;
         tokio::select! {
-            answered = self.run(action, input, token, ctx.idempotency_key.as_deref()) => answered,
+            answered = self.run(action, input, token, ctx.idempotency_key.as_deref(), webhook_secret(ctx)) => answered,
             () = self.sleeper.sleep(i64::from(timeout_s) * 1000) => {
                 tracing::info!(capability = ID, action, "a GitHub action ran out of time");
                 Err(ActionError::Timeout)

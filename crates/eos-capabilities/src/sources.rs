@@ -2,19 +2,29 @@
 //! each poll is a call of the source's action with the routine's scope and
 //! the cursor, kept opaque and handed back as the action gave it. What a
 //! source sees came from outside: every item it hands a run is marked so.
+//!
+//! A source whose manifest declares `push` can also be told of news by its
+//! service (06 G36): adding push keeps a random secret for the hook as
+//! `webhook.<hook>` (`eos-cap.<capability>.webhook.<hook>` in the app
+//! Keychain) and calls the capability's `create_webhook` with it. A push is
+//! taken only when its signature checks out with that secret, and even then
+//! it is a hint to poll: signals come only from the source's own reads.
 
 use std::sync::Arc;
 
 use eos_contracts::{Facts, ItemRef};
 use eos_core::BoxFuture;
-use eos_core::capability::{ActionCall, ActionCaller, ActionError, FailureKind};
+use eos_core::capability::{ActionCall, ActionCaller, ActionError, FailureKind, PushSecret};
+use eos_core::net::hooks::HookUrl;
 use eos_core::signals::{
     FactDecl, PollPage, PollRequest, PushEvent, PushOutcome, Scope, SignalDraft, SignalSource, SignalSources,
     SourceError,
 };
 use eos_domain::capability::health::StateCode;
-use eos_domain::capability::manifest::Source as SourceDecl;
+use eos_domain::capability::manifest::{Push, Source as SourceDecl, Verify};
+use hmac::{KeyInit, Mac};
 use serde_json::{Map, Value};
+use zeroize::Zeroizing;
 
 use crate::CapabilityService;
 
@@ -76,6 +86,45 @@ fn failed(error: &ActionError, now: i64) -> SourceError {
         ActionError::NotFound => SourceError::Bad("source"),
         ActionError::Failed { kind: FailureKind::Output } => SourceError::Bad("output"),
         _ => SourceError::Unreachable,
+    }
+}
+
+/// The action that registers a webhook with the service.
+const CREATE_WEBHOOK: &str = "create_webhook";
+
+/// The secret a hook's pushes are signed with, by its name in the Keychain.
+fn webhook_secret(hook: &str) -> String {
+    format!("webhook.{hook}")
+}
+
+fn fresh_secret() -> Result<Zeroizing<String>, SourceError> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).map_err(|_| SourceError::Bad("random"))?;
+    Ok(Zeroizing::new(bytes.iter().map(|b| format!("{b:02x}")).collect()))
+}
+
+fn unhex(text: &str) -> Option<Vec<u8>> {
+    if text.len() % 2 != 0 {
+        return None;
+    }
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(text.get(i..i + 2)?, 16).ok()).collect()
+}
+
+/// Whether `event` carries the signature `push` names, made with `secret`
+/// over its body. The comparison takes the same time wherever it differs.
+fn signed(push: &Push, secret: &str, event: &PushEvent) -> bool {
+    let header = event.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case(&push.signature_header));
+    let Some(signature) = header.and_then(|(_, value)| value.trim().strip_prefix("sha256=")).and_then(unhex) else {
+        return false;
+    };
+    match push.verify {
+        Verify::HmacSha256 => {
+            let Ok(mut mac) = <hmac::Hmac<sha2::Sha256> as KeyInit>::new_from_slice(secret.as_bytes()) else {
+                return false;
+            };
+            mac.update(&event.body);
+            mac.verify_slice(&signature).is_ok()
+        }
     }
 }
 
@@ -156,9 +205,53 @@ impl SignalSource for Source {
         Box::pin(self.poll_once(request))
     }
 
-    fn accept_push(&self, _scope: &Scope, _event: &PushEvent) -> Result<PushOutcome, SourceError> {
-        // No source checks a push's signature yet: none is taken.
-        Ok(PushOutcome::Refused)
+    fn accept_push<'a>(
+        &'a self,
+        _scope: &'a Scope,
+        event: &'a PushEvent,
+    ) -> BoxFuture<'a, Result<PushOutcome, SourceError>> {
+        Box::pin(async move {
+            let Some(push) = &self.decl.push else { return Ok(PushOutcome::Refused) };
+            let secret = self.service.ports.secrets.read(&self.capability, &webhook_secret(&event.hook)).await;
+            let secret = secret.map_err(|_| SourceError::Unreachable)?;
+            // A hook this Mac keeps no secret for was never this source's.
+            let Some(secret) = secret else { return Ok(PushOutcome::Refused) };
+            Ok(if signed(push, &secret, event) { PushOutcome::PollNow { focus: None } } else { PushOutcome::Refused })
+        })
+    }
+
+    fn pushes(&self) -> bool {
+        self.decl.push.is_some()
+    }
+
+    fn add_push<'a>(&'a self, scope: &'a Scope, hook: &'a HookUrl) -> BoxFuture<'a, Result<(), SourceError>> {
+        Box::pin(async move {
+            if self.decl.push.is_none() {
+                return Err(SourceError::Bad("push"));
+            }
+            let name = webhook_secret(&hook.id);
+            let secret = fresh_secret()?;
+            let secrets = &self.service.ports.secrets;
+            secrets.write(&self.capability, &name, secret.clone()).await.map_err(|_| SourceError::Unreachable)?;
+            let mut input: Map<String, Value> =
+                scope.iter().map(|(name, value)| (name.clone(), Value::String(value.clone()))).collect();
+            input.insert("url".into(), Value::String(hook.url.clone()));
+            let call = ActionCall {
+                capability: self.capability.clone(),
+                action: CREATE_WEBHOOK.to_owned(),
+                input: Value::Object(input),
+                caller: ActionCaller::Push { secret: PushSecret(secret) },
+                idempotency_key: None,
+            };
+            match self.service.run_call(call).await {
+                Ok(_) => Ok(()),
+                Err(error) => {
+                    // The service never took it: no push will be signed with this secret.
+                    let _ = secrets.delete(&self.capability, &name).await;
+                    Err(failed(&error, self.service.ports.clock.now_ms()))
+                }
+            }
+        })
     }
 }
 
@@ -172,6 +265,35 @@ mod tests {
         assert_eq!(signal_key("github:pr:acme/game#7", Some("abc"), "updated"), "github:pr:acme/game#7@abc");
         assert_eq!(signal_key("github:pr:acme/game#7", Some("abc"), "ready"), "github:pr:acme/game#7@abc:ready");
         assert_eq!(signal_key("github:pr:acme/game#7", None, "closed"), "github:pr:acme/game#7:closed");
+    }
+
+    fn push() -> Push {
+        Push {
+            verify: Verify::HmacSha256,
+            signature_header: "X-Hub-Signature-256".into(),
+            delivery_header: "X-GitHub-Delivery".into(),
+        }
+    }
+
+    fn event(signature: &str, body: &[u8]) -> PushEvent {
+        PushEvent {
+            hook: "h1".into(),
+            headers: vec![("x-hub-signature-256".into(), signature.into()), ("x-github-delivery".into(), "d1".into())],
+            body: body.to_vec(),
+        }
+    }
+
+    #[test]
+    fn a_push_is_signed_only_with_the_hooks_secret_over_its_exact_body() {
+        // GitHub's own example (docs: validating webhook deliveries).
+        let good = "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17";
+        assert!(signed(&push(), "It's a Secret to Everybody", &event(good, b"Hello, World!")));
+        assert!(!signed(&push(), "It's a Secret to Everybody", &event(good, b"Hello, World?")));
+        assert!(!signed(&push(), "another secret", &event(good, b"Hello, World!")));
+        assert!(!signed(&push(), "It's a Secret to Everybody", &event(&good.replace("sha256=", ""), b"Hello, World!")));
+        assert!(!signed(&push(), "It's a Secret to Everybody", &event("sha256=zz", b"Hello, World!")));
+        let unsigned = PushEvent { headers: Vec::new(), ..event(good, b"Hello, World!") };
+        assert!(!signed(&push(), "It's a Secret to Everybody", &unsigned));
     }
 
     #[test]

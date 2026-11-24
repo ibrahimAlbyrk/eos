@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use eos_contracts::{ActionClass, Issue, Issues};
 use eos_core::capability::{
-    ActionCall, ActionCaller, ActionContext, ActionError, ActionResult, FailureKind, Grant, Package,
+    ActionCall, ActionCaller, ActionContext, ActionError, ActionResult, FailureKind, Grant, Package, WEBHOOK_SECRET,
 };
 use eos_core::store::StoredCall;
 use eos_domain::capability::health::{Event, StateCode};
@@ -136,6 +136,10 @@ impl CapabilityService {
         match (&capability.version, self.builtins.get(&capability.id)) {
             (Some(version), _) => self.run_package(loaded, version, action, call.input.clone(), secrets).await,
             (None, Some(builtin)) => {
+                let mut secrets = secrets;
+                if let ActionCaller::Push { secret } = &call.caller {
+                    secrets.insert(WEBHOOK_SECRET.to_owned(), secret.0.clone());
+                }
                 let ctx = ActionContext {
                     secrets,
                     settings: capability.settings.clone(),

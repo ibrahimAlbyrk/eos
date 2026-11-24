@@ -34,6 +34,22 @@ pub enum ActionCaller {
     Health,
     /// A surface's direct action; it may only read.
     Surface { id: String },
+    /// Adding push to a source: the action that registers a webhook gets the
+    /// secret it signs with, as its `webhook` secret. No other caller has it.
+    Push { secret: PushSecret },
+}
+
+/// The name the signing secret has in the call that registers a webhook.
+pub const WEBHOOK_SECRET: &str = "webhook";
+
+/// A webhook's signing secret, handed to the one call that registers it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct PushSecret(pub zeroize::Zeroizing<String>);
+
+impl fmt::Debug for PushSecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PushSecret")
+    }
 }
 
 impl ActionCaller {
@@ -46,6 +62,7 @@ impl ActionCaller {
             ActionCaller::Candidates => "candidates",
             ActionCaller::Health => "health",
             ActionCaller::Surface { .. } => "surface",
+            ActionCaller::Push { .. } => "push",
         }
     }
 

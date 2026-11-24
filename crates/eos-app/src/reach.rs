@@ -39,6 +39,7 @@ use eos_contracts::update::UpdateOffReason;
 use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
 use eos_core::capability::CapabilitySecrets;
 use eos_core::delivery::Channels;
+use eos_core::net::hooks::HookUrl;
 use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome as PhonePushOutcome, Relay};
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::signals::{
@@ -282,8 +283,20 @@ impl SignalSource for OffSource {
         Box::pin(std::future::ready(Err(SourceError::Off)))
     }
 
-    fn accept_push(&self, _scope: &Scope, _event: &PushEvent) -> Result<PushOutcome, SourceError> {
-        Err(SourceError::Off)
+    fn accept_push<'a>(
+        &'a self,
+        _scope: &'a Scope,
+        _event: &'a PushEvent,
+    ) -> BoxFuture<'a, Result<PushOutcome, SourceError>> {
+        Box::pin(std::future::ready(Err(SourceError::Off)))
+    }
+
+    fn pushes(&self) -> bool {
+        self.0.pushes()
+    }
+
+    fn add_push<'a>(&'a self, _scope: &'a Scope, _hook: &'a HookUrl) -> BoxFuture<'a, Result<(), SourceError>> {
+        Box::pin(std::future::ready(Err(SourceError::Off)))
     }
 }
 
@@ -487,8 +500,10 @@ mod tests {
         assert!(off.get("mail.inbox").is_none(), "an unknown source stays unknown");
         let source = off.get("github.pulls").expect("the source");
         assert_eq!(source.poll(request.clone()).await, Err(SourceError::Off));
-        let push = PushEvent { headers: Vec::new(), body: Vec::new() };
-        assert_eq!(source.accept_push(&Scope::new(), &push), Err(SourceError::Off));
+        let push = PushEvent { hook: "h1".into(), headers: Vec::new(), body: Vec::new() };
+        assert_eq!(source.accept_push(&Scope::new(), &push).await, Err(SourceError::Off));
+        let hook = HookUrl { id: "h1".into(), url: "https://relay.example/hooks/v1/a/h1".into() };
+        assert_eq!(source.add_push(&Scope::new(), &hook).await, Err(SourceError::Off), "no webhook is added");
         assert!(fake.requests().is_empty(), "nothing was read");
 
         let on = Reach::new(true).signal_sources(sources).get("github.pulls").expect("the source");

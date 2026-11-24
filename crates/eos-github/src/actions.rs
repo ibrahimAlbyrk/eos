@@ -86,6 +86,7 @@ impl GitHub {
         input: Value,
         token: &str,
         key: Option<&str>,
+        webhook_secret: Option<&str>,
     ) -> Result<Value, ActionError> {
         match action {
             "check" => self.check(token).await,
@@ -100,6 +101,7 @@ impl GitHub {
             "withdraw_review" => self.withdraw_review(token, &input).await,
             "find_review" => self.find_review(token, &input).await,
             "approve_pull_request" => self.approve(token, &input, key).await,
+            "create_webhook" => self.create_webhook(token, &input, webhook_secret).await,
             "poll_pull_requests" => self.poll(token, &input).await,
             "find_pull_requests" => self.find(token, &input).await,
             _ => Err(ActionError::NotFound),

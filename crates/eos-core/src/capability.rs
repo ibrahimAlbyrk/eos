@@ -18,7 +18,7 @@ mod sign_in;
 
 pub use call::{
     ActionCall, ActionCaller, ActionDescription, ActionError, ActionResult, CapabilityCalls, CapabilityDescription,
-    FailureKind,
+    FailureKind, PushSecret, WEBHOOK_SECRET,
 };
 pub use confine::{ConfineError, ConfineGuard, ConfineReport, ConfineSpec, Confined, Confinement, Violation};
 pub use reads::{CapabilityHealth, CapabilityReads, Checkout, ItemRecogniser, MissingNeed, PastItemFilter};

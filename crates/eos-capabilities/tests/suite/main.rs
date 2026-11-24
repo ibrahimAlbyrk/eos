@@ -7,5 +7,6 @@ mod install;
 mod limits;
 mod mail;
 mod notify;
+mod push;
 mod rig;
 mod slack;

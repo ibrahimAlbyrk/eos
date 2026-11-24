@@ -71,6 +71,10 @@ struct State {
     limited: Option<HttpResponse>,
     hung: bool,
     dismissals_refused: bool,
+    /// Repository webhooks, as created: `(repo, body)`.
+    hooks: Vec<(String, Value)>,
+    /// Repositories where the user is no admin: creating a webhook is 404.
+    not_admin: Vec<String>,
     calls: Vec<GitHubCall>,
 }
 
@@ -126,6 +130,8 @@ impl FakeGitHub {
             limited: None,
             hung: false,
             dismissals_refused: false,
+            hooks: Vec::new(),
+            not_admin: Vec::new(),
             calls: Vec::new(),
         }))
     }
@@ -237,6 +243,16 @@ impl FakeGitHub {
         state.version += 1;
     }
 
+    /// The webhooks created on `repo`, as their requests' bodies.
+    pub fn webhooks(&self, repo: &str) -> Vec<Value> {
+        locked(&self.0).hooks.iter().filter(|(r, _)| r == repo).map(|(_, body)| body.clone()).collect()
+    }
+
+    /// The user is no admin of `repo`: GitHub answers a webhook's creation 404.
+    pub fn not_admin(&self, repo: &str) {
+        locked(&self.0).not_admin.push(repo.to_owned());
+    }
+
     /// Every request taken, in order.
     pub fn calls(&self) -> Vec<GitHubCall> {
         locked(&self.0).calls.clone()
@@ -289,6 +305,17 @@ impl FakeGitHub {
                 let repo = format!("{owner}/{name}");
                 let pull = state.pulls.iter().find(|((r, _), _)| *r == repo).map(|(_, pull)| pull);
                 pull.map_or_else(not_found, |pull| answer(200, &json!({ "status": "ahead", "files": pull.files })))
+            }
+            (Method::Post, ["repos", owner, name, "hooks"]) => {
+                let repo = format!("{owner}/{name}");
+                if state.not_admin.contains(&repo) {
+                    not_found()
+                } else {
+                    state.next_id += 1;
+                    let id = state.next_id;
+                    state.hooks.push((repo, body.clone()));
+                    answer(201, &json!({ "id": id, "type": "Repository", "active": true, "events": body["events"] }))
+                }
             }
             (method, ["repos", owner, name, "pulls", rest @ ..]) => {
                 state.review_route(method, &format!("{owner}/{name}"), rest, query, body)
