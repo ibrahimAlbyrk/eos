@@ -3,7 +3,7 @@
 //! `forge.propose`).
 
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, Weak};
 
 use eos_capability_host::Trial;
 use eos_core::os::{FileSystem, TimeZone};
@@ -73,8 +73,9 @@ pub struct ForgeSteps {
     pub(crate) scratch: PathBuf,
     pub(crate) trial: Arc<Trial>,
     /// Pauses a routine with too many items waiting; attached once the
-    /// routines exist, which are made with these steps.
-    control: OnceLock<Arc<dyn RoutineControl>>,
+    /// routines exist, which are made with these steps and hold them, so
+    /// weakly.
+    control: OnceLock<Weak<dyn RoutineControl>>,
 }
 
 impl std::fmt::Debug for ForgeSteps {
@@ -91,11 +92,11 @@ impl ForgeSteps {
 
     /// Hands in the routines' control, once they exist.
     pub fn attach(&self, control: Arc<dyn RoutineControl>) {
-        let _ = self.control.set(control);
+        let _ = self.control.set(Arc::downgrade(&control));
     }
 
     pub(crate) fn control(&self) -> Result<Arc<dyn RoutineControl>, Error> {
-        self.control.get().cloned().ok_or_else(|| Error::Conflict("the Forge is not ready yet".into()))
+        self.control.get().and_then(Weak::upgrade).ok_or_else(|| Error::Conflict("the Forge is not ready yet".into()))
     }
 
     /// The build folder of `run_id`.

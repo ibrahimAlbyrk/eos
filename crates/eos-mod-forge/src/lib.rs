@@ -131,7 +131,8 @@ impl ForgeModule {
     /// within a day goes back to the one before.
     fn watch(&self) {
         let mut changes = self.bus.subscribe(CAPABILITIES_CHANGE, CHANGES_QUEUED);
-        let proposals = self.proposals.clone();
+        // Weakly: a closed app lets its database go while this waits.
+        let proposals = Arc::downgrade(&self.proposals);
         let task = tokio::spawn(async move {
             loop {
                 let change = match changes.recv().await {
@@ -148,6 +149,7 @@ impl ForgeModule {
                 if !rollback::failing(state, code.as_ref()) {
                     continue;
                 }
+                let Some(proposals) = proposals.upgrade() else { return };
                 if let Err(error) = rollback::back_if_young(&proposals.steps, &proposals.capabilities, &change.id).await
                 {
                     tracing::warn!(capability = %change.id, %error, "a failing new version could not go back");
