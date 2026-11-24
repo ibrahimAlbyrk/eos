@@ -5,6 +5,7 @@ import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const REUSE_MS = 50 * 60 * 1000;
+const MIN_AGE_MS = 20 * 60 * 1000;
 
 export class ProviderToken {
   private readonly key: KeyObject;
@@ -26,6 +27,12 @@ export class ProviderToken {
       this.current = { jwt: this.make(nowMs), madeMs: nowMs };
     }
     return this.current.jwt;
+  }
+
+  // Apple refused the token (403 ExpiredProviderToken or InvalidProviderToken): the next send
+  // makes a fresh one, unless this one is too young to replace without being throttled.
+  refused(): void {
+    if (this.current && this.now() - this.current.madeMs >= MIN_AGE_MS) this.current = null;
   }
 
   private make(nowMs: number): string {

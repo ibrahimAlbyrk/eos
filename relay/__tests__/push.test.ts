@@ -120,6 +120,28 @@ test("the provider token is reused for 50 minutes and made again after", async (
   });
 });
 
+test("a token Apple refuses is made again, once it is 20 minutes old", async () => {
+  await withKey(async (keyPath) => {
+    await withFakeApns({ [TOKEN]: { status: 403, body: '{"reason":"ExpiredProviderToken"}' } }, async (origin, seen) => {
+      let nowMs = 1_800_000_000_000;
+      const apns = sender(keyPath, origin, () => nowMs);
+      const target = [{ token: TOKEN, env: "sandbox" as const }];
+      await apns.send(ROOM, "test", 1, target);
+      nowMs += 10 * 60 * 1000;
+      await apns.send(ROOM, "test", 1, target);
+      nowMs += 10 * 60 * 1000;
+      await apns.send(ROOM, "test", 1, target);
+      await apns.send(ROOM, "test", 1, target);
+      apns.close();
+
+      const [first, second, third, fourth] = seen.map((s) => String(s.headers.authorization));
+      assert.equal(second, first, "too young to replace");
+      assert.equal(third, first, "replaced only after this refusal");
+      assert.notEqual(fourth, first);
+    });
+  });
+});
+
 test("each token gets its own result: 200 sent, 410 and dead tokens gone, anything else failed", async () => {
   const gone410 = "01".repeat(32);
   const bad = "02".repeat(32);

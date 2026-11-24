@@ -12,6 +12,26 @@
 # owns ACME on 80/443. "eos-relay" resolves over the shared obsidian-sync_obsidian
 # docker network to the relay container's internal :3000 (no host port is published).
 
+# Paths: /hooks/ (outside services post webhook events, up to 1 MiB each; the relay answers 413
+# past that, and Caddy stops anything far larger first), /push/ (the Mac's push while its room
+# socket is closed), and everything else (the WebSocket, /vault/, /health).
+
 silver-giraffe-71764.zap.cloud {
-	reverse_proxy eos-relay:3000
+	@hooks path /hooks/*
+	handle @hooks {
+		request_body {
+			max_size 2MB
+		}
+		reverse_proxy eos-relay:3000
+	}
+	@push path /push/*
+	handle @push {
+		request_body {
+			max_size 16KB
+		}
+		reverse_proxy eos-relay:3000
+	}
+	handle {
+		reverse_proxy eos-relay:3000
+	}
 }
