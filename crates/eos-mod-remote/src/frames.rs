@@ -222,7 +222,7 @@ mod tests {
 
     use std::io::Read;
 
-    use eos_testkit::relay::inner_json;
+    use eos_testkit::relay::{inner_json, with_eos_cap};
     use serde_json::Value;
     use sha2::{Digest, Sha256};
 
@@ -338,6 +338,15 @@ mod tests {
         for case in cases {
             let frame = build(&expand(&case["frame"]));
             let plain = frame.payload(false);
+            if case["frame"]["t"] == "snapshot" {
+                // This app's snapshot also lists cap `eos`: `,"eos"` more.
+                let size = case["jsonBytes"].as_u64().expect("size") + 6;
+                assert_eq!(plain.len() as u64, size, "{}", case["frame"]);
+                if let Some(json) = case["json"].as_str() {
+                    assert_eq!(std::str::from_utf8(&plain).expect("utf-8"), with_eos_cap(json));
+                }
+                continue;
+            }
             assert_eq!(plain.len() as u64, case["jsonBytes"].as_u64().expect("size"), "{}", case["frame"]);
             let digest: String = Sha256::digest(&plain).iter().map(|b| format!("{b:02x}")).collect();
             assert_eq!(digest, case["jsonSha256"].as_str().expect("hash"), "{}", case["frame"]);

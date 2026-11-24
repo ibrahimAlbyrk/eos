@@ -115,6 +115,12 @@ impl std::fmt::Debug for FakePhone {
     }
 }
 
+/// A frame as the released gateway wrote it, as this app writes it: the
+/// snapshot also lists cap `eos` (`fixtures/wire/rust-differences.toml`).
+pub fn with_eos_cap(json: &str) -> String {
+    json.replace(r#""caps":["focus","rows","deflate"]"#, r#""caps":["focus","rows","deflate","eos"]"#)
+}
+
 /// The inner frame of a `data` payload: the JSON as sent, or the raw DEFLATE
 /// of it behind the mark byte `0x01`. Returns the JSON text and whether it
 /// travelled deflated.
