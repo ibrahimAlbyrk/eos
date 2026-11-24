@@ -57,7 +57,8 @@ export function followReplacement(detail) {
 // that names it.
 export function pageOf(doc) {
   if (doc?.kind !== "page.issue") return null;
-  const part = doc.parts.find((p) => p.key === "@issue");
+  // The part Eos wrote, as the core reads it (eos-domain result_doc issue_of).
+  const part = doc.parts.findLast((p) => p.key === "@issue" && p.role === "issue");
   return part?.meta?.surface ? { surfaceId: part.meta.surface, issueId: part.text } : null;
 }
 

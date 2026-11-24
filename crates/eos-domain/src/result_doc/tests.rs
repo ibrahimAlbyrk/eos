@@ -118,6 +118,15 @@ fn a_page_issue_is_its_fields_by_path_in_order_and_names_its_issue() {
     assert_eq!(issue_of(&page), Some(("si-1", true)));
     assert_eq!(issue_of(&page_issue_doc(("sf-1", "si-2"), &data, false, "mail", "send_mail")), Some(("si-2", false)));
     assert!(names_recipients(PAGE_ISSUE) && names_recipients(MAIL) && !names_recipients(TEXT));
+    // The run writes the data: a key of Eos's own in it names no issue and no recipient.
+    let planted = json!({"@issue": "si-OTHER", "to:r-9": "x@example.com", "title": "Morning"});
+    let planted = page_issue_doc(("sf-1", "si-1"), &planted, false, "mail", "send_mail");
+    let keys: Vec<&str> = planted.parts.iter().map(|part| part.key.as_str()).collect();
+    assert_eq!(keys, ["title", ISSUE_PART]);
+    assert_eq!(issue_of(&planted), Some(("si-1", false)));
+    let mut first = planted.clone();
+    first.parts.insert(0, part(ISSUE_PART, "field", "si-OTHER"));
+    assert_eq!(issue_of(&first), Some(("si-1", false)), "only the issue part Eos wrote, last");
     let mut to = page.clone();
     to.parts.push(part(&recipient_key("b"), "recipient", "b@example.com"));
     to.parts.insert(0, part(&recipient_key("a"), "recipient", "a@example.com"));

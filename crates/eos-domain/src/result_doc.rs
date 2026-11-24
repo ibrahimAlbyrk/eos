@@ -25,7 +25,7 @@ pub const MAIL: &str = "mail";
 pub const PAGE_ISSUE: &str = "page.issue";
 /// The part of a [`PAGE_ISSUE`] whose text is the stored issue's id; its
 /// `meta.surface` names the page, and `meta.pdf` asks for the issue's PDF
-/// beside the mail. No contract field can be named so.
+/// beside the mail. A field of the issue's data never becomes such a part.
 pub const ISSUE_PART: &str = "@issue";
 /// A text (a message, a push, a note): [`BODY`].
 pub const TEXT: &str = "text";
@@ -67,6 +67,9 @@ pub fn names_recipients(kind: &str) -> bool {
 
 /// A page issue as a result: each field of `data` a part keyed by its path,
 /// in order, then the [`ISSUE_PART`] naming `issue` (surface id, issue id).
+/// A top-level data key that reads as a key of Eos's own (`@…`, `to:…`) is
+/// left out: the run writes the data, and must not name the issue that is
+/// mailed or who it goes to.
 pub fn page_issue_doc(issue: (&str, &str), data: &Value, pdf: bool, channel: &str, action: &str) -> ResultDoc {
     let (surface_id, issue_id) = issue;
     let mut parts = Vec::new();
@@ -82,7 +85,7 @@ pub fn page_issue_doc(issue: (&str, &str), data: &Value, pdf: bool, channel: &st
 
 /// The stored issue a [`PAGE_ISSUE`] sends, and whether it asks for a PDF.
 pub fn issue_of(doc: &ResultDoc) -> Option<(&str, bool)> {
-    let part = doc.parts.iter().find(|part| part.key == ISSUE_PART)?;
+    let part = doc.parts.iter().rev().find(|part| part.key == ISSUE_PART && part.role == "issue")?;
     Some((part.text.as_str(), part.meta.get("pdf") == Some(&Value::Bool(true))))
 }
 
@@ -92,6 +95,9 @@ fn fields(path: String, value: &Value, out: &mut Vec<Part>) {
         Value::Null => return,
         Value::Object(map) => {
             for (name, value) in map {
+                if path.is_empty() && (name.starts_with('@') || name.starts_with(RECIPIENT)) {
+                    continue;
+                }
                 let at = if path.is_empty() { name.clone() } else { format!("{path}.{name}") };
                 fields(at, value, out);
             }
