@@ -47,6 +47,12 @@ pub(crate) fn apply_in(
     let chosen = match choose(input, &facts) {
         Targets::Go(chosen) => chosen,
         Targets::Nowhere => return Ok(GateDecision::Shown),
+        Targets::NoneLeft => {
+            let held = Held { doc: &input.doc, chosen: &[], flags: &[], rung: Rung::Draft };
+            let item_id = hold_in(tx, out, &at, gate.outcomes()?.as_ref(), input, held)?;
+            tracing::info!(run_id = %input.run_id, item_id, "a result with no place left was held");
+            return Ok(GateDecision::Held { item_id });
+        }
         Targets::Unconfirmed => {
             refuse_in(tx, out, &at, input)?;
             return Ok(GateDecision::Refused);

@@ -415,3 +415,34 @@ async fn a_routine_with_no_item_sends_to_one_recipient_once_a_local_day() {
         assert_eq!(matches!(decision, GateDecision::Held { .. }), repeats, "{state} at {at}: {decision:?}");
     }
 }
+
+#[tokio::test]
+async fn a_to_part_naming_no_one_in_goes_to_is_ignored_and_a_result_left_with_no_place_waits_as_a_draft() {
+    // D66: the run named the attacker as the mail's only recipient.
+    let gated = Gated::new();
+    let boss: Recipient =
+        serde_json::from_value(json!({"id": "boss", "kind": "fixed", "channel": "mail", "address": "boss@acme.dev"}))
+            .expect("a recipient");
+    let part = |key: &str, role: &str, text: &str| Part {
+        key: key.into(),
+        role: role.into(),
+        text: text.into(),
+        meta: Default::default(),
+    };
+    let parts = vec![part("to:evil", "recipient", "attacker@evil.example"), part("p:1", "paragraph", "Paid.")];
+    let doc = ResultDoc { kind: "mail".into(), channel: "mail".into(), action: "send".into(), parts };
+    let mail = GateInput { doc, targets: vec![boss.clone()], goes_to_confirmed: vec![boss], ..input("draft") };
+    let item = gated.rig.find(&held(&gated.apply(mail).await)).await;
+    let payload: Value = serde_json::from_str(&item.payload).expect("json");
+    let targets: Vec<&str> =
+        payload["targets"].as_array().expect("targets").iter().filter_map(|t| t["recipientId"].as_str()).collect();
+    assert_eq!(targets, ["boss"], "the boss, as Goes to names them; never the attacker");
+
+    // A review for the pull request of a run that has no item: no place is left.
+    let gated = Gated::new();
+    let decision = gated.apply(GateInput { subject_key: None, ..input("on_its_own") }).await;
+    let item = gated.rig.find(&held(&decision)).await;
+    let payload: Value = serde_json::from_str(&item.payload).expect("json");
+    assert_eq!((item.kind.as_str(), &payload["targets"]), ("draft", &json!([])));
+    assert_eq!(gated.rows(), 0);
+}
