@@ -8,6 +8,7 @@ use eos_core::capability::CapabilityCalls;
 use eos_core::forge::{Forge, ForgeAnswer, ForgeCaller, ForgeRequest, ForgeStage};
 use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError};
 use eos_core::store::Store;
+use eos_core::surface::AppHandOff;
 use eos_core::{BoxFuture, Clock, Error};
 use eos_domain::capability::health::HealthState;
 use eos_domain::run_scope::RunRole;
@@ -30,6 +31,8 @@ pub(crate) struct ForgeService {
     pub(crate) routine: OnceLock<String>,
     /// Reads the package a review passed.
     pub(crate) steps: Arc<ForgeSteps>,
+    /// The App the user promotes to an Extension.
+    pub(crate) apps: Arc<dyn AppHandOff>,
 }
 
 impl ForgeService {
@@ -66,6 +69,20 @@ impl ForgeService {
                 }
             }
         }
+        let app = match &request.from_surface {
+            Some(surface_id) => Some(self.apps.promoted(surface_id).await?),
+            None => None,
+        };
+        let note = match &app {
+            Some(app) => format!(
+                "{need}\n\nThe App to make an Extension of is «{}»: {}. Its code and manifest are in `{}/` of the \
+                 build folder; the Extension does what it does, through a capability.",
+                app.title,
+                app.summary,
+                crate::steps::PROMOTED_APP_FOLDER
+            ),
+            None => need,
+        };
         let options = [("routine", &request.routine_id), ("capability", &repair), ("surface", &request.from_surface)];
         let input = RunInput {
             item: None,
@@ -75,7 +92,7 @@ impl ForgeService {
                 .into_iter()
                 .filter_map(|(key, value)| value.clone().map(|value| (key.to_owned(), Value::String(value))))
                 .collect(),
-            note: Some(need),
+            note: Some(note),
             result: ResultMode::Usual,
             at: None,
             surface: None,
@@ -98,6 +115,9 @@ impl ForgeService {
         let made = self.runs.start(new).await.map_err(refused)?;
         let run_id =
             made.into_iter().next().map(|run| run.id).ok_or_else(|| Error::storage("no Forge run was made"))?;
+        if let Some(app) = &app {
+            self.steps.hand_in_app(&run_id, app).await?;
+        }
         tracing::info!(run_id, "a Forge run was asked for");
         Ok(ForgeAnswer::Started { run_id })
     }

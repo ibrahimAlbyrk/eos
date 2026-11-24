@@ -89,3 +89,46 @@ pub(crate) async fn propose(tools: &ViewIssues, worker_id: &str, body: Value, no
          both pass."
     ))
 }
+
+/// The App in use the user promotes to an Extension, for the Forge.
+pub(crate) struct Promote(pub(crate) std::sync::Arc<crate::SurfacesParts>);
+
+impl eos_core::surface::AppHandOff for Promote {
+    fn promoted<'a>(
+        &'a self,
+        surface_id: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<eos_core::surface::PromotedApp, Error>> {
+        Box::pin(async move {
+            if !apps_on(&self.0) {
+                return Err(Error::Validation("Apps are switched off in Settings".into()));
+            }
+            let id = surface_id.to_owned();
+            let (surface, body) = self
+                .0
+                .store
+                .read(move |tx| {
+                    let surface = tx.surfaces().find(&id)?.filter(|s| s.level == Level::App && s.archived_at.is_none());
+                    let surface = surface.ok_or_else(|| Error::not_found("App", &id))?;
+                    let number = surface.current_version.ok_or_else(|| {
+                        Error::Validation("this App has no version in use yet: keep one before promoting it".into())
+                    })?;
+                    let body = tx.surface_versions().find(&id, number)?.map(|found| found.body_json);
+                    Ok((surface, body.ok_or_else(|| Error::not_found("version", number.to_string()))?))
+                })
+                .await?;
+            let body: Value =
+                serde_json::from_str(&body).map_err(|_| Error::storage("an App's version no longer reads"))?;
+            let manifest = body["manifest"].clone();
+            tracing::info!(surface = %surface.id, "an App was handed to the Forge");
+            Ok(eos_core::surface::PromotedApp {
+                surface_id: surface.id,
+                routine_id: surface.routine_id,
+                version: surface.current_version.unwrap_or_default(),
+                title: manifest["title"].as_str().unwrap_or_default().to_owned(),
+                summary: manifest["summary"].as_str().unwrap_or_default().to_owned(),
+                html: body["html"].as_str().unwrap_or_default().to_owned(),
+                manifest,
+            })
+        })
+    }
+}

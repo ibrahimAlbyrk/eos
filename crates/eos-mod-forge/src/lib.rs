@@ -78,6 +78,8 @@ pub struct ForgeParts {
     /// The window shell's secret prompt; none without a window.
     pub prompt: Option<Arc<dyn SecretPrompt>>,
     pub bus: Bus,
+    /// The App the user promotes to an Extension, from surfaces.
+    pub apps: Arc<dyn eos_core::surface::AppHandOff>,
 }
 
 impl std::fmt::Debug for ForgeParts {
@@ -114,6 +116,7 @@ impl ForgeModule {
             service: installer,
             prompt,
             bus,
+            apps,
         } = parts;
         let service = Arc::new(request::ForgeService {
             store,
@@ -122,6 +125,7 @@ impl ForgeModule {
             capabilities,
             routine: OnceLock::new(),
             steps: steps.clone(),
+            apps,
         });
         let proposals = Arc::new(answer::Proposals::new(steps, installer, prompt, service.clone()));
         Self { service, proposals, builtins, definitions, bus, watch: Mutex::new(None) }

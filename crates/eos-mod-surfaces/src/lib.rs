@@ -229,6 +229,11 @@ impl SurfacesModule {
         })
     }
 
+    /// The App in use the user promotes, for the Forge.
+    pub fn app_hand_off(&self) -> Arc<dyn eos_core::surface::AppHandOff> {
+        Arc::new(apps::Promote(self.parts.clone()))
+    }
+
     /// The dispatcher, for the features that press a button on the user's
     /// behalf (a Needs-you card, the phone).
     pub fn direct(&self) -> Arc<dyn DirectActions> {

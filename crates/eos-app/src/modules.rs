@@ -333,6 +333,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         service: cx.capabilities.clone(),
         prompt: cx.secret_prompt.clone(),
         bus: cx.bus.clone(),
+        apps: surfaces.app_hand_off(),
     }));
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
