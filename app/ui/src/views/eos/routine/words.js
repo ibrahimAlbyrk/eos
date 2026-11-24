@@ -9,7 +9,9 @@ const PAUSED = {
   capability: "Paused: a capability it needs is missing or broken.",
 };
 
-export const pausedLine = (reason) => PAUSED[reason] ?? "Paused.";
+// A routine paused for a capability carries its id: `capability:<id>`.
+export const pausedLine = (reason) =>
+  PAUSED[reason] ?? (reason?.startsWith("capability:") ? `Paused until ${reason.slice("capability:".length)} works again.` : "Paused.");
 
 const clock = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 

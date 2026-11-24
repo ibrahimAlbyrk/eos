@@ -185,6 +185,28 @@ describe("the other cards", () => {
     ]);
   });
 
+  it("offer Repair through the Forge and the version before for a broken capability", async () => {
+    const sample = byKind.capability_attention;
+    const broken = {
+      item: { ...sample.item, title: "Notes stopped working" },
+      payload: { capabilityId: "notes-db", state: "broken", stateCode: "hash_mismatch", repair: true, goBack: "1.0.0" },
+    };
+    const html = await screen("capability_attention", broken);
+    expect(buttons(html)).toEqual(["Check again", "Repair", "Go back", "Open", "Later", "Discard"]);
+    expect(html).toContain("Version 1.0.0 still works on this Mac.");
+
+    const t = recording(async () => ({ ok: true, status: 200, body: { runId: "rn-9" } }));
+    setEosTransport(t);
+    const run = (label) => actionsOf(broken).find((a) => a.label === label).run(broken, {});
+    expect(await run("Repair")).toBe(false);
+    expect(t.send.mock.calls[0]).toEqual([
+      "POST", ROUTES.forge, { need: "Repair Notes stopped working: hash_mismatch", capabilityId: "notes-db" },
+    ]);
+    expect(eosLocation()).toBe("eos:/runs/rn-9");
+    expect(await run("Go back")).toBe(false);
+    expect(t.send.mock.calls[1]).toEqual(["POST", ROUTES.capabilityRollback("notes-db"), { version: "1.0.0" }]);
+  });
+
   it("show a notice's one action under its own name, beside Dismiss", async () => {
     const notice = { ...byKind.notice, item: { ...byKind.notice.item, state: "open" } };
     expect(buttons(await screen("notice", notice))).toEqual(["Keep the Mac awake for schedules", "Dismiss", "Later", "Discard"]);

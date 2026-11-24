@@ -11,6 +11,7 @@ import { UiProvider } from "../../../state/ui.jsx";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { menuActions } from "./RoutineMenu.jsx";
+import { pausedLine } from "./words.js";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
 import routinePaused from "../gallery/sample/routine-paused.json";
@@ -184,6 +185,11 @@ describe("the routine page", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Resume</button>');
     expect(html).toContain(">Open the last run</button>");
     expect(html).not.toContain(">Pause</button>");
+  });
+
+  it("names the capability a routine waits for", () => {
+    expect(pausedLine("capability:notes-db")).toBe("Paused until notes-db works again.");
+    expect(pausedLine("odd")).toBe("Paused.");
   });
 
   it("bands a routine whose last run failed with the reason in words", async () => {

@@ -70,11 +70,12 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
 
 // A capability that needs the user before it works again: why, in words.
 export function CapabilityProblem({ detail }) {
-  const why = stateLine({ state: "needs_setup", stateCode: detail.payload?.stateCode });
+  const why = stateLine({ state: detail.payload?.state ?? "needs_setup", stateCode: detail.payload?.stateCode });
   return (
     <div className="eos-needs-card">
       {detail.item.summary && <p className="eos-needs-card__lead">{detail.item.summary}</p>}
       {why && <p className="eos-needs-card__class">{why}</p>}
+      {detail.payload?.goBack && <p className="eos-needs-card__class">Version {detail.payload.goBack} still works on this Mac.</p>}
     </div>
   );
 }

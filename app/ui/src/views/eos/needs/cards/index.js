@@ -14,7 +14,7 @@ import { editedGuess, MemoryQuestion } from "./MemoryQuestion.jsx";
 import { PlainCard } from "./PlainCard.jsx";
 import { CapabilityProblem, CapabilityProposal, liveStateOf, settingKey } from "./CapabilityCards.jsx";
 import { FreedomOffer } from "./FreedomOffer.jsx";
-import { checkCapability } from "../../../../state/eos/capabilitiesStore.js";
+import { checkCapability, repairCapability, rollbackCapability } from "../../../../state/eos/capabilitiesStore.js";
 
 const answer = (kind, choice, label, primary = false) => ({
   label,
@@ -166,6 +166,27 @@ const KINDS = {
         // The item stays until the core sees the capability working again.
         run: async (detail) => {
           await checkCapability(detail.payload.capabilityId);
+          return false;
+        },
+      },
+      {
+        label: "Repair",
+        write: true,
+        when: (detail) => Boolean(detail.payload?.capabilityId && detail.payload.repair),
+        // A Forge run builds it again; its proposal comes back here.
+        run: async (detail) => {
+          const { capabilityId, stateCode } = detail.payload;
+          const runId = await repairCapability(capabilityId, `Repair ${detail.item.title}: ${stateCode ?? "it fails its check"}`);
+          if (runId) openLocation(`eos:/runs/${encodeURIComponent(runId)}`);
+          return false;
+        },
+      },
+      {
+        label: "Go back",
+        write: true,
+        when: (detail) => Boolean(detail.payload?.capabilityId && detail.payload.goBack),
+        run: async (detail) => {
+          await rollbackCapability(detail.payload.capabilityId, detail.payload.goBack);
           return false;
         },
       },

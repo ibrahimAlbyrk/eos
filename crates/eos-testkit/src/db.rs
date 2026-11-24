@@ -119,6 +119,15 @@ impl TempStore {
         });
         read.expect("the query runs")
     }
+
+    /// The text a one-text query answers.
+    pub fn text(&self, sql: &str) -> String {
+        let sql = sql.to_owned();
+        let read = self.store.db().maintain(move |conn: &Connection| {
+            conn.query_row(&sql, [], |row| row.get::<_, String>(0)).map_err(Error::from)
+        });
+        read.expect("the query runs")
+    }
 }
 
 impl TempHome {

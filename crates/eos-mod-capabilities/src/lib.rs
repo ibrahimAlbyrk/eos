@@ -22,6 +22,10 @@
 //!   the service's own page (GitHub), from this computer only: start it and
 //!   get the code, see how it stands, end it.
 //!
+//! A capability that needs a sign-in, a setup step or a repair pauses the
+//! routines that need it and opens one Needs-you item; once it works again
+//! only those routines resume ([`breakage`]).
+//!
 //! A change of a capability's state or version is announced on
 //! `capabilities:change` from the write job that made it. Once the app is
 //! ready, the service starts and every capability is checked hourly, spread
@@ -31,6 +35,7 @@
 //! Logs carry ids, states, outcomes and durations; never settings, labels,
 //! sign-in codes, tokens, secrets, input or output.
 
+mod breakage;
 mod routes;
 mod sign_in;
 mod ticker;
@@ -46,6 +51,7 @@ use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 
+pub use breakage::{BreakageParts, PRODUCER, pause_reason};
 pub use sign_in::SIGN_IN_LINK;
 pub use ticker::{CHECK_EVERY_MS, TICK_MS};
 
@@ -59,6 +65,7 @@ pub struct CapabilitiesModule {
     ticker: ticker::Ticker,
     sign_ins: Arc<sign_in::SignIns>,
     prompt: Option<Arc<dyn SecretPrompt>>,
+    breakage: Option<Arc<breakage::Breakage>>,
 }
 
 impl std::fmt::Debug for CapabilitiesModule {
@@ -77,12 +84,29 @@ impl CapabilitiesModule {
         sleeper: Arc<dyn Sleeper>,
     ) -> Self {
         let sign_ins = Arc::new(sign_in::SignIns::new(clock.clone()));
-        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins, prompt: None }
+        Self {
+            service,
+            store,
+            clock,
+            sleeper,
+            ticker: ticker::Ticker::default(),
+            sign_ins,
+            prompt: None,
+            breakage: None,
+        }
     }
 
     /// The window shell's secret prompt: without one, entering a secret is refused.
     pub fn with_secret_prompt(mut self, prompt: Option<Arc<dyn SecretPrompt>>) -> Self {
         self.prompt = prompt;
+        self
+    }
+
+    /// The routines a broken capability pauses, and the inbox its item goes
+    /// to: without them a capability's state reaches no routine.
+    pub fn with_breakage(mut self, parts: BreakageParts) -> Self {
+        let breakage = breakage::Breakage::new(parts, self.service.clone(), self.store.clone(), self.clock.clone());
+        self.breakage = Some(Arc::new(breakage));
         self
     }
 }
@@ -133,6 +157,9 @@ impl Module for CapabilitiesModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         Box::pin(async move {
             self.service.start().await?;
+            if let Some(breakage) = &self.breakage {
+                breakage.start().await?;
+            }
             self.ticker.start(self.service.clone(), self.store.clone(), self.clock.clone(), self.sleeper.clone());
             Ok(())
         })
@@ -140,6 +167,11 @@ impl Module for CapabilitiesModule {
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         self.sign_ins.stop();
-        Box::pin(self.ticker.stop())
+        Box::pin(async move {
+            self.ticker.stop().await;
+            if let Some(breakage) = &self.breakage {
+                breakage.stop().await;
+            }
+        })
     }
 }
