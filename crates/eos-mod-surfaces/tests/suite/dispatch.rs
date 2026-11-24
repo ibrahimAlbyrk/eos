@@ -17,11 +17,13 @@ fn view_issue() -> StoredIssue {
     let mut issue = issue("si-1", "sf-a");
     issue.body_json = json!({
         "view": {"title": "Digest", "summary": "Mail", "ui": "<Text>Hi</Text>",
-                 "data": {"lead": {"url": "https://example.com/a"}},
+                 "data": {"lead": {"url": "https://example.com/a"},
+                          "stories": [{"id": "s-1", "url": "https://example.com/one"}, {"url": "https://example.com/two"}]},
                  "actions": {"dig": {"label": "Dig", "kind": "send", "text": "x"}}},
         "bindings": {
             "dig": {"action": "probe.with", "args": {"item": "{data.lead.url}", "note": "{state.note}"}},
             "again": {"action": "probe.again"},
+            "open": {"action": "probe.with", "list": "data.stories", "args": {"item": "{item.url}"}},
             "erase": {"action": "probe.erase"},
             "broken": {"action": "probe.fails"},
             "ghost": {"action": "probe.nowhere"},
@@ -184,4 +186,31 @@ async fn the_registry_lists_every_action_with_its_argument_type() {
         list["actions"].as_array().expect("actions").iter().find(|a| a["id"] == "probe.with").cloned().expect("listed");
     assert_eq!(with["scope"], "owner_routine");
     assert_eq!(with["args"]["fields"]["item"], json!({"type": "url"}));
+}
+
+#[tokio::test]
+async fn a_button_on_a_list_row_runs_on_the_row_it_was_pressed_on() {
+    let rig = rig().await;
+    let by_id = json!({"issueId": "si-1", "actionId": "open", "clientId": "r-1", "itemId": "s-1"});
+    assert_eq!(press(&rig, by_id).await.1["result"], json!({"echo": {"item": "https://example.com/one"}}));
+    let by_index = json!({"issueId": "si-1", "actionId": "open", "clientId": "r-2", "index": 1});
+    assert_eq!(press(&rig, by_index).await.1["result"], json!({"echo": {"item": "https://example.com/two"}}));
+    for (n, (row, why)) in [
+        (json!({}), "no row named"),
+        (json!({"itemId": "s-9"}), "an id that names no row"),
+        (json!({"index": 7}), "an index past the rows"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut pressed = json!({"issueId": "si-1", "actionId": "open", "clientId": format!("r-bad-{n}")});
+        pressed.as_object_mut().expect("an object").extend(row.as_object().cloned().unwrap_or_default());
+        let (_, answer) = press(&rig, pressed).await;
+        assert_eq!(
+            (answer["status"].as_str(), answer["reason"].as_str()),
+            (Some("refused"), Some("That button needs the row it was pressed on")),
+            "{why}"
+        );
+    }
+    assert_eq!(rig.heard.lock().expect("heard").len(), 2, "only the two presses on a row ran");
 }

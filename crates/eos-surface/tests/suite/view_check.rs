@@ -61,10 +61,37 @@ fn argument_templates_fill_from_the_stored_data_and_the_users_input_only() {
         "list": ["{data.items.1}", 3], "plain": "no slots", "missing": "{data.nowhere}"});
     let data = json!({"lead": {"url": "https://example.com/a", "title": "Invoice"}, "rev": 2, "items": ["a", "b"]});
     let state = json!({"note": "call back"});
-    let filled = eos_surface::fill_args(template.as_object().expect("an object"), &data, &state);
+    let from = eos_surface::Sources { data: &data, state: &state, item: &Value::Null };
+    let filled = eos_surface::fill_args(template.as_object().expect("an object"), from);
     assert_eq!(
         filled,
         json!({"item": "https://example.com/a", "rev": 2, "note": "About Invoice: call back",
                "list": ["b", 3], "plain": "no slots", "missing": null})
     );
+}
+
+#[test]
+fn a_button_in_a_lists_rows_binds_the_row_it_was_pressed_on() {
+    let v = view(json!({"open": {"label": "Open", "kind": "send", "text": "open"}}));
+    let known = |id: &str| id == "routine.run_on";
+    let bound = json!({"open": {"action": "routine.run_on", "list": "data.stories", "args": {"item": "{item.url}"}}});
+    let bindings = view_check(&v, Some(&bound), known).expect("bound");
+    assert_eq!(bindings[0].list.as_deref(), Some("data.stories"));
+    let rowless = json!({"open": {"action": "routine.run_on", "args": {"item": "{item.url}"}}});
+    let found = format_problems(&view_check(&v, Some(&rowless), known).expect_err("refused"));
+    assert_eq!(found, "bindings.open.args.item: {item.url} names a row: give the binding the list its button sits in");
+    let outside = json!({"open": {"action": "routine.run_on", "list": "state.rows", "args": {}}});
+    assert!(view_check(&v, Some(&outside), known).is_err(), "a list is the issue's own data");
+
+    let data = json!({"stories": [{"id": "s-1", "url": "https://a.example"}, {"id": 7, "url": "https://b.example"}]});
+    let row = |id, index| eos_surface::pressed_row(&data, "data.stories", id, index).map(|row| row["url"].clone());
+    assert_eq!(row(Some("7"), None), Some(json!("https://b.example")), "by its id");
+    assert_eq!(row(None, Some(0)), Some(json!("https://a.example")), "by its index");
+    assert_eq!(row(Some("s-9"), Some(0)), None, "an id that names no row is no row");
+    assert_eq!(row(None, Some(5)), None);
+    let pressed = eos_surface::pressed_row(&data, "data.stories", None, Some(1)).expect("a row");
+    let from = eos_surface::Sources { data: &data, state: &json!({}), item: pressed };
+    let template = json!({"item": "{item.url}", "about": "Story {item.id}"});
+    let filled = eos_surface::fill_args(template.as_object().expect("an object"), from);
+    assert_eq!(filled, json!({"item": "https://b.example", "about": "Story 7"}));
 }

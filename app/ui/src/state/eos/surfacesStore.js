@@ -91,12 +91,41 @@ export const resyncSurfaces = applySurfacesChange;
 let presses = 0;
 export const pressId = () => `dash-${Date.now().toString(36)}-${(presses += 1)}`;
 
+// Which row of the View's data a button inside a list was pressed on, as the
+// core picks it: the row's id when it has one, else its place in the first
+// list of the data that holds it. Nothing of the row itself is sent.
+export function pressedRow(data, item) {
+  if (item == null) return {};
+  if (typeof item === "string" || typeof item === "number") return { itemId: String(item) };
+  const wanted = JSON.stringify(item);
+  const find = (node) => {
+    if (Array.isArray(node)) {
+      const at = node.findIndex((row) => JSON.stringify(row) === wanted);
+      if (at >= 0) return at;
+      for (const row of node) {
+        const inner = find(row);
+        if (inner != null) return inner;
+      }
+    } else if (node && typeof node === "object") {
+      for (const value of Object.values(node)) {
+        const inner = find(value);
+        if (inner != null) return inner;
+      }
+    }
+    return null;
+  };
+  const index = find(data);
+  return index == null ? {} : { index };
+}
+
 // One press of `actionId` on `issueId`'s View: the core's answer
 // { status: done | confirm | held | refused, … }, or refused with the reason
 // when the core turned the request away.
-export async function runSurfaceAction({ issueId, actionId, state: input, clientId, confirm, typed }) {
+export async function runSurfaceAction({ issueId, actionId, state: input, clientId, confirm, typed, itemId, index }) {
   const body = {
     issueId, actionId, clientId,
+    ...(itemId != null ? { itemId } : {}),
+    ...(index != null ? { index } : {}),
     ...(input && Object.keys(input).length ? { state: input } : {}),
     ...(confirm ? { confirm } : {}),
     ...(typed ? { typed } : {}),

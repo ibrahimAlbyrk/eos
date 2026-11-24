@@ -54,8 +54,16 @@ fn checked(actions: &Actions, returned: &ReturnedView) -> Result<Vec<Binding>, V
 }
 
 fn stored_body(returned: &ReturnedView, bindings: &[Binding]) -> Value {
-    let bound: Map<String, Value> =
-        bindings.iter().map(|b| (b.view_action.clone(), json!({ "action": b.action, "args": b.args }))).collect();
+    let bound: Map<String, Value> = bindings
+        .iter()
+        .map(|b| {
+            let mut bound = json!({ "action": b.action, "args": b.args });
+            if let Some(list) = &b.list {
+                bound["list"] = Value::String(list.clone());
+            }
+            (b.view_action.clone(), bound)
+        })
+        .collect();
     json!({ "place": returned.place, "view": returned.view, "bindings": bound })
 }
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetSurfaces, refreshSurfaces, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
+import { _resetSurfaces, pressedRow, refreshSurfaces, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { UiProvider } from "../../../state/ui.jsx";
 import { ConfirmBelow, SurfaceCard, typedRight } from "./SurfaceCard.jsx";
 
@@ -98,5 +98,18 @@ describe("a routine's View in Needs you", () => {
     setEosTransport({ ...fixtureTransport(reads), send });
     const answer = await runSurfaceAction({ issueId: issue.id, actionId: "again", clientId: "c-2" });
     expect(answer).toEqual({ status: "refused", reason: "This is a dev run: nothing runs from here." });
+  });
+
+  it("names the row a button in a list was pressed on by its id or its place, never by its values", async () => {
+    const data = { title: "Overnight", stories: [{ url: "https://a.example" }, { url: "https://b.example" }] };
+    expect(pressedRow(data, "s-1")).toEqual({ itemId: "s-1" });
+    expect(pressedRow(data, 7)).toEqual({ itemId: "7" });
+    expect(pressedRow(data, { url: "https://b.example" })).toEqual({ index: 1 });
+    expect(pressedRow(data, { url: "https://elsewhere.example" })).toEqual({});
+    expect(pressedRow(data, undefined)).toEqual({});
+    const send = vi.fn(async () => ({ ok: true, status: 200, body: { status: "done", recordId: "da-2" } }));
+    setEosTransport({ ...fixtureTransport(reads), send });
+    await runSurfaceAction({ issueId: issue.id, actionId: "open", clientId: "c-2", index: 1 });
+    expect(send.mock.calls[0][2]).toEqual({ issueId: issue.id, actionId: "open", clientId: "c-2", index: 1 });
   });
 });
