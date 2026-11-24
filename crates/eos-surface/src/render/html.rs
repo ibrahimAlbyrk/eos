@@ -41,6 +41,17 @@ const STEERING: &[&str] = &["part", "each", "as", "if", "unless", "class", "styl
 
 /// The page's body: the template drawn with the issue's data.
 pub fn render_body(input: &RenderInput<'_>, mode: Mode) -> String {
+    walk(input, mode, None).0
+}
+
+/// One Live part as the frame swaps it in, drawn with its answer in
+/// `input.live`; None when the template has no part of that name.
+pub fn render_part(input: &RenderInput<'_>, part: &str) -> Option<String> {
+    walk(input, Mode::Frame, Some(part)).1
+}
+
+/// The body drawn, and the one part asked for.
+fn walk(input: &RenderInput<'_>, mode: Mode, only: Option<&str>) -> (String, Option<String>) {
     let issue = input.issue.as_value();
     let filters = filters_of(&input.design.template.nodes);
     let mut walker = Walker {
@@ -54,9 +65,11 @@ pub fn render_body(input: &RenderInput<'_>, mode: Mode) -> String {
         chain: Vec::new(),
         counts: vec![0],
         out: String::new(),
+        only: only.map(str::to_owned),
+        found: None,
     };
     walker.nodes(&input.design.template.nodes);
-    walker.out
+    (walker.out, walker.found)
 }
 
 pub(super) struct Walker<'a, 'i> {
@@ -74,6 +87,10 @@ pub(super) struct Walker<'a, 'i> {
     /// Mail: how many elements each open element holds so far.
     pub(super) counts: Vec<usize>,
     pub(super) out: String,
+    /// The Live part to keep, when only one is drawn.
+    pub(super) only: Option<String>,
+    /// That part's HTML once it was drawn.
+    pub(super) found: Option<String>,
 }
 
 impl<'a> Walker<'a, '_> {

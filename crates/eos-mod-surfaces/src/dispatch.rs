@@ -147,7 +147,7 @@ impl Dispatcher {
             },
             None => &Value::Null,
         };
-        let args = fill_args(&template, Sources { data, state: &state, item });
+        let args = fill_args(&template, Sources { data, state: &state, item, fields: &Value::Null });
         let question = body["place"] == "question";
         let answers = body["itemId"]
             .as_str()

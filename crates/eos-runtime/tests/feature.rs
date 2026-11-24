@@ -112,6 +112,7 @@ impl Module for Notes {
             title: "How many notes",
             args: no_args(),
             scope: ActionScope::Any,
+            topics: &[],
             handler: Arc::new(CountNotes(self.count.clone())),
         }]
     }

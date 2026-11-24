@@ -81,6 +81,29 @@ impl PageTemplate {
     pub fn to_markup(&self) -> String {
         to_markup(&self.nodes)
     }
+
+    /// The Live part named `part`: the query it reads and the argument
+    /// template filled from the issue's data.
+    pub fn live_part(&self, part: &str) -> Option<LivePart> {
+        fn find<'n>(nodes: &'n [Node], part: &str) -> Option<&'n Element> {
+            nodes.iter().filter_map(Node::as_element).find_map(|el| {
+                if el.name == "Live" && el.part() == Some(part) { Some(el) } else { find(&el.children, part) }
+            })
+        }
+        let el = find(&self.nodes, part)?;
+        let args = match el.attr("args") {
+            Some(AttrValue::Json(serde_json::Value::Object(map))) => map.clone(),
+            _ => serde_json::Map::new(),
+        };
+        Some(LivePart { query: el.literal("query")?.to_owned(), args })
+    }
+}
+
+/// A Live part as the core reads it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LivePart {
+    pub query: String,
+    pub args: serde_json::Map<String, serde_json::Value>,
 }
 
 pub(crate) fn at(line: usize, col: usize, message: impl Into<String>) -> Problem {

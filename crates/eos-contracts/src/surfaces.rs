@@ -152,6 +152,34 @@ pub struct SurfaceStateDoc {
 
 impl Validate for SurfaceStateDoc {}
 
+/// `GET /api/surfaces/{id}/queries/{queryId}?args=`: one named query's
+/// answer, as a surface of its routine reads it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceQueryAnswer {
+    pub query_id: String,
+    pub answer: Value,
+    /// The topics whose events may change the answer.
+    pub topics: Vec<String>,
+}
+
+impl Validate for SurfaceQueryAnswer {}
+
+/// `GET /api/surfaces/{id}/issues/{issueId}/parts/{part}`: a Live part drawn
+/// with its query's answer, for the frame to swap in.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LivePartDoc {
+    pub part: String,
+    pub html: String,
+    /// False when the query failed and `html` is the last answer drawn.
+    pub current: bool,
+    /// The topics whose events may change the part.
+    pub topics: Vec<String>,
+}
+
+impl Validate for LivePartDoc {}
+
 /// `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

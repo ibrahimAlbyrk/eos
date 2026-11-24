@@ -57,6 +57,7 @@ pub(crate) fn queries(shared: &Arc<Shared>) -> Vec<QueryDecl> {
         title: "What waits for you",
         args: no_args(),
         scope: ActionScope::Any,
+        topics: &[eos_inbox::INBOX_CHANGE],
         handler: Arc::new(Summary(shared.clone())),
     }]
 }
