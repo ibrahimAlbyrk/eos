@@ -654,11 +654,10 @@ impl Shell {
         // Never the link itself in the log: an invite is a secret.
         log("shell", "a link was opened with the app");
         self.show_window();
-        if url.starts_with("eos://pair/")
-            && let Some(bridge) = self.bridge.get()
-        {
-            bridge.hosts_command("connect", Some(url));
+        if let Some(bridge) = self.bridge.get() {
+            bridge.open_link(url);
         }
+        // A sign-in's link back is the core's.
         self.hooks.open_url(url);
     }
 

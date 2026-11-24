@@ -640,5 +640,6 @@ fn entries(paths: Vec<String>) -> Value {
 }
 
 mod artifacts;
+mod links;
 #[cfg(test)]
 mod tests;

@@ -35,6 +35,13 @@ function count(value) {
   return /^[1-9]\d*$/.test(value) ? Number(value) : INVALID;
 }
 
+// A position in a list, from 0; undefined when absent.
+function position(query, key) {
+  const value = query.get(key);
+  if (value === null) return undefined;
+  return /^(0|[1-9]\d*)$/.test(value) ? Number(value) : INVALID;
+}
+
 // The location without its absent parts; null when a part is invalid.
 function location(fields) {
   const entries = Object.entries(fields).filter(([, v]) => v !== undefined);
@@ -80,7 +87,11 @@ function match([section, id, ...rest], query) {
     case "surfaces": {
       if (!leaf || id === undefined) return null;
       const issue = query.get("issue");
-      return location({ screen: "surface", surfaceId: id, issue: issue === null ? undefined : count(issue), mode: oneOf(query, "mode", SURFACE_MODES) });
+      // `button` and `index`: a button an `eos://issue` link named, for the page to confirm.
+      return location({
+        screen: "surface", surfaceId: id, issue: issue === null ? undefined : count(issue), mode: oneOf(query, "mode", SURFACE_MODES),
+        button: text(query, "button"), index: position(query, "index"),
+      });
     }
     case "form": return id === undefined ? form(query) : null;
     default: return null;
@@ -124,7 +135,10 @@ export function buildLocation(l) {
     case "memory": return withQuery(`${SCHEME}memory`, [["tab", l.tab], ["note", l.note]]);
     case "capabilities": return `${SCHEME}capabilities`;
     case "capability": return `${SCHEME}capabilities/${segment(l.capabilityId)}`;
-    case "surface": return withQuery(`${SCHEME}surfaces/${segment(l.surfaceId)}`, [["issue", l.issue], ["mode", l.mode]]);
+    case "surface":
+      return withQuery(`${SCHEME}surfaces/${segment(l.surfaceId)}`, [
+        ["issue", l.issue], ["mode", l.mode], ["button", l.button], ["index", l.index],
+      ]);
     case "form":
       return withQuery(`${SCHEME}form`, [
         ["routine", l.routine], ["item", l.item], ["note", l.note],

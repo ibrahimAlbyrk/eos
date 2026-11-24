@@ -27,6 +27,7 @@ const LOCATIONS = [
   ["eos:/capabilities/my%20tool", { screen: "capability", capabilityId: "my tool" }],
   ["eos:/surfaces/sf-3", { screen: "surface", surfaceId: "sf-3" }],
   ["eos:/surfaces/sf-3?issue=38&mode=reshape", { screen: "surface", surfaceId: "sf-3", issue: 38, mode: "reshape" }],
+  ["eos:/surfaces/sf-3?issue=41&button=ask&index=0", { screen: "surface", surfaceId: "sf-3", issue: 41, button: "ask", index: 0 }],
   ["eos:/form?routine=pr-review", { screen: "form", routine: "pr-review", options: {} }],
   [
     "eos:/form?routine=pr-review&item=%23470&note=Check+the+tests&opt.depth=deep&opt.long=true&showOnly=1&at=2026-11-19T09%3A00&from=link",
@@ -41,7 +42,7 @@ const NOT_LOCATIONS = [
   null, 42, "", "eos:", "eos://needs", "https://example.com", "eos:/nowhere", "eos:/needs/", "eos:/needs/a/b",
   "eos:/routines/new/x", `eos:/routines/${RT}?tab=settings`, `eos:/routines/${RT}/versions/0`,
   `eos:/routines/${RT}/versions/two`, `eos:/routines/${RT}/runs`, "eos:/runs", "eos:/memory/x", "eos:/memory?tab=other",
-  "eos:/capabilities/a/b", "eos:/surfaces", "eos:/surfaces/s?issue=0", "eos:/surfaces/s?mode=edit", "eos:/form",
+  "eos:/capabilities/a/b", "eos:/surfaces", "eos:/surfaces/s?issue=0", "eos:/surfaces/s?mode=edit", "eos:/surfaces/s?index=-1", "eos:/form",
   "eos:/form?item=4", "eos:/form?routine=x&showOnly=yes", "eos:/form/x?routine=y", "eos:/needs/%E0%A4%A",
 ];
 
