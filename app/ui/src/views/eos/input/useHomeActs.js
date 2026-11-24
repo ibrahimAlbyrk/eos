@@ -9,8 +9,11 @@ import { homeForm } from "./runInput.js";
 const blueprintOf = (routineId) => buildLocation({ screen: "routine", routineId, tab: "blueprint" });
 
 // The words Make and Change carry: the sentence, with the links and paths
-// handed in beside it.
-const sentenceOf = (text, attachments) => [text, ...attachments.map((a) => a.value)].filter(Boolean).join("\n");
+// handed in beside it. A text a door outside Eos brought (a selection, a
+// share, a link's text) is not the user's: it never joins the words the
+// architect takes as the user's instruction.
+export const sentenceOf = (text, attachments, door = "home") =>
+  [text, ...attachments.filter((a) => door === "home" || a.kind !== "text").map((a) => a.value)].filter(Boolean).join("\n");
 
 // What Enter does at Home, once the intent is clear (08 §4.4, G16, G17):
 // start the run (one per item), make a routine or change one through its
@@ -54,13 +57,13 @@ export function useHomeActs(byId, door = "home") {
       case "run":
         return routine ? run(routine, form ?? homeForm(routine, choice.item ?? "")) : false;
       case "make": {
-        const id = await makeRoutine(sentenceOf(text, attachments));
+        const id = await makeRoutine(sentenceOf(text, attachments, door));
         openLocation(id ? blueprintOf(id) : "eos:/routines/new");
         return true;
       }
       case "change": {
         if (!routine) return false;
-        const said = await sayToArchitect(routine.id, { text: sentenceOf(text, attachments) });
+        const said = await sayToArchitect(routine.id, { text: sentenceOf(text, attachments, door) });
         openLocation(blueprintOf(routine.id));
         return said;
       }
