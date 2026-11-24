@@ -47,8 +47,12 @@ pub(crate) fn automatic(mode: &str) -> bool {
 
 /// How long a send waits before it goes, so it can still be stopped where
 /// the channel cannot take it back (03 G6): after the user's Send, or on
-/// its own.
-pub fn hold_ms(traits: &ChannelTraits, approved: bool) -> i64 {
+/// its own. Telling the user themself reaches no one else, so it goes at
+/// once (D67).
+pub fn hold_ms(traits: &ChannelTraits, approved: bool, target: &Target) -> i64 {
+    if traits.class == eos_contracts::ActionClass::TellUser || target.place == Place::Me {
+        return 0;
+    }
     match (traits.undo, approved) {
         (Undo::None, true) => 10_000,
         (Undo::None, false) => 120_000,
@@ -117,7 +121,7 @@ pub(crate) fn queue_in(
 ) -> Result<StoredDelivery, Error> {
     let approved = new.item_id.is_some();
     let body = serde_json::to_string(new.doc).map_err(|e| Error::storage(e.to_string()))?;
-    let hold = hold_ms(new.traits, approved);
+    let hold = hold_ms(new.traits, approved, new.target);
     let send_at = now + hold;
     let row = StoredDelivery {
         id: ids.delivery_id(),
