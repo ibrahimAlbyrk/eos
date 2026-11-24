@@ -171,7 +171,9 @@ impl Validate for CapabilitiesChange {}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilitySignIn {
-    pub user_code: String,
+    /// What the user types on the service's page; a browser sign-in has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_code: Option<String>,
     pub verification_uri: String,
     pub expires_at: i64,
 }

@@ -7,5 +7,6 @@ mod reads;
 mod rig;
 mod routes;
 mod sign_in;
+mod slack_sign_in;
 mod sources;
 mod ticker;

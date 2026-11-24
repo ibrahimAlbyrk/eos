@@ -65,6 +65,13 @@ pub fn github() -> Result<std::sync::Arc<dyn eos_github::Transport>, Error> {
     Ok(std::sync::Arc::new(eos_github::HttpTransport::new()?))
 }
 
+/// How the installed app reaches Slack: an HTTP client of its own. Hand it
+/// to [`Options::slack`]; an app built without it, or one that does not
+/// [reach the network](Options::reaches_network), sends Slack nothing.
+pub fn slack() -> Result<std::sync::Arc<dyn eos_slack::Transport>, Error> {
+    Ok(std::sync::Arc::new(eos_slack::HttpTransport::new()?))
+}
+
 /// How the installed app drives the Mail app: `osascript`. Hand it to
 /// [`Options::mail`]; an app built without it, or one that does not
 /// [reach the network](Options::reaches_network), never runs it.
@@ -92,6 +99,8 @@ pub enum Error {
     /// The client the GitHub capability talks through could not be set up.
     #[error("github: {0}")]
     GitHub(#[from] eos_github::Error),
+    #[error("slack: {0}")]
+    Slack(#[from] eos_slack::Error),
     /// This computer's identity for its paired computers cannot be read.
     #[error("peering: {0}")]
     Peer(#[from] eos_peer::Error),

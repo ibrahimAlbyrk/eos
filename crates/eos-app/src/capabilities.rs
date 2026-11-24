@@ -33,6 +33,10 @@ pub struct CapabilityOptions {
     /// the host's [`Options::github`](crate::Options::github), and nothing
     /// off the network.
     pub github: Option<Arc<dyn Transport>>,
+    /// How the Slack capability reaches Slack: a test's own fake. `None`:
+    /// the host's [`Options::slack`](crate::Options::slack), and nothing off
+    /// the network.
+    pub slack: Option<Arc<dyn eos_slack::Transport>>,
     /// How the Mail capability drives Mail: a test's own fake. `None`: the
     /// host's [`Options::mail`](crate::Options::mail), and nothing off the
     /// network.
@@ -113,10 +117,14 @@ pub(crate) struct Parts<'a> {
     pub(crate) sleeper: Arc<dyn Sleeper>,
     /// `github.clientId`, read at start.
     pub(crate) github_client_id: String,
+    /// `slack.clientId`, read at start.
+    pub(crate) slack_client_id: String,
     /// The app's own Keychain items, as the host hands them in.
     pub(crate) keychain: Option<Arc<dyn CapabilitySecrets>>,
     /// How the app reaches GitHub, as the host hands it in.
     pub(crate) github: Option<Arc<dyn Transport>>,
+    /// How the app reaches Slack, as the host hands it in.
+    pub(crate) slack: Option<Arc<dyn eos_slack::Transport>>,
     /// How the app drives Mail, as the host hands it in.
     pub(crate) mail: Option<Arc<dyn Script>>,
     pub(crate) grants: Arc<LateGrants>,
@@ -128,8 +136,8 @@ pub(crate) struct Parts<'a> {
 
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
-/// every chat and the routines feature's grant to run sessions, the GitHub and Mail built-ins (which reach GitHub and
-/// drive Mail only on the network), the notify built-in and the browser's entry. No package runner yet.
+/// every chat and the routines feature's grant to run sessions, the GitHub, Slack and Mail built-ins (which reach GitHub
+/// and Slack and drive Mail only on the network), the notify built-in and the browser's entry. No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
     let Parts {
         reach,
@@ -139,8 +147,10 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         ids,
         sleeper,
         github_client_id,
+        slack_client_id,
         keychain,
         github,
+        slack,
         mail,
         grants,
         notifiers,
@@ -161,6 +171,14 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         sleeper: sleeper.clone(),
         client_id: github_client_id,
     }));
+    let slack: Arc<dyn BuiltinCapability> = Arc::new(eos_slack::Slack::new(eos_slack::Parts {
+        transport: options.slack.unwrap_or_else(|| reach.slack(slack)),
+        secrets: secrets.clone(),
+        clock: clock.clone(),
+        sleeper: sleeper.clone(),
+        ids: ids.clone(),
+        client_id: slack_client_id,
+    }));
     let script = match options.mail {
         Some(script) => script,
         None => reach.mail(mail),
@@ -177,7 +195,7 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             clock,
             ids,
         },
-        [github, mail, Arc::new(Notify::new(notifiers.clone(), notifiers)), Arc::new(Browser::new(views))]
+        [github, slack, mail, Arc::new(Notify::new(notifiers.clone(), notifiers)), Arc::new(Browser::new(views))]
             .into_iter()
             .chain(options.builtins)
             .collect(),

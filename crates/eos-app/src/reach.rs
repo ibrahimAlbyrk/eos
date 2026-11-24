@@ -17,6 +17,7 @@
 //! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
 //! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
 //! | GitHub, for its capability's calls, checks and sign-in | every request is refused unsent, as when GitHub does not answer |
+//! | Slack, for its capability's calls, checks, refreshes and sign-in | every request is refused unsent, as when Slack does not answer; a sign-in's link back finds no attempt, since the sign-in routes are refused |
 //! | The Mail app, for its capability's reads, sends and checks | `osascript` never runs; every program answers as macOS refusing Apple Events, so Mail reads `needs_setup` |
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
@@ -58,6 +59,8 @@ const ACCOUNT_READS_OFF: &str = "Only the installed Eos on your own data folder 
 const SECRETS_OFF: &str = "Only the installed Eos on your own data folder keeps capability secrets";
 /// Why GitHub is not asked from another data folder.
 const GITHUB_OFF: &str = "only the installed Eos on your own data folder reaches GitHub";
+/// Why Slack is not asked from another data folder.
+const SLACK_OFF: &str = "only the installed Eos on your own data folder reaches Slack";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reach {
@@ -125,6 +128,15 @@ impl Reach {
         match transport.filter(|_| self.network) {
             Some(transport) => transport,
             None => Arc::new(NoGitHub),
+        }
+    }
+
+    /// How the Slack capability reaches Slack: through the transport only
+    /// the host hands in, so a run without it or off the network sends nothing.
+    pub(crate) fn slack(self, transport: Option<Arc<dyn eos_slack::Transport>>) -> Arc<dyn eos_slack::Transport> {
+        match transport.filter(|_| self.network) {
+            Some(transport) => transport,
+            None => Arc::new(NoSlack),
         }
     }
 
@@ -209,6 +221,19 @@ struct NoGitHub;
 impl Transport for NoGitHub {
     fn send(&self, _request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, eos_github::Error>> {
         Box::pin(std::future::ready(Err(eos_github::Error::Transport(GITHUB_OFF.into()))))
+    }
+}
+
+/// A way to Slack that sends nothing: every request fails as one that got
+/// no answer.
+struct NoSlack;
+
+impl eos_slack::Transport for NoSlack {
+    fn send(
+        &self,
+        _request: eos_slack::HttpRequest,
+    ) -> BoxFuture<'_, Result<eos_slack::HttpResponse, eos_slack::Error>> {
+        Box::pin(std::future::ready(Err(eos_slack::Error::Transport(SLACK_OFF.into()))))
     }
 }
 

@@ -81,6 +81,7 @@ eos-pty.workspace = true
 eos-relay.workspace = true
 eos-runtime.workspace = true
 eos-sessions.workspace = true
+eos-slack.workspace = true
 eos-store-files.workspace = true
 eos-store-sqlite.workspace = true
 eos-symbols.workspace = true
@@ -105,6 +106,7 @@ eos-kit-log.workspace = true
 eos-testkit.workspace = true
 rusqlite.workspace = true
 tempfile.workspace = true
+url.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

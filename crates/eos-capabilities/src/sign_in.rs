@@ -13,8 +13,11 @@ use crate::CapabilityService;
 impl CapabilityService {
     /// The built-in `id` when the user signs in to it by a code on the
     /// service's own page; `None` for any other capability.
-    pub fn signs_in_by_code(&self, id: &str) -> Option<Arc<dyn BuiltinCapability>> {
-        self.builtins.get(id).filter(|builtin| builtin.device_sign_in().is_some()).cloned()
+    pub fn signs_in(&self, id: &str) -> Option<Arc<dyn BuiltinCapability>> {
+        let signs_in = |builtin: &&Arc<dyn BuiltinCapability>| {
+            builtin.device_sign_in().is_some() || builtin.browser_sign_in().is_some()
+        };
+        self.builtins.get(id).filter(signs_in).cloned()
     }
 
     /// After a sign-in: keeps the account's label, then checks the

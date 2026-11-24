@@ -138,6 +138,10 @@ pub struct Options {
     /// when the run [`reaches_network`](Self::reaches_network). Without it
     /// GitHub is sent nothing: a request would act as the user.
     pub github: Option<Arc<dyn eos_github::Transport>>,
+    /// How Slack is reached ([`crate::slack`] in the real app), used only
+    /// when the run [`reaches_network`](Self::reaches_network). Without it
+    /// Slack is sent nothing: a request would act as the user.
+    pub slack: Option<Arc<dyn eos_slack::Transport>>,
     /// How the Mail app is driven ([`crate::mail`] in the real app), used
     /// only when the run [`reaches_network`](Self::reaches_network). Without
     /// it Mail is never asked: a send would go out as the user.
@@ -203,6 +207,7 @@ impl Options {
             relay: None,
             keychain: None,
             github: None,
+            slack: None,
             mail: None,
             keep_awake: None,
             extra_modules: Vec::new(),
@@ -252,6 +257,7 @@ pub struct App {
     patches: std::sync::Mutex<Option<StatePatcher>>,
     /// The brief rows the dashboard's patches carry, by id.
     brief_worker_rows: Arc<dyn eos_core::workers::ListedWorkers>,
+    sign_in_links: eos_mod_capabilities::SignInLinks,
     /// Eos's agent tools: the engine holds them weakly, the app keeps them.
     tools: Arc<dyn eos_core::agent::ToolSets>,
     clock: Arc<dyn Clock>,
@@ -299,6 +305,7 @@ impl App {
             relay,
             keychain,
             github,
+            slack,
             mail,
             keep_awake,
             extra_modules,
@@ -407,8 +414,10 @@ impl App {
             ids: ids.clone(),
             sleeper: sleeper.clone(),
             github_client_id: current.github.client_id.clone(),
+            slack_client_id: current.slack.client_id.clone(),
             keychain,
             github,
+            slack,
             mail,
             grants: grants.clone(),
             notifiers: notifiers.clone(),
@@ -733,6 +742,7 @@ impl App {
             remote,
             patches: std::sync::Mutex::new(None),
             brief_worker_rows: features.brief_worker_rows,
+            sign_in_links: features.sign_in_links,
             tools: features.tools,
             clock,
             sleeper,
@@ -809,6 +819,14 @@ impl App {
 
     /// The links to paired computers. The window shell calls `kick` when the
     /// computer wakes, so a link that died in its sleep is probed at once.
+    /// Takes a link the system handed the app: a sign-in's way back
+    /// (`eos://sign-in/<id>`) finishes the attempt that waits for it.
+    /// Whether it was such a link and an attempt waited; nothing of the link
+    /// is logged.
+    pub fn open_link(&self, link: &str) -> bool {
+        self.sign_in_links.open(link)
+    }
+
     pub fn peering(&self) -> Arc<dyn PeerLifecycle> {
         self.peering.clone()
     }
