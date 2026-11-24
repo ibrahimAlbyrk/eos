@@ -1,0 +1,102 @@
+/* eos-surface.css — a routine's Page (08 §4.11): the light sheet in Eos's dark
+   frame, the line under it to tell Eos what to change, reshape mode's
+   pointing and popover, and Home's pinned tiles. Colours are the app's
+   tokens; inside the frame the page keeps its own. */
+
+/* ── The page screen ──────────────────────────────────────────────────────── */
+.eos-page { align-items: center; padding-top: 28px; }
+.eos-page__column { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 16px; }
+.eos-page__line { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-btn--quiet { background: none; color: var(--fg-mid); }
+.eos-btn--quiet:hover { background: var(--chip); }
+.eos-btn--pill { height: 36px; }
+.eos-btn--quiet[aria-pressed="true"] { color: var(--fg-strong); }
+
+.eos-frame--page { background: none; box-shadow: none; margin: 0; }
+.eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 8px; }
+.eos-frame--page .eos-frame__content { padding: 0; }
+.eos-frame--page .eos-frame__eos { border: 0; padding: 12px 2px 0; }
+.eos-page-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: #eceae4; /* the sheet's own paper while it loads */
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+.eos-page-frame.is-pointing { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--accent); }
+
+.eos-page__older {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.eos-page__design-note { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-page__design-note .eos-label { margin-right: 8px; }
+.eos-page__below { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.eos-page__below .eos-tell { flex: 1 1 360px; min-width: 0; }
+.eos-page__said { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-page__note { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-page__issues { max-height: 320px; overflow-y: auto; }
+.eos-menu__item[aria-current="true"] { color: var(--fg-strong); background: var(--chip); }
+.eos-menu__item--more { color: var(--fg-dim); }
+
+/* The line to tell Eos what to change: Home's input in small. */
+.eos-tell { display: flex; flex-direction: column; gap: 6px; }
+.eos-tell__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 18px;
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.eos-tell__input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--fg);
+}
+.eos-tell__input::placeholder { color: var(--fg-dim2); }
+.eos-tell__send {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 34% 26%, #e8f1ff 0%, #a9cdf6 22%, var(--accent) 58%, #3f6fb5 100%);
+  color: var(--accent-fg);
+  cursor: pointer;
+}
+.eos-tell__send svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.eos-tell__send:disabled { cursor: default; filter: saturate(0.4) brightness(0.7); }
+.eos-tell__error { margin: 0 0 0 18px; font-size: var(--text-sm); color: var(--err); }
+
+/* Pinning a fourth. */
+.eos-pin-full { width: 280px; display: flex; flex-direction: column; gap: 2px; }
+.eos-pin-full__title { margin: 4px 10px 0; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.eos-pin-full__line { margin: 0 10px 6px; font-size: var(--text-xs); color: var(--fg-dim); }
+
+/* The mail as it will be sent. */
+.eos-mail-preview { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); }
+.eos-mail-preview__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eos-mail-preview__frame { width: 100%; height: min(70vh, 900px); border: 0; border-radius: 8px; background: #fff; }
+
+/* A routine's page, on its routine page. */
+.eos-page-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.eos-page-link__text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eos-page-link__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-page-link__line { font-size: var(--text-sm); color: var(--fg-dim); }

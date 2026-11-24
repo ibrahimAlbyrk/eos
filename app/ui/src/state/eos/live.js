@@ -14,6 +14,8 @@ import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
 import { applySignalsChange, resyncSignals } from "./signalsStore.js";
 import { applySurfacesChange, resyncSurfaces } from "./surfacesStore.js";
+import { applyDesignChange, applyPageChange, resyncPages } from "./pageStore.js";
+import { applyPinnedSurfaceChange, applyPinsChange, resyncPins } from "./pinsStore.js";
 
 const ignored = () => {};
 const both = (a, b) => (payload) => {
@@ -37,10 +39,18 @@ const HANDLERS = {
   "inbox:halt": applyHalt,
   "memory:change": applyMemoryChange,
   "memory:recalled": applyMemoryRecalled,
-  "surfaces:change": applySurfacesChange,
-  "surfaces:issue": applySurfacesChange,
-  "surfaces:pins": ignored,
-  "surfaces:design": ignored,
+  "surfaces:change": (payload) => {
+    applySurfacesChange(payload);
+    applyPageChange(payload);
+    applyPinnedSurfaceChange(payload);
+  },
+  "surfaces:issue": (payload) => {
+    applySurfacesChange(payload);
+    applyPageChange(payload);
+    applyPinnedSurfaceChange(payload);
+  },
+  "surfaces:pins": applyPinsChange,
+  "surfaces:design": applyDesignChange,
   "actions:record": ignored,
   "capabilities:change": applyCapabilitiesChange,
 };
@@ -67,4 +77,6 @@ export function resyncEos() {
   resyncMemory();
   resyncHome();
   resyncSurfaces();
+  resyncPages();
+  resyncPins();
 }

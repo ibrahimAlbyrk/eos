@@ -8,6 +8,7 @@ import { api } from "../../api/client.js";
 
 const coreTransport = {
   get: (path) => api.eosGet(path),
+  getText: (path) => api.eosGetText(path),
   send: (method, path, body) => api.eosSend(method, path, body),
   // A file handed to Eos (a paste or a drop): kept by the core, answered { path }.
   upload: (src) => api.uploadPaste(src),
@@ -46,6 +47,8 @@ export function useDevRunSeen() {
 
 export const transport = {
   get: (path) => current.get(path),
+  // A route that answers HTML: the body is its text.
+  getText: (path) => (current.getText ?? current.get)(path),
   send: (method, path, body) => current.send(method, path, body).then(noted),
   upload: (src) => current.upload(src),
 };

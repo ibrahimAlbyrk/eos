@@ -1,0 +1,520 @@
+{
+ "surface": {
+  "id": "sf-7b3m1c000001",
+  "routineId": "rt-7b3m1c9d0e4f",
+  "level": "page",
+  "place": "routine_page",
+  "role": "result",
+  "title": "Morning Paper",
+  "currentVersion": 2,
+  "createdAt": 1762923600000,
+  "updatedAt": 1763442000000
+ },
+ "issues": {
+  "issues": [
+   {
+    "id": "si-7b3m1c000003",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 3,
+    "runId": "rn-7b3m1c000003",
+    "version": 2,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763442000000,
+    "updatedAt": 1763442000000
+   },
+   {
+    "id": "si-7b3m1c000002",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 2,
+    "runId": "rn-7b3m1c000002",
+    "version": 2,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763355600000,
+    "updatedAt": 1763355600000
+   },
+   {
+    "id": "si-7b3m1c000001",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 1,
+    "runId": "rn-7b3m1c000001",
+    "version": 1,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763269200000,
+    "updatedAt": 1763269200000
+   }
+  ],
+  "more": false
+ },
+ "issueBodies": {
+  "si-7b3m1c000003": {
+   "issue": {
+    "id": "si-7b3m1c000003",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 3,
+    "runId": "rn-7b3m1c000003",
+    "version": 2,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763442000000,
+    "updatedAt": 1763442000000
+   },
+   "body": {
+    "data": {
+     "title": "The Morning Build",
+     "summary": "One story · a quiet night",
+     "lead": {
+      "section": "engineering",
+      "title": "Nothing broke overnight",
+      "dek": "All four of your repositories built clean. One pull request is waiting for you.",
+      "body": "A quiet night.",
+      "url": "https://example.com/quiet"
+     },
+     "desk": "One review waits for you.",
+     "starred": [],
+     "stories": [
+      {
+       "section": "engineering",
+       "title": "The one waiting pull request",
+       "dek": "A small fix to the save system.",
+       "url": "https://example.com/pr-412"
+      }
+     ]
+    }
+   }
+  },
+  "si-7b3m1c000002": {
+   "issue": {
+    "id": "si-7b3m1c000002",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 2,
+    "runId": "rn-7b3m1c000002",
+    "version": 2,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763355600000,
+    "updatedAt": 1763355600000
+   },
+   "body": {
+    "data": {
+     "title": "The Morning Build",
+     "summary": "Six stories from 22 sources · about 9 minutes",
+     "lead": {
+      "section": "tools",
+      "title": "Merge queues stop being a big-company thing",
+      "dek": "Three small studios run one now. What it took, and the one setting each of them changed in the first week.",
+      "body": "A merge queue is a line your pull requests wait in, so main is never broken by two changes that pass alone.\n\nThe cost is a few minutes per merge.",
+      "url": "https://example.com/merge-queues"
+     },
+     "starred": [],
+     "stories": [
+      {
+       "section": "engine",
+       "title": "Shader caches, measured",
+       "dek": "Cold starts fell by a third once the cache moved next to the build.",
+       "url": "https://example.com/caches"
+      },
+      {
+       "section": "design",
+       "title": "Tutorials that teach by taking away",
+       "dek": "Removing a mechanic for one level, then giving it back.",
+       "url": "https://example.com/tutorials"
+      }
+     ]
+    }
+   }
+  },
+  "si-7b3m1c000001": {
+   "issue": {
+    "id": "si-7b3m1c000001",
+    "surfaceId": "sf-7b3m1c000001",
+    "seq": 1,
+    "runId": "rn-7b3m1c000001",
+    "version": 1,
+    "kind": "page",
+    "status": "ready",
+    "rev": 1,
+    "trial": false,
+    "kept": false,
+    "createdAt": 1763269200000,
+    "updatedAt": 1763269200000
+   },
+   "body": {
+    "data": {
+     "title": "The Morning Build",
+     "summary": "Read this one with care: the feed held strange text",
+     "lead": {
+      "section": "engineering",
+      "title": "<script>alert('lead')</script> \"><img src=x onerror=alert(1)>",
+      "dek": "{lead.title} is not a slot here, and javascript:alert(1) is only words. ‮evil‬",
+      "body": "token=ghp_0123456789abcdefABCDEF0123456789abcd is a secret and stays hidden.",
+      "url": "javascript:alert(1)"
+     },
+     "starred": [
+      {
+       "title": "</style><script>alert(2)</script>",
+       "url": "https://example.com/?a=1&b=<2>"
+      }
+     ],
+     "stories": [
+      {
+       "section": "tools",
+       "title": "<b>bold?</b>",
+       "dek": "&amp; stays as written",
+       "url": "https://example.com/x"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "versions": {
+  "versions": [
+   {
+    "version": 3,
+    "status": "candidate",
+    "baseVersion": 2,
+    "madeBy": "reshape",
+    "runId": null,
+    "note": "Live ops is gone; Tools has the room.",
+    "bodyBytes": 4200,
+    "createdAt": 1763010000003,
+    "keptAt": null
+   },
+   {
+    "version": 2,
+    "status": "kept",
+    "baseVersion": 1,
+    "madeBy": "reshape",
+    "runId": null,
+    "note": "A lead story with a desk column, then three sections.",
+    "bodyBytes": 4200,
+    "createdAt": 1763010000002,
+    "keptAt": 1763096400000
+   },
+   {
+    "version": 1,
+    "status": "superseded",
+    "baseVersion": null,
+    "madeBy": "designer",
+    "runId": null,
+    "note": "The first layout.",
+    "bodyBytes": 4200,
+    "createdAt": 1763010000001,
+    "keptAt": null
+   }
+  ]
+ },
+ "versionBodies": {
+  "2": {
+   "meta": {
+    "version": 2,
+    "status": "kept",
+    "baseVersion": 1,
+    "madeBy": "reshape",
+    "runId": null,
+    "note": "A lead story with a desk column, then three sections.",
+    "bodyBytes": 4200,
+    "createdAt": 1763010000002,
+    "keptAt": 1763096400000
+   },
+   "body": {
+    "contract": {
+     "type": "object",
+     "fields": {
+      "title": {
+       "type": "text",
+       "max": 60
+      },
+      "summary": {
+       "type": "text",
+       "max": 120,
+       "edit": true
+      },
+      "lead": {
+       "type": "object",
+       "fields": {
+        "section": {
+         "type": "enum",
+         "values": [
+          "engineering",
+          "engine",
+          "tools",
+          "live-ops",
+          "design"
+         ]
+        },
+        "title": {
+         "type": "text",
+         "max": 120,
+         "edit": true
+        },
+        "dek": {
+         "type": "text",
+         "max": 280
+        },
+        "body": {
+         "type": "longtext",
+         "max": 2000
+        },
+        "url": {
+         "type": "url"
+        },
+        "image": {
+         "type": "image",
+         "required": false
+        }
+       }
+      },
+      "desk": {
+       "type": "text",
+       "max": 200,
+       "required": false
+      },
+      "starred": {
+       "type": "list",
+       "min": 0,
+       "max": 4,
+       "of": {
+        "type": "object",
+        "fields": {
+         "title": {
+          "type": "text",
+          "max": 140
+         },
+         "url": {
+          "type": "url"
+         }
+        }
+       }
+      },
+      "left_out": {
+       "type": "text",
+       "max": 200,
+       "required": false
+      },
+      "stories": {
+       "type": "list",
+       "min": 1,
+       "max": 12,
+       "edit": true,
+       "of": {
+        "type": "object",
+        "fields": {
+         "section": {
+          "type": "enum",
+          "values": [
+           "engineering",
+           "engine",
+           "tools",
+           "live-ops",
+           "design"
+          ]
+         },
+         "title": {
+          "type": "text",
+          "max": 120
+         },
+         "dek": {
+          "type": "text",
+          "max": 280
+         },
+         "url": {
+          "type": "url"
+         },
+         "published": {
+          "type": "datetime",
+          "required": false
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "checks": {
+    "passed": true
+   }
+  },
+  "3": {
+   "meta": {
+    "version": 3,
+    "status": "candidate",
+    "baseVersion": 2,
+    "madeBy": "reshape",
+    "runId": null,
+    "note": "Live ops is gone; Tools has the room.",
+    "bodyBytes": 4200,
+    "createdAt": 1763010000003,
+    "keptAt": null
+   },
+   "body": {
+    "contract": {
+     "type": "object",
+     "fields": {
+      "title": {
+       "type": "text",
+       "max": 60
+      },
+      "summary": {
+       "type": "text",
+       "max": 120,
+       "edit": true
+      },
+      "lead": {
+       "type": "object",
+       "fields": {
+        "section": {
+         "type": "enum",
+         "values": [
+          "engineering",
+          "engine",
+          "tools",
+          "live-ops",
+          "design"
+         ]
+        },
+        "title": {
+         "type": "text",
+         "max": 120,
+         "edit": true
+        },
+        "dek": {
+         "type": "text",
+         "max": 280
+        },
+        "body": {
+         "type": "longtext",
+         "max": 2000
+        },
+        "url": {
+         "type": "url"
+        },
+        "image": {
+         "type": "image",
+         "required": false
+        }
+       }
+      },
+      "desk": {
+       "type": "text",
+       "max": 200,
+       "required": false
+      },
+      "starred": {
+       "type": "list",
+       "min": 0,
+       "max": 4,
+       "of": {
+        "type": "object",
+        "fields": {
+         "title": {
+          "type": "text",
+          "max": 140
+         },
+         "url": {
+          "type": "url"
+         }
+        }
+       }
+      },
+      "left_out": {
+       "type": "text",
+       "max": 200,
+       "required": false
+      },
+      "stories": {
+       "type": "list",
+       "min": 1,
+       "max": 12,
+       "edit": true,
+       "of": {
+        "type": "object",
+        "fields": {
+         "section": {
+          "type": "enum",
+          "values": [
+           "engineering",
+           "engine",
+           "tools",
+           "live-ops",
+           "design"
+          ]
+         },
+         "title": {
+          "type": "text",
+          "max": 120
+         },
+         "dek": {
+          "type": "text",
+          "max": 280
+         },
+         "url": {
+          "type": "url"
+         },
+         "published": {
+          "type": "datetime",
+          "required": false
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "checks": {
+    "passed": true
+   }
+  }
+ },
+ "pins": {
+  "surfaceIds": [
+   "sf-7b3m1c000001",
+   "sf-9q4w2e000001"
+  ]
+ },
+ "tiles": {
+  "tiles": [
+   {
+    "slot": 0,
+    "surfaceId": "sf-7b3m1c000001",
+    "routineId": "rt-7b3m1c9d0e4f",
+    "level": "page",
+    "title": "Morning Paper",
+    "headline": "Nothing broke overnight",
+    "detail": "One story · a quiet night",
+    "action": "Read today's issue",
+    "issueId": "si-7b3m1c000003",
+    "issuedAt": 1763442000000
+   },
+   {
+    "slot": 1,
+    "surfaceId": "sf-9q4w2e000001",
+    "routineId": "rt-9q4w2e7r1t5y",
+    "level": "view",
+    "title": "Build Watch",
+    "headline": "No failed builds",
+    "detail": "Twelve builds today, all green",
+    "issueId": "si-9q4w2e000004",
+    "issuedAt": 1763442000000
+   }
+  ]
+ }
+}

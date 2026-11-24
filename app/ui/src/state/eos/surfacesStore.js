@@ -118,12 +118,15 @@ export function pressedRow(data, item) {
   return index == null ? {} : { index };
 }
 
-// One press of `actionId` on `issueId`'s View: the core's answer
+// One press of `actionId` on `issueId`'s View, or of a Page's `button` (the
+// part it sits in): the core's answer
 // { status: done | confirm | held | refused, … }, or refused with the reason
 // when the core turned the request away.
-export async function runSurfaceAction({ issueId, actionId, state: input, clientId, confirm, typed, itemId, index }) {
+export async function runSurfaceAction({ issueId, actionId, button, state: input, clientId, confirm, typed, itemId, index }) {
   const body = {
-    issueId, actionId, clientId,
+    issueId, clientId,
+    ...(actionId != null ? { actionId } : {}),
+    ...(button != null ? { button } : {}),
     ...(itemId != null ? { itemId } : {}),
     ...(index != null ? { index } : {}),
     ...(input && Object.keys(input).length ? { state: input } : {}),

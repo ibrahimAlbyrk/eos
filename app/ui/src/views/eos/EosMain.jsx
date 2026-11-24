@@ -8,6 +8,7 @@ import { NeedsItemScreen } from "./needs/NeedsItemScreen.jsx";
 import { NeedsYouList } from "./needs/NeedsYouList.jsx";
 import { RoutinePage } from "./routine/RoutinePage.jsx";
 import { RunView } from "./run/RunView.jsx";
+import { SurfaceScreen } from "./surface/SurfaceScreen.jsx";
 import { parseLocation, useEosLocation } from "./nav/eosNav.js";
 
 const SECTION_TITLES = {
@@ -54,5 +55,6 @@ export function EosMain() {
   if (location?.screen === "memory") return <EosMemoryScreen tab={location.tab} note={location.note} />;
   if (location?.screen === "capabilities") return <CapabilitiesScreen />;
   if (location?.screen === "capability") return <CapabilityScreen key={location.capabilityId} id={location.capabilityId} />;
+  if (location?.screen === "surface") return <SurfaceScreen key={location.surfaceId} surfaceId={location.surfaceId} seq={location.issue} mode={location.mode} />;
   return <PlaceholderScreen location={location} />;
 }
