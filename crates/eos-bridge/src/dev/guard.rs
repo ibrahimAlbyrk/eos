@@ -146,6 +146,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/inbox/{id}/answer"),
     // A surface's button runs a declared action: it may start a run or answer for the user.
     ("POST", "/api/actions/run"),
+    // An App's call runs its declared actions and writes files in the user's project.
+    ("POST", "/api/surfaces/{id}/app/call"),
     // Reshaping a page by saying starts its designer.
     ("POST", "/api/surfaces/{id}/reshape"),
     // A send approves a delivery as the user.

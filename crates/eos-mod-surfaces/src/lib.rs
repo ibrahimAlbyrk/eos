@@ -24,6 +24,9 @@
 //!   and each as its tile shows it;
 //! - `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac, kept
 //!   in `settings.json` under keys only that route writes;
+//! - `POST /api/surfaces/:id/app/call`: one call of an App in use, held to
+//!   its manifest: its actions through the dispatcher, its queries, its
+//!   state and the files its globs name below its root;
 //! - `GET /api/actions`, `POST /api/actions/run`, `GET /api/actions/records/:id`:
 //!   the direct actions, a press of a button through the dispatcher (also
 //!   the [`DirectActions`](eos_core::surface::DirectActions) port), and its
@@ -39,6 +42,7 @@
 //! a title, a body or state.
 
 mod action_routes;
+mod app_call;
 mod apps;
 mod authoring;
 mod builtins;
@@ -116,6 +120,12 @@ pub struct SurfacesParts {
     pub printer: Arc<dyn eos_core::surface::PagePrinter>,
     /// `surfaces/`, one folder per surface.
     pub root: std::path::PathBuf,
+    /// The files an App reaches below its root.
+    pub app_files: Arc<dyn eos_core::surface::AppFiles>,
+    /// This computer's checkout of a routine's project, for an App's files.
+    pub keys: Arc<dyn eos_core::git::ProjectKeys>,
+    /// The routines' folders: an App's `routine_files` are its routine's `files/`.
+    pub folders: Arc<dyn eos_core::routine::RunFolders>,
 }
 
 /// No window: a page design waits in `checking` until there is one, and no
@@ -151,6 +161,7 @@ pub struct SurfacesModule {
     fills: Arc<fill::Fills>,
     last_good: Arc<queries::LastGood>,
     designs: Arc<design::Designs>,
+    app_calls: Arc<app_call::AppCalls>,
 }
 
 impl std::fmt::Debug for SurfacesModule {
@@ -178,7 +189,15 @@ impl SurfacesModule {
             root: parts.root.clone(),
             probing: tokio::sync::Mutex::new(()),
         });
-        SurfacesModule { parts, dispatcher, probe_docs, fills: Arc::default(), last_good: Arc::default(), designs }
+        SurfacesModule {
+            parts,
+            dispatcher,
+            probe_docs,
+            fills: Arc::default(),
+            last_good: Arc::default(),
+            designs,
+            app_calls: Arc::default(),
+        }
     }
 
     /// The raw-content origin's routes: pages, their images, probe documents.
@@ -233,6 +252,7 @@ impl Module for SurfacesModule {
         out.extend(queries::routes(&self.parts, &self.last_good));
         out.extend(reshape::routes(&self.parts, &self.designs));
         out.extend(action_routes::all(&self.parts, &self.parts.actions, &self.dispatcher));
+        out.push(app_call::route(&self.parts, &self.dispatcher, &self.app_calls));
         out
     }
 

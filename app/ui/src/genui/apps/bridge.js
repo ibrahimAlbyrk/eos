@@ -9,6 +9,9 @@
 //   ui/open-link                  → the Eos browser panel, http(s) only, after a
 //                                   confirmation chip unless "Always" was chosen
 //   ui/message                    → a confirmation chip, unless "Always" was chosen
+//   tools/call                    → an App surface's call, relayed to the core, which
+//                                   holds it to the App's manifest (only where the
+//                                   frame can call: a routine's App, not a chat's)
 //   any other request             → JSON-RPC "method not found"
 //
 // Everything else — other sources, other origins, non-JSON-RPC data,
@@ -24,6 +27,10 @@ export const DEFAULT_APP_HEIGHT = 360;
 export const MESSAGE_INTERVAL_MS = 2000;
 export const LINK_INTERVAL_MS = 2000;
 export const MAX_MESSAGE_CHARS = 8000;
+// What an App may have going at once, and start in a second.
+export const CALLS_PER_SECOND = 10;
+export const CALLS_IN_FLIGHT = 16;
+const MAX_NAME_CHARS = 200;
 const MAX_METHOD_CHARS = 100;
 const MAX_ID_CHARS = 200;
 
@@ -121,6 +128,17 @@ function defaultTimeZone() {
   }
 }
 
+// An App's call answered as MCP's tools/call result: the value as text and
+// as structured content.
+export function toolResult(value) {
+  return { content: [{ type: "text", text: JSON.stringify(value ?? null) }], structuredContent: value ?? null };
+}
+
+// The calls of the last second, with `now` among them when it may go.
+export function recentCalls(times, now) {
+  return (times ?? []).filter((t) => now - t < 1000);
+}
+
 export const IGNORE = Object.freeze({ type: "ignore" });
 
 // One message event → one effect:
@@ -131,10 +149,11 @@ export const IGNORE = Object.freeze({ type: "ignore" });
 //   {type:"confirm-link", id, url}           show the chip; open + reply when the user answers
 //   {type:"send", id, text}                  deliver now (always-allowed), then reply
 //   {type:"confirm", id, text}               show the chip; reply when the user answers
+//   {type:"call", id, name, arguments}       relay to the core, then reply with its answer
 // "stamp" on open-link/confirm-link/send/confirm names the rate-limit clock to restart.
 //
 // ctx: { frameWindow, now, lastMessageAt, lastLinkAt, awaitingUser,
-//        alwaysSend, canSend, hostContext: () => object }
+//        alwaysSend, canSend, canCall, callTimes, inFlight, hostContext: () => object }
 export function routeAppMessage(event, ctx) {
   const frameWindow = ctx?.frameWindow ?? null;
   // Only this frame's own window may speak, and a sandboxed srcdoc frame always
@@ -155,7 +174,7 @@ export function routeAppMessage(event, ctx) {
         message: rpcResult(id, {
           protocolVersion: APP_PROTOCOL_VERSION,
           hostInfo: { name: "eos", version: "1" },
-          hostCapabilities: { openLinks: {} },
+          hostCapabilities: { openLinks: {}, ...(ctx.canCall ? { serverTools: {} } : {}) },
           hostContext: typeof ctx.hostContext === "function" ? ctx.hostContext() : buildHostContext(),
         }),
       };
@@ -194,6 +213,26 @@ export function routeAppMessage(event, ctx) {
         return { type: "reply", message: rpcError(id, RPC_ERRORS.denied, "Too many messages — wait a moment") };
       }
       return { type: ctx.alwaysSend ? "send" : "confirm", id, text, stamp: "message" };
+    }
+
+    case "tools/call": {
+      if (!isRequest) return IGNORE;
+      if (!ctx.canCall) return { type: "reply", message: rpcError(id, RPC_ERRORS.methodNotFound, `Method not found: ${method}`) };
+      const { name } = params;
+      const args = params.arguments ?? {};
+      if (typeof name !== "string" || !name || name.length > MAX_NAME_CHARS) {
+        return { type: "reply", message: rpcError(id, RPC_ERRORS.invalidParams, "name must be text") };
+      }
+      if (!args || typeof args !== "object" || Array.isArray(args)) {
+        return { type: "reply", message: rpcError(id, RPC_ERRORS.invalidParams, "arguments must be an object") };
+      }
+      if ((ctx.inFlight ?? 0) >= CALLS_IN_FLIGHT) {
+        return { type: "reply", message: rpcError(id, RPC_ERRORS.denied, `At most ${CALLS_IN_FLIGHT} calls at once`) };
+      }
+      if (recentCalls(ctx.callTimes, now).length >= CALLS_PER_SECOND) {
+        return { type: "reply", message: rpcError(id, RPC_ERRORS.denied, `At most ${CALLS_PER_SECOND} calls a second`) };
+      }
+      return { type: "call", id, name, arguments: args, stamp: "call" };
     }
 
     case "ping":

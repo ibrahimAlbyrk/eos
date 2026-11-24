@@ -315,6 +315,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         probe: cx.page_probe.clone(),
         printer: cx.page_printer.clone(),
         root: cx.paths.join("surfaces"),
+        app_files: Arc::new(eos_store_files::app_files::FsAppFiles),
+        keys: cx.project_keys.clone(),
+        folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
     }));
     cx.raw_routes.add(surfaces.raw_routes());
     // The mail channel draws a page issue it sends.

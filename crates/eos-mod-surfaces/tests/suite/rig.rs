@@ -44,6 +44,23 @@ pub(crate) struct Rig {
     pub(crate) printer: Arc<eos_testkit::FakePagePrinter>,
 }
 
+/// No project is a git checkout here: a routine's project is a folder.
+struct NoKeys;
+
+impl eos_core::git::ProjectKeys for NoKeys {
+    fn to_key<'a>(&'a self, path: &'a str) -> eos_core::BoxFuture<'a, String> {
+        Box::pin(std::future::ready(format!("path:{path}")))
+    }
+
+    fn to_path<'a>(&'a self, _key: &'a str, hint: &'a str) -> eos_core::BoxFuture<'a, String> {
+        Box::pin(std::future::ready(hint.to_owned()))
+    }
+
+    fn find_path<'a>(&'a self, _key: &'a str) -> eos_core::BoxFuture<'a, Option<String>> {
+        Box::pin(std::future::ready(None))
+    }
+}
+
 /// A feature with actions of every class, which records what it is called with.
 struct Probe(Arc<Mutex<Vec<ActionCall>>>);
 
@@ -155,6 +172,9 @@ impl Rig {
             probe: page_probe.clone(),
             printer: printer.clone(),
             root: dir.path().join("surfaces"),
+            app_files: Arc::new(eos_store_files::app_files::FsAppFiles),
+            keys: Arc::new(NoKeys),
+            folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(dir.path().join("routines"))),
         }));
         let read = Arc::new(Mutex::new(Vec::new()));
         let probe_module = Arc::new(ProbeModule(heard.clone(), read.clone()));

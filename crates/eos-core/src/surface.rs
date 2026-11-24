@@ -1,6 +1,8 @@
 //! What routines ask of surfaces: the designed view, page or app a routine
 //! makes follows the routine through its life (05 §4).
 
+use std::path::Path;
+
 use crate::{BoxFuture, Error};
 
 /// The surface of a routine whose blueprint makes a view, a page or an app.
@@ -194,6 +196,25 @@ pub trait SurfaceImages: Send + Sync {
     ) -> BoxFuture<'a, Result<Option<StoredImage>, Error>>;
     /// Removes every image of the surface not in `keep`; the bytes freed.
     fn collect<'a>(&'a self, surface_id: &'a str, keep: &'a [String]) -> BoxFuture<'a, Result<u64, Error>>;
+}
+
+/// The files an App reaches (05 Q7), below the folder its manifest names.
+/// The caller checks the App's path and its globs; the store refuses what,
+/// with links resolved, would leave `root`.
+pub trait AppFiles: Send + Sync {
+    /// The files below `root`, relative, `/` between folders, at most `max`;
+    /// a link is never followed nor listed.
+    fn list<'a>(&'a self, root: &'a Path, max: usize) -> BoxFuture<'a, Result<Vec<String>, Error>>;
+    /// `None` when there is no such file. A file bigger than `max_bytes`, or
+    /// one that leaves `root`, is refused.
+    fn read<'a>(
+        &'a self,
+        root: &'a Path,
+        path: &'a str,
+        max_bytes: usize,
+    ) -> BoxFuture<'a, Result<Option<Vec<u8>>, Error>>;
+    /// Writes the whole file, making its folders.
+    fn write<'a>(&'a self, root: &'a Path, path: &'a str, body: Vec<u8>) -> BoxFuture<'a, Result<(), Error>>;
 }
 
 /// A page issue as mail (05 Q9), for the mail channel at send time.

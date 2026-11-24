@@ -52,7 +52,7 @@ impl LastGood {
 }
 
 /// Reads `query_id` for a surface whose design declares it.
-async fn read(
+pub(crate) async fn read(
     parts: &SurfacesParts,
     surface: &StoredSurface,
     declared: &[String],

@@ -453,6 +453,7 @@ export const ROUTES = {
   surfaceIssuePart: (id, issueId, part) => `/api/surfaces/${id}/issues/${issueId}/parts/${part}`,
   surfaceQuery: (id, queryId) => `/api/surfaces/${id}/queries/${queryId}`,
   surfaceState: (id) => `/api/surfaces/${id}/state`,
+  surfaceAppCall: (id) => `/api/surfaces/${id}/app/call`,
   settingsSurfaces: "/api/settings/surfaces",
   actions: "/api/actions",
   actionsRun: "/api/actions/run",

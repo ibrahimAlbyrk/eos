@@ -156,6 +156,49 @@ pub struct SurfaceStateDoc {
 
 impl Validate for SurfaceStateDoc {}
 
+/// `POST /api/surfaces/{id}/app/call`: one `tools/call` of an App, as the
+/// dashboard relays it from the App's frame. The core checks `name` and
+/// `arguments` against the manifest of `version`, which must be the one in
+/// use.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AppCallRequest {
+    pub version: i64,
+    /// An action id, `query.<id>`, `state.get`, `state.set`, `files.list`,
+    /// `files.read` or `files.write`.
+    pub name: String,
+    #[serde(default)]
+    pub arguments: Value,
+    /// For an action: chosen by the dashboard per call and sent again with
+    /// Eos's confirmation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typed: Option<String>,
+}
+
+impl Validate for AppCallRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("name", |cx| {
+            cx.str_min(&self.name, 1);
+            cx.str_max(&self.name, 200);
+        });
+        if let Some(client_id) = &self.client_id {
+            cx.at("clientId", |cx| cx.str_max(client_id, 80));
+        }
+    }
+}
+
+/// What an App's call answered: for an action, its [`ActionAnswer`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct AppCallAnswer {
+    pub result: Value,
+}
+
+impl Validate for AppCallAnswer {}
+
 /// `PUT /api/surfaces/{id}/issues/{issueId}/fields`: one edit in place of a
 /// page issue's data, made on revision `baseRev`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
