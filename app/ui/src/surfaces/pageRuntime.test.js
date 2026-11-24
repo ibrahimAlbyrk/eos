@@ -108,8 +108,8 @@ beforeEach(() => {
 });
 
 describe("page runtime", () => {
-  it("says it is ready", () => {
-    expect(page.sent[0]).toEqual({ type: "eos-page/ready" });
+  it("says it is ready and names its live parts", () => {
+    expect(page.sent[0]).toEqual({ type: "eos-page/ready", live: ["desk"] });
   });
 
   it("a filter chip hides the items of other values and marks itself pressed", () => {

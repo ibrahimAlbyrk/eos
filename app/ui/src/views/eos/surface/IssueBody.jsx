@@ -10,6 +10,7 @@ import { Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { ConfirmBelow, SurfaceCard } from "../needs/SurfaceCard.jsx";
 import { EosFrame } from "./EosFrame.jsx";
 import { PageRenderer } from "./PageRenderer.jsx";
+import { useLiveParts } from "./useLiveParts.js";
 
 // What the core answered a press on the page, said outside the frame.
 function settle(press, answer, setAsking) {
@@ -61,6 +62,7 @@ function reportRead(surfaceId, issueId, message) {
 // back to one or plain reading is on.
 export function IssueBody({ surface, row, shown, maker, version }) {
   const { act, below } = usePagePress(row.id);
+  const { swaps, onLive } = useLiveParts(surface.id, row.id);
   if (!shown) return <Loading blocks={4} />;
   if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;
   const view = row.kind === "view" ? shown.body?.view : shown.body?.plain;
@@ -70,6 +72,8 @@ export function IssueBody({ surface, row, shown, maker, version }) {
       <PageRenderer
         src={api.surfacePageUrl(surface.id, row.id, version)}
         title={surface.title}
+        swaps={swaps}
+        onLive={onLive}
         onAct={(m) => void act(m)}
         onRead={(m) => reportRead(surface.id, row.id, m)}
       />

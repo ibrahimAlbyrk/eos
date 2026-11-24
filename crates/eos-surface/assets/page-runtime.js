@@ -155,5 +155,9 @@
   }
   if (window.ResizeObserver) new ResizeObserver(size).observe(document.documentElement);
   window.addEventListener("load", size);
-  post("eos-page/ready", {});
+  // The Live parts the dashboard fills and keeps current: their names only.
+  var live = [];
+  var liveParts = document.querySelectorAll("[data-live][data-part]");
+  for (var l = 0; l < liveParts.length; l++) live.push(liveParts[l].getAttribute("data-part"));
+  post("eos-page/ready", { live: live });
 })();

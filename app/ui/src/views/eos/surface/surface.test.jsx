@@ -9,6 +9,8 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { openableLink, pageMessage } from "./PageRenderer.jsx";
 import { shareName } from "./ShareMenu.jsx";
+import { followLiveParts } from "./useLiveParts.js";
+import { applyEosEvent } from "../../../state/eos/live.js";
 import { partName, popoverPlace } from "./PointPopover.jsx";
 import { failedFindings } from "./ReshapeBar.jsx";
 import { applyDesignChange, arrange, reshape, stopReshape } from "../../../state/eos/pageStore.js";
@@ -131,6 +133,28 @@ describe("the page frame", () => {
     expect(openableLink("javascript:alert(1)")).toBeNull();
     expect(openableLink("eos-action:lead")).toBeNull();
     expect(openableLink("data:text/html,x")).toBeNull();
+  });
+
+  it("draws a Live part through the core and again on its query's topics, until it stops", async () => {
+    const path = ROUTES.surfaceIssuePart(SF, "si-7b3m1c000003", "desk");
+    let n = 0;
+    const transport = {
+      get: vi.fn(async (asked) => (asked === path
+        ? { ok: true, status: 200, body: { part: "desk", html: `<div data-part="desk">${++n}</div>`, current: true, topics: ["inbox:change"] } }
+        : { ok: false, status: 404, body: {} })),
+      send: vi.fn(),
+    };
+    setEosTransport(transport);
+    const swaps = [];
+    const { stop, first } = followLiveParts(SF, "si-7b3m1c000003", ["desk"], (part, html) => swaps.push([part, html]));
+    await first;
+    expect(swaps).toEqual([["desk", '<div data-part="desk">1</div>']]);
+    applyEosEvent("inbox:change", {});
+    await vi.waitFor(() => expect(swaps).toHaveLength(2));
+    stop();
+    applyEosEvent("inbox:change", {});
+    await Promise.resolve();
+    expect(transport.get).toHaveBeenCalledTimes(2);
   });
 
   it("names the share file after the page and the issue", () => {
