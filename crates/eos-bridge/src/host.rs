@@ -98,6 +98,17 @@ impl LoginItem {
     }
 }
 
+/// The quick panel's global shortcut, as registered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Shortcut {
+    /// The one asked for (`alt+space`), or the fallback when that was taken.
+    pub accelerator: String,
+    /// Whether the system holds it for Eos.
+    pub held: bool,
+    /// Why the one asked for does not hold, in the user's words.
+    pub problem: Option<String>,
+}
+
 pub trait ShellHost: Send + Sync + 'static {
     /// Starts a native window drag from the mouse press being handled.
     fn start_window_drag(&self);
@@ -133,6 +144,15 @@ pub trait ShellHost: Send + Sync + 'static {
     /// Where the app's `eos` command is and where its link goes; `None` for an app that owns
     /// no door (a dev or test run) or ships no command.
     fn cli_command(&self) -> Option<crate::cli_link::CliCommand> {
+        None
+    }
+    /// The shortcut that opens the quick panel as the system holds it; `None` for an app that
+    /// owns no door (a dev or test run registers none).
+    fn shortcut(&self) -> Option<Shortcut> {
+        None
+    }
+    /// Registers this shortcut instead, remembering it when it holds; answers what holds after.
+    fn set_shortcut(&self, _accelerator: &str) -> Option<Shortcut> {
         None
     }
     /// Closes the quick panel; focus stays with the app that had it.

@@ -9,6 +9,7 @@
 mod app;
 mod catch;
 mod host;
+mod hotkey;
 mod log;
 mod menu;
 mod native;

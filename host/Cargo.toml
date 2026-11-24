@@ -28,6 +28,8 @@ base64 = "0.22"
 block2 = "0.6"
 cef = "=154.5.0"
 cef-dll-sys = "=154.5.0"
+# The quick panel's shortcut, through Carbon's RegisterEventHotKey (no permission needed).
+global-hotkey = "0.7"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 serde_json = "1"

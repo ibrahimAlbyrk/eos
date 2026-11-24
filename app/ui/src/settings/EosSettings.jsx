@@ -2,7 +2,7 @@
 // from and written through the route of the area that owns it
 // (state/eos/eosSettingsStore.js): how much all routines may spend, keeping
 // the Mac awake for schedules, what may interrupt, learning and reminders,
-// Start at login, a test notification, what leaves the Mac with forgetting
+// Start at login, the quick panel's shortcut and the eos command, a test notification, what leaves the Mac with forgetting
 // and exporting what was learned, and Stop everything.
 
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import {
 } from "../state/eos/eosSettingsStore.js";
 import { ensureHaltLoaded, resumeEos, stopEos, useHalt } from "../state/eos/haltStore.js";
 import { ToggleControl } from "./controls.jsx";
+import { CommandRow, ShortcutRow } from "./EosDoors.jsx";
 
 function Row({ label, description, children }) {
   return (
@@ -184,6 +185,8 @@ export function EosSettings() {
       {doors && (
         <Group title="Doors">
           <StartAtLogin doors={doors} />
+          <ShortcutRow doors={doors} />
+          <CommandRow doors={doors} />
         </Group>
       )}
       <Group title="Remote">

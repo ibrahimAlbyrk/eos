@@ -28,6 +28,7 @@ use tauri_runtime_cef::cef::{ContentSettingTypes, ContentSettingValues, ImplBrow
 use tauri_runtime_cef::{Cef, ProxyConfig, SecretStorage, WebRtcIpHandling, WebviewCefExt};
 
 use crate::host::{Host, Opener, frame_command, open_external, target_of};
+use crate::hotkey::Hotkeys;
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::activity::Activities;
@@ -404,6 +405,11 @@ impl Shell {
             quiet: options.quiet,
             doors: options.doors,
             quick: quick.clone(),
+            // A dev or test run never takes a key from the user's Mac.
+            hotkeys: options.doors.then(|| {
+                let quick = quick.clone();
+                Hotkeys::start(options.data_dir.clone(), Arc::new(move || quick.show()))
+            }),
         });
         let bridge = Bridge::new(Parts {
             assets: options.ui_dist.clone(),
@@ -972,6 +978,8 @@ impl Shell {
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
             "quick": self.quick.get().map(|quick| quick.report()),
+            // Whether a global shortcut is registered: never in a dev or test run.
+            "shortcut": self.host.get().and_then(|host| host.shortcut()).map(|s| s.held),
             "dockBadge": self.dock_label(),
             "tray": self.tray.status(self.app.get()),
             "logs": self.options.logs.as_ref().map(|dir| json!({

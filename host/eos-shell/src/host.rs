@@ -3,11 +3,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, Weak};
 
-use eos_bridge::{Banner, BannerTarget, Bridge, EditCommand, LoginItem, ShellHost, Theme};
+use eos_bridge::{Banner, BannerTarget, Bridge, EditCommand, LoginItem, ShellHost, Shortcut, Theme};
 use serde_json::{Value, json};
+use tauri::Manager;
 use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplFrame};
 
+use crate::hotkey::Hotkeys;
 use crate::log::log;
 use crate::native::{appkit, login, notify};
 use crate::panel::QuickPanel;
@@ -31,6 +33,8 @@ pub(crate) struct Host {
     /// Whether this app owns the doors, the login item among them (`Options::doors`).
     pub(crate) doors: bool,
     pub(crate) quick: Arc<QuickPanel>,
+    /// The quick panel's shortcut, registered only by the app that owns the doors.
+    pub(crate) hotkeys: Option<Arc<Hotkeys>>,
 }
 
 /// `worker:<id>` or `route:<name>`, then `@<host>` when a paired computer raised it (a host
@@ -201,6 +205,19 @@ impl ShellHost for Host {
 
     fn close_panel(&self) {
         self.quick.close();
+    }
+
+    fn shortcut(&self) -> Option<Shortcut> {
+        self.hotkeys.as_ref().map(|hotkeys| hotkeys.state())
+    }
+
+    fn set_shortcut(&self, accelerator: &str) -> Option<Shortcut> {
+        let hotkeys = self.hotkeys.clone()?;
+        // Carbon's registrations are the main thread's.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let accelerator = accelerator.to_owned();
+        let _ = self.window.run_on_main_thread(move || drop(tx.send(hotkeys.set(&accelerator))));
+        rx.recv_timeout(std::time::Duration::from_secs(2)).ok()
     }
 
     fn size_panel(&self, width: f64, height: f64) {

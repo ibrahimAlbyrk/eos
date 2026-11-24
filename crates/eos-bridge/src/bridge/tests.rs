@@ -38,6 +38,8 @@ struct FakeHost {
     login: Mutex<Option<LoginItem>>,
     /// The `eos` command the app ships, when it owns the doors.
     cli: Mutex<Option<crate::cli_link::CliCommand>>,
+    /// The quick panel's shortcut, when the app owns the doors.
+    shortcut: Mutex<Option<crate::Shortcut>>,
 }
 
 impl FakeHost {
@@ -105,6 +107,21 @@ impl ShellHost for FakeHost {
     }
     fn close_panel(&self) {
         self.log("panel close");
+    }
+    fn shortcut(&self) -> Option<crate::Shortcut> {
+        self.shortcut.lock().unwrap().clone()
+    }
+    fn set_shortcut(&self, accelerator: &str) -> Option<crate::Shortcut> {
+        self.log(format!("shortcut {accelerator}"));
+        let mut held = self.shortcut.lock().unwrap();
+        let was = held.clone()?;
+        // Another app holds ⌘K: the one held stays, and the problem says why.
+        *held = Some(if accelerator == "cmd+k" {
+            crate::Shortcut { problem: crate::doors::shortcut_problem(accelerator, Some(&was.accelerator)), ..was }
+        } else {
+            crate::Shortcut { accelerator: accelerator.into(), held: true, problem: None }
+        });
+        held.clone()
     }
     fn size_panel(&self, width: f64, height: f64) {
         self.log(format!("panel {width}x{height}"));
@@ -878,4 +895,37 @@ async fn the_panel_page_closes_the_panel_or_fits_it_within_bounds() {
     assert_eq!(ask(br#"{}"#).await.status, 400);
     assert_eq!(call(&w.bridge, "POST", url, &[], br#"{"close":true}"#).await.status, 403);
     assert_eq!(*w.host.calls.lock().unwrap(), ["panel 560x560", "panel close"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_shortcut_says_which_one_holds_and_changes_only_when_asked_by_an_app_that_owns_the_doors() {
+    let w = world();
+    let url = "http://eos.localhost/_shell/doors/shortcut";
+    let token = [("x-eos-ui-token", TOKEN)];
+    assert_eq!(
+        call(&w.bridge, "GET", url, &token, b"").await.json(),
+        json!({ "available": false }),
+        "a dev run holds none"
+    );
+
+    let fallback = crate::doors::shortcut_problem("alt+space", Some("ctrl+alt+space"));
+    *w.host.shortcut.lock().unwrap() =
+        Some(crate::Shortcut { accelerator: "ctrl+alt+space".into(), held: true, problem: fallback.clone() });
+    assert_eq!(
+        call(&w.bridge, "GET", url, &token, b"").await.json(),
+        json!({ "available": true, "accelerator": "ctrl+alt+space", "held": true, "problem": fallback })
+    );
+    let put = |body: &'static [u8]| call(&w.bridge, "PUT", url, &token, body);
+    assert_eq!(
+        put(br#"{"accelerator":"cmd+shift+space"}"#).await.json(),
+        json!({ "available": true, "accelerator": "cmd+shift+space", "held": true })
+    );
+    let taken = put(br#"{"accelerator":"cmd+k"}"#).await.json();
+    assert_eq!(
+        (taken["accelerator"].as_str(), taken["problem"].as_str()),
+        (Some("cmd+shift+space"), Some("⌘K is taken by another app, so ⌘⇧Space opens Eos."))
+    );
+    assert_eq!(put(br#"{"accelerator":"space"}"#).await.status, 400, "a bare key would take typing from every app");
+    assert_eq!(call(&w.bridge, "PUT", url, &[], br#"{"accelerator":"alt+space"}"#).await.status, 403);
+    assert_eq!(*w.host.calls.lock().unwrap(), ["shortcut cmd+shift+space", "shortcut cmd+k"]);
 }
