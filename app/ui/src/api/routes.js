@@ -438,6 +438,7 @@ export const ROUTES = {
   surfaceIssue: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}`,
   surfaceIssueDocument: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}/document`,
   surfaceIssueMail: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}/mail`,
+  surfaceIssuePdf: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}/pdf`,
   surfaceIssueFields: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}/fields`,
   surfaceIssueRead: (id, issueId) => `/api/surfaces/${id}/issues/${issueId}/read`,
   surfaceIssuePart: (id, issueId, part) => `/api/surfaces/${id}/issues/${issueId}/parts/${part}`,

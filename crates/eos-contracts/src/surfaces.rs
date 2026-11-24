@@ -495,6 +495,27 @@ impl Validate for SurfacesPins {}
 
 /// `POST /api/surfaces/{id}/reshape`: what the user said, about the part
 /// they pointed at, from the version they saw.
+/// `POST /api/surfaces/{id}/issues/{issueId}/pdf`: the paper, A4 when left
+/// out.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PdfRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paper: Option<String>,
+}
+
+impl Validate for PdfRequest {}
+
+/// Where the PDF of an issue was written, and its size.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PdfExport {
+    pub path: String,
+    pub bytes: u64,
+}
+
+impl Validate for PdfExport {}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReshapeRequest {

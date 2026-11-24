@@ -423,6 +423,8 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // Edits in place and what the reader opened are data in the data folder.
     ("PUT", "/api/surfaces/{id}/issues/{issueId}/fields"),
     ("POST", "/api/surfaces/{id}/issues/{issueId}/read"),
+    // A page issue printed to a PDF in the data folder, by the shell's hidden view.
+    ("POST", "/api/surfaces/{id}/issues/{issueId}/pdf"),
     // Pins are this Mac's Home layout, in the data folder.
     ("PUT", "/api/surfaces/pins"),
     // Keeping, discarding or bringing back a page's design and arranging its parts change

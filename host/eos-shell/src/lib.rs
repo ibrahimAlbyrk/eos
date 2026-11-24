@@ -93,6 +93,10 @@ pub struct Ports {
     pub picker: Arc<dyn FilePicker>,
     /// Draws a plugin's surface in a hidden view of the dashboard's bundle.
     pub previewer: Arc<dyn PluginPreviewer>,
+    /// Lays a page design out in a hidden view to check it (05 Q3).
+    pub page_probe: Arc<dyn eos_core::surface::PageProbe>,
+    /// Prints a page issue to PDF in a hidden view (05 Q9).
+    pub page_printer: Arc<dyn eos_core::surface::PagePrinter>,
     /// Opens a web page outside the app, the way the shell opens every external link.
     pub opener: Arc<dyn Browser>,
     /// Keeps the app out of App Nap while routines run or wait: one system activity per

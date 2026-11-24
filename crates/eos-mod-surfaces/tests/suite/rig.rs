@@ -41,6 +41,7 @@ pub(crate) struct Rig {
     pub(crate) dir: tempfile::TempDir,
     pub(crate) runs: Arc<eos_testkit::FakeRunStarter>,
     pub(crate) probe: Arc<eos_testkit::FakePageProbe>,
+    pub(crate) printer: Arc<eos_testkit::FakePagePrinter>,
 }
 
 /// A feature with actions of every class, which records what it is called with.
@@ -132,6 +133,7 @@ impl Rig {
         let feedback = Arc::new(FakeExperienceFeedback::new());
         let runs = Arc::new(eos_testkit::FakeRunStarter::new());
         let page_probe = Arc::new(eos_testkit::FakePageProbe::new());
+        let printer = Arc::new(eos_testkit::FakePagePrinter::new());
         let dir = tempfile::tempdir().expect("a folder");
         let trash = Arc::new(FakeTrash::new(dir.path().join("trash")));
         let mut me = eos_domain::user_profile::empty_user_profile();
@@ -151,6 +153,7 @@ impl Rig {
             feedback: feedback.clone(),
             runs: runs.clone(),
             probe: page_probe.clone(),
+            printer: printer.clone(),
             root: dir.path().join("surfaces"),
         }));
         let read = Arc::new(Mutex::new(Vec::new()));
@@ -175,6 +178,7 @@ impl Rig {
             dir,
             runs,
             probe: page_probe,
+            printer,
         }
     }
 

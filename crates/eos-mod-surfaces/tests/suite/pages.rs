@@ -212,6 +212,33 @@ async fn the_phone_the_share_file_and_the_mail_carry_no_script_and_inline_their_
 }
 
 #[tokio::test]
+async fn an_issue_prints_to_its_export_file_on_the_paper_asked_with_its_images_inlined() {
+    let rig = Rig::new().await;
+    paper(&rig, "standing").await;
+    let line = tools(&rig).fill_page("w-lead", json_file("sample.json")).await.expect("accepted");
+    let id = issue_id(&line);
+    settled(&rig, &id).await;
+    let path = format!("/api/surfaces/sf-paper/issues/{id}/pdf");
+    let (status, answer) = rig.ask(Method::Post, &path, Some(json!({"paper": "letter"}))).await;
+    assert_eq!(status, 200, "{answer}");
+    let out = rig.dir.path().join("surfaces/sf-paper/exports").join(format!("{id}.pdf"));
+    assert_eq!(answer, json!({"path": out.to_string_lossy(), "bytes": eos_testkit::FAKE_PDF.len()}));
+    assert_eq!(std::fs::read(&out).expect("written"), eos_testkit::FAKE_PDF);
+    let (doc, paper) = rig.printer.printed()[0].clone();
+    assert_eq!(paper, eos_core::surface::Paper::Letter);
+    let held = doc.url.strip_prefix("http://raw.eos.localhost").expect("a raw page").to_owned();
+    let raw = Router::builder().routes(rig.module.raw_routes()).build().expect("raw router");
+    let (_, _, printed) = rig.fetch(&raw, &held).await;
+    assert!(printed.contains("data:image/jpeg;base64,"), "images are inlined");
+    assert_eq!(rig.ask(Method::Post, &path, Some(json!({}))).await.0, 200, "A4 when no paper is named");
+    assert_eq!(rig.printer.printed()[1].1, eos_core::surface::Paper::A4);
+    assert_eq!(rig.ask(Method::Post, &path, Some(json!({"paper": "a3"}))).await.0, 400);
+    rig.printer.set_available(false);
+    let (status, refused) = rig.ask(Method::Post, &path, Some(json!({}))).await;
+    assert_eq!((status, refused["error"].as_str()), (409, Some("A PDF needs Eos's window: open Eos and try again")));
+}
+
+#[tokio::test]
 async fn plain_reading_answers_a_page_issue_as_its_fallback_view() {
     let rig = Rig::new().await;
     paper(&rig, "standing").await;

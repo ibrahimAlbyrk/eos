@@ -6,6 +6,9 @@
 //!   5 MB; an image past that is drawn as its alt text);
 //! - `GET …/issues/:issueId/mail`: the mail as it would be sent, its images
 //!   inlined so a browser shows it;
+//! - `POST …/issues/:issueId/pdf {paper?}`: the issue printed by the shell's
+//!   hidden view to `surfaces/<sf>/exports/<si>.pdf` (A4 unless the reader's
+//!   region asks for Letter), its images inlined; refused without the window;
 //! - [`SurfaceRender`] for the mail channel: the mail with its images as
 //!   `cid:` parts, at most 600 px and 5 MB in all.
 
@@ -13,16 +16,18 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use base64::Engine;
-use eos_core::surface::{InlineImage, MailDocument, StoredImage, SurfaceRender};
+use eos_contracts::{PdfExport, PdfRequest};
+use eos_core::surface::{InlineImage, MailDocument, Paper, ProbeDoc, StoredImage, SurfaceRender};
 use eos_core::{BoxFuture, Error};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_surface::limits::{MAIL_IMAGE_BYTES, MAIL_IMAGE_WIDTH, PHONE_DOCUMENT_BYTES, PHONE_IMAGE_WIDTH};
-use eos_surface::render::{PHONE_CSP, mail_body, phone_document, share_document};
+use eos_surface::render::{PHONE_CSP, frame_document, mail_body, phone_document, share_document};
 
 use crate::SurfacesParts;
 use crate::page::{Drawn, load};
+use crate::raw::ProbeDocs;
 use crate::routes::param;
 
 /// Each image of the issue read once at `width`, while the running total
@@ -85,7 +90,22 @@ async fn mail(parts: &SurfacesParts, drawn: &Drawn, inline: bool) -> Result<Mail
     Ok(MailDocument { subject: subject(drawn), html: body.html, text: body.text, inline_images })
 }
 
-pub(crate) fn routes(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
+/// Prints the issue to its export file; the file's path and size.
+async fn pdf(parts: &SurfacesParts, docs: &ProbeDocs, drawn: &Drawn, paper: Paper) -> Result<PdfExport, ApiError> {
+    if !parts.printer.is_available() {
+        return Err(ApiError::Conflict("A PDF needs Eos's window: open Eos and try again".into()));
+    }
+    let images = read_images(parts, drawn, None, None).await?;
+    let src = |hash: &str| images.get(hash).map(data_uri);
+    let live = HashMap::new();
+    let url = docs.hold(frame_document(&drawn.input(&src, &live), &drawn.surface.id));
+    let out = parts.root.join(&drawn.surface.id).join("exports").join(format!("{}.pdf", drawn.issue.id));
+    let bytes = parts.printer.pdf(ProbeDoc { url, script: String::new() }, paper, &out).await?;
+    tracing::info!(surface = %drawn.surface.id, issue = %drawn.issue.id, bytes, "a page issue was printed to PDF");
+    Ok(PdfExport { path: out.to_string_lossy().into_owned(), bytes })
+}
+
+pub(crate) fn routes(parts: &Arc<SurfacesParts>, docs: &Arc<ProbeDocs>) -> Vec<RouteDef> {
     let at = parts.clone();
     let document = RouteDef::get("/api/surfaces/{id}/issues/{issueId}/document", move |req: Request| {
         let (at, id, issue_id) = (at.clone(), param(&req, "id"), param(&req, "issueId"));
@@ -126,7 +146,23 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
         }
     })
     .access(Access::ui_token());
-    vec![document, preview]
+
+    let (at, docs) = (parts.clone(), docs.clone());
+    let print = RouteDef::post("/api/surfaces/{id}/issues/{issueId}/pdf", move |req: Request| {
+        let (at, docs, id, issue_id) = (at.clone(), docs.clone(), param(&req, "id"), param(&req, "issueId"));
+        async move {
+            let asked: PdfRequest = req.parse()?;
+            let paper = match asked.paper.as_deref() {
+                None => Paper::A4,
+                Some(word) => Paper::parse(word)
+                    .ok_or_else(|| ApiError::Validation("invalid request: paper: a4 or letter".into()))?,
+            };
+            let drawn = load(&at, &id, &issue_id, None).await?;
+            Ok(Response::json(200, &pdf(&at, &docs, &drawn, paper).await?))
+        }
+    })
+    .access(Access::ui_token());
+    vec![document, preview, print]
 }
 
 /// The mail channel's view of page issues.

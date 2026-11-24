@@ -235,6 +235,41 @@ pub struct ProbeWidth {
     pub screenshot: Option<std::path::PathBuf>,
 }
 
+/// The paper a page issue is printed on (05 Q9): A4, or Letter where the
+/// reader's region uses it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Paper {
+    A4,
+    Letter,
+}
+
+impl Paper {
+    pub fn parse(word: &str) -> Option<Paper> {
+        match word {
+            "a4" => Some(Paper::A4),
+            "letter" => Some(Paper::Letter),
+            _ => None,
+        }
+    }
+
+    /// Width and height in inches.
+    pub fn inches(self) -> (f64, f64) {
+        match self {
+            Paper::A4 => (8.27, 11.69),
+            Paper::Letter => (8.5, 11.0),
+        }
+    }
+}
+
+/// The shell's hidden view that prints a page issue to a PDF with the
+/// browser's own printing: `@media print` applies, backgrounds print.
+/// Without Eos's window it is not available.
+pub trait PagePrinter: Send + Sync {
+    fn is_available(&self) -> bool;
+    /// Loads `doc` and prints it to `out` on `paper`; the file's size.
+    fn pdf<'a>(&'a self, doc: ProbeDoc, paper: Paper, out: &'a std::path::Path) -> BoxFuture<'a, Result<u64, Error>>;
+}
+
 /// The shell's hidden view that lays a page out as the dashboard would
 /// (05 Q3): one page at a time, at each width, within its time limit.
 /// Without Eos's window it is not available, and a candidate waits.

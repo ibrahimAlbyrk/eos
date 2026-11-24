@@ -658,6 +658,8 @@ bundle![
     SurfaceQueryAnswer,
     SurfaceRow,
     ArrangeRequest,
+    PdfExport,
+    PdfRequest,
     ReshapeRequest,
     ReshapeStarted,
     SurfacesChange,

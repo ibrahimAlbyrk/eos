@@ -111,11 +111,14 @@ pub struct SurfacesParts {
     pub runs: Arc<dyn eos_core::routine::RunStarter>,
     /// The shell's hidden view that lays a page design out to check it.
     pub probe: Arc<dyn eos_core::surface::PageProbe>,
+    /// The shell's hidden view that prints a page issue to PDF.
+    pub printer: Arc<dyn eos_core::surface::PagePrinter>,
     /// `surfaces/`, one folder per surface.
     pub root: std::path::PathBuf,
 }
 
-/// No window: a page design waits in `checking` until there is one.
+/// No window: a page design waits in `checking` until there is one, and no
+/// issue prints.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoProbeWindow;
 
@@ -224,7 +227,7 @@ impl Module for SurfacesModule {
         out.extend(routes::all(&self.parts));
         out.extend(issue_routes::all(&self.parts));
         out.extend(edits::routes(&self.parts));
-        out.extend(export::routes(&self.parts));
+        out.extend(export::routes(&self.parts, &self.probe_docs));
         out.extend(settings::all(&self.parts));
         out.extend(queries::routes(&self.parts, &self.last_good));
         out.extend(reshape::routes(&self.parts, &self.designs));
@@ -260,5 +263,20 @@ impl Module for SurfacesModule {
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {
         Some(ProtectedSettings { keys: settings::KEYS.to_vec(), via: "PUT /api/settings/surfaces" })
+    }
+}
+
+impl eos_core::surface::PagePrinter for NoProbeWindow {
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn pdf<'a>(
+        &'a self,
+        _doc: eos_core::surface::ProbeDoc,
+        _paper: eos_core::surface::Paper,
+        _out: &'a std::path::Path,
+    ) -> eos_core::BoxFuture<'a, Result<u64, eos_core::Error>> {
+        Box::pin(std::future::ready(Err(eos_core::Error::Unreachable("Eos's window is not open".into()))))
     }
 }

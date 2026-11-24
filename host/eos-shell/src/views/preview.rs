@@ -142,7 +142,7 @@ impl PluginPreviewer for Previewer {
                 call.request.height.map_or(height as f64, |h| h as f64),
             );
             let views = self.views.clone();
-            let view = tokio::task::spawn_blocking(move || views.create_app_view(size))
+            let view = tokio::task::spawn_blocking(move || views.create_hidden_view(size, APP_HOST))
                 .await
                 .map_err(Error::storage)?
                 .map_err(Error::storage)?;
@@ -160,14 +160,15 @@ impl PluginPreviewer for Previewer {
 }
 
 impl Views {
-    /// A hidden view of `size` on the dashboard's own profile, for the app's own pages. It
-    /// may only show the app's origin and is never one of the browser's tabs. Blocking.
-    fn create_app_view(&self, size: (f64, f64)) -> Result<Arc<View>, ViewError> {
+    /// A hidden view of `size` on the dashboard's own profile, for Eos's own pages. It may
+    /// only show `host` (the app's origin, or the raw-content origin's pages) and is never
+    /// one of the browser's tabs. Blocking.
+    pub(crate) fn create_hidden_view(&self, size: (f64, f64), host: &'static str) -> Result<Arc<View>, ViewError> {
         let n = self.counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let policy = create::Policy {
             popups: None,
-            navigation: Box::new(|url| {
-                (url.scheme() == "http" && url.host_str() == Some(APP_HOST)) || url.as_str() == "about:blank"
+            navigation: Box::new(move |url| {
+                (url.scheme() == "http" && url.host_str() == Some(host)) || url.as_str() == "about:blank"
             }),
             open_requested: Box::new(|_| {}),
         };
