@@ -52,6 +52,7 @@ mod pins;
 mod queries;
 mod raw;
 mod records;
+mod retention;
 mod routes;
 mod settings;
 mod tiles;

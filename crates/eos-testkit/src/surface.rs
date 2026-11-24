@@ -12,6 +12,7 @@ pub enum SurfaceCall {
     Keep(String),
     Archive(String),
     Restore(String),
+    Remove(String),
 }
 
 #[derive(Debug, Default)]
@@ -58,6 +59,10 @@ impl SurfaceAuthoring for FakeSurfaceAuthoring {
 
     fn restore_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         self.record(SurfaceCall::Restore(routine_id.to_owned()))
+    }
+
+    fn remove_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        self.record(SurfaceCall::Remove(routine_id.to_owned()))
     }
 }
 

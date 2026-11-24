@@ -17,7 +17,7 @@ use eos_runtime::router::{AllPluginsOn, BoxFuture};
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_surface::{Field, IssueKind, IssueStatus, Level, MadeBy, Place, Role, Type, VersionStatus};
 use eos_testkit::{
-    FakeActionGate, FakeClock, FakeExperienceFeedback, FakeSettings, FakeSurfaceImages, FakeTimeZone,
+    FakeActionGate, FakeClock, FakeExperienceFeedback, FakeSettings, FakeSurfaceImages, FakeTimeZone, FakeTrash,
     FakeUserProfileStore, FakeViewCards, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
@@ -36,6 +36,9 @@ pub(crate) struct Rig {
     /// Every read of the test's query, in order.
     pub(crate) read: Arc<Mutex<Vec<QueryCall>>>,
     pub(crate) feedback: Arc<FakeExperienceFeedback>,
+    /// Where removed surfaces' folders go, and `surfaces/` itself.
+    pub(crate) trash: Arc<FakeTrash>,
+    pub(crate) dir: tempfile::TempDir,
 }
 
 /// A feature with actions of every class, which records what it is called with.
@@ -125,6 +128,8 @@ impl Rig {
         );
         let profile = Arc::new(FakeUserProfileStore::default());
         let feedback = Arc::new(FakeExperienceFeedback::new());
+        let dir = tempfile::tempdir().expect("a folder");
+        let trash = Arc::new(FakeTrash::new(dir.path().join("trash")));
         let mut me = eos_domain::user_profile::empty_user_profile();
         me.identity.call_name = "Ibrahim".into();
         eos_core::store::UserProfileStore::put(profile.as_ref(), me).expect("a profile");
@@ -146,7 +151,18 @@ impl Rig {
         let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read, feedback }
+        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read, feedback, trash, dir }
+    }
+
+    /// The author the routines feature holds, over this rig's store and folders.
+    pub(crate) fn author(&self) -> eos_mod_surfaces::SurfaceAuthor {
+        eos_mod_surfaces::SurfaceAuthor::new(
+            self.temp.port(),
+            self.clock.clone(),
+            Arc::new(SeqIds::new()),
+            self.trash.clone(),
+            self.dir.path().join("surfaces"),
+        )
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

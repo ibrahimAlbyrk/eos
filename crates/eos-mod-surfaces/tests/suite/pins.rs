@@ -3,7 +3,6 @@
 
 use eos_core::store::StoredIssue;
 use eos_core::surface::SurfaceAuthoring;
-use eos_mod_surfaces::SurfaceAuthor;
 use eos_runtime::http::Method;
 use eos_surface::{IssueKind, Level, Place, VersionStatus};
 use serde_json::json;
@@ -48,8 +47,7 @@ async fn an_archived_surface_loses_its_pin_and_cannot_be_pinned() {
     let rig = Rig::new().await;
     four(&rig).await;
     rig.ask(Method::Put, "/api/surfaces/pins", Some(json!({"surfaceIds": ["sf-a", "sf-b"]}))).await;
-    let author =
-        SurfaceAuthor::new(rig.temp.port(), rig.clock.clone(), std::sync::Arc::new(eos_testkit::SeqIds::new()));
+    let author = rig.author();
     author.archive_for_routine("rt-0").await.expect("archived");
     let (_, pins) = rig.ask(Method::Get, "/api/surfaces/pins", None).await;
     assert_eq!(pins, json!({"surfaceIds": ["sf-b"]}));

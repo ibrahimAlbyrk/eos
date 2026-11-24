@@ -2503,6 +2503,7 @@ dependencies = [
  "eos-testkit",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
 ]

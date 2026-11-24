@@ -158,6 +158,7 @@ impl SurfaceTools for ViewIssues {
                 })
                 .await?;
             tracing::info!(surface = %issue.surface_id, issue = %issue.id, bound = bindings.len(), "a run returned a view");
+            crate::retention::sweep(&self.parts, &issue.surface_id).await;
             let n = bindings.len();
             let line = format!("issue {} · {n} bound action{}", issue.id, if n == 1 { "" } else { "s" });
             match item_id.filter(|_| question) {

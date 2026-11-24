@@ -7,5 +7,6 @@ mod live;
 mod pages;
 mod pins;
 mod reads;
+mod retention;
 mod rig;
 mod state;

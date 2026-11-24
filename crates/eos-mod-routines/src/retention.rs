@@ -14,7 +14,8 @@
 //! - A routine leaves for good [`DELETED_KEPT_DAYS`] after it was deleted,
 //!   a one-off [`ONE_OFF_KEPT_DAYS`] after its run ended unless the user
 //!   kept it, and a routine never started [`DRAFTS_KEPT_DAYS`] after its
-//!   draft was left: its folder goes to the trash and every row of it goes.
+//!   draft was left: its folder goes to the trash and every row of it goes,
+//!   and so do its surfaces' folders and rows.
 //!   A deleted routine first leaves one export in the trash, its versions
 //!   and run summaries as JSON, from which it can be brought back.
 //! - The note of each one-off made, which "Keep as a routine?" counts,
@@ -231,6 +232,9 @@ async fn routines(engine: &Engine, when: &Leaving, cleared: &mut Cleared) {
                 Ok(()) => {
                     tracing::info!(routine_id = %routine.id, state = ?routine.state, "a routine left for good");
                     crate::engine::routine_removed(engine, &routine.id).await;
+                    if let Err(error) = engine.surfaces.remove_for_routine(&routine.id).await {
+                        warn("surfaces", &error);
+                    }
                     cleared.routines += 1;
                 }
                 Err(error) => {

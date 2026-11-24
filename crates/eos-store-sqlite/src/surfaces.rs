@@ -169,6 +169,16 @@ impl SurfaceRepo for SqliteTx<'_> {
             surface,
         )
     }
+
+    fn remove(&self, id: &str) -> Result<(), Error> {
+        let issues: Vec<String> =
+            self.rows("SELECT id FROM surface_issues WHERE surface_id = ?1", [id], |r| r.get(0).map_err(failed))?;
+        SurfaceIssueRepo::delete(self, &issues)?;
+        for table in ["surface_state", "surface_pins", "surface_versions", "surface_action_log"] {
+            self.exec(&format!("DELETE FROM {table} WHERE surface_id = ?1"), [id])?;
+        }
+        self.exec("DELETE FROM surface_defs WHERE id = ?1", [id]).map(drop)
+    }
 }
 
 impl SurfaceVersionRepo for SqliteTx<'_> {
@@ -219,6 +229,17 @@ impl SurfaceVersionRepo for SqliteTx<'_> {
             |r| r.get::<_, i64>(0).map_err(failed),
         )?;
         Ok(highest.unwrap_or(0) + 1)
+    }
+
+    fn delete(&self, surface_id: &str, versions: &[i64]) -> Result<usize, Error> {
+        let mut gone = 0;
+        for version in versions {
+            gone += self.exec(
+                "DELETE FROM surface_versions WHERE surface_id = ?1 AND version = ?2",
+                params![surface_id, version],
+            )?;
+        }
+        Ok(gone)
     }
 }
 
@@ -282,7 +303,13 @@ impl SurfaceIssueRepo for SqliteTx<'_> {
     }
 
     fn delete(&self, ids: &[String]) -> Result<usize, Error> {
-        ids.iter().map(|id| self.exec("DELETE FROM surface_issues WHERE id = ?1", [id])).sum()
+        let mut gone = 0;
+        for id in ids {
+            self.exec("DELETE FROM surface_edits WHERE issue_id = ?1", [id])?;
+            self.exec("DELETE FROM surface_state WHERE scope = ?1", [id])?;
+            gone += self.exec("DELETE FROM surface_issues WHERE id = ?1", [id])?;
+        }
+        Ok(gone)
     }
 }
 
