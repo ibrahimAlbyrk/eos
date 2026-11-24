@@ -1,6 +1,6 @@
-// surfacesStore — the routines' Views that wait in Needs you (05): each View
-// surface placed there with its newest issue, and pressing one of its
-// buttons through the direct action route. The core fills every argument
+// surfacesStore — the routines' Views (05): each View surface placed in
+// Needs you with its newest issue, each routine's View for its page, and
+// pressing one of its buttons through the direct action route. The core fills every argument
 // from the stored issue; the dashboard sends only which button, what the
 // user typed or picked, and its own id for the press.
 
@@ -9,7 +9,8 @@ import { ROUTES } from "../../api/routes.js";
 import { isDevRunRefusal, transport } from "./transport.js";
 
 // cards: null until loaded, then [{ surface, issue, body }] newest first.
-const EMPTY = { cards: null, failed: false };
+// byRoutine: routine id → its View's card, or null when it has none to show.
+const EMPTY = { cards: null, failed: false, byRoutine: {} };
 let state = EMPTY;
 let started = false;
 const subs = new Set();
@@ -54,15 +55,25 @@ export async function refreshSurfaces() {
   set({ cards, failed: false });
 }
 
+// The routine's View with its newest issue, for the routine's page.
+export async function loadRoutineView(routineId) {
+  const r = await transport.get(`${ROUTES.surfaces}?routine=${encodeURIComponent(routineId)}`);
+  const view = r.ok ? (r.body?.surfaces ?? []).find((s) => s.level === "view" && !s.archivedAt) : null;
+  const card = view ? await newestIssue(view) : null;
+  set({ byRoutine: { ...state.byRoutine, [routineId]: card } });
+}
+
 export function ensureSurfacesLoaded() {
   if (started) return;
   started = true;
   void refreshSurfaces();
 }
 
-// surfaces:change and surfaces:issue: read the cards again once loaded.
+// surfaces:change and surfaces:issue: read the cards and the routines'
+// Views again once loaded.
 export function applySurfacesChange() {
   if (started) void refreshSurfaces();
+  for (const routineId of Object.keys(state.byRoutine)) void loadRoutineView(routineId);
 }
 
 export const resyncSurfaces = applySurfacesChange;

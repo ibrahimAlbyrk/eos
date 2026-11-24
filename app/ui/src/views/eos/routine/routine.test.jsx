@@ -6,6 +6,8 @@ import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetRoutines, loadRoutine, refreshRoutines, setRoutineState, useRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRuns, loadRun, loadRuns } from "../../../state/eos/runsStore.js";
 import { _resetRunSheet, registerHost } from "../../../state/eos/runSheetStore.js";
+import { _resetSurfaces, loadRoutineView } from "../../../state/eos/surfacesStore.js";
+import { UiProvider } from "../../../state/ui.jsx";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { menuActions } from "./RoutineMenu.jsx";
@@ -16,6 +18,7 @@ import runsPage from "../gallery/sample/runs-page.json";
 import runs from "../gallery/sample/runs.json";
 import inbox from "../gallery/sample/inbox.json";
 
+vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 vi.mock("../../../api/client.js", () => ({ api: { setStreamFocus: async () => ({ ok: true, body: { live: [] } }) } }));
 
 const PR = routineDetail.routine.id;
@@ -68,6 +71,7 @@ beforeEach(() => {
   _resetRuns();
   _resetInbox();
   _resetRunSheet();
+  _resetSurfaces();
   _resetEosNav();
 });
 afterEach(() => {
@@ -105,6 +109,33 @@ describe("the routine page", () => {
     expect(html).toContain("Nothing is running.");
     expect(html).toContain('<span class="eos-run-row__title">Fix the login</span>');
     expect(html).not.toContain("Getting better");
+  });
+
+  it("shows on Overview the View its newest real run returned, in Eos's frame, past a newer trial", async () => {
+    const surface = { id: "sf-1", routineId: PR, level: "view", place: "needs_you", role: "result", title: "PR Review" };
+    const issue = (id, trial) => ({ id, surfaceId: "sf-1", seq: trial ? null : 2, kind: "view", status: "ready", rev: 1, trial, createdAt: 1795000000000 });
+    const view = { title: "Reviews today", summary: "Two reviews.", ui: "<Text>Two reviews went out.</Text>", actions: {} };
+    const withView = {
+      ...reads,
+      [`${ROUTES.surfaces}?routine=${PR}`]: { surfaces: [surface] },
+      [`${ROUTES.surfaceIssues("sf-1")}?limit=20`]: { issues: [issue("si-trial", true), issue("si-2", false)], more: false },
+      [ROUTES.surfaceIssue("sf-1", "si-2")]: { issue: issue("si-2", false), body: { view, actions: [] } },
+    };
+    setEosTransport(fixtureTransport(withView));
+    await refreshRoutines();
+    await loadRoutine(PR);
+    await loadRoutineView(PR);
+    openLocation(`eos:/routines/${PR}`);
+    // A View is drawn inside the app's providers, as Needs you draws it.
+    const inApp = () => renderToStaticMarkup(<UiProvider><EosMain /></UiProvider>);
+    let html = inApp();
+    expect(html).toContain('<section class="eos-routine__section" aria-label="What it made last"><section class="eos-frame" aria-label="Made by PR Review">');
+    expect(html).toContain("Reviews today");
+    openLocation(`eos:/routines/${PR}?tab=runs`);
+    expect(inApp()).not.toContain("What it made last");
+    await loadRoutineView(MAIL);
+    html = await page(`eos:/routines/${MAIL}`);
+    expect(html).not.toContain("What it made last");
   });
 
   it("shows the runs that work right now and how the routine gets better once its row carries stats", async () => {

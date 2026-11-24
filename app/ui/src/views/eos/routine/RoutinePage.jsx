@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { ensureInboxLoaded } from "../../../state/eos/inboxStore.js";
+import { loadRoutineView, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { loadRoutine, setRoutineState, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
+import { SurfaceCard } from "../needs/SurfaceCard.jsx";
 import { reasonLine } from "../run/words.js";
 import { RoutineMenu } from "./RoutineMenu.jsx";
 import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
@@ -65,14 +67,17 @@ function FailedBand({ run }) {
 }
 
 // eos:/routines/<id> — one routine: its state and what can be done with it,
-// then its tabs: Overview, Runs, Signals, Blueprint. eos:/routines/<id>/versions/<n>
+// then its tabs: Overview (with the View it returned last, when it makes
+// one), Runs, Signals, Blueprint. eos:/routines/<id>/versions/<n>
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
   const { details, failed, list, unconfirmed } = useRoutines();
+  const view = useSurfaces().byRoutine[id];
   const devRun = useDevRunSeen();
   useEffect(() => {
     ensureInboxLoaded();
     void loadRoutine(id);
+    void loadRoutineView(id);
   }, [id]);
 
   const detail = details[id];
@@ -107,6 +112,11 @@ export function RoutinePage({ id, tab, version }) {
             </div>
             <RoutineTabs routineId={id} tab={shown} />
             <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
+              {shown === "overview" && view && (
+                <section className="eos-routine__section" aria-label="What it made last">
+                  <SurfaceCard card={view} routineName={routine.name} />
+                </section>
+              )}
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
               {shown === "signals" && <SignalList routineId={id} />}
