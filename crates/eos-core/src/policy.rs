@@ -97,6 +97,27 @@ pub trait PolicyDecider: Send + Sync + 'static {
     fn decide(&self, call: ToolCall) -> BoxFuture<'_, Result<ExternalDecision, Error>>;
 }
 
+/// What Eos's gate makes of a `Workflow` call (01 G9, D52).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScriptCall {
+    /// The session runs no routine's kept script: the policy decides.
+    NotOurs,
+    /// The kept script, read and checked: the call runs with this input.
+    Run(eos_contracts::UnknownRecord),
+    /// Refused, with what the agent reads.
+    Refused(String),
+}
+
+/// The scripts routines keep: a script routine's lead may run only its own,
+/// read from Eos's folder and checked against the version it runs.
+pub trait KeptScripts: Send + Sync {
+    fn check<'a>(
+        &'a self,
+        worker_id: &'a str,
+        input: &'a eos_contracts::UnknownRecord,
+    ) -> BoxFuture<'a, Result<ScriptCall, Error>>;
+}
+
 /// How many calls were allowed, denied and left to the user since start.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DecisionCounts {

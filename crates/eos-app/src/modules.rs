@@ -97,6 +97,8 @@ pub(crate) struct Context {
     pub(crate) channels: Arc<dyn eos_core::delivery::Channels>,
     /// Where the routines feature's grant to run sessions is attached.
     pub(crate) grants: Arc<crate::capabilities::LateGrants>,
+    /// Where the routines feature's kept scripts are attached for the gateway.
+    pub(crate) scripts: Arc<crate::scripts::LateScripts>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,
@@ -263,6 +265,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     }));
     runs.attach(&routines);
     cx.grants.attach(&routines.grants());
+    cx.scripts.attach(&routines.scripts());
     // The delivery engine keeps the outcomes alive for the gate.
     let run_outcomes = routines.outcomes();
     gate.attach(&routines.control(), &run_outcomes);

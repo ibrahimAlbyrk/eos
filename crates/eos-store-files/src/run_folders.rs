@@ -57,6 +57,66 @@ impl RunFolders for FsRunFolders {
             }
         })
     }
+
+    fn script_path(&self, routine_id: &str, version_id: &str) -> PathBuf {
+        self.routine_dir(routine_id).join("scripts").join(format!("{version_id}.js"))
+    }
+
+    fn keep_script<'a>(
+        &'a self,
+        routine_id: &'a str,
+        version_id: &'a str,
+        source: &'a str,
+    ) -> BoxFuture<'a, Result<PathBuf, Error>> {
+        let (path, source) = (self.script_path(routine_id, version_id), source.to_owned());
+        Box::pin(async move {
+            match tokio::task::spawn_blocking(move || write_script(&path, &source).map(|()| path)).await {
+                Ok(kept) => kept,
+                Err(e) => Err(Error::storage(e.to_string())),
+            }
+        })
+    }
+
+    fn read_script<'a>(
+        &'a self,
+        routine_id: &'a str,
+        version_id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Error>> {
+        let path = self.script_path(routine_id, version_id);
+        Box::pin(async move {
+            match tokio::task::spawn_blocking(move || read_script(&path)).await {
+                Ok(read) => read,
+                Err(e) => Err(Error::storage(e.to_string())),
+            }
+        })
+    }
+}
+
+/// Writes beside the script and renames over it, so a reader never sees half
+/// of it and a link that stood there is replaced, not followed.
+fn write_script(path: &Path, source: &str) -> Result<(), Error> {
+    let failed = |e: std::io::Error| Error::storage(format!("the routine's script: {e}"));
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(failed)?;
+    }
+    let partial = path.with_extension("js.partial");
+    std::fs::write(&partial, source).map_err(failed)?;
+    std::fs::rename(&partial, path).map_err(failed)
+}
+
+fn read_script(path: &Path) -> Result<Option<String>, Error> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() => {}
+        Ok(_) => return Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(Error::storage(format!("the routine's script: {e}"))),
+    }
+    match std::fs::read_to_string(path) {
+        Ok(source) => Ok(Some(source)),
+        // Not text: no script that was kept.
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Ok(None),
+        Err(e) => Err(Error::storage(format!("the routine's script: {e}"))),
+    }
 }
 
 fn keep(dir: &Path, files: &[String]) -> Result<Vec<KeptFile>, Error> {

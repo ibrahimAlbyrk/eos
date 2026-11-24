@@ -425,6 +425,7 @@ impl App {
             sessions: Arc::new(NoLiveSessions),
         });
         let grants = Arc::new(crate::capabilities::LateGrants::default());
+        let scripts = Arc::new(crate::scripts::LateScripts::default());
         let (given_sources, given_channels) = (capability_options.sources.clone(), capability_options.channels.clone());
         let notifiers = Arc::new(crate::capabilities::LateNotifiers::default());
         let capabilities = crate::capabilities::service(crate::capabilities::Parts {
@@ -455,7 +456,8 @@ impl App {
                 plans_dir: Some(plans_dir()),
                 ask_routing: Some(Arc::new(eos_inbox::RunAsks)),
             })
-            .with_capabilities(capabilities.clone()),
+            .with_capabilities(capabilities.clone())
+            .with_scripts(scripts.clone()),
         );
         // The shipped prompts, with the user's `prompts` folder over them.
         let library = Arc::new(LibraryPromptSource::with_overrides(vec![paths.join("prompts")]));
@@ -665,6 +667,7 @@ impl App {
             channels: given_channels.unwrap_or_else(|| capabilities.channels()),
             capabilities,
             grants,
+            scripts,
             profile_prompt,
             prompts,
             templates,
