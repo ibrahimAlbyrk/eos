@@ -19,7 +19,7 @@ async fn the_manifest_passes_the_built_in_check_and_marks_what_people_wrote() {
     let untrusted = untrusted_facts(manifest, "messages");
     assert_eq!(
         untrusted.into_iter().collect::<Vec<_>>(),
-        ["data", "title"],
+        ["data", "text", "title"],
         "who wrote a message is Slack's fact, not theirs"
     );
     let class = |name: &str| manifest.action(name).map(|action| action.class);

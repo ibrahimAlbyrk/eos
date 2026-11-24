@@ -113,7 +113,13 @@ impl Slack {
     /// The post of the user's that carries `key` in its metadata, since `since` (ms).
     pub(crate) async fn find_delivery(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
         let me = self.pair(ctx).await?.user_id;
-        let conversation = text(input, "conversation");
+        // A person's or the user's own (`@me`) post is in their direct message.
+        let conversation = match text(input, "conversation") {
+            "@me" => self.direct(ctx, &me).await?,
+            to if person(to) => self.direct(ctx, to).await?,
+            to => to.to_owned(),
+        };
+        let conversation = conversation.as_str();
         let since = format!("{}", input["since"].as_i64().unwrap_or_default() / 1000);
         let mut fields = vec![
             ("channel", conversation),
@@ -136,7 +142,7 @@ impl Slack {
                 && raw["metadata"]["event_payload"]["key"] == key
         });
         Ok(match found {
-            Some(raw) => json!({ "found": true, "ts": text(raw, "ts") }),
+            Some(raw) => json!({ "found": true, "conversation": conversation, "ts": text(raw, "ts") }),
             None => json!({ "found": false }),
         })
     }

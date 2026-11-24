@@ -93,7 +93,8 @@ impl Source {
             title: text("title"),
             url: text("url"),
             path: None,
-            text: None,
+            // A message source hands what the message says; others leave it to the run.
+            text: text("text"),
             date: None,
             range: None,
             version: version.map(str::to_owned),

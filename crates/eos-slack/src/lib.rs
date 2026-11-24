@@ -36,7 +36,7 @@ use eos_domain::capability::manifest::{DEFAULT_TIMEOUT_S, Manifest};
 use serde_json::Value;
 
 pub use client::{API, HttpRequest, HttpResponse, HttpTransport, Transport};
-pub use manifest::{CONVERSATION, ID, MESSAGE, PERMALINK, TEXT_MAX, TOKEN};
+pub use manifest::{CONVERSATION, ID, MESSAGE, PERMALINK, PERSON, TEXT_MAX, TOKEN};
 pub use sign_in::{AUTHORIZE, REDIRECT, USER_SCOPES};
 
 /// Why a call is refused when the token lacks a scope Eos asks for.

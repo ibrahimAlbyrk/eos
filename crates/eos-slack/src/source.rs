@@ -69,6 +69,7 @@ fn item(team: &str, me: &str, conversation: &str, raw: &Value, event: &str) -> V
         "key": format!("slack:{team}:{conversation}:{ts}"),
         "event": event,
         "title": clip(body, 80),
+        "text": body,
         "updatedAt": ms_of(ts),
         "facts": {
             "conversation": conversation, "from": text(raw, "user"), "fromMe": text(raw, "user") == me,
