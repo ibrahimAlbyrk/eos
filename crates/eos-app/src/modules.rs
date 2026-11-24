@@ -259,6 +259,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
             cx.paths.join("surfaces"),
         )),
+        system_steps: Arc::new(eos_core::routine::NoSystemSteps),
     }));
     runs.attach(&routines);
     cx.grants.attach(&routines.grants());

@@ -104,8 +104,8 @@ use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{
-    ArchitectTools, ChatRoutines, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate,
-    RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter,
+    ArchitectTools, BuiltinRoutines, ChatRoutines, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools,
+    RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter, SystemSteps,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
@@ -183,6 +183,8 @@ pub struct RoutinesParts {
     pub feedback: Arc<dyn ExperienceFeedback>,
     /// The surfaces of routines that make a view, a page or an app.
     pub surfaces: Arc<dyn SurfaceAuthoring>,
+    /// The steps the features that own built-in routines run.
+    pub system_steps: Arc<dyn SystemSteps>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -239,6 +241,7 @@ impl RoutinesModule {
             packs,
             feedback,
             surfaces,
+            system_steps,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -289,10 +292,16 @@ impl RoutinesModule {
             packs,
             feedback,
             surfaces,
+            system_steps,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         let control = Arc::new(engine::Control(engine.clone()));
         Self { engine, grants, control }
+    }
+
+    /// Where a feature keeps its built-in routines (01 G49).
+    pub fn builtins(&self) -> Arc<dyn BuiltinRoutines> {
+        Arc::new(engine::Builtins(self.engine.clone()))
     }
 
     /// Starts and stops runs.

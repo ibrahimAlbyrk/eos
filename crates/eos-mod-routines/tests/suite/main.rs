@@ -6,6 +6,7 @@ mod architect;
 mod bench;
 mod blueprint;
 mod budget;
+mod builtin;
 mod chat;
 mod check;
 mod control;

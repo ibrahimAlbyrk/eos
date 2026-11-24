@@ -26,6 +26,16 @@ pub(crate) fn live(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error
     routine.ok_or_else(|| Error::not_found("routine", routine_id))
 }
 
+/// A live routine the user or its architect may change: a built-in one is
+/// Eos's own (01 G49).
+pub(crate) fn editable(tx: &dyn Tx, routine_id: &str) -> Result<StoredRoutine, Error> {
+    let routine = live(tx, routine_id)?;
+    if routine.origin == crate::routes::BUILTIN {
+        return Err(Error::Conflict("this routine is Eos's own: it cannot be changed".into()));
+    }
+    Ok(routine)
+}
+
 pub(crate) fn row(
     tx: &dyn Tx,
     routine_id: &str,
@@ -68,7 +78,7 @@ pub(crate) async fn set_state(
     let (answer, before) = engine
         .store
         .write(move |tx, out| {
-            let routine = live(tx, &id)?;
+            let routine = editable(tx, &id)?;
             let before = routine.state;
             if routine.state == RoutineState::Draft {
                 return Err(Error::Conflict("a draft routine is started from its draft".into()));
@@ -106,7 +116,7 @@ pub(crate) async fn set_state(
 /// a run that is delivering finishes its send first (G34).
 pub(crate) async fn delete(engine: &Arc<Engine>, routine_id: &str) -> Result<Option<RoutineSummary>, Error> {
     let row = change(engine, routine_id, |tx, out, id, now, patterns| {
-        live(tx, id)?;
+        editable(tx, id)?;
         tx.routines().set_state(id, RoutineState::Deleted, None, now)?;
         tx.routines().set_deleted_at(id, Some(now), now)?;
         let mut cancelled = 0;

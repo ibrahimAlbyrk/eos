@@ -92,6 +92,10 @@ async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
         check::checker_failed(engine, worker_id).await?;
         return Ok(false);
     };
+    // Eos runs the milestone at work itself: the lead waits.
+    if super::system::at_step(engine, &run.run_id).await {
+        return Ok(false);
+    }
     if nudged > 0 {
         fail(engine, &run.run_id, Reason::NoResult, None).await?;
         return Ok(false);

@@ -35,6 +35,7 @@ mod start;
 mod steer;
 mod supervisor;
 pub(crate) mod surfaces;
+mod system;
 mod team;
 mod versions;
 mod workspace;
@@ -50,7 +51,7 @@ pub(crate) use halt::hear as hear_halt;
 pub(crate) use handoffs::hear as hear_answers;
 pub(crate) use idle::{lead_idle_hook, session_exited};
 pub(crate) use launch::{rebuild as rebuild_launches, shape as shape_launch};
-pub(crate) use lifecycle::{delete, keep, keep_in, live, row, set_state, undelete};
+pub(crate) use lifecycle::{delete, editable, keep, keep_in, live, row, set_state, undelete};
 pub(crate) use memory::routine_removed;
 pub(crate) use outcomes::Outcomes;
 pub(crate) use ports::{Directory, Intake, Lookup};
@@ -59,6 +60,7 @@ pub(crate) use start::start as start_runs;
 pub(crate) use start::{queue_with as queue_runs_in, ready_for as ready_to_start, taking as taking_starts};
 pub(crate) use steer::{message, pause, resume};
 pub(crate) use surfaces::{Move as SurfaceMove, moved as surface_moved};
+pub(crate) use system::Builtins;
 pub(crate) use team::shape_report;
 pub(crate) use versions::{
     Edit, NEWER_FORMAT, NewVersion, Prepared, Saved, blocks, check_in, copy, create, free_slug, insert_version,
@@ -75,7 +77,7 @@ use eos_core::capability::CapabilityReads;
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
-use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate};
+use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate, SystemSteps};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -179,6 +181,8 @@ pub(crate) struct Engine {
     pub(crate) packs: Arc<dyn ExperiencePacks>,
     pub(crate) feedback: Arc<dyn ExperienceFeedback>,
     pub(crate) surfaces: Arc<dyn SurfaceAuthoring>,
+    /// The steps the features that own built-in routines run.
+    pub(crate) system_steps: Arc<dyn SystemSteps>,
 }
 
 impl Engine {

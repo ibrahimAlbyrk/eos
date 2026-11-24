@@ -26,7 +26,7 @@ use serde_json::Value;
 
 use super::Engine;
 use super::control::announce;
-use super::lifecycle::{live, row};
+use super::lifecycle::{editable, row};
 use crate::patterns::ItemPatterns;
 use crate::routes::{gone, readable, showing_version};
 
@@ -308,7 +308,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
     let saved = engine
         .store
         .write(move |tx, out| {
-            live(tx, &id)?;
+            editable(tx, &id)?;
             let shown = showing_version(tx, &id)?.ok_or_else(|| Error::not_found("routine", &id))?;
             if base.as_ref().is_some_and(|base| *base != shown.id) {
                 return Err(Error::Conflict("the routine changed since this edit began".into()));
@@ -355,7 +355,7 @@ pub(crate) struct Added<'a> {
 /// head.
 pub(crate) fn add_in(tx: &dyn Tx, out: &mut Outbox, added: Added<'_>) -> Result<bool, Error> {
     let Added { routine_id, version_id, author, note, prepared, device, now, patterns } = added;
-    let routine = live(tx, routine_id)?;
+    let routine = editable(tx, routine_id)?;
     let shown = showing_version(tx, routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))?;
     let kept = routine.state != RoutineState::Draft;
     let before = if kept { readable(&shown)? } else { None };
@@ -397,7 +397,7 @@ async fn stored_blueprint(engine: &Engine, routine_id: &str, version_id: Option<
     let version = engine
         .store
         .read(move |tx| {
-            live(tx, &id)?;
+            editable(tx, &id)?;
             let version = match &version_id {
                 Some(version_id) => tx.routine_versions().find(&id, version_id)?,
                 None => showing_version(tx, &id)?,

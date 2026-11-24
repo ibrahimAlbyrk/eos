@@ -13,7 +13,7 @@ use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
 use super::{NO_ARCHITECT, say, suspend};
-use crate::engine::{Engine, NEWER_FORMAT, announce_routine, blocks, check_in, live, row};
+use crate::engine::{Engine, NEWER_FORMAT, announce_routine, blocks, check_in, editable, live, row};
 use crate::routes::{readable, run_summaries};
 
 /// How many of a routine's runs are read for its draft's trial runs.
@@ -222,7 +222,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
     let started = engine
         .store
         .write(move |tx, out| {
-            let routine = live(tx, &id)?;
+            let routine = editable(tx, &id)?;
             if tx.routine_versions().head(&id)?.map(|head| readable(&head)).transpose()?.is_some_and(|b| b.is_none()) {
                 return Err(Error::Conflict(NEWER_FORMAT.into()));
             }

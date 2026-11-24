@@ -48,7 +48,11 @@ pub(crate) async fn recover(engine: &Arc<Engine>) -> Result<(), Error> {
         match pick {
             Pick::Fail => fail(engine, id, Reason::Interrupted, None).await?,
             Pick::Resume(None) => brief::start_lead(engine, id).await,
-            Pick::Resume(Some(lead)) => note(engine, &lead, id, RESTARTED).await?,
+            Pick::Resume(Some(lead)) => {
+                note(engine, &lead, id, RESTARTED).await?;
+                // A system step that was under way starts again.
+                super::system::begin(engine, id);
+            }
             Pick::Recheck { checkers } => {
                 for checker in checkers {
                     if let Err(error) = engine.sessions.suspend(&checker, "routine_run").await {

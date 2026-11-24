@@ -134,6 +134,7 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     };
     let Some(worker_id) = spawn::start(engine, session, render).await.map_err(internal)? else { return Ok(()) };
     to_work(engine, run_id).await.map_err(internal)?;
+    super::system::begin(engine, run_id);
     tracing::info!(run_id, worker_id, routine_id, "a run's lead started");
     Ok(())
 }
