@@ -56,6 +56,23 @@ ID, cannot register: Devices then says "Push needs the TestFlight app" and every
 works. For a team's own push, its App ID needs the Push Notifications capability and the relay
 its APNs key (`relay/README.md`).
 
+### Share extension
+
+`EosShare` (bundle id `dev.eos.remote.app.share`, embedded in the app) puts Eos in the share
+sheet: a shared link or text, a paired Mac, the routines that take it, a note, Run. It reads the
+paired Macs from the App Group `group.dev.eos.remote` (both entitlements files name it) and their
+room secrets from the Keychain, where the app writes them into the App Group's access group. The
+first launch of a build with the extension copies the device list and rewrites the secrets there,
+so the extension can join the room as the app does. With the Mac away it offers the routines last
+read and keeps the run in that Mac's outbox; the app sends it the next time it reaches the Mac.
+
+For the signing team, once, in the Apple developer account: register the App Group
+`group.dev.eos.remote`, and turn on App Groups with that group for both App IDs
+(`dev.eos.remote.app` and `dev.eos.remote.app.share`). Automatic signing then makes the profiles.
+No Keychain Sharing entry is needed: the App Group itself is the shared access group. A build
+signed without the group still works on its own: the app keeps its secrets in its own group and
+cache, and the extension then finds no paired Mac.
+
 ## 3. Build & run on the Simulator (verified)
 
 ```bash

@@ -6,10 +6,15 @@ import Security
 // AfterFirstUnlockThisDeviceOnly (NOT WhenUnlocked) and carries NO biometric ACL, so a reconnect
 // triggered right after a reboot, or in the background, can read them once the user has unlocked
 // once — the property that makes "open the app → connected, every time" true.
+// Items are written to the App Group's access group so the share extension can join the room too
+// (07 §4.8); a build signed without the App Group keeps them in the app's own group. Reads and
+// deletes name no group, so they reach the item wherever an older build wrote it.
 public enum KeychainStore {
     public enum KeychainError: Error { case status(OSStatus) }
 
     private static let service = "dev.eos.remote"
+    /// The access group the app and its share extension share: the App Group itself.
+    public static let accessGroup = EosCache.appGroup
 
     public static func set(_ key: String, _ value: Data) throws {
         let base: [String: Any] = [
@@ -21,7 +26,10 @@ public enum KeychainStore {
         var add = base
         add[kSecValueData as String] = value
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let status = SecItemAdd(add as CFDictionary, nil)
+        var shared = add
+        shared[kSecAttrAccessGroup as String] = accessGroup
+        var status = SecItemAdd(shared as CFDictionary, nil)
+        if status == errSecMissingEntitlement { status = SecItemAdd(add as CFDictionary, nil) }
         guard status == errSecSuccess else { throw KeychainError.status(status) }
     }
 

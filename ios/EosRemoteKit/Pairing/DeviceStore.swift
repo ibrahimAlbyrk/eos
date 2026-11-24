@@ -32,8 +32,13 @@ public final class DeviceStore: @unchecked Sendable {
     // migration. Injectable so a test process (no Keychain entitlement) can seed + read them.
     private let legacyGet: @Sendable (String) -> Data?
     private let indexKey = "dev.eos.remote.devices.index"
+    private let sharedKey = "dev.eos.remote.devices.shared"
 
-    public init(defaults: UserDefaults = .standard,
+    /// The App Group's defaults, which the share extension reads too; the app's own when the build
+    /// is signed without the group.
+    public static var sharedDefaults: UserDefaults { UserDefaults(suiteName: EosCache.appGroup) ?? .standard }
+
+    public init(defaults: UserDefaults = DeviceStore.sharedDefaults,
                 secrets: SecretStore = KeychainSecretStore(),
                 legacyGet: @escaping @Sendable (String) -> Data? = { KeychainStore.get($0) }) {
         self.defaults = defaults
@@ -103,6 +108,22 @@ public final class DeviceStore: @unchecked Sendable {
         }
         writeIndex(index)
         return index.activeId
+    }
+
+    // MARK: sharing with the share extension (07 §4.8)
+
+    /// Once: the index an older build kept in the app's own defaults comes over to the shared ones,
+    /// and every device's secret is written again, so it lands in the shared Keychain group. The
+    /// old index is left where it was (repo rule: no user data deleted by hand).
+    public func shareWithExtension(from old: UserDefaults) {
+        guard !defaults.bool(forKey: sharedKey) else { return }
+        if old !== defaults, readIndex().devices.isEmpty, let data = old.data(forKey: indexKey) {
+            defaults.set(data, forKey: indexKey)
+        }
+        for meta in readIndex().devices {
+            if let secret = secrets.get(secretKey(meta.id)) { secrets.set(secretKey(meta.id), secret) }
+        }
+        defaults.set(true, forKey: sharedKey)
     }
 
     // MARK: legacy migration (§2 of the task)

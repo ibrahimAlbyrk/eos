@@ -251,6 +251,7 @@ final class AppModel: ObservableObject {
     // devices, folds the legacy single-device creds into a Device the first time, and keeps every
     // paired Mac live so switching is immediate.
     func enterForeground() {
+        deviceStore.shareWithExtension(from: .standard)
         _ = deviceStore.migrateLegacyIfNeeded()
         reloadDevices()
         guard !devices.isEmpty else {

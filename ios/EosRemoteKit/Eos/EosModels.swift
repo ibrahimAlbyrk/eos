@@ -29,6 +29,9 @@ public struct EosTakes: Codable, Sendable, Equatable {
     public let label: String
     public let placeholder: String
     public let many: Bool
+    /// The Mac's patterns that recognise one of its items in a link or a text (JavaScript
+    /// regular expressions); none in a cache an older build wrote.
+    public let itemPatterns: [String]?
 }
 
 public struct EosRoutineOption: Codable, Sendable, Equatable {
