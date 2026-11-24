@@ -86,6 +86,35 @@ fn hook_id() -> Result<String, Error> {
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// How the installed app reaches the relay's hook inbox: an HTTP client of
+/// its own. Only the host makes one; an app handed none has no inbox.
+#[derive(Clone)]
+pub struct HookClient(reqwest::Client);
+
+impl HookClient {
+    pub fn new() -> Self {
+        // The relay is the one the user's own phone link names: no guard for agent-written URLs.
+        Self(eos_kit_net::http_client(&eos_kit_net::ClientOptions::new("Eos")).unwrap_or_default())
+    }
+
+    /// The inbox at the relay `relay_url` names, under the identity `store` keeps.
+    pub fn inbox(&self, relay_url: RelayUrl, store: Arc<dyn RemoteStore>) -> RelayHookInbox {
+        RelayHookInbox::new(self.0.clone(), relay_url, store)
+    }
+}
+
+impl Default for HookClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for HookClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HookClient")
+    }
+}
+
 impl RelayHookInbox {
     pub fn new(http: reqwest::Client, relay_url: RelayUrl, store: Arc<dyn RemoteStore>) -> Self {
         Self { http, relay_url, store }

@@ -422,3 +422,27 @@ async fn a_run_without_the_host_s_mail_runner_never_drives_mail() {
     assert_eq!((&detail["state"], &detail["stateCode"]), (&json!("needs_setup"), &json!("automation_denied")));
     app.shutdown(Duration::from_secs(5)).await;
 }
+
+/// The hook inbox dials the relay the phone link names: a run that turns the
+/// network on for its local fakes has no inbox unless the host hands it the
+/// app's own client, so adding a webhook reaches no relay.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_on_the_network_without_the_host_s_hook_client_has_no_hook_inbox() {
+    let relay = Counting::start().await;
+    let home = TempHome::new();
+    let env = eos_domain::config::Env::new([
+        ("EOS_REMOTE_ENABLED".to_owned(), "1".to_owned()),
+        ("EOS_REMOTE_RELAY_URL".to_owned(), format!("ws://127.0.0.1:{}", relay.port)),
+    ]);
+    let options = Options { env, ..options(&home, true) };
+    assert!(options.hook_client.is_none(), "only the host hands in the hook client");
+    let app = App::build(options).expect("builds");
+    app.start().await.expect("starts");
+
+    let (status, body) = call(&app, Method::Post, "/api/signals/sources/sr-1/push", None).await;
+    assert_eq!(status, 502, "{body}");
+    assert!(body["error"].as_str().is_some_and(|e| e.contains("no hook inbox")), "{body}");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(relay.accepted(), 0, "nothing reached the relay");
+    app.shutdown(Duration::from_secs(5)).await;
+}

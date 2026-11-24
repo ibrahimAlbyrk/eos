@@ -28,7 +28,7 @@ mod push;
 pub mod seal;
 mod socket;
 
-pub use hooks::{RelayHookInbox, RelayUrl};
+pub use hooks::{HookClient, RelayHookInbox, RelayUrl};
 
 use std::sync::Arc;
 use std::time::Duration;

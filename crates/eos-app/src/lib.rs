@@ -51,6 +51,14 @@ pub fn relay() -> std::sync::Arc<dyn eos_core::net::relay::Relay> {
     std::sync::Arc::new(eos_relay::RelayClient::new(std::sync::Arc::new(eos_core::SystemClock)))
 }
 
+/// How the installed app reaches the relay's hook inbox, for the webhooks of
+/// outside services. Hand it to [`Options::hook_client`]; an app built
+/// without it, or one that does not [reach the network](Options::reaches_network),
+/// has no inbox and adds no webhook.
+pub fn hook_client() -> eos_relay::HookClient {
+    eos_relay::HookClient::new()
+}
+
 /// Where the installed app keeps capability secrets: its own Keychain items.
 /// Hand it to [`Options::keychain`]; an app built without it, or one that
 /// does not [reach the network](Options::reaches_network), keeps none.

@@ -135,6 +135,10 @@ pub struct Options {
     /// How the phone link reaches its relay ([`crate::relay`] in the real
     /// app), used only when the run [`reaches_network`](Self::reaches_network).
     pub relay: Option<Arc<dyn Relay>>,
+    /// How the relay's hook inbox is reached ([`crate::hook_client`] in the
+    /// real app), used only when the run [`reaches_network`](Self::reaches_network).
+    /// Without it there is no inbox: nothing dials the relay for webhooks.
+    pub hook_client: Option<eos_relay::HookClient>,
     /// Where capability secrets are kept ([`crate::keychain`] in the real
     /// app), used only when the run [`reaches_network`](Self::reaches_network).
     /// Without it no capability secret is kept: the Keychain items are the
@@ -216,6 +220,7 @@ impl Options {
             reaches_network: false,
             dashboard: None,
             relay: None,
+            hook_client: None,
             keychain: None,
             github: None,
             slack: None,
@@ -317,6 +322,7 @@ impl App {
             reaches_network,
             dashboard,
             relay,
+            hook_client,
             keychain,
             github,
             slack,
@@ -673,6 +679,7 @@ impl App {
             )),
             sweep_leftovers,
             reach,
+            hook_client,
             git_watcher: crate::files::git_watcher(&clock, &kernel.bus, &repos),
             file_watcher: crate::files::file_watcher(&clock, &kernel.bus),
             repos,
