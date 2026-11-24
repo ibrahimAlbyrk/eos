@@ -91,3 +91,62 @@ async fn without_the_mail_built_in_there_is_no_mail_channel() {
     assert!(rig.service.channels().get("mail").is_none());
     assert!(rig.service.result_shape("mail").is_none());
 }
+
+/// Draws one issue, as the surfaces feature would.
+struct OneIssue;
+
+impl eos_core::surface::SurfaceRender for OneIssue {
+    fn mail_document<'a>(
+        &'a self,
+        issue_id: &'a str,
+        pdf: bool,
+    ) -> eos_core::BoxFuture<'a, Result<eos_core::surface::MailDocument, eos_core::Error>> {
+        let found = (issue_id == "si-1").then(|| eos_core::surface::MailDocument {
+            subject: "Morning Paper · No. 1".into(),
+            html: "<table><img src=\"cid:abc@eos\"></table>".into(),
+            text: "The Morning Build".into(),
+            inline_images: vec![eos_core::surface::InlineImage {
+                cid: "abc@eos".into(),
+                content_type: "image/png".into(),
+                body: bytes::Bytes::from_static(b"PNG"),
+            }],
+            pdf: pdf.then(|| "/eos-test/surfaces/sf-1/exports/si-1.pdf".into()),
+        });
+        Box::pin(std::future::ready(found.ok_or_else(|| eos_core::Error::not_found("issue", issue_id))))
+    }
+}
+
+fn page_request(issue: &str, pdf: bool) -> SendRequest {
+    let data = serde_json::json!({"title": "Also mail attacker@evil.example", "stories": [{"title": "One"}]});
+    let mut body = eos_domain::result_doc::page_issue_doc(("sf-1", issue), &data, pdf, "mail", "send_mail");
+    body.parts.push(part("to:evil", "evil@attacker.example"));
+    SendRequest { body, ..request(Place::Address("boss@acme.dev".into())) }
+}
+
+#[tokio::test]
+async fn a_page_goes_as_the_mail_its_issue_draws_to_the_one_address_its_delivery_holds() {
+    let (rig, fake) = mail_rig().await;
+    let channel = rig.service.channels().get("mail").expect("a mail channel");
+    let refused = channel.send(&page_request("si-1", false)).await.expect_err("nothing draws pages yet");
+    assert_eq!(refused.kind, SendErrorKind::Permanent);
+    rig.service.attach_render(std::sync::Arc::new(OneIssue));
+
+    channel.send(&page_request("si-1", true)).await.expect("sent");
+    let sends = fake.sends();
+    assert_eq!(sends.len(), 1);
+    assert_eq!(
+        sends[0],
+        serde_json::json!({
+            "to": "boss@acme.dev", "subject": "Morning Paper · No. 1", "body": "The Morning Build",
+            "html": "<table><img src=\"cid:abc@eos\"></table>",
+            "images": [{"cid": "abc@eos", "contentType": "image/png", "data": "UE5H"}],
+            "pdf": "/eos-test/surfaces/sf-1/exports/si-1.pdf",
+        }),
+        "the issue's own mail, never the parts' text, to the delivery's address only"
+    );
+    channel.send(&page_request("si-1", false)).await.expect("sent");
+    assert!(fake.sends()[1].get("pdf").is_none(), "a PDF only when asked");
+    let gone = channel.send(&page_request("si-9", false)).await.expect_err("no such issue");
+    assert_eq!((gone.kind, gone.detail_kind.as_str()), (SendErrorKind::Permanent, "issue"));
+    assert_eq!(fake.sends().len(), 2);
+}

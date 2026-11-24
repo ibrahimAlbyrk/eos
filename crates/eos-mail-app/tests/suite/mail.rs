@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 
 const NOW: i64 = 1_763_460_000_000;
 const HOUR: i64 = 60 * 60 * 1000;
+const SURFACES: &str = "/data/surfaces";
 
 struct Rig {
     mail: MailApp,
@@ -26,6 +27,7 @@ fn rig_on(fake: FakeMail) -> Rig {
         script: Arc::new(fake.clone()),
         clock: Arc::new(FakeClock::at(NOW)),
         sleeper: Arc::new(FakeSleeper::default()),
+        surfaces: SURFACES.into(),
     };
     Rig { mail: MailApp::new(parts), fake }
 }
@@ -113,4 +115,30 @@ async fn a_send_is_one_plain_mail_to_one_address() {
         SentMail { to: "boss@acme.dev".into(), subject: "Overnight".into(), body: "Three mails came in.".into() };
     assert_eq!(rig.fake.sent(), [sent]);
     assert_eq!(rig.fake.programs(), [Program::Send]);
+}
+
+#[tokio::test]
+async fn a_page_goes_with_its_html_images_and_export_pdf_and_no_other_file() {
+    let rig = rig();
+    let page = json!({
+        "to": "boss@acme.dev", "subject": "Morning Paper · No. 1", "body": "Text part.", "html": "<table></table>",
+        "images": [{"cid": "abc@eos", "contentType": "image/png", "data": "UE5H"}],
+        "pdf": format!("{SURFACES}/sf-1/exports/si-1.pdf"),
+    });
+    assert_eq!(rig.call("send_mail", page.clone()).await.expect("sent"), json!({"sent": true}));
+    assert_eq!(rig.fake.sends(), [page.clone()]);
+    for elsewhere in [
+        "/Users/me/.ssh/id_rsa.pdf",
+        "/data/surfaces/sf-1/exports/../../../secret.pdf",
+        "/data/surfaces/sf-1/img/a.pdf",
+        "/data/surfaces/sf-1/exports/si-1.html",
+        "/data/surfaces/sf-1/exports/deeper/si-1.pdf",
+        "sf-1/exports/si-1.pdf",
+    ] {
+        let mut input = page.clone();
+        input["pdf"] = json!(elsewhere);
+        let refused = rig.call("send_mail", input).await;
+        assert!(matches!(refused, Err(ActionError::Invalid(_))), "{elsewhere}: {refused:?}");
+    }
+    assert_eq!(rig.fake.sends().len(), 1, "a refused file sends nothing");
 }

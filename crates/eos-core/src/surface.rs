@@ -194,6 +194,9 @@ pub struct MailDocument {
     pub text: String,
     /// The images the html names as `cid:<cid>`.
     pub inline_images: Vec<InlineImage>,
+    /// The issue printed to its export file, when the mail was asked to
+    /// carry it and Eos's window could print it.
+    pub pdf: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -205,7 +208,8 @@ pub struct InlineImage {
 
 /// Draws a page issue for a channel that sends it.
 pub trait SurfaceRender: Send + Sync {
-    fn mail_document<'a>(&'a self, issue_id: &'a str) -> BoxFuture<'a, Result<MailDocument, Error>>;
+    /// `pdf`: print the issue beside the mail (D30).
+    fn mail_document<'a>(&'a self, issue_id: &'a str, pdf: bool) -> BoxFuture<'a, Result<MailDocument, Error>>;
 }
 
 /// A page the probe loads: a URL on the raw origin held a minute, and the

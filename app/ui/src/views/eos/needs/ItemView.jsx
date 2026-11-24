@@ -7,7 +7,7 @@ import { SurfaceCard } from "./SurfaceCard.jsx";
 
 // A page issue a Needs-you item holds: the page in its frame, and its marked
 // fields to edit before it goes.
-function PageItem({ surfaceId, issueId, routineName }) {
+export function PageItem({ surfaceId, issueId, routineName }) {
   const shown = usePages().issues[issueId];
   useEffect(() => { void loadIssue(surfaceId, issueId); }, [surfaceId, issueId]);
   if (!shown?.issue) return null;

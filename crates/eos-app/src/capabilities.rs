@@ -183,8 +183,12 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         Some(script) => script,
         None => reach.mail(mail),
     };
-    let mail: Arc<dyn BuiltinCapability> =
-        Arc::new(MailApp::new(eos_mail_app::Parts { script, clock: clock.clone(), sleeper }));
+    let mail: Arc<dyn BuiltinCapability> = Arc::new(MailApp::new(eos_mail_app::Parts {
+        script,
+        clock: clock.clone(),
+        sleeper,
+        surfaces: paths.join("surfaces"),
+    }));
     Ok(Arc::new(CapabilityService::new(
         CapabilityPorts {
             store,

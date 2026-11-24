@@ -7,6 +7,7 @@
 use std::collections::{HashMap, HashSet};
 
 use eos_contracts::{EditOp, Part, PartEdit, ResultDoc};
+use serde_json::{Map, Value};
 
 pub mod shape;
 
@@ -18,8 +19,14 @@ pub const GITHUB_REVIEW: &str = "github.review";
 /// [`recipient_key`] per recipient, as a set.
 pub const MAIL: &str = "mail";
 /// An issue of a Page: one part per field of the Page's contract, keyed by
-/// the field's path (`stories[3].title`), in order.
+/// the field's path (`stories[3].title`), in order, an [`ISSUE_PART`] naming
+/// the stored issue, and a [`recipient_key`] per recipient, as a set. It is
+/// sent as the mail the issue draws, never as these parts' text.
 pub const PAGE_ISSUE: &str = "page.issue";
+/// The part of a [`PAGE_ISSUE`] whose text is the stored issue's id; its
+/// `meta.surface` names the page, and `meta.pdf` asks for the issue's PDF
+/// beside the mail. No contract field can be named so.
+pub const ISSUE_PART: &str = "@issue";
 /// A text (a message, a push, a note): [`BODY`].
 pub const TEXT: &str = "text";
 /// A Slack message to a conversation, a person or the user: a
@@ -50,6 +57,56 @@ pub fn paragraph_key(n: usize) -> String {
 /// A mail's recipient, by its id in the routine's Goes to: `to:<id>`.
 pub fn recipient_key(recipient_id: &str) -> String {
     format!("{RECIPIENT}{recipient_id}")
+}
+
+/// Whether a result of `kind` names the recipients it goes to by
+/// [`recipient_key`] parts.
+pub fn names_recipients(kind: &str) -> bool {
+    kind == MAIL || kind == PAGE_ISSUE
+}
+
+/// A page issue as a result: each field of `data` a part keyed by its path,
+/// in order, then the [`ISSUE_PART`] naming `issue` (surface id, issue id).
+pub fn page_issue_doc(issue: (&str, &str), data: &Value, pdf: bool, channel: &str, action: &str) -> ResultDoc {
+    let (surface_id, issue_id) = issue;
+    let mut parts = Vec::new();
+    fields(String::new(), data, &mut parts);
+    let mut meta = Map::new();
+    meta.insert("surface".to_owned(), Value::String(surface_id.to_owned()));
+    if pdf {
+        meta.insert("pdf".to_owned(), Value::Bool(true));
+    }
+    parts.push(Part { key: ISSUE_PART.to_owned(), role: "issue".to_owned(), text: issue_id.to_owned(), meta });
+    ResultDoc { kind: PAGE_ISSUE.to_owned(), channel: channel.to_owned(), action: action.to_owned(), parts }
+}
+
+/// The stored issue a [`PAGE_ISSUE`] sends, and whether it asks for a PDF.
+pub fn issue_of(doc: &ResultDoc) -> Option<(&str, bool)> {
+    let part = doc.parts.iter().find(|part| part.key == ISSUE_PART)?;
+    Some((part.text.as_str(), part.meta.get("pdf") == Some(&Value::Bool(true))))
+}
+
+/// The leaves of `value` under `path`, as parts.
+fn fields(path: String, value: &Value, out: &mut Vec<Part>) {
+    let text = match value {
+        Value::Null => return,
+        Value::Object(map) => {
+            for (name, value) in map {
+                let at = if path.is_empty() { name.clone() } else { format!("{path}.{name}") };
+                fields(at, value, out);
+            }
+            return;
+        }
+        Value::Array(items) => {
+            for (n, value) in items.iter().enumerate() {
+                fields(format!("{path}[{n}]"), value, out);
+            }
+            return;
+        }
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    };
+    out.push(Part { key: path, role: "field".to_owned(), text, meta: Map::new() });
 }
 
 /// A text as results compare it: line ends as LF, no space or tab at the
@@ -108,7 +165,7 @@ pub fn diff(before: &ResultDoc, after: &ResultDoc) -> Vec<PartEdit> {
 fn unordered(kind: &str, key: &str) -> bool {
     match kind {
         GITHUB_REVIEW => key.starts_with(COMMENT),
-        MAIL => key.starts_with(RECIPIENT),
+        MAIL | PAGE_ISSUE => key.starts_with(RECIPIENT),
         _ => false,
     }
 }

@@ -4,11 +4,15 @@
 //! to the user confirmed. Nothing in the result adds who it goes to: a
 //! `to:<recipient id>` part only picks among the routine's own recipients
 //! at the gate, and is never read here.
+//! A page issue (`page.issue`) goes out as the mail the issue draws (05 Q9):
+//! its html and text, its images, and its PDF when the blueprint asks, read
+//! through `SurfaceRender` at send time, never from the result's parts.
 //! Mail cannot take a mail back or say whether one went out, so a send
 //! that may have gone out is left to the user.
 
 use std::sync::Arc;
 
+use base64::Engine;
 use eos_contracts::{ActionClass, ResultDoc};
 use eos_core::BoxFuture;
 use eos_core::capability::{ActionCall, ActionCaller};
@@ -16,8 +20,9 @@ use eos_core::delivery::{
     Channel, ChannelTraits, Fresh, Idempotency, Place, Receipt, SendError, SendErrorKind, SendRequest, Target, Undo,
     UndoOutcome,
 };
+use eos_core::surface::MailDocument;
 use eos_domain::result_doc::shape::{PartKey, PartShape, ResultShape};
-use eos_domain::result_doc::{MAIL, SUBJECT, paragraph_key};
+use eos_domain::result_doc::{MAIL, PAGE_ISSUE, SUBJECT, issue_of, paragraph_key};
 use serde_json::{Value, json};
 
 use crate::CapabilityService;
@@ -98,25 +103,60 @@ pub(crate) fn send_input(to: &str, subject: &str, body: &str) -> Value {
 
 pub(crate) struct MailChannel(pub(crate) Arc<CapabilityService>);
 
+/// The input `send_mail` takes for a page issue's mail to `to`.
+pub(crate) fn page_input(to: &str, mail: &MailDocument) -> Value {
+    let base64 = base64::engine::general_purpose::STANDARD;
+    let images: Vec<Value> = mail
+        .inline_images
+        .iter()
+        .map(|image| json!({ "cid": image.cid, "contentType": image.content_type, "data": base64.encode(&image.body) }))
+        .collect();
+    let mut input =
+        json!({ "to": to, "subject": mail.subject, "body": mail.text, "html": mail.html, "images": images });
+    if let Some(pdf) = &mail.pdf {
+        input["pdf"] = json!(pdf.to_string_lossy());
+    }
+    input
+}
+
 impl MailChannel {
+    /// The `send_mail` input of the result for `to`.
+    async fn input_for(&self, to: &str, doc: &ResultDoc) -> Result<Value, SendError> {
+        if doc.kind != PAGE_ISSUE {
+            let (subject, body) = mail_of(doc).map_err(|_| failure("body"))?;
+            if subject.len() + body.len() > MAIL_MAX_BYTES {
+                return Err(failure("too_long"));
+            }
+            return Ok(send_input(to, &subject, &body));
+        }
+        let (issue_id, pdf) = issue_of(doc).ok_or_else(|| failure("body"))?;
+        let render = self.0.render.get().ok_or_else(|| failure("body"))?;
+        let mail = render.mail_document(issue_id, pdf).await.map_err(|error| match error {
+            eos_core::Error::NotFound { .. } => failure("issue"),
+            _ => SendError { kind: SendErrorKind::Transient, detail_kind: "issue".to_owned() },
+        })?;
+        let images: usize = mail.inline_images.iter().map(|image| image.body.len()).sum();
+        if mail.subject.len() + mail.html.len() + mail.text.len() + images > MAIL_MAX_BYTES {
+            return Err(failure("too_long"));
+        }
+        Ok(page_input(to, &mail))
+    }
+
     async fn deliver(&self, req: &SendRequest) -> Result<Receipt, SendError> {
         if req.action != SEND || req.body.action != SEND {
             return Err(failure("action"));
         }
         let Place::Address(to) = &req.target.place else { return Err(failure("target")) };
-        let (subject, body) = mail_of(&req.body).map_err(|_| failure("body"))?;
-        if subject.len() + body.len() > MAIL_MAX_BYTES {
-            return Err(failure("too_long"));
-        }
+        let input = self.input_for(to, &req.body).await?;
         let call = ActionCall {
             capability: MAIL_CHANNEL.to_owned(),
             action: SEND.to_owned(),
-            input: send_input(to, &subject, &body),
+            input,
             caller: ActionCaller::Delivery { run_id: String::new(), delivery_id: req.key.clone() },
             idempotency_key: Some(req.key.clone()),
         };
         self.0.run_call(call).await.map_err(|e| send_error(&e, true))?;
-        tracing::info!(capability = MAIL_CHANNEL, delivery_id = %req.key, "a mail went out");
+        tracing::info!(capability = MAIL_CHANNEL, delivery_id = %req.key, kind = %req.body.kind, "a mail went out");
         Ok(Receipt { id: req.key.clone(), url: None })
     }
 }

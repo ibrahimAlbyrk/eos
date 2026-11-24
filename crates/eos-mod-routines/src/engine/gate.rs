@@ -7,8 +7,10 @@ use std::sync::Arc;
 use eos_core::Error;
 use eos_core::routine::{GateDecision, GateInput, GateMode};
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
+use eos_domain::result_doc::page_issue_doc;
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
+use eos_surface::IssueKind;
 use serde_json::json;
 
 use super::check::{NOTHING, result_doc};
@@ -77,6 +79,34 @@ pub(crate) fn done(
     failures::ended_in(engine, tx, out, &run.id, now)
 }
 
+/// The channel and action a page issue is sent with: the mail the issue draws.
+/// What a routine that makes a page makes, and the kind its lead hands in.
+const PAGE: &str = "page";
+const PAGE_CHANNEL: &str = "mail";
+const PAGE_ACTION: &str = "send_mail";
+
+/// The result of a run of a routine that makes a page: the page issue the
+/// run filled, as fields the gate checks and the issue the channel draws;
+/// none when the run handed in something else or filled no page.
+fn page_doc_in(
+    tx: &dyn Tx,
+    run: &StoredRun,
+    blueprint: &eos_contracts::Blueprint,
+    result: &eos_core::store::StoredRunResult,
+) -> Result<Option<eos_contracts::ResultDoc>, Error> {
+    if blueprint.makes.kind != PAGE || result.kind != PAGE {
+        return Ok(None);
+    }
+    let issues = tx.surface_issues().of_run(&run.id)?;
+    let Some(issue) = issues.into_iter().filter(|issue| issue.kind == IssueKind::Page).max_by_key(|issue| issue.rev)
+    else {
+        return Ok(None);
+    };
+    let body: serde_json::Value = serde_json::from_str(&issue.body_json).unwrap_or_default();
+    let pdf = blueprint.makes.pdf;
+    Ok(Some(page_issue_doc((&issue.surface_id, &issue.id), &body["data"], pdf, PAGE_CHANNEL, PAGE_ACTION)))
+}
+
 fn gate_input(
     tx: &dyn Tx,
     run: &StoredRun,
@@ -111,7 +141,7 @@ fn gate_input(
         version: version_id,
         origin: run.origin.clone(),
         result_mode,
-        doc: result_doc(result),
+        doc: page_doc_in(tx, run, &blueprint, result)?.unwrap_or_else(|| result_doc(result)),
         targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
         signal_facts: signal_facts_in(tx, &input)?,
