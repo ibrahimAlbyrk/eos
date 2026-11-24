@@ -71,6 +71,8 @@ pub(crate) struct Rig {
     pub(crate) prompt: Arc<FakeSecretPrompt>,
     pub(crate) confinement: Arc<FakeConfinement>,
     runtime: Runtime,
+    /// Held here: the steps hold it weakly, as they hold the routines'.
+    _control: Arc<dyn eos_core::routine::RoutineControl>,
 }
 
 /// The steps alone, over the build folders under `home`.
@@ -121,7 +123,8 @@ impl Rig {
         service.start().await.expect("starts");
         let confinement = Arc::new(FakeConfinement::new());
         let steps = Arc::new(steps_in(temp.home.path(), &temp, confinement.clone()));
-        steps.attach(Arc::new(FakeRoutineControl::new()));
+        let control: Arc<dyn eos_core::routine::RoutineControl> = Arc::new(FakeRoutineControl::new());
+        steps.attach(control.clone());
         let kernel = Kernel::new(KernelOptions::default());
         let module = Arc::new(ForgeModule::new(ForgeParts {
             store: temp.port(),
@@ -139,7 +142,20 @@ impl Rig {
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        Self { temp, runs, builtins, known, forge, steps, service, secrets, prompt, confinement, runtime }
+        Self {
+            temp,
+            runs,
+            builtins,
+            known,
+            forge,
+            steps,
+            service,
+            secrets,
+            prompt,
+            confinement,
+            runtime,
+            _control: control,
+        }
     }
 
     /// A Forge run with a session of `definition` as worker `worker`.
