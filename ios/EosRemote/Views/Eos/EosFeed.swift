@@ -23,6 +23,7 @@ final class EosFeed: ObservableObject {
     private let cache: EosCache
     private var call: Call = { _, _, _ in nil }
     private var sendWatch: (String?) -> Void = { _ in }
+    private var fetchAsset: (String) async -> Data? = { _ in nil }
     private var watched: String?
     /// The most live lines kept for the open run.
     private let activityMax = 200
@@ -36,9 +37,11 @@ final class EosFeed: ObservableObject {
     }
 
     /// How it reaches the Mac: a control answered whatever its status, and the `watch` frame.
-    func attach(call: @escaping Call, sendWatch: @escaping (String?) -> Void) {
+    func attach(call: @escaping Call, sendWatch: @escaping (String?) -> Void,
+                fetchAsset: @escaping (String) async -> Data?) {
         self.call = call
         self.sendWatch = sendWatch
+        self.fetchAsset = fetchAsset
     }
 
     /// The Mac's snapshot caps arrived.
@@ -99,6 +102,18 @@ final class EosFeed: ObservableObject {
         struct Candidates: Decodable { let items: [EosItem] }
         let found: Candidates? = await read("/api/routines/\(routineId)/candidates")
         return found?.items ?? []
+    }
+
+    /// A Page issue as one self-contained, script-free HTML document (05 Q10).
+    func document(surfaceId: String, issueId: String) async -> String? {
+        let data = await fetchAsset("/api/surfaces/\(surfaceId)/issues/\(issueId)/document?mode=phone")
+        return data.map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// A Page's button, pressed and confirmed here.
+    func press(_ body: JSONValue) async -> EosActionAnswer {
+        guard let reply = await call("POST", "/api/actions/run", body) else { return .refused(EosRefusal.unreachable.text) }
+        return EosActionAnswer(reply.body)
     }
 
     // MARK: writes

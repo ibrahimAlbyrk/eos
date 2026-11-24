@@ -212,9 +212,10 @@ final class TransportTests: XCTestCase {
     }
 
     func testAWatchNamesTheOpenRunOrNull() throws {
-        XCTAssertEqual(String(decoding: try JSONEncoder().encode(WatchFrame(run: "rn-1")), as: UTF8.self),
-                       #"{"t":"watch","run":"rn-1"}"#)
-        XCTAssertEqual(String(decoding: try JSONEncoder().encode(WatchFrame(run: nil)), as: UTF8.self),
-                       #"{"t":"watch","run":null}"#)
+        let open = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WatchFrame(run: "rn-1")))
+        XCTAssertEqual(open as? [String: String], ["t": "watch", "run": "rn-1"])
+        let none = try JSONSerialization.jsonObject(with: JSONEncoder().encode(WatchFrame(run: nil))) as? [String: Any]
+        XCTAssertEqual(none?["t"] as? String, "watch")
+        XCTAssertTrue(none?["run"] is NSNull, "written as null, which the Mac reads as no run")
     }
 }
