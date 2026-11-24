@@ -191,3 +191,16 @@ async fn the_phone_cannot_call_and_with_apps_off_nothing_is_taken() {
     assert_eq!(status, 403);
     assert!(rig.heard.lock().expect("heard").is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn only_an_app_in_use_is_handed_to_the_forge() {
+    let (rig, _) = in_use().await;
+    let hand_off = rig.module.app_hand_off();
+    let app = hand_off.promoted("sf-app").await.expect("an App in use");
+    assert_eq!((app.version, app.title.as_str(), app.routine_id.as_str()), (1, "Level editor", "rt-1"));
+    assert!(app.html.contains("probe.again"));
+    rig.seed(vec![surface("sf-new", "rt-1", Level::App, Place::RoutinePage, 2)], vec![], vec![]).await;
+    assert!(hand_off.promoted("sf-new").await.is_err(), "an App with no version in use");
+    rig.settings.0.lock().expect("settings").insert("genui.apps".into(), SettingValue::Flag(false));
+    assert!(hand_off.promoted("sf-app").await.is_err(), "Apps are off");
+}

@@ -198,6 +198,25 @@ pub trait SurfaceImages: Send + Sync {
     fn collect<'a>(&'a self, surface_id: &'a str, keep: &'a [String]) -> BoxFuture<'a, Result<u64, Error>>;
 }
 
+/// An App in use, as it is handed to the Forge to become an Extension
+/// (05 SF-37, 06 G24).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PromotedApp {
+    pub surface_id: String,
+    pub routine_id: String,
+    pub version: i64,
+    pub title: String,
+    pub summary: String,
+    pub html: String,
+    /// The App's manifest as its version keeps it.
+    pub manifest: serde_json::Value,
+}
+
+/// The App the user promotes: one in use, with Apps on.
+pub trait AppHandOff: Send + Sync {
+    fn promoted<'a>(&'a self, surface_id: &'a str) -> BoxFuture<'a, Result<PromotedApp, Error>>;
+}
+
 /// The files an App reaches (05 Q7), below the folder its manifest names.
 /// The caller checks the App's path and its globs; the store refuses what,
 /// with links resolved, would leave `root`.

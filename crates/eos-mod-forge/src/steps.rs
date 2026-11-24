@@ -48,6 +48,9 @@ fn sandbox_settings() -> String {
 }
 
 /// What the Forge's steps are made of.
+/// Where a promoted App's code is in a Forge run's build folder.
+pub(crate) const PROMOTED_APP_FOLDER: &str = "app";
+
 pub struct ForgeStepsParts {
     pub store: Arc<dyn Store>,
     pub clock: Arc<dyn Clock>,
@@ -113,6 +116,16 @@ impl ForgeSteps {
     /// Where the Forge's tests make their data and temp folders.
     pub(crate) fn tests_folder(&self) -> PathBuf {
         self.scratch.join("forge-tests")
+    }
+
+    /// Puts the App the user promotes into the run's build folder, under
+    /// `app/`, for the team to build the Extension from.
+    pub(crate) async fn hand_in_app(&self, run_id: &str, app: &eos_core::surface::PromotedApp) -> Result<(), Error> {
+        let folder = self.folder(run_id)?.join(PROMOTED_APP_FOLDER);
+        let manifest = serde_json::to_string_pretty(&app.manifest).map_err(|e| Error::storage(e.to_string()))?;
+        self.files.write_text(&folder.join("index.html"), &app.html, true).await?;
+        self.files.write_text(&folder.join("manifest.json"), &manifest, true).await?;
+        Ok(())
     }
 
     async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {

@@ -59,6 +59,20 @@ impl CapabilityCalls for Known {
     }
 }
 
+/// The Apps a user may promote, by surface id.
+#[derive(Default)]
+pub(crate) struct Apps(pub(crate) Mutex<Vec<eos_core::surface::PromotedApp>>);
+
+impl eos_core::surface::AppHandOff for Apps {
+    fn promoted<'a>(
+        &'a self,
+        surface_id: &'a str,
+    ) -> BoxFuture<'a, Result<eos_core::surface::PromotedApp, eos_core::Error>> {
+        let found = self.0.lock().expect("apps").iter().find(|app| app.surface_id == surface_id).cloned();
+        Box::pin(std::future::ready(found.ok_or_else(|| eos_core::Error::not_found("App", surface_id))))
+    }
+}
+
 pub(crate) struct Rig {
     pub(crate) temp: TempStore,
     pub(crate) runs: Arc<FakeRunStarter>,
@@ -70,6 +84,8 @@ pub(crate) struct Rig {
     pub(crate) secrets: Arc<FakeCapabilitySecrets>,
     pub(crate) prompt: Arc<FakeSecretPrompt>,
     pub(crate) confinement: Arc<FakeConfinement>,
+    pub(crate) apps: Arc<Apps>,
+    pub(crate) home: std::path::PathBuf,
     runtime: Runtime,
     /// Held here: the steps hold it weakly, as they hold the routines'.
     _control: Arc<dyn eos_core::routine::RoutineControl>,
@@ -126,6 +142,8 @@ impl Rig {
         let control: Arc<dyn eos_core::routine::RoutineControl> = Arc::new(FakeRoutineControl::new());
         steps.attach(control.clone());
         let kernel = Kernel::new(KernelOptions::default());
+        let apps = Arc::new(Apps::default());
+        let home = temp.home.path().to_owned();
         let module = Arc::new(ForgeModule::new(ForgeParts {
             store: temp.port(),
             clock,
@@ -137,6 +155,7 @@ impl Rig {
             service: service.clone(),
             prompt: Some(prompt.clone()),
             bus: kernel.bus.clone(),
+            apps: apps.clone(),
         }));
         let forge = module.forge();
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
@@ -153,6 +172,8 @@ impl Rig {
             secrets,
             prompt,
             confinement,
+            apps,
+            home,
             runtime,
             _control: control,
         }
