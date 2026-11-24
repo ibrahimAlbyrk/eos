@@ -24,6 +24,7 @@ import triggerStatus from "./sample/trigger-status.json";
 import signals from "./sample/signals.json";
 import memory from "./sample/memory.json";
 import surfaceSample from "./sample/surfaces.json";
+import paper from "./sample/paper.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
@@ -39,7 +40,9 @@ import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
 // catch-up and an open batch, with a signal of each group in its list; Mail
 // Triage's source needs a sign-in. Memory holds notes learned for PR Review,
 // a project and everywhere, one of them cooling; PR Review's run was given
-// four of them. Home's day is drawn around the moment the gallery opens.
+// four of them. Morning Paper fills a page with three issues in two designs
+// and a third version waiting to be kept; it and Build Watch are pinned.
+// Home's day is drawn around the moment the gallery opens.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
   [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
@@ -57,6 +60,14 @@ export const SAMPLE_READS = {
   [`${ROUTES.surfaces}?place=needs_you`]: { surfaces: [surfaceSample.surface] },
   [`${ROUTES.surfaceIssues(surfaceSample.surface.id)}?limit=20`]: { issues: [surfaceSample.issue], more: true },
   [ROUTES.surfaceIssue(surfaceSample.surface.id, surfaceSample.issue.id)]: { issue: surfaceSample.issue, body: surfaceSample.body },
+  [ROUTES.surface(paper.surface.id)]: paper.surface,
+  [`${ROUTES.surfaces}?routine=${paper.surface.routineId}`]: { surfaces: [paper.surface] },
+  [`${ROUTES.surfaceIssues(paper.surface.id)}?limit=20`]: paper.issues,
+  ...Object.fromEntries(Object.entries(paper.issueBodies).map(([id, one]) => [ROUTES.surfaceIssue(paper.surface.id, id), one])),
+  [ROUTES.surfaceVersions(paper.surface.id)]: paper.versions,
+  ...Object.fromEntries(Object.entries(paper.versionBodies).map(([n, one]) => [ROUTES.surfaceVersion(paper.surface.id, n), one])),
+  [ROUTES.surfacePins]: paper.pins,
+  [ROUTES.surfaceTiles]: paper.tiles,
   [ROUTES.capabilities]: capabilities.map(rowOf),
   ...Object.fromEntries(capabilities.map((detail) => [ROUTES.capability(detail.id), detail])),
   [ROUTES.capabilitySignIn("github")]: signInFailed,

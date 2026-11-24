@@ -17,6 +17,7 @@ import { awayLines, dayStart, handledLine, hello, needLine } from "./homeWords.j
 import { LearnedLine } from "./LearnedLine.jsx";
 import { MovedShortcuts } from "./MovedShortcuts.jsx";
 import { NeedsYouCards } from "./NeedsYouCards.jsx";
+import { PinnedTiles } from "./PinnedTiles.jsx";
 import { StarterChips } from "./StarterChips.jsx";
 
 const MINUTE_MS = 60 * 1000;
@@ -34,7 +35,7 @@ function useMinute(clock) {
 
 // eos:/ — Horizon (Main.dc.html): the day's arc, the greeting with what was
 // handled and what needs the user, the input, starter chips that fill it,
-// the first Needs-you cards, what happened while away and the week's
+// the first Needs-you cards, the pinned tiles, what happened while away and the week's
 // learned line. Empty sections are left
 // out; entering Home never focuses anything. Focusing the input turns Home
 // into the field (FieldLayer); the rest of Home is inert meanwhile.
@@ -82,6 +83,7 @@ export function HomeScreen({ clock = Date.now }) {
   else body = (
     <>
       {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}
+      {!firstRun && <PinnedTiles />}
       {!firstRun && <AwayList runs={away} names={names} />}
       {!firstRun && <LearnedLine weekly={summary?.weekly ?? 0} />}
     </>

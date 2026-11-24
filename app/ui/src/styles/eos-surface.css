@@ -7,10 +7,9 @@
 .eos-page { align-items: center; padding-top: 28px; }
 .eos-page__column { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 16px; }
 .eos-page__line { font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-btn--quiet { background: none; color: var(--fg-mid); }
-.eos-btn--quiet:hover { background: var(--chip); }
+.eos-head .eos-btn--quiet:hover, .eos-page .eos-btn--quiet:hover { background: var(--chip); }
+.eos-head .eos-btn--quiet[aria-pressed="true"] { color: var(--fg-strong); }
 .eos-btn--pill { height: 36px; }
-.eos-btn--quiet[aria-pressed="true"] { color: var(--fg-strong); }
 
 .eos-frame--page { background: none; box-shadow: none; margin: 0; }
 .eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 8px; }
@@ -178,3 +177,38 @@
 .eos-edit__row .eos-btn { height: 26px; padding: 0 10px; }
 .eos-edit__problem { margin: 0; font-size: var(--text-sm); color: var(--err); }
 .eos-page__edit { padding: 18px; }
+
+/* ── Pinned tiles on Home (SurfacePins.dc.html) ───────────────────────────── */
+.eos-pins__head { display: flex; align-items: baseline; gap: 12px; }
+.eos-pins__head .eos-label { flex: 1; }
+.eos-pins__count { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-pins { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.eos-tile {
+  border-radius: 14px;
+  background: #1b1b1b;
+  padding: 14px 14px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.eos-tile__meta { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-tile__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-tile__unpin {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-dim2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.eos-tile__unpin:hover { color: var(--fg-strong); background: var(--chip); }
+.eos-tile__unpin svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.eos-tile__headline { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-tile__detail { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
+.eos-tile__open { align-self: flex-start; margin-top: 4px; font-size: var(--text-sm); text-decoration: none; }
+.eos-tile__open:hover { text-decoration: underline; }

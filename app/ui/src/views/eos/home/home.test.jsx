@@ -11,6 +11,8 @@ import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import { homeNext, homeRuns } from "../gallery/sample/home.js";
 import inbox from "../gallery/sample/inbox.json";
 import { HomeScreen } from "./HomeScreen.jsx";
+import { _resetPins, refreshPins } from "../../../state/eos/pinsStore.js";
+import { tileAction, tileLocation } from "./PinnedTiles.jsx";
 
 const NOW = new Date(2026, 10, 17, 9, 12).getTime();
 
@@ -30,10 +32,26 @@ beforeEach(() => {
   _resetInbox();
   _resetRoutines();
   _resetNotes();
+  _resetPins();
 });
 afterEach(() => setEosTransport(null));
 
 describe("Eos › Home", () => {
+  it("pinned: the tiles after Needs you, with their count of three, their headline and their unpin", async () => {
+    await loaded(fixtureTransport(reads()));
+    await refreshPins();
+    const html = draw();
+    expect(html).toContain('<h2 id="eos-home-pins" class="eos-label">Pinned</h2><span class="eos-pins__count">2 of 3</span>');
+    expect(html).toContain('<p class="eos-tile__headline">Nothing broke overnight</p>');
+    expect(html).toContain('aria-label="Unpin Morning Paper"');
+    expect(html).toContain(">Read today&#x27;s issue</button>");
+    expect(html.indexOf("eos-home-needs")).toBeLessThan(html.indexOf("eos-home-pins"));
+    expect(tileLocation({ level: "page", surfaceId: "sf-1" })).toBe("eos:/surfaces/sf-1");
+    expect(tileLocation({ level: "view", routineId: "rt-1" })).toBe("eos:/routines/rt-1");
+    expect(tileAction({ level: "page" })).toBe("Read the issue");
+  });
+
+
   it("typical: the day's arc, the greeting with its counts, chips, three cards, the away list and the learned line", async () => {
     await loaded(fixtureTransport(reads()));
     const html = draw();
