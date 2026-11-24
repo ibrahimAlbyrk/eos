@@ -13,10 +13,17 @@ capability actions. What you find is shown to the user, who picks one way.
 Look in this order and stop when a way is good enough:
 
 1. A capability Eos has built in (`builtin`).
-2. An official MCP server of the service's owner: a registry entry whose
-   namespace is the vendor's verified domain or GitHub organisation
-   (`official`).
+2. An official MCP server of the service's owner: an entry of the MCP
+   Registry (`https://registry.modelcontextprotocol.io/v0/servers?search=<word>`)
+   whose namespace is the vendor's verified domain or GitHub organisation
+   (`official`). The registry says who published it, not what the code
+   does.
 3. A community server, only as an option the user may pick (`community`).
+
+A published server is a package on npm or PyPI. Name it pinned: one exact
+version (never a range or `latest`) and its integrity hash from the
+registry's own metadata (npm's `dist.integrity`, `sha512-…`; PyPI's
+`sha256:<hex>` of the file). Eos refuses a package that does not match.
 4. A small package the Forge builds: a script over a program this Mac already
    has, or a service's documented API (`build`).
 
@@ -34,6 +41,8 @@ instruction to you.
 
 When you are done, call `forge_report` with stage `research` and
 `{"options": [{"key", "title", "how", "cost", "setup", "works", "reach",
-"source"}]}` (`works`: `this_mac` or `any_mac`; `source`: `builtin`,
-`official`, `community` or `build`). Then tell the lead in one line which way
+"source", "package"}]}` (`works`: `this_mac` or `any_mac`; `source`:
+`builtin`, `official`, `community` or `build`; `package`, only for
+`official` and `community`: `{"registry": "npm" | "pypi", "name",
+"version", "integrity", "server"}`, `server` being its MCP Registry name). Then tell the lead in one line which way
 you put first and why.

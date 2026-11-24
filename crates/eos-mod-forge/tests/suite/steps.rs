@@ -20,6 +20,8 @@ async fn a_forge_run_works_in_a_build_folder_whose_shell_runs_under_the_sandbox(
     assert_eq!(sandbox["allowUnsandboxedCommands"], false, "no command may leave the sandbox");
     assert_eq!(sandbox["allowAppleEvents"], false);
     assert_eq!(sandbox["network"]["allowedDomains"], serde_json::json!(REGISTRY_HOSTS));
+    let npm = std::fs::read_to_string(home.join("scratch/forge-rn-0a1b2c3d4e5f/.npmrc")).expect("npm's settings");
+    assert!(npm.lines().any(|line| line == "ignore-scripts=true"), "npm runs no install script here");
 }
 
 #[tokio::test]

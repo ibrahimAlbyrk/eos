@@ -3,8 +3,9 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use eos_contracts::ForgeBuild;
+use eos_contracts::{ForgeBuild, ForgeOption, ForgeResearch};
 use eos_core::Error;
+use eos_core::forge::ForgeStage;
 use eos_core::store::Store;
 use eos_domain::capability::check::check;
 use eos_domain::capability::manifest::{Manifest, parse};
@@ -37,6 +38,16 @@ pub(crate) async fn newest<T: DeserializeOwned>(
         .await?;
     data.map(|text| serde_json::from_str(&text).map_err(|e| Error::storage(format!("a Forge event {kind}: {e}"))))
         .transpose()
+}
+
+/// The researcher's way the builder built: the one it names, or the only
+/// one there was.
+pub(crate) async fn chosen(store: &dyn Store, run_id: &str, build: &ForgeBuild) -> Result<Option<ForgeOption>, Error> {
+    let kind = crate::request::report_event(ForgeStage::Research);
+    let Some(research) = newest::<ForgeResearch>(store, run_id, &kind).await? else { return Ok(None) };
+    let only = research.options.len() == 1;
+    let named = build.option.as_deref();
+    Ok(research.options.into_iter().find(|option| only || Some(option.key.as_str()) == named))
 }
 
 /// Reads the package the builder reported, refusing one that is not a

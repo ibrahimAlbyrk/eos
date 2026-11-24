@@ -185,6 +185,19 @@ describe("the other cards", () => {
     ]);
   });
 
+  it("name the published package a proposal runs and everything it installs", async () => {
+    const sample = byKind.capability_install;
+    const source = {
+      package: { registry: "npm", name: "acme-echo", version: "2.1.0", integrity: "sha512-x" },
+      community: true,
+      dependencies: ["acme-echo@2.1.0", "left-pad@1.3.0"],
+      installScripts: [],
+    };
+    const html = await screen("capability_install", { ...sample, payload: { ...sample.payload, source } });
+    expect(html).toContain("Runs acme-echo 2.1.0 from npm, published by someone other than the service (community).");
+    expect(html).toContain("<li>left-pad@1.3.0</li>");
+  });
+
   it("offer Repair through the Forge and the version before for a broken capability", async () => {
     const sample = byKind.capability_attention;
     const broken = {

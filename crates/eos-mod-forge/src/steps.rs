@@ -17,6 +17,9 @@ use serde_json::json;
 pub const REGISTRY_HOSTS: [&str; 6] =
     ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "crates.io", "static.crates.io", "index.crates.io"];
 
+/// What npm is held to in the build folder.
+const NPM_SETTINGS: &str = "ignore-scripts=true\nsave-exact=true\n";
+
 /// The system step that tests the package.
 pub const TEST_STEP: &str = "forge.test";
 /// The system step that proposes it to the user.
@@ -115,6 +118,9 @@ impl ForgeSteps {
     async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {
         let folder = self.folder(run_id)?;
         self.files.write_text(&folder.join(".claude/settings.json"), &sandbox_settings(), true).await?;
+        // npm reads it from the folder it installs in: a package installed
+        // here runs no install script.
+        self.files.write_text(&folder.join(".npmrc"), NPM_SETTINGS, true).await?;
         tracing::info!(run_id, "a Forge run's build folder was made");
         Ok(Some(folder.to_string_lossy().into_owned()))
     }

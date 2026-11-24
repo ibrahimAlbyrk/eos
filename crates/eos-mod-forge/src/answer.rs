@@ -215,7 +215,7 @@ impl Proposals {
                 manifest: built.manifest,
                 hash: proposal.hash.clone(),
                 origin: crate::proposal::PRODUCER.to_owned(),
-                source: run_id.to_owned(),
+                source: crate::proposal::source_of(proposal, run_id),
             })
             .await?;
         tracing::info!(run_id, capability = %id, "a proposed capability was installed on the user's yes");

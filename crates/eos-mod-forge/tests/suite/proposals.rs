@@ -189,3 +189,57 @@ async fn a_new_version_whose_health_fails_goes_back_to_the_one_before_and_the_us
                   AND title LIKE '%went back to version 1.0.0'";
     assert_eq!(rig.temp.count(notice), 1);
 }
+
+/// A way that runs Acme's published server, pinned.
+fn published_way() -> Value {
+    json!({"options": [{
+        "key": "acme", "title": "Acme's server", "how": "Acme's own MCP server.", "cost": "free",
+        "setup": "An Acme account", "works": "any_mac", "reach": ["api.acme.com"], "source": "community",
+        "package": {"registry": "npm", "name": "acme-echo", "version": "2.1.0",
+                    "integrity": format!("sha512-{}==", "A".repeat(86)), "server": "io.github.acme/echo"},
+    }]})
+}
+
+/// The package's lock file, installing acme-echo `version`.
+fn lock(rig: &Rig, run: &str, version: &str) {
+    let dir = rig.folder(run).join("package");
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let entry = json!({"version": version, "resolved": "https://registry.npmjs.org/acme-echo/-/acme-echo.tgz",
+                       "integrity": integrity, "hasInstallScript": true});
+    let lock = json!({"lockfileVersion": 3, "packages": {"": {}, "node_modules/acme-echo": entry}});
+    std::fs::write(dir.join("package-lock.json"), lock.to_string()).expect("lock");
+    std::fs::create_dir_all(dir.join("node_modules/acme-echo")).expect("made");
+    let installed = json!({"version": version}).to_string();
+    std::fs::write(dir.join("node_modules/acme-echo/package.json"), installed).expect("installed");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_published_server_is_tested_only_once_it_holds_to_its_pin_and_its_proposal_names_it() {
+    let rig = Rig::ready().await;
+    rig.session_of("rn-1", "w-research", "forge-researcher");
+    rig.forge.report("w-research", ForgeStage::Research, published_way()).await.expect("researched");
+    package(&rig, "rn-1", "1.0.0", "");
+    lock(&rig, "rn-1", "2.0.9");
+    rig.session_of("rn-1", "w-build-first", "forge-builder");
+    let build = json!({"package": "package", "capabilityId": "echo-script", "version": "1.0.0", "summary": "Echo."});
+    rig.forge.report("w-build-first", ForgeStage::Build, build).await.expect("built");
+    let StepResult::Failed { reason } = rig.step("rn-1", TEST_STEP).await else { panic!("another version passed") };
+    assert!(reason.contains("does not hold to its pin"), "{reason}");
+    assert!(rig.confinement.specs().is_empty(), "nothing of it ran");
+
+    lock(&rig, "rn-1", "2.1.0");
+    let proposed = through_review(&rig, "rn-1", "1.0.0").await;
+    assert!(matches!(proposed, StepResult::Done(_)), "{proposed:?}");
+    let (_, state) = rig.ask(Method::Get, "/api/forge/proposals/rn-1", None).await;
+    let source = &state["proposal"]["source"];
+    assert_eq!(source["community"], true);
+    assert_eq!(source["dependencies"], json!(["acme-echo@2.1.0"]));
+    assert_eq!(source["installScripts"], json!(["acme-echo@2.1.0"]));
+    let limits = state["proposal"]["limits"].to_string();
+    assert!(limits.contains("not its publisher") && limits.contains("install scripts"), "{limits}");
+    let pinned = format!(
+        "SELECT COUNT(*) FROM capability_versions WHERE source = 'npm:acme-echo@2.1.0#sha512-{}=='",
+        "A".repeat(86)
+    );
+    assert_eq!(rig.temp.count(&pinned), 1, "the version names its pin as its source");
+}

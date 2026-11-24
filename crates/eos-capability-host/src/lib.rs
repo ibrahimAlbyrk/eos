@@ -14,11 +14,15 @@
 //! by kind and count; inputs, outputs, secrets and paths the code reached
 //! are not.
 //!
+//! A package that runs a published server is held to its pinned version
+//! and integrity hash before it is tested ([`check_pin`]).
+//!
 //! [`ActionRunner`]: eos_core::capability::ActionRunner
 //! [`Confinement`]: eos_core::capability::Confinement
 
 mod confined;
 mod mcp;
+mod pinned;
 mod script;
 mod trial;
 
@@ -37,6 +41,7 @@ use zeroize::Zeroizing;
 
 pub use confined::SANDBOX_UNAVAILABLE;
 pub use mcp::{CRASH_WINDOW_MS, CRASHES_TO_BREAK, IDLE_STOP_MS, SERVER_CRASHED, SERVERS_ALIVE_MAX, TOOLS_CHANGED};
+pub use pinned::{Pinned, check_pin};
 pub use script::{OUTPUT_MAX_BYTES, ScriptHost};
 pub use trial::{LIVE_TIMEOUT, TESTS_TIMEOUT, TOLERATED_READS, Trial, TrialOutcome, judge};
 

@@ -34,6 +34,7 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
       )}
       <p className="eos-needs-card__class">{reaches.length ? `Reaches ${reaches.join(", ")}` : "Reaches nothing outside this Mac."}</p>
       {p.cost && <p className="eos-needs-card__class">Costs: {p.cost}</p>}
+      {p.source && <PublishedSource source={p.source} />}
       {secrets.length > 0 && (
         <p className="eos-needs-card__class">Asks in Eos's own prompt for: {secrets.map((s) => s.label).join(", ")}</p>
       )}
@@ -62,6 +63,24 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
       {limits.length > 0 && (
         <ul className="eos-needs-card__list eos-needs-card__class" aria-label="What Eos cannot promise">
           {limits.map((line) => <li key={line}>{line}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Code from elsewhere (06 G12): the package it runs, pinned, who published
+// it, and everything it installed.
+function PublishedSource({ source }) {
+  const { package: pkg = {}, community, dependencies = [] } = source;
+  return (
+    <div>
+      <p className="eos-needs-card__class">
+        Runs {pkg.name} {pkg.version} from {pkg.registry}{community ? ", published by someone other than the service (community)" : ""}.
+      </p>
+      {dependencies.length > 0 && (
+        <ul className="eos-needs-card__list eos-needs-card__class" aria-label="What it installs">
+          {dependencies.map((d) => <li key={d}>{d}</li>)}
         </ul>
       )}
     </div>

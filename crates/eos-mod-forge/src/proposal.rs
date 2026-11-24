@@ -6,8 +6,8 @@
 //! again. The version is recorded as `proposed`; nothing is installed here.
 
 use eos_contracts::{
-    CapabilityProposal, ForgeBuild, ForgeResearch, ForgeReview, LiveTest, ProposedAction, ProposedField, ProposedReach,
-    ProposedRoutine, ProposedTests,
+    CapabilityProposal, ForgeBuild, ForgeOption, ForgeReview, LiveTest, ProposedAction, ProposedField, ProposedReach,
+    ProposedRoutine, ProposedSource, ProposedTests,
 };
 use eos_core::Error;
 use eos_core::forge::ForgeStage;
@@ -18,7 +18,7 @@ use eos_inbox::{NewItem, Opening, open_in};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::package::{Built, newest, read};
+use crate::package::{Built, chosen, newest, read};
 use crate::request::report_event;
 use crate::steps::ForgeSteps;
 use crate::tested::{TEST_EVENT, Tested, test};
@@ -40,6 +40,12 @@ pub(crate) struct Proposed {
 /// The subject a run's proposal item has.
 pub(crate) fn subject(run_id: &str) -> String {
     format!("forge:{run_id}")
+}
+
+/// What a version's row names as its source: the pinned package it runs,
+/// or the Forge run that built it.
+pub(crate) fn source_of(proposal: &CapabilityProposal, run_id: &str) -> String {
+    proposal.source.as_ref().map_or_else(|| run_id.to_owned(), |source| source.package.pin())
 }
 
 /// A passed review, with the hash of the files the reviewer read.
@@ -69,21 +75,17 @@ pub(crate) async fn step(steps: &ForgeSteps, call: &SystemStepCall) -> Result<St
     if reviewed.hash.as_deref() != Some(built.hash.as_str()) {
         return failed("The package changed after its review, so it is not proposed.");
     }
+    let way = chosen(store, run_id, &build).await?;
+    let pin = way.as_ref().and_then(|way| way.package.as_ref());
     let tested = match newest::<Tested>(store, run_id, TEST_EVENT).await? {
         Some(tested) if tested.hash == built.hash => tested,
-        _ => test(steps, run_id, &built).await?,
+        _ => test(steps, run_id, &built, pin).await?,
     };
     if !tested.passed {
         return failed(&format!("Eos's tests failed: {}.", tested.failures.join("; ")));
     }
-    let research = newest::<ForgeResearch>(store, run_id, &report_event(ForgeStage::Research)).await?;
-    let cost = research.and_then(|research| {
-        let chosen = build.option.as_deref();
-        let only = research.options.len() == 1;
-        research.options.into_iter().find(|option| only || Some(option.key.as_str()) == chosen).map(|o| o.cost)
-    });
     let waiting = call.input.options.get("routine").and_then(Value::as_str).map(str::to_owned);
-    let proposal = proposal_of(run_id, &built, &tested, reviewed.review, cost);
+    let proposal = proposal_of(run_id, &built, &tested, reviewed.review, way);
     let manifest_json = serde_json::to_string(&built.manifest).map_err(Error::storage)?;
     match open(steps, call, proposal, waiting, manifest_json).await? {
         Ok(item_id) => Ok(StepResult::Done(SubmittedResult {
@@ -101,7 +103,7 @@ fn proposal_of(
     built: &Built,
     tested: &Tested,
     review: ForgeReview,
-    cost: Option<String>,
+    way: Option<ForgeOption>,
 ) -> CapabilityProposal {
     let manifest = &built.manifest;
     let word = |value: Value| value.as_str().unwrap_or_default().to_owned();
@@ -121,6 +123,25 @@ fn proposal_of(
     }
     if live_test.is_some() {
         limits.push("The live test is one real call, made only when you start it.".to_owned());
+    }
+    let (cost, published) = way.map_or((None, None), |way| (Some(way.cost), way.package.map(|p| (p, way.source))));
+    let source = published.map(|(package, source)| ProposedSource {
+        package,
+        community: source == "community",
+        dependencies: tested.dependencies.clone(),
+        install_scripts: tested.install_scripts.clone(),
+    });
+    if let Some(source) = &source {
+        limits.push(format!(
+            "Who published {} is what the MCP Registry says; Eos checked its version and hash, not its publisher.",
+            source.package.name
+        ));
+        if !source.install_scripts.is_empty() {
+            limits.push(format!(
+                "{} of its packages declare install scripts. They were to stay off while it was built in the sandbox; Eos cannot prove that afterwards.",
+                source.install_scripts.len()
+            ));
+        }
     }
     CapabilityProposal {
         run_id: run_id.to_owned(),
@@ -162,6 +183,7 @@ fn proposal_of(
         live_test,
         routines: Vec::new(),
         limits,
+        source,
     }
 }
 
@@ -192,7 +214,7 @@ async fn open(
                     status: PROPOSED.to_owned(),
                     hash: proposal.hash.clone(),
                     manifest_json,
-                    source: run_id.clone(),
+                    source: crate::proposal::source_of(&proposal, &run_id),
                     tests_json: Some(json!(proposal.tests).to_string()),
                     review_json: Some(json!(proposal.review).to_string()),
                     created_at: now,
