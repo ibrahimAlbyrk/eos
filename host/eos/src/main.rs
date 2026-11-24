@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use eos_bridge::dashboard_life::DASHBOARD_RELEASE_AFTER_MS;
-use eos_bridge::launch::{data_folder, logs_folder, reaches_network};
+use eos_bridge::launch::{bundle_id_of, data_folder, logs_folder, owns_doors, reaches_network};
 use eos_bridge::splash::update_caption;
 use eos_bridge::{Bridge, Classify, Core, LateCore, NoCore, RouterCore};
 use eos_contracts::update::UpdateApply;
@@ -44,6 +44,13 @@ fn bundled_resources() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let resources = exe.parent()?.parent()?.join("Resources");
     resources.is_dir().then_some(resources)
+}
+
+/// The identifier in the bundle's `Info.plist` (`Contents/Info.plist`); `None` outside a bundle.
+fn bundle_id() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let plist = std::fs::read_to_string(exe.parent()?.parent()?.join("Info.plist")).ok()?;
+    bundle_id_of(&plist).map(str::to_string)
 }
 
 /// What kind of build this is, for the log: `release`, or a `dev-run` build (`test`, or
@@ -85,8 +92,8 @@ fn options(core_home: Option<&Path>) -> Options {
         // The measuring probe drives the dashboard: a dev run only.
         probe: cfg!(feature = "dev-run") && env("EOS_SHELL_PROBE").is_some(),
         dashboard_release_after: dashboard_release_after(),
-        // A test or dev run is another app to the system: it never becomes a login item.
-        login_item: RELEASE,
+        // A test or dev run is another app to the system: it owns no door.
+        doors: owns_doors(bundle_id().as_deref(), RELEASE),
         dev_run: !RELEASE,
     }
 }
