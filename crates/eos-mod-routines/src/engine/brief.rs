@@ -8,7 +8,10 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{Blueprint, RoutineAgent, RunInput, WhoDepth};
+use eos_contracts::builtin_tools::{NETWORK_BUILTIN_TOOLS, READ_BUILTIN_TOOLS};
+use eos_contracts::{
+    AgentTools, AgentWorkspace, Blueprint, RoutineAgent, RunInput, SurfaceRunInput, SurfaceRunKind, WhoDepth,
+};
 use eos_core::Error;
 use eos_core::store::RunMove;
 use eos_domain::routine::blueprint::{Context, Severity, validate};
@@ -25,10 +28,14 @@ use crate::routes::readable;
 pub(crate) const SOLO_DEFINITION: &str = "eos-run-solo";
 /// The definition a team's lead starts as.
 pub(crate) const TEAM_LEAD_DEFINITION: &str = "eos-run-lead";
+/// The definition a design run's designer starts as (01 G51): it reads and
+/// proposes a page's design, and has no shell, no edits and no send tools.
+pub(crate) const DESIGNER_DEFINITION: &str = "eos-run-designer";
 
 /// What the headline of a run says when it could not start here.
 const NOT_HERE: &str = "This routine's team or workspace needs a newer Eos.";
 const NOT_VALID: &str = "This routine's blueprint no longer passes its rules.";
+const NO_APPS: &str = "Building an App needs a newer Eos.";
 
 /// What the brief station starts the lead from.
 struct Briefing {
@@ -68,14 +75,31 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
     }
     super::surfaces::created(engine, &routine_id, &version_id, &blueprint.makes.kind).await;
-    let (agent, role, role_word, definition) = match (blueprint.who.depth, blueprint.who.agents.as_slice()) {
-        (WhoDepth::Solo, [agent]) => (agent.clone(), RunRole::Solo, "solo", SOLO_DEFINITION),
-        (WhoDepth::Team, agents) => match agents.iter().find(|agent| agent.lead) {
-            Some(lead) => (lead.clone(), RunRole::Lead, "lead", TEAM_LEAD_DEFINITION),
-            None => return Err((Reason::Invalid, Some(NOT_HERE), None)),
-        },
-        _ => return Err((Reason::Invalid, Some(NOT_HERE), None)),
-    };
+    let (mut agent, mut role, mut role_word, mut definition) =
+        match (blueprint.who.depth, blueprint.who.agents.as_slice()) {
+            (WhoDepth::Solo, [agent]) => (agent.clone(), RunRole::Solo, "solo", SOLO_DEFINITION),
+            (WhoDepth::Team, agents) => match agents.iter().find(|agent| agent.lead) {
+                Some(lead) => (lead.clone(), RunRole::Lead, "lead", TEAM_LEAD_DEFINITION),
+                None => return Err((Reason::Invalid, Some(NOT_HERE), None)),
+            },
+            _ => return Err((Reason::Invalid, Some(NOT_HERE), None)),
+        };
+    // A surface's run is one session on the routine's lead model, in a
+    // folder of its own: it works on the surface, never on the repository.
+    if let Some(surface) = &input.surface {
+        definition = match surface.kind {
+            SurfaceRunKind::Design => DESIGNER_DEFINITION,
+            SurfaceRunKind::Ask => SOLO_DEFINITION,
+            SurfaceRunKind::AppBuild => return Err((Reason::Invalid, Some(NO_APPS), None)),
+        };
+        (role, role_word) = (RunRole::Solo, "solo");
+        agent.workspace = AgentWorkspace::None;
+        if surface.kind == SurfaceRunKind::Design {
+            // The designer reads and looks things up; its page goes in through its tools.
+            let allow = READ_BUILTIN_TOOLS.iter().chain(NETWORK_BUILTIN_TOOLS).map(|tool| (*tool).to_owned());
+            agent.tools = AgentTools { allow: allow.collect(), deny: Vec::new(), extra: Default::default() };
+        }
+    }
     let place = match workspace::place(engine, run_id, &blueprint, &input, &agent.key, agent.workspace, None).await {
         Ok(place) => place,
         Err(NoPlace::NoClone) => {
@@ -104,7 +128,10 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         at: (RunState::Running, Station::Brief),
         pack,
     };
-    let render = |folder: &str| render(engine, &blueprint, &agent, &input, folder);
+    let render = |folder: &str| match input.surface.as_ref().filter(|s| s.kind == SurfaceRunKind::Design) {
+        Some(design) => design_brief(engine, &blueprint, design, folder),
+        None => render(engine, &blueprint, &agent, &input, folder),
+    };
     let Some(worker_id) = spawn::start(engine, session, render).await.map_err(internal)? else { return Ok(()) };
     to_work(engine, run_id).await.map_err(internal)?;
     tracing::info!(run_id, worker_id, routine_id, "a run's lead started");
@@ -195,7 +222,11 @@ fn render(
     input: &RunInput,
     folder: &str,
 ) -> Result<String, Error> {
-    let items: Vec<String> = input.item.iter().chain(input.items.iter().flatten()).map(super::item_text).collect();
+    let mut items: Vec<String> = input.item.iter().chain(input.items.iter().flatten()).map(super::item_text).collect();
+    if let Some(asked) = input.surface.as_ref().and_then(|surface| surface.item.as_ref()) {
+        // The row the user pressed Ask on: a page's data, which outside text may have filled.
+        items.push(format!("<untrusted>\n{asked}\n</untrusted>"));
+    }
     let options: Vec<String> = blueprint
         .options
         .iter()
@@ -216,13 +247,51 @@ fn render(
         ("RESULT_SHAPE", super::shape::text(engine, &blueprint.makes.kind)),
         ("ITEM", if items.is_empty() { "No item: this run works on its own.".into() } else { items.join("\n\n") }),
         ("OPTIONS", if options.is_empty() { "None.".into() } else { options.join("\n") }),
-        ("NOTE", input.note.clone().unwrap_or_else(|| "None.".into())),
+        ("NOTE", note_of(input)),
         ("RESULT_MODE", result_mode(input)),
         ("BUDGET", format!("${} and {} minutes for this run.", limits.per_run_usd, limits.per_run_minutes)),
         ("CHECKOUT", folder.to_owned()),
     ];
     let values = pairs.into_iter().map(|(name, value)| (name.to_owned(), serde_json::Value::String(value))).collect();
     engine.prompts.render("routine/run-brief", &values, &eos_prompts::service::no_values())
+}
+
+/// The user's note; for an Ask, what they asked about the row it was pressed on.
+fn note_of(input: &RunInput) -> String {
+    let asked = input.surface.as_ref().map(|surface| {
+        let part = surface.part.as_deref().unwrap_or("the page");
+        let said = surface.instruction.as_deref().unwrap_or("Dig deeper into this.");
+        format!("The user pressed Ask on {part} of the routine's page and asks: {said}")
+    });
+    asked.or_else(|| input.note.clone()).unwrap_or_else(|| "None.".into())
+}
+
+/// A design run's first message, from `routine/design-brief`: the routine,
+/// the page's surface and version, and what the user asked for.
+fn design_brief(
+    engine: &Engine,
+    blueprint: &Blueprint,
+    design: &SurfaceRunInput,
+    folder: &str,
+) -> Result<String, Error> {
+    let base = design.base_version.map_or_else(|| "None: make the first design.".into(), |n| format!("version {n}"));
+    let pointed = match (&design.part, design.index) {
+        (Some(part), Some(index)) => format!("{part} (item {})", index + 1),
+        (Some(part), None) => part.clone(),
+        (None, _) => "Nothing: the whole page.".into(),
+    };
+    let pairs = [
+        ("ROUTINE_NAME", blueprint.name.clone()),
+        ("SUMMARY", blueprint.summary.clone()),
+        ("MAKES", blueprint.makes.description.clone()),
+        ("SURFACE", design.surface_id.clone()),
+        ("BASE_VERSION", base),
+        ("INSTRUCTION", design.instruction.clone().unwrap_or_else(|| "Make the page this routine fills.".into())),
+        ("PART", pointed),
+        ("FOLDER", folder.to_owned()),
+    ];
+    let values = pairs.into_iter().map(|(name, value)| (name.to_owned(), serde_json::Value::String(value))).collect();
+    engine.prompts.render("routine/design-brief", &values, &eos_prompts::service::no_values())
 }
 
 /// The lead and, for a team, each specialist by the key the team tools take.

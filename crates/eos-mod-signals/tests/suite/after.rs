@@ -148,6 +148,7 @@ async fn a_chain_four_routines_deep_starts_nothing() {
                 note: None,
                 result: ResultMode::Usual,
                 at: None,
+                surface: None,
             };
             let admission = Admission { routine_id: "rt-up".into(), signal_id: id, input };
             match table.admit(tx, out, &admission)? {

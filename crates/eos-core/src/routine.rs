@@ -31,6 +31,9 @@ pub enum RunOrigin {
     /// Memory's check of a playbook candidate on a past run's item (01 G50):
     /// a trial that shows its result, sends nothing and earns no credit.
     Replay { candidate: String },
+    /// One of the routine's surfaces (01 G51): a design, an App build or an
+    /// ask, as the run's input says.
+    Surface { surface_id: String },
 }
 
 impl RunOrigin {
@@ -43,6 +46,7 @@ impl RunOrigin {
             RunOrigin::Agent { .. } => "agent",
             RunOrigin::Routine { .. } => "routine",
             RunOrigin::Replay { .. } => "replay",
+            RunOrigin::Surface { .. } => "surface",
         }
     }
 
@@ -54,6 +58,7 @@ impl RunOrigin {
             RunOrigin::Again { run_id } | RunOrigin::Routine { run_id } => Some(run_id),
             RunOrigin::Agent { worker_id } => Some(worker_id),
             RunOrigin::Replay { candidate } => Some(candidate),
+            RunOrigin::Surface { surface_id } => Some(surface_id),
         }
     }
 }

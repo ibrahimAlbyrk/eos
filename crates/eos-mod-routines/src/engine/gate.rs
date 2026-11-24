@@ -94,10 +94,13 @@ fn gate_input(
         Err(Error::NotFound { .. }) => (None, Vec::new()),
         Err(error) => return Err(error),
     };
-    let trial = run.kind == "trial";
+    // A trial sends nothing anywhere (03 G21); a surface's run only shows.
+    let surface_run = eos_contracts::SurfaceRunKind::is_surface_word(&run.kind);
+    let trial = run.kind == "trial" || surface_run;
     let untrusted_facts = untrusted_for(untrusted, &blueprint);
     let result_mode = match (run.kind.as_str(), input.result) {
         ("trial", _) => GateMode::Trial,
+        _ if surface_run => GateMode::ShowOnly,
         (_, eos_contracts::ResultMode::ShowOnly) => GateMode::ShowOnly,
         (_, eos_contracts::ResultMode::Ask) => GateMode::Ask,
         (_, eos_contracts::ResultMode::Usual) => GateMode::AsUsual,
@@ -109,7 +112,6 @@ fn gate_input(
         origin: run.origin.clone(),
         result_mode,
         doc: result_doc(result),
-        // A trial sends nothing anywhere (03 G21).
         targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
         signal_facts: signal_facts_in(tx, &input)?,

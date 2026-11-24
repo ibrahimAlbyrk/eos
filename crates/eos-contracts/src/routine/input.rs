@@ -35,6 +35,60 @@ pub struct RunInput {
     /// Not before this time (epoch ms).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<i64>,
+    /// What a run for one of the routine's surfaces is asked (01 G51); only
+    /// surfaces start such a run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<SurfaceRunInput>,
+}
+
+/// The kinds of run a routine's surface starts (01 G51).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum SurfaceRunKind {
+    /// The designer makes or reshapes a page.
+    Design,
+    /// A builder team makes an App.
+    AppBuild,
+    /// One focused session answers about an item of an issue.
+    Ask,
+}
+
+impl SurfaceRunKind {
+    /// The word `runs.kind` stores.
+    pub fn word(self) -> &'static str {
+        match self {
+            SurfaceRunKind::Design => "design",
+            SurfaceRunKind::AppBuild => "app-build",
+            SurfaceRunKind::Ask => "ask",
+        }
+    }
+
+    /// Whether `kind` is one of a surface's runs.
+    pub fn is_surface_word(kind: &str) -> bool {
+        matches!(kind, "design" | "app-build" | "ask")
+    }
+}
+
+/// A surface's run: which surface, from which of its versions, what the
+/// user said and the part (and item) they pointed at.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceRunInput {
+    pub kind: SurfaceRunKind,
+    pub surface_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_version: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instruction: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+    /// The issue an Ask was pressed on, and the row it sits in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item: Option<Value>,
 }
 
 impl Validate for RunInput {
@@ -43,6 +97,9 @@ impl Validate for RunInput {
         cx.at("items", |cx| self.items.validate(cx));
         if let Some(note) = &self.note {
             cx.at("note", |cx| cx.str_max(note, RUN_NOTE_MAX_CHARS));
+        }
+        if let Some(instruction) = self.surface.as_ref().and_then(|surface| surface.instruction.as_ref()) {
+            cx.at("surface.instruction", |cx| cx.str_max(instruction, RUN_NOTE_MAX_CHARS));
         }
     }
 }

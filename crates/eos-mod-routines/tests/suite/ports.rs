@@ -24,6 +24,7 @@ fn admission(routine: &str, signal_id: i64, number: u32) -> Admission {
             note: None,
             result: ResultMode::Usual,
             at: None,
+            surface: None,
         },
     }
 }
