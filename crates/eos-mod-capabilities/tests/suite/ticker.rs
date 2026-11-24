@@ -1,5 +1,6 @@
-//! The health ticker: each capability once per simulated hour, at its own
-//! minute, and early after a call the service refused for its sign-in.
+//! The health ticker: each capability a routine needs once per simulated
+//! hour, at its own minute, and early after a call the service refused for
+//! its sign-in.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,7 +8,7 @@ use std::time::Duration;
 use eos_core::capability::{ActionCall, ActionCaller, ActionError, CapabilityCalls, FailureKind};
 use eos_mod_capabilities::{CHECK_EVERY_MS, TICK_MS};
 use eos_runtime::http::Method;
-use eos_testkit::FakeBuiltin;
+use eos_testkit::{FakeBuiltin, routine_seed};
 use serde_json::json;
 
 use crate::rig::{GITHUB, MAIL, Rig, rig};
@@ -34,23 +35,30 @@ async fn tick(rig: &Rig) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn each_capability_is_checked_once_an_hour() {
+async fn each_capability_a_routine_needs_is_checked_once_an_hour() {
     let (github, mail) = (Arc::new(FakeBuiltin::new(GITHUB)), Arc::new(FakeBuiltin::new(MAIL)));
     let rig = rig(vec![github.clone(), mail.clone()], true).await;
     sleeping(&rig).await;
     assert_eq!(rig.sleeper.pending(), [TICK_MS]);
+    // No routine yet: nothing is checked, so the Mail app is never driven.
+    for _ in 0..CHECK_EVERY_MS / TICK_MS {
+        tick(&rig).await;
+    }
+    assert_eq!((github.checks(), mail.checks()), (0, 0));
+    // PR Review needs GitHub; no routine needs mail.
+    assert!(routine_seed::seed(rig.temp.port().as_ref()).await.expect("seeds"));
     for hour in 1..=3 {
         for _ in 0..CHECK_EVERY_MS / TICK_MS {
             tick(&rig).await;
         }
-        assert_eq!((github.checks(), mail.checks()), (hour, hour), "after hour {hour}");
+        assert_eq!((github.checks(), mail.checks()), (hour, 0), "after hour {hour}");
     }
     // One switched off is not checked.
-    rig.ask(Method::Post, "/api/capabilities/mail/disable", None).await;
+    rig.ask(Method::Post, "/api/capabilities/github/disable", None).await;
     for _ in 0..CHECK_EVERY_MS / TICK_MS {
         tick(&rig).await;
     }
-    assert_eq!((github.checks(), mail.checks()), (4, 3));
+    assert_eq!((github.checks(), mail.checks()), (3, 0));
 }
 
 #[tokio::test(flavor = "multi_thread")]

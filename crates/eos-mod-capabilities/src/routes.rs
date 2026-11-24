@@ -32,7 +32,7 @@ fn word<T: serde::Serialize>(value: &T) -> String {
 
 /// The ids of the routines whose blueprint needs each capability. A routine
 /// deleted, or without a blueprint this app reads, uses none.
-fn users(tx: &dyn Tx) -> Result<HashMap<String, Vec<String>>, Error> {
+pub(crate) fn users(tx: &dyn Tx) -> Result<HashMap<String, Vec<String>>, Error> {
     let mut users: HashMap<String, Vec<String>> = HashMap::new();
     for routine in tx.routines().list()?.into_iter().filter(|routine| routine.deleted_at.is_none()) {
         let Some(head) = tx.routine_versions().head(&routine.id)? else { continue };
