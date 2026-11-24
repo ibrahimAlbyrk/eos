@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- What only the installed Eos declares (bundle.sh merges it into Info.plist for that identity
-     alone): files and folders dropped on its Dock icon open the quick panel. Rank None, so Eos
-     never becomes any file's default app. -->
+     alone): files and folders dropped on its Dock icon open the quick panel (rank None, so Eos
+     never becomes any file's default app), and "Send to Eos" in the Services menu and Finder's
+     Quick Actions hands it text, a web address or files. NSRequiredContext, empty, turns the
+     service on without the user enabling it. -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDocumentTypes</key>
@@ -18,6 +20,32 @@
 			<array>
 				<string>public.item</string>
 				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Send to Eos</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>sendToEos</string>
+			<key>NSPortName</key>
+			<string>Eos</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.utf8-plain-text</string>
+				<string>public.url</string>
+				<string>public.file-url</string>
+			</array>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.item</string>
 			</array>
 		</dict>
 	</array>

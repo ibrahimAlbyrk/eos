@@ -187,7 +187,8 @@ fn decode(path: &str) -> String {
     while i < bytes.len() {
         let hex = |b: u8| (b as char).to_digit(16);
         if bytes[i] == b'%'
-            && let (Some(hi), Some(lo)) = (bytes.get(i + 1).and_then(|b| hex(*b)), bytes.get(i + 2).and_then(|b| hex(*b)))
+            && let (Some(hi), Some(lo)) =
+                (bytes.get(i + 1).and_then(|b| hex(*b)), bytes.get(i + 2).and_then(|b| hex(*b)))
         {
             out.push((hi * 16 + lo) as u8);
             i += 3;

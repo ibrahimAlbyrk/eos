@@ -16,8 +16,8 @@ use tauri_runtime_cef::WebviewCefExt;
 
 use crate::host::open_external;
 use crate::log::log;
-use crate::native::ax;
 use crate::native::panel as native;
+use crate::native::{ax, services};
 use crate::scheme;
 use crate::views::create;
 
@@ -102,6 +102,18 @@ impl QuickPanel {
         parts.extend(selection.document.map(DoorPart::of_path));
         if let Some(bridge) = self.bridge.get().and_then(Weak::upgrade) {
             bridge.hold(DoorItem::new(DoorSource::Shortcut, selection.app, parts));
+        }
+        self.show();
+    }
+
+    /// "Send to Eos" from the Services menu: what the other app handed over is held, and the
+    /// panel shows.
+    pub(crate) fn from_services(self: &Arc<Self>, sent: services::Sent) {
+        let mut parts: Vec<DoorPart> = sent.files.into_iter().map(DoorPart::of_path).collect();
+        parts.extend(sent.url.map(DoorPart::Url));
+        parts.extend(sent.text.map(DoorPart::Text));
+        if let Some(bridge) = self.bridge.get().and_then(Weak::upgrade) {
+            bridge.hold(DoorItem::new(DoorSource::Services, None, parts));
         }
         self.show();
     }
