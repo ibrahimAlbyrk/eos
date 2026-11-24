@@ -1,7 +1,10 @@
 //! Installing a package version, going back to a kept one, and removing a
 //! capability. Files first, row second: a crash in between leaves at most a
 //! `.partial` folder, which the start sweep sends to the trash. Removal
-//! goes through the trash too, and keeps the capability's secrets.
+//! goes through the trash too, and keeps the capability's secrets. The
+//! last [`KEPT_VERSIONS`] installed versions stay on disk to go back to;
+//! an older one is retired and its files go to the trash. A capability the
+//! user disabled stays disabled through an update or a rollback.
 
 use std::path::PathBuf;
 
@@ -9,6 +12,7 @@ use eos_core::Error;
 use eos_core::capability::INSTALLED_MAX;
 use eos_core::store::{StoredCapabilityVersion, StoredInstall, Tx};
 use eos_domain::capability::check::check;
+use eos_domain::capability::health::{Health, HealthState};
 use eos_domain::capability::manifest::Manifest;
 
 use crate::CapabilityService;
@@ -17,6 +21,19 @@ use crate::registry::BUILTIN;
 
 /// The status of a version installed on this computer.
 const INSTALLED: &str = "installed";
+/// The status of a version whose files went to the trash.
+const RETIRED: &str = "retired";
+/// How many installed versions stay on disk (06 G9).
+pub const KEPT_VERSIONS: usize = 3;
+
+/// The health a capability takes on with a new active version: the one
+/// fresh from its check, unless the user disabled it.
+fn carried(before: Option<&StoredInstall>, fresh: Health) -> Health {
+    match before {
+        Some(before) if before.health.state == HealthState::Disabled => before.health.clone(),
+        _ => fresh,
+    }
+}
 
 /// A package to install, as its review left it.
 #[derive(Debug, Clone)]
@@ -73,15 +90,17 @@ impl CapabilityService {
             .ports
             .store
             .write(move |tx, outbox| {
-                if admit(tx, &id, &version, &hash)?.is_none() {
-                    tx.capability_versions().insert(&row)?;
+                match admit(tx, &id, &version, &hash)? {
+                    None => tx.capability_versions().insert(&row)?,
+                    // A proposed or retired version installs as itself.
+                    Some(_) => drop(tx.capability_versions().set_status(&id, &version, INSTALLED, Some(now), None)?),
                 }
                 let before = tx.capability_installs().find(&id)?;
                 let install = StoredInstall {
                     id: id.clone(),
                     origin: before.as_ref().map_or(origin, |before| before.origin.clone()),
                     active_version: Some(version),
-                    health,
+                    health: carried(before.as_ref(), health),
                     state_since: now,
                     settings_json: before.as_ref().map_or_else(|| "{}".to_owned(), |b| b.settings_json.clone()),
                     account_label: before.as_ref().and_then(|before| before.account_label.clone()),
@@ -103,6 +122,50 @@ impl CapabilityService {
         };
         if replaced.is_some() {
             self.stop_runs(&manifest.id).await;
+        }
+        self.retire_old(&manifest.id).await
+    }
+
+    /// Retires every installed version past the newest [`KEPT_VERSIONS`],
+    /// never the active one: row first, then its files to the trash.
+    async fn retire_old(&self, id: &str) -> Result<(), Error> {
+        let (id_owned, now) = (id.to_owned(), self.ports.clock.now_ms());
+        let retired = self
+            .ports
+            .store
+            .write(move |tx, _| {
+                let active = tx.capability_installs().find(&id_owned)?.and_then(|install| install.active_version);
+                let installed: Vec<StoredCapabilityVersion> = tx
+                    .capability_versions()
+                    .of_capability(&id_owned)?
+                    .into_iter()
+                    .filter(|version| version.status == INSTALLED)
+                    .collect();
+                let mut retired = Vec::new();
+                let mut kept = usize::from(active.is_some());
+                for version in installed.into_iter().filter(|version| Some(&version.version) != active.as_ref()) {
+                    if kept < KEPT_VERSIONS {
+                        kept += 1;
+                        continue;
+                    }
+                    tx.capability_versions().set_status(
+                        &id_owned,
+                        &version.version,
+                        RETIRED,
+                        version.activated_at,
+                        Some(now),
+                    )?;
+                    retired.push(version.version);
+                }
+                Ok(retired)
+            })
+            .await?;
+        for version in retired {
+            tracing::info!(capability = id, "an old capability version was retired");
+            match self.ports.files.remove(id, &version).await {
+                Ok(()) | Err(Error::NotFound { .. }) => {}
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
@@ -143,7 +206,7 @@ impl CapabilityService {
                     .find(&id_owned)?
                     .ok_or_else(|| Error::not_found("capability", &id_owned))?;
                 install.active_version = Some(version_owned);
-                install.health = health;
+                install.health = carried(Some(&install), health);
                 install.state_since = now;
                 install.updated_at = now;
                 tx.capability_installs().put(&install)?;
@@ -170,13 +233,14 @@ impl CapabilityService {
         if install.origin == BUILTIN {
             return Err(Error::Rule(format!("{id} is a built-in capability: it cannot be removed")));
         }
+        // Its running code stops before its files go.
+        self.stop_runs(id).await;
         for version in versions.iter().filter(|version| version.status == INSTALLED) {
             match self.ports.files.remove(id, &version.version).await {
                 Ok(()) | Err(Error::NotFound { .. }) => {}
                 Err(e) => return Err(e),
             }
         }
-        self.stop_runs(id).await;
         self.stamps.lock().unwrap_or_else(|p| p.into_inner()).retain(|(capability, _), _| capability != id);
         let id = id.to_owned();
         self.ports

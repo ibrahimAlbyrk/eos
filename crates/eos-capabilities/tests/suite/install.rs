@@ -154,3 +154,47 @@ async fn a_removal_announces_the_state_the_row_had_when_it_went() {
     assert_eq!(rig.service.get("notes-db").await.expect("read"), None);
     assert_eq!(rig.changes().last().map(String::as_str), Some(r#"{"id":"notes-db","state":"disabled"}"#));
 }
+
+#[tokio::test]
+async fn the_last_three_installed_versions_stay_and_an_older_one_is_retired_to_the_trash() {
+    let rig = rig(Setup::default()).await;
+    for (n, version) in ["1.0.0", "1.1.0", "1.2.0", "1.3.0"].into_iter().enumerate() {
+        rig.clock.advance(1_000);
+        rig.install(&notes(version), &format!("h-{n}")).await;
+    }
+    assert_eq!(rig.trash.trashed(), [rig.files.dir("notes-db", "1.0.0")]);
+    let status = |version: &str| {
+        rig.temp.count(&format!(
+            "SELECT COUNT(*) FROM capability_versions WHERE version = '{version}' AND status = 'retired' \
+             AND retired_at IS NOT NULL"
+        ))
+    };
+    assert_eq!((status("1.0.0"), status("1.1.0")), (1, 0));
+    assert_eq!(eos_capabilities::KEPT_VERSIONS, 3);
+    let gone = rig.service.rollback("notes-db", "1.0.0").await;
+    assert!(matches!(gone, Err(Error::NotFound { .. })), "a retired version is no way back: {gone:?}");
+    rig.service.rollback("notes-db", "1.1.0").await.expect("a kept one is");
+}
+
+#[tokio::test]
+async fn a_proposed_version_becomes_installed_and_a_disabled_capability_stays_off_through_an_update() {
+    let rig = rig(Setup::default()).await;
+    let manifest = eos_domain::capability::manifest::parse(&notes("1.0.0")).expect("reads");
+    let manifest = serde_json::to_string(&manifest).expect("json").replace('\'', "''");
+    rig.temp.exec(&format!(
+        "INSERT INTO capability_versions (capability_id, version, status, hash, manifest_json, source, created_at) \
+         VALUES ('notes-db', '1.0.0', 'proposed', 'h-1', '{manifest}', 'rn-1', 1)"
+    ));
+    rig.install(&notes("1.0.0"), "h-1").await;
+    let installed = "SELECT COUNT(*) FROM capability_versions WHERE version = '1.0.0' AND status = 'installed' \
+                     AND activated_at IS NOT NULL";
+    assert_eq!(rig.temp.count(installed), 1);
+
+    rig.service.disable("notes-db").await.expect("off");
+    rig.install(&notes("1.1.0"), "h-2").await;
+    let after = rig.service.get("notes-db").await.expect("read").expect("there");
+    assert_eq!((after.version.as_deref(), after.health.state), (Some("1.1.0"), HealthState::Disabled));
+    rig.service.rollback("notes-db", "1.0.0").await.expect("back");
+    let back = rig.service.get("notes-db").await.expect("read").expect("there");
+    assert_eq!(back.health.state, HealthState::Disabled);
+}
