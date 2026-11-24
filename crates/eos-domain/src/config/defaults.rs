@@ -64,6 +64,9 @@ const DEFAULT_RELAY_URL: &str = "wss://silver-giraffe-71764.zap.cloud/";
 /// The OAuth App Eos signs in to GitHub with. A client id is public.
 const DEFAULT_GITHUB_CLIENT_ID: &str = "Ov23li8QQZilyzYjPuab";
 
+/// The Slack app Eos signs in to Slack with (PKCE, no secret). A client id is public.
+const DEFAULT_SLACK_CLIENT_ID: &str = "1516953649809.12667444474420";
+
 fn flat(input: f64, output: f64, cache_read: f64, cache_create: f64, cache_create_1h: f64) -> Value {
     json!({ "in": input, "out": output, "cacheRead": cache_read, "cacheCreate": cache_create, "cacheCreate1h": cache_create_1h })
 }
@@ -193,7 +196,7 @@ pub(super) fn defaults(host: &Host) -> Value {
     put("genui", json!({}));
     put("github", json!({ "clientId": env.text("EOS_GITHUB_CLIENT_ID", DEFAULT_GITHUB_CLIENT_ID) }));
     // No Slack app is registered yet: a user's own app is named by its id.
-    put("slack", json!({ "clientId": env.text("EOS_SLACK_CLIENT_ID", "") }));
+    put("slack", json!({ "clientId": env.text("EOS_SLACK_CLIENT_ID", DEFAULT_SLACK_CLIENT_ID) }));
     // D11: quiet at night, a count of what waits twice a day.
     put(
         "attention",
