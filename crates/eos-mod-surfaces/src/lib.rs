@@ -187,7 +187,7 @@ impl SurfacesModule {
 
     /// Page issues drawn for the mail channel.
     pub fn render(&self) -> Arc<dyn eos_core::surface::SurfaceRender> {
-        Arc::new(export::MailRender(self.parts.clone(), self.probe_docs.clone()))
+        Arc::new(export::MailRender(Arc::downgrade(&self.parts), Arc::downgrade(&self.probe_docs)))
     }
 
     /// Where the page probe's documents are held.

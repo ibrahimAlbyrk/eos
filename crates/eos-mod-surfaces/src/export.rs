@@ -13,7 +13,7 @@
 //!   `cid:` parts, at most 600 px and 5 MB in all.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use base64::Engine;
 use eos_contracts::{PdfExport, PdfRequest};
@@ -165,21 +165,26 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>, docs: &Arc<ProbeDocs>) -> Vec<R
     vec![document, preview, print]
 }
 
-/// The mail channel's view of page issues.
-pub(crate) struct MailRender(pub(crate) Arc<SurfacesParts>, pub(crate) Arc<ProbeDocs>);
+/// The mail channel's view of page issues. It holds the module's parts weakly: the
+/// capability service that holds it is held by the module's actions, and a strong hold
+/// would keep the app's store open after the app is gone.
+pub(crate) struct MailRender(pub(crate) Weak<SurfacesParts>, pub(crate) Weak<ProbeDocs>);
 
 impl SurfaceRender for MailRender {
     fn mail_document<'a>(&'a self, issue_id: &'a str, with_pdf: bool) -> BoxFuture<'a, Result<MailDocument, Error>> {
         Box::pin(async move {
+            let (Some(parts), Some(docs)) = (self.0.upgrade(), self.1.upgrade()) else {
+                return Err(Error::Unreachable("Eos is shutting down".into()));
+            };
             let id = issue_id.to_owned();
-            let found = self.0.store.read(move |tx| tx.surface_issues().find(&id)).await?;
+            let found = parts.store.read(move |tx| tx.surface_issues().find(&id)).await?;
             let issue = found.ok_or_else(|| Error::not_found("issue", issue_id))?;
             let drawn =
-                load(&self.0, &issue.surface_id, issue_id, None).await.map_err(|e| Error::Validation(e.to_string()))?;
-            let mut doc = mail(&self.0, &drawn, false).await?;
+                load(&parts, &issue.surface_id, issue_id, None).await.map_err(|e| Error::Validation(e.to_string()))?;
+            let mut doc = mail(&parts, &drawn, false).await?;
             if with_pdf {
                 // Without the window the mail still goes, without its PDF.
-                match pdf(&self.0, &self.1, &drawn, Paper::A4).await {
+                match pdf(&parts, &docs, &drawn, Paper::A4).await {
                     Ok(export) => doc.pdf = Some(export.path.into()),
                     Err(error) => tracing::info!(issue = %issue_id, %error, "a mailed issue went without its PDF"),
                 }
