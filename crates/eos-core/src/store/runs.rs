@@ -157,6 +157,8 @@ pub trait RunRepo {
     fn queued(&self) -> Result<Vec<StoredRun>, Error>;
     /// Every run that is running or checking.
     fn at_work(&self) -> Result<Vec<StoredRun>, Error>;
+    /// Every run paused for `reason`, oldest first.
+    fn paused_for(&self, reason: Reason) -> Result<Vec<StoredRun>, Error>;
     /// A routine's runs that have not ended, oldest first.
     fn live_of(&self, routine_id: &str) -> Result<Vec<StoredRun>, Error>;
     /// How often it was picked up again after Eos stopped.

@@ -263,6 +263,16 @@ impl RunRepo for SqliteTx<'_> {
         )
     }
 
+    fn paused_for(&self, reason: Reason) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {RUN_COLUMNS} FROM runs WHERE state = 'paused' AND reason = ?1 ORDER BY created_at, rowid"
+            ),
+            [reason.as_str()],
+            run,
+        )
+    }
+
     fn live_of(&self, routine_id: &str) -> Result<Vec<StoredRun>, Error> {
         self.rows(
             &format!(

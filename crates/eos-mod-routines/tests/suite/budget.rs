@@ -251,3 +251,28 @@ async fn spend_is_booked_on_the_users_local_day_when_it_happens() {
     // The scripted lead's own turns cost a little too, booked on whichever day they end.
     assert!(bench.booked("2027-01-16") < 0.26, "the half dollar stays on the day it was spent");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_run_that_spends_its_day_pauses_with_one_notice_and_goes_on_the_next_day() {
+    let bench = Bench::new(true);
+    let mut project = crate::project::project();
+    project["limits"]["perDayUsd"] = json!(1);
+    let routine = bench.routine(RoutineState::Active, project);
+    let run = bench.start(new_run(&routine, RunOrigin::Hand, None)).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+
+    bench.spend(&lead, 0.6);
+    bench.spend(&lead, 0.5);
+    bench.eventually(|| bench.state(&run) == RunState::Paused).await;
+    assert_eq!(bench.run(&run).reason, Some(Reason::DayCap));
+    assert_eq!(bench.day_cap_notices(), [Some(routine.clone())]);
+    bench.later(MINUTE).await;
+    assert_eq!(bench.state(&run), RunState::Paused, "not today");
+
+    bench.later(24 * 60 * MINUTE).await;
+    bench.eventually(|| bench.state(&run) == RunState::Running).await;
+    assert_eq!(bench.run(&run).station, Some(Station::Work));
+    bench.eventually(|| bench.told(&lead, "A new day") == 1).await;
+}

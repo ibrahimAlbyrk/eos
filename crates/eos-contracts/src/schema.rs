@@ -166,6 +166,7 @@ bundle![
     CreateAppRequest,
     CreateAppResponse,
     CreateRoutineRequest,
+    CopyRoutineRequest,
     CreateViewRequest,
     CreateViewResponse,
     CreateWorkerResponse,

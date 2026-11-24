@@ -416,8 +416,11 @@ pub(crate) async fn restore(engine: &Arc<Engine>, routine_id: &str, version_id: 
 }
 
 /// `POST …/copy`: "start another like this", a draft of the blueprint the
-/// routine shows.
-pub(crate) async fn copy(engine: &Arc<Engine>, routine_id: &str) -> Result<Saved, Error> {
-    let value = stored_blueprint(engine, routine_id, None).await?;
+/// routine shows; a project's copy takes `brief` as its own (01 G10).
+pub(crate) async fn copy(engine: &Arc<Engine>, routine_id: &str, brief: Option<String>) -> Result<Saved, Error> {
+    let mut value = stored_blueprint(engine, routine_id, None).await?;
+    if let (Some(brief), Some(project)) = (brief, value.get_mut("project").filter(|project| project.is_object())) {
+        project["brief"] = serde_json::Value::String(brief);
+    }
     create(engine, value, None, "copy").await
 }
