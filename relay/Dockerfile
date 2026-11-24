@@ -9,8 +9,10 @@ RUN npm ci --omit=dev
 COPY envelope.ts admission.ts errors.ts config.ts RoomRegistry.ts server.ts ./
 COPY vault/ ./vault/
 COPY push/ ./push/
+COPY hooks/ ./hooks/
 
-# Sync vault database (node:sqlite, unflagged since Node 22.13) on a named volume.
+# Sync vault, push tokens and hook inboxes (node:sqlite, unflagged since Node 22.13): one
+# database on a named volume, so a rebuilt container keeps them.
 RUN mkdir -p /data
 ENV RELAY_VAULT_DB=/data/vault.db
 VOLUME /data

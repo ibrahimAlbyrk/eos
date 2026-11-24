@@ -17,6 +17,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const IDLE_SESSION_MS = 5 * 60 * 1000;
 const DEVICE_TOKEN = /^[0-9a-fA-F]{1,200}$/;
 const GONE_REASONS = new Set(["BadDeviceToken", "Unregistered"]);
+const TOKEN_REASONS = new Set(["ExpiredProviderToken", "InvalidProviderToken"]);
 
 export function isPushKind(value: unknown): value is PushKind {
   return typeof value === "string" && (PUSH_KINDS as readonly string[]).includes(value);
@@ -87,6 +88,7 @@ export class ApnsSender {
     if (answer.status === 200) return { result: "sent" };
     const reason = reasonOf(answer.body) ?? `status-${answer.status}`;
     if (answer.status === 410 || (answer.status === 400 && GONE_REASONS.has(reason))) return { result: "gone" };
+    if (answer.status === 403 && TOKEN_REASONS.has(reason)) this.token?.refused();
     return { result: "failed", reason };
   }
 

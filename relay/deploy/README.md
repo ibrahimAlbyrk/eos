@@ -40,8 +40,57 @@ Deploys the relay to `ibrahim-albyrk.zap.cloud` (185.249.197.74, Debian 13, Node
 ## Files
 
 - `deploy.sh` — idempotent ship + build + run + Caddy-route + graceful-reload + verify.
-- `Caddyfile.snippet` — the site block appended to `/opt/obsidian-sync/Caddyfile`.
+- `Caddyfile.snippet` — the site block appended to `/opt/obsidian-sync/Caddyfile`, with the
+  `/hooks/` and `/push/` paths.
 - `eos-relay.service` — bare-host systemd alternative (see its header for caveats).
+
+## Push, hooks and the data volume (the operator's steps)
+
+The relay holds three things that must outlive a container: the sync vault, the phones' push
+tokens with each room's owner hash, and the hook inboxes with their sealed events. All three
+are tables of one SQLite file, `/data/vault.db`, on the named volume `eos-relay-data`
+(`docker volume inspect eos-relay-data`). Back the volume up before an upgrade that changes the
+image's Node version. The vault quota stays `RELAY_VAULT_MAX_BYTES=268435456` (256 MiB): the
+app shares that much among its sync domains.
+
+Done once, by hand, on the server; `deploy.sh` never writes these files:
+
+1. **The APNs key.** In the Apple developer account of team `MW57K22389` (Certificates, IDs &
+   Profiles › Keys), create a key with Apple Push Notifications service enabled and download
+   its `AuthKey_<KEYID>.p8` (Apple lets you download it once). Copy it to the server:
+   `scp AuthKey_<KEYID>.p8 root@185.249.197.74:/opt/eos-relay/apns/AuthKey.p8`, then
+   `chmod 600 /opt/eos-relay/apns/AuthKey.p8` there.
+2. **The settings.** Write `/opt/eos-relay/relay.env` (mode 600), one `NAME=value` a line:
+
+       APNS_KEY=/apns/AuthKey.p8
+       APNS_KEY_ID=<the key's 10-character id>
+       APNS_TEAM_ID=MW57K22389
+       APNS_BUNDLE_ID=<the phone app's bundle id>
+       RELAY_HOOK_INBOX_MAX=16
+       RELAY_VAULT_MAX_BYTES=268435456
+
+   With any `APNS_*` line missing the relay sends no push and answers `not-configured`; the
+   rest works.
+3. **Caddy.** The relay's site block must be the one in `Caddyfile.snippet` (it adds the
+   `/hooks/` and `/push/` paths with their body limits). `deploy.sh` appends it only when no
+   block for the host exists, and says so when an older block lacks the paths: then replace the
+   block in `/opt/obsidian-sync/Caddyfile` by hand (keep the `.bak`), and run
+   `docker exec obsidian-caddy caddy validate --config /etc/caddy/Caddyfile` and
+   `docker exec obsidian-caddy caddy reload --config /etc/caddy/Caddyfile`.
+4. **Deploy:** `RELAY_SSH_KEY=~/Downloads/zap-hosting.pri ./deploy.sh`. Its last lines check
+   that `/health` answers, that `/hooks/` reaches the relay (404 for an unknown hook) and that
+   `/push/` does (401 without a bearer).
+5. **Check push end to end:** pair the TestFlight phone app, then press Settings › Remote ›
+   "Send a test notification" in Eos. "Sent to 1 phone" is the proof; `not-configured` means a
+   step above is missing, a 403 from Apple (`failed`) a wrong key id, team or bundle id.
+
+**Resetting a room's owner.** The relay keeps each room's owner hash for good (`push_rooms`), so
+a Mac that lost `~/.eos/remote/relay-owner.secret` but kept its room id is refused. To let it
+claim the room again, delete that one row (the room id is in `~/.eos/remote/room.id` on that
+Mac), then restart the container:
+
+    docker exec eos-relay node -e "const {DatabaseSync}=require('node:sqlite'); new DatabaseSync('/data/vault.db').prepare('DELETE FROM push_rooms WHERE room = ?').run(process.argv[1])" '<room id>'
+    docker restart eos-relay
 
 ## Redeploy / upgrade
 
@@ -55,7 +104,8 @@ Rebuilds the image, recreates only the `eos-relay` container, and graceful-reloa
     cd /opt/eos-relay
     docker build -t eos-relay:latest .
     docker run -d --name eos-relay --restart unless-stopped \
-      --network obsidian-sync_obsidian eos-relay:latest
+      --network obsidian-sync_obsidian -v eos-relay-data:/data \
+      -v /opt/eos-relay/apns:/apns:ro --env-file /opt/eos-relay/relay.env eos-relay:latest
     # append Caddyfile.snippet to /opt/obsidian-sync/Caddyfile, then:
     docker exec obsidian-caddy caddy validate --config /etc/caddy/Caddyfile
     docker exec obsidian-caddy caddy reload   --config /etc/caddy/Caddyfile
