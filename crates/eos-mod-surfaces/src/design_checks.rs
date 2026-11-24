@@ -58,7 +58,7 @@ pub(crate) fn data_sets(design: &PageDesign, issues: &[StoredIssue]) -> Vec<Data
     let fitting = issues.iter().filter_map(|issue| {
         let body: Value = serde_json::from_str(&issue.body_json).ok()?;
         let data = body.get("data")?.clone();
-        validate(&contract, &data).is_ok().then(|| (issue, data))
+        validate(&contract, &data).is_ok().then_some((issue, data))
     });
     for (issue, data) in fitting.take(RECENT_ISSUES) {
         let label = issue.seq.map_or_else(|| "a trial issue".to_owned(), |seq| format!("issue {seq}"));
