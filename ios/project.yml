@@ -47,6 +47,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.kit
         ENABLE_TESTABILITY: "YES"
+        # The share extension links it too.
+        APPLICATION_EXTENSION_API_ONLY: "YES"
 
   EosRemote:
     type: application
@@ -93,6 +95,35 @@ targets:
         product: Markdown
       - package: SwiftTerm
         product: SwiftTerm
+      - target: EosShare
+
+  # The share sheet's Eos (07 §4.8). It reads the paired Macs from the App Group and their secrets
+  # from the Keychain group the app writes them to (the App Group's own), so it joins the same room.
+  EosShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: EosShare
+    info:
+      path: EosShare/Info.plist
+      properties:
+        CFBundleDisplayName: Eos
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app.share
+        CODE_SIGN_ENTITLEMENTS: EosShare/EosShare.entitlements
+        GENERATE_INFOPLIST_FILE: "NO"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: EosRemoteKit
+        embed: false
 
   EosRemoteKitTests:
     type: bundle.unit-test
@@ -118,6 +149,7 @@ schemes:
       targets:
         EosRemote: all
         EosRemoteKit: all
+        EosShare: all
     test:
       targets:
         - EosRemoteKitTests

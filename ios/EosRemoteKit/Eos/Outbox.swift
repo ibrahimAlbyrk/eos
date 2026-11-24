@@ -43,7 +43,7 @@ public struct OutboxEntry: Codable, Sendable, Equatable, Identifiable {
         OutboxEntry(itemId: item, path: "/api/inbox/\(item)/later", body: .object([:]))
     }
 
-    /// `POST /api/runs`: a run started while the Mac was away.
+    /// `POST /api/runs`: a run started while the Mac was away (from the share sheet).
     public static func start(_ body: JSONValue) -> OutboxEntry {
         OutboxEntry(itemId: nil, path: "/api/runs", body: body)
     }
@@ -83,11 +83,8 @@ public final class AnswerOutbox: @unchecked Sendable {
     }
 
     public func add(_ entry: OutboxEntry) {
-        lock.lock(); defer { lock.unlock() }
         // A newer answer to the same item takes the place of one not sent yet.
-        var list = read().filter { entry.itemId == nil || $0.itemId != entry.itemId }
-        list.append(entry)
-        write(list)
+        mutate { $0.filter { entry.itemId == nil || $0.itemId != entry.itemId } + [entry] }
     }
 
     /// Sends what waits, oldest first, until the Mac cannot be reached; answers what became of each
@@ -127,18 +124,29 @@ public final class AnswerOutbox: @unchecked Sendable {
     }
 
     private func remove(_ id: String) {
-        lock.lock(); defer { lock.unlock() }
-        write(read().filter { $0.id != id })
+        mutate { $0.filter { $0.id != id } }
     }
 
-    private func read() -> [OutboxEntry] {
-        guard let data = try? Data(contentsOf: file) else { return [] }
+    /// One change of the file. The share extension writes it from its own process, so the change
+    /// is coordinated with it, not only locked here.
+    private func mutate(_ change: ([OutboxEntry]) -> [OutboxEntry]) {
+        lock.lock(); defer { lock.unlock() }
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var failure: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: file, options: .forMerging, error: &failure) { url in
+            Self.write(change(Self.read(url)), to: url)
+        }
+    }
+
+    private func read() -> [OutboxEntry] { Self.read(file) }
+
+    private static func read(_ url: URL) -> [OutboxEntry] {
+        guard let data = try? Data(contentsOf: url) else { return [] }
         return (try? JSONDecoder().decode([OutboxEntry].self, from: data)) ?? []
     }
 
-    private func write(_ list: [OutboxEntry]) {
-        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    private static func write(_ list: [OutboxEntry], to url: URL) {
         guard let data = try? JSONEncoder().encode(list) else { return }
-        try? data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 }
