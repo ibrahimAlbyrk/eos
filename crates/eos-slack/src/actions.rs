@@ -10,7 +10,7 @@ use eos_core::capability::{ActionContext, ActionError};
 use serde_json::{Value, json};
 
 use crate::Slack;
-use crate::manifest::MESSAGE;
+use crate::manifest::{CONVERSATION, MESSAGE, PERSON};
 
 /// How long people's names are kept.
 const PEOPLE_MS: i64 = 60 * 60 * 1000;
@@ -68,6 +68,36 @@ pub(crate) fn candidate(team: &str, raw: &Value) -> CapabilityItem {
         url: raw["permalink"].as_str().map(str::to_owned),
         updated_at: ms_of(ts),
         data: json!({ "conversation": conversation, "ts": ts }),
+    }
+}
+
+/// A conversation as Goes to and Which offer it: `#name`, a group, a person.
+fn conversation_item(row: &Value) -> CapabilityItem {
+    let name = text(row, "name");
+    let title = match text(row, "kind") {
+        "channel" | "private" => format!("#{name}"),
+        _ => name.to_owned(),
+    };
+    CapabilityItem {
+        key: text(row, "id").to_owned(),
+        kind: CONVERSATION.to_owned(),
+        title,
+        url: None,
+        updated_at: 0,
+        data: json!({ "kind": text(row, "kind") }),
+    }
+}
+
+/// A person as Goes to offers them.
+fn person_item(person: &Value) -> CapabilityItem {
+    let real = text(person, "realName");
+    CapabilityItem {
+        key: text(person, "id").to_owned(),
+        kind: PERSON.to_owned(),
+        title: if real.is_empty() { text(person, "name").to_owned() } else { real.to_owned() },
+        url: None,
+        updated_at: 0,
+        data: json!({ "name": text(person, "name") }),
     }
 }
 
@@ -137,7 +167,8 @@ impl Slack {
             .take(max)
             .collect();
         tracing::info!(capability = crate::ID, conversations = conversations.len(), "listed Slack conversations");
-        Ok(json!({ "conversations": conversations }))
+        let items: Vec<CapabilityItem> = conversations.iter().map(conversation_item).collect();
+        Ok(json!({ "conversations": conversations, "items": items }))
     }
 
     pub(crate) async fn find_people(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
@@ -153,7 +184,8 @@ impl Slack {
                 Err(ActionError::Failed { kind: eos_core::capability::FailureKind::Gone }) => Vec::new(),
                 Err(error) => return Err(error),
             };
-            return Ok(json!({ "people": people }));
+            let items: Vec<CapabilityItem> = people.iter().map(person_item).collect();
+            return Ok(json!({ "people": people, "items": items }));
         }
         let people: Vec<Value> = self
             .people(ctx)
@@ -164,7 +196,8 @@ impl Slack {
             })
             .take(max)
             .collect();
-        Ok(json!({ "people": people }))
+        let items: Vec<CapabilityItem> = people.iter().map(person_item).collect();
+        Ok(json!({ "people": people, "items": items }))
     }
 
     pub(crate) async fn read_messages(

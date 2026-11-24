@@ -91,6 +91,22 @@ impl FakeSlack {
         self
     }
 
+    /// The Slack built-in over this fake, on `clock`, with its own empty
+    /// secret store for what it refreshes.
+    pub fn builtin(
+        self: &std::sync::Arc<Self>,
+        clock: std::sync::Arc<crate::FakeClock>,
+    ) -> std::sync::Arc<dyn eos_core::capability::BuiltinCapability> {
+        std::sync::Arc::new(eos_slack::Slack::new(eos_slack::Parts {
+            transport: self.clone(),
+            secrets: std::sync::Arc::new(crate::FakeCapabilitySecrets::new()),
+            clock,
+            sleeper: std::sync::Arc::new(crate::FakeSleeper::default()),
+            ids: std::sync::Arc::new(crate::SeqIds::new()),
+            client_id: "1234.5678".into(),
+        }))
+    }
+
     /// The `token` secret of a signed-in fake, ending at `expires_at`.
     pub fn token_secret(&self, expires_at: i64) -> String {
         let state = locked(&self.0);

@@ -14,6 +14,8 @@ pub const TOKEN: &str = "token";
 pub const MESSAGE: &str = "slack.message";
 /// A channel, a group or a direct message, for Which and Goes to.
 pub const CONVERSATION: &str = "slack.conversation";
+/// A person of the workspace, for Goes to.
+pub const PERSON: &str = "slack.person";
 /// A message is recognised by its permalink.
 pub const PERMALINK: &str = r"https://[\w-]+\.slack\.com/archives/([A-Z0-9]+)/p(\d{10})(\d{6})";
 /// The longest text a post takes.
@@ -77,7 +79,7 @@ fn receipt() -> Value {
 fn item() -> Value {
     object(
         json!({
-            "key": text(), "event": text(), "title": outside(), "url": text(), "updatedAt": int(),
+            "key": text(), "event": text(), "title": outside(), "text": outside(), "url": text(), "updatedAt": int(),
             "facts": object(json!({
                 "conversation": text(), "from": text(), "fromMe": flag(), "mentionsMe": flag(), "isDm": flag(),
                 "inThread": flag(),
@@ -116,12 +118,12 @@ fn actions() -> Value {
           "input": object(json!({ "q": text(), "limit": limit(200) }), &[]),
           "output": object(json!({ "conversations": list(object(json!({
               "id": text(), "kind": kind, "name": outside(), "topic": outside(), "member": flag(),
-          }), &["id", "kind"])) }), &["conversations"]) },
+          }), &["id", "kind"])), "items": list(candidate()) }), &["conversations"]) },
         { "name": "find_people", "summary": "Find people of your workspace by name or mail address.", "class": "read",
-          "input": object(json!({ "q": { "type": "string", "minLength": 1 }, "limit": limit(50) }), &["q"]),
+          "input": object(json!({ "q": text(), "limit": limit(50) }), &[]),
           "output": object(json!({ "people": list(object(json!({
               "id": text(), "name": outside(), "realName": outside(),
-          }), &["id"])) }), &["people"]) },
+          }), &["id"])), "items": list(candidate()) }), &["people"]) },
         { "name": "read_conversation", "summary": "Read a conversation's messages, newest first.", "class": "read",
           "input": object(json!({ "conversation": id(), "since": text(), "cursor": text(), "limit": limit(100) }),
                           &["conversation"]),
@@ -150,7 +152,7 @@ fn actions() -> Value {
           "class": "read",
           "input": object(json!({ "conversation": id(), "threadTs": text(), "key": id(), "since": int() }),
                           &["conversation", "key"]),
-          "output": object(json!({ "found": flag(), "ts": text(), "permalink": text() }), &["found"]) },
+          "output": object(json!({ "found": flag(), "conversation": text(), "ts": text(), "permalink": text() }), &["found"]) },
         { "name": "post_message", "summary": "Post a message as you to a channel, a group or a person.",
           "class": "speak", "recipient": "input:/to", "undo": "delete_message",
           "input": object(json!({ "to": id(), "text": post_text() }), &["to", "text"]),
@@ -194,7 +196,11 @@ pub(crate) fn manifest() -> Manifest {
                          "isDm": "bool", "inThread": "bool" },
               "events": ["mentioned"], "interval_s": 60, "min_interval_s": 60 },
         ],
-        "candidates": [{ "item": MESSAGE, "action": "find_messages" }],
+        "candidates": [
+            { "item": MESSAGE, "action": "find_messages" },
+            { "item": CONVERSATION, "action": "list_conversations" },
+            { "item": PERSON, "action": "find_people" },
+        ],
         "items": [{ "kind": MESSAGE, "noun": "Slack message", "recognise": [PERMALINK] }],
     });
     // A test holds the manifest to the built-in check; this never fails.
