@@ -1,0 +1,52 @@
+Tuesday 17 November 2026 No. 41 Printed for Ibrahim
+
+The Morning Build
+
+Nine stories from 31 sources · about 14 minutes
+
+engineering
+
+Deterministic replays are back in fashion for puzzle games <https://example.com/replays>
+
+Recording inputs instead of state turns a bug report into something you can run. Three teams describe what it cost them and what they stopped doing afterwards.
+
+Lead image, chosen by Eos
+
+The idea is old, the reason it returned is new: with input logs small enough to attach to every crash, the question changes from "can you reproduce it" to "which frame".
+
+Two of the three teams now refuse a bug report without one.
+
+On your desk today
+
+Two reviews wait for your signature. One of them blocks the release branch.
+
+Open Needs you <eos://needs-you>
+
+- A long post on shader variant stripping, with numbers. <https://example.com/shaders>
+- A talk on pacing procedural levels, now with slides. <https://example.com/pacing>
+
+Left out today
+
+Fourteen funding and hiring stories. You have skipped that section for three weeks.
+
+engine
+
+What changed in batching this week <https://example.com/batching>
+
+Two changes you may feel in draw calls, and the settings to check in your own project.
+
+07:10
+
+tools
+
+A level editor pattern worth copying <https://example.com/undo>
+
+Undo as a list of commands. It is the step your Level Editor routine is building right now.
+
+live-ops
+
+Shorter events, more of them <https://example.com/events>
+
+Why some teams moved from two-week events to four-day ones, and what it did to their calendar.
+
+00:45
