@@ -270,7 +270,7 @@ async fn telling_the_user_goes_at_once_while_a_send_to_others_waits_out_its_hold
     let me = recipient(json!({"id": "me", "kind": "me", "channel": "github"}));
     let boss = recipient(json!({"id": "boss", "kind": "fixed", "channel": "github", "address": "boss@acme.dev"}));
     for (target, state) in [(me, "queued"), (boss, "holding")] {
-        let gated = Gated::over(FakeChannels::new().with("github", no_undo.clone()));
+        let gated = Gated::over(FakeChannels::new().with("github", no_undo));
         let input = GateInput { targets: vec![target.clone()], goes_to_confirmed: vec![target], ..input("on_its_own") };
         assert!(matches!(gated.apply(input).await, GateDecision::Delivering { .. }));
         let found = gated.rig.temp.count(&format!("SELECT COUNT(*) FROM inbox_deliveries WHERE state = '{state}'"));
