@@ -39,6 +39,8 @@ output = { type = "object", properties = { note = { type = "string", untrusted =
 "#;
 
 /// The Slack app the planted sign-in asks for, as `config.json` names it.
+// Only the logs program signs in to Slack; the suite shares this file.
+#[allow(dead_code)]
 pub(crate) const SLACK_CLIENT_ID: &str = "1234.5678";
 
 pub(crate) struct Planted {
@@ -92,6 +94,8 @@ impl Planted {
 
     /// Signs in to Slack as the dashboard and the browser do: Connect, then Slack's link
     /// back. Answers how the sign-in ended.
+    // Only the logs program signs in to Slack; the suite shares this file.
+    #[allow(dead_code)]
     pub(crate) async fn sign_in_to_slack(&self, app: &App) -> Value {
         let (status, started) = rig::call(app, Method::Post, "/api/capabilities/slack/sign-in", None).await;
         assert_eq!(status, 200, "{started}");
