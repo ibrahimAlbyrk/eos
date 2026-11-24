@@ -246,7 +246,11 @@ impl SignalSource for Source {
                 Err(error) => {
                     // The service never took it: no push will be signed with this secret.
                     let _ = secrets.delete(&self.capability, &name).await;
-                    Err(failed(&error, self.service.ports.clock.now_ms()))
+                    match error {
+                        // The account may not add webhooks there: it needs admin rights.
+                        ActionError::Failed { kind: FailureKind::NotAllowed } => Err(SourceError::Unauthorized),
+                        error => Err(failed(&error, self.service.ports.clock.now_ms())),
+                    }
                 }
             }
         })
