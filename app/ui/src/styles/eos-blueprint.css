@@ -148,3 +148,8 @@
   .eos-bp { flex-direction: column; }
   .eos-bp-chat { flex-basis: auto; width: 100%; min-height: 0; }
 }
+
+/* Slack's channels and people in the Goes-to dialog: a quiet list, the kind at the end. */
+.eos-bp-slack { max-height: 260px; overflow-y: auto; margin: 0; }
+.eos-bp-slack .eos-menu__item { display: flex; justify-content: space-between; gap: 12px; width: 100%; }
+.eos-bp-slack__kind { color: var(--fg-dim); font-size: var(--text-sm); }

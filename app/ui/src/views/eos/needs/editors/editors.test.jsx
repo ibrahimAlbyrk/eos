@@ -271,3 +271,21 @@ describe("kept edits", () => {
     expect(() => dropEdit(REVIEW)).not.toThrow();
   });
 });
+
+describe("editing a Slack message", () => {
+  it("edits the message's paragraphs, counts Slack's room and says it goes as the user without previews", async () => {
+    const { SlackEditor } = await import("./SlackEditor.jsx");
+    const doc = { kind: "slack.message", channel: "slack", action: "post_message",
+      parts: [{ key: "p:1", role: "paragraph", text: "The build is green." }, { key: "p:2", role: "paragraph", text: "Two tests were flaky." }] };
+    const html = renderToStaticMarkup(<SlackEditor original={doc} doc={doc} onChange={() => {}} />);
+    expect(html).toContain('<label class="eos-edit__label" for="edit-slack">Message</label>');
+    expect(html).toContain("The build is green.\n\nTwo tests were flaky.");
+    expect(html).toContain(`${4000 - "The build is green.\n\nTwo tests were flaky.".length} characters left`);
+    expect(html).toContain("@channel, @here and @everyone stay plain text.");
+    const long = { ...doc, kind: "slack.reply", parts: [{ key: "p:1", role: "paragraph", text: "a".repeat(4010) }] };
+    const over = renderToStaticMarkup(<SlackEditor original={long} doc={long} onChange={() => {}} />);
+    expect(over).toContain("10 characters over Slack&#x27;s limit");
+    expect(over).toContain(">Reply</label>");
+    expect(sendLabel(doc, withMailBody(doc, "Green."))).toBe("Send edited message");
+  });
+});

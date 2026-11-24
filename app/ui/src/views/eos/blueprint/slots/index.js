@@ -25,7 +25,7 @@ export const SLOTS = [
     label: "Makes",
     parts: (bp) => [textPart("description", "What it makes", bp.makes?.description, (description) => ({ ...bp.makes, description }), "Not said yet")],
   },
-  { key: "goesTo", label: "Goes to", parts: (bp) => goesToParts(bp.goesTo) },
+  { key: "goesTo", label: "Goes to", parts: (bp) => goesToParts(bp.goesTo, bp.makes) },
 ];
 
 // The slot keys whose values differ between two blueprints.

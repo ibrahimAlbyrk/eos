@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ROUTES } from "../../../../api/routes.js";
+import { transport } from "../../../../state/eos/transport.js";
 
 // The small editors a slot's underlined value opens: a menu, a line of text,
 // a glob, an agent's brief and model; and Eos's own dialog that adds a
@@ -94,7 +96,63 @@ export function RecipientDialog({ part, done }) {
   );
 }
 
-const EDITORS = { menu: MenuEditor, text: TextEditor, glob: TextEditor, agent: AgentEditor, recipient: RecipientDialog };
+// Slack's conversations and people matching `q`, as Slack names them.
+export async function slackChoices(q) {
+  const read = async (item) => {
+    const query = new URLSearchParams({ item, limit: "20", ...(q ? { q } : {}) });
+    const r = await transport.get(`${ROUTES.capabilityCandidates}?${query}`).catch(() => null);
+    return r?.ok && Array.isArray(r.body) ? r.body : [];
+  };
+  const [conversations, people] = await Promise.all([read("slack.conversation"), read("slack.person")]);
+  const wanted = q.trim().toLowerCase();
+  const fits = (item) => !wanted || item.title.toLowerCase().includes(wanted);
+  return [...conversations.filter(fits), ...people];
+}
+
+// Eos's own dialog that adds a Slack channel or person, picked from what
+// Slack lists: the id Slack gave goes into Goes to, the name is only shown.
+export function SlackRecipientDialog({ done }) {
+  const [q, setQ] = useState("");
+  const [choices, setChoices] = useState(null);
+  useEffect(() => {
+    let live = true;
+    const timer = setTimeout(() => void slackChoices(q).then((found) => live && setChoices(found)), 200);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [q]);
+  return (
+    <div className="eos-sheet-overlay" onMouseDown={() => done()}>
+      <div className="eos-sheet" role="dialog" aria-modal="true" aria-labelledby="eos-bp-slack-title" onMouseDown={(e) => e.stopPropagation()}>
+        <h2 id="eos-bp-slack-title" className="eos-sheet__title">Add a Slack channel or person</h2>
+        <p className="eos-note">Results this routine sends go there too, as you.</p>
+        <input type="search" className="eos-bp-input" aria-label="Find a channel or person" placeholder="#channel or a name" value={q} onChange={(e) => setQ(e.target.value)} />
+        {choices === null && <p className="eos-note" role="status">Asking Slack…</p>}
+        {choices?.length === 0 && <p className="eos-note" role="status">Slack lists nothing by that name.</p>}
+        {choices?.length > 0 && (
+          <ul className="eos-menu eos-bp-slack" role="listbox" aria-label="Slack channels and people">
+            {choices.map((c) => (
+              <li key={c.key} role="none">
+                <button type="button" role="option" aria-selected="false" className="eos-menu__item" onClick={() => done({ address: c.key, label: c.title })}>
+                  {c.title}
+                  <span className="eos-bp-slack__kind">{c.kind === "slack.person" ? "person" : "channel"}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="eos-actions">
+          <button type="button" className="eos-btn" onClick={() => done()}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EDITORS = {
+  menu: MenuEditor, text: TextEditor, glob: TextEditor, agent: AgentEditor, recipient: RecipientDialog, slack: SlackRecipientDialog,
+};
 
 export function PartEditor({ part, done }) {
   const Editor = EDITORS[part.editor];

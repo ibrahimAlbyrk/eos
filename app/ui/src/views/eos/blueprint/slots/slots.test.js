@@ -143,6 +143,19 @@ describe("the Who, How and Goes-to slots", () => {
     expect(add.apply({ channel: "mail", address: "bo@example.com" })).toEqual([...goesTo, { id: "to-3", kind: "fixed", channel: "mail", address: "bo@example.com" }]);
   });
 
+  it("adds a Slack channel or person picked from Slack, shown by its name and kept by its id", () => {
+    const goesTo = [{ id: "thread", kind: "item_place", channel: "slack" }, { id: "to-2", kind: "fixed", channel: "slack", address: "C0GENERAL1", label: "#general" }];
+    const parts = goesToParts(goesTo, { kind: "slack.message" });
+    expect(part(parts, "to.thread")).toMatchObject({ locked: true, text: "In the thread of the run's Slack message" });
+    expect(part(parts, "to.to-2")).toMatchObject({ text: "#general, by Slack" });
+    expect(part(parts, "to.add")).toBeUndefined();
+    const add = part(parts, "to.add.slack");
+    expect(add.editor).toBe("slack");
+    expect(add.apply({ address: "U0BOB0001", label: "Bob Builder" })).toEqual([
+      ...goesTo, { id: "to-3", kind: "fixed", channel: "slack", address: "U0BOB0001", label: "Bob Builder" },
+    ]);
+  });
+
   it("changes what a run takes and what it makes, keeping their other keys", () => {
     const bp = { takes: { kind: "mail", label: "mail", many: false }, makes: { kind: "text", description: "Replies", contract: {} } };
     expect(part(slot("takes").parts(bp), "label").apply("message")).toEqual({ kind: "mail", label: "message", many: false });

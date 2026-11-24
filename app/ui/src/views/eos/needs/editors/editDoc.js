@@ -66,7 +66,7 @@ export function withMailBody(doc, text) {
   return { ...doc, parts: [...rest.slice(0, place), ...parts, ...rest.slice(place)] };
 }
 
-const NOUNS = { "github.review": "review", mail: "mail" };
+const NOUNS = { "github.review": "review", mail: "mail", "slack.message": "message", "slack.reply": "reply" };
 
 // What Send says for the draft as it is: "Send" untouched, "Send edited
 // review" once changed, "Send review with 2 of 3 comments" when comments
