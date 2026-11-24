@@ -24,7 +24,7 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
             let push =
                 routes.push.as_ref().ok_or_else(|| Error::Unreachable("no hook inbox in this run of Eos".into()))?;
             let row = push.add(&source_id).await?;
-            Ok(Response::json(200, &source_status(row)))
+            Ok(Response::json(200, &source_status(row, Some("on".to_owned()))))
         }
     })
     .access(Access::ui_token())

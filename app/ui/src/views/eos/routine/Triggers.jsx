@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { saveBlueprint } from "../../../state/eos/blueprintStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
-import { loadTriggerStatus, useSignals } from "../../../state/eos/signalsStore.js";
+import { addSourcePush, loadTriggerStatus, useSignals } from "../../../state/eos/signalsStore.js";
 import { LoadFailed } from "../capabilities/parts.jsx";
 import { SLOTS, slotText } from "../blueprint/slots/index.js";
 import { localZone } from "../blueprint/slots/when.js";
@@ -54,9 +54,31 @@ function ScheduleLine({ status, head, routineId, routines }) {
   );
 }
 
-function SourceLine({ source, now }) {
+// Why a webhook was not added, in plain words.
+const PUSH_REFUSED = {
+  "dev-run": "Not added: this is a dev run.",
+  admin: "Not added: a webhook needs admin rights on the repository. Eos keeps looking for changes on its own schedule.",
+};
+
+// A source whose service could push: the button that adds its webhook, and
+// why the last try did not.
+function PushControl({ source, routineId }) {
+  const tried = useSignals().pushes[source.sourceId];
+  const refused = tried && tried !== "adding" ? (PUSH_REFUSED[tried] ?? `Not added: ${tried}`) : null;
+  return (
+    <p className="eos-trigger__hint">
+      <button type="button" className="eos-btn" disabled={tried === "adding"} onClick={() => void addSourcePush(routineId, source.sourceId)}>
+        {tried === "adding" ? "Adding the webhook…" : "Hear about changes at once"}
+      </button>
+      {refused && <span className="eos-trigger__refused" role="alert">{refused}</span>}
+    </p>
+  );
+}
+
+function SourceLine({ source, now, routineId }) {
   const reason = sourceReason(source);
   const polls = [
+    source.push === "on" && "Told at once by a webhook",
     source.lastPollAt != null && `Last looked ${fmtTimeAgo(source.lastPollAt, now)}`,
     source.nextPollAt != null && `next ${timeAt(source.nextPollAt)}`,
   ].filter(Boolean);
@@ -68,13 +90,15 @@ function SourceLine({ source, now }) {
       </span>
       {polls.length > 0 && <span className="eos-trigger__facts">{polls.join(" · ")}</span>}
       {source.catchUp && <span className="eos-trigger__facts">{catchUpLine(source.catchUp)}</span>}
+      {source.push === "off" && <PushControl source={source} routineId={routineId} />}
     </li>
   );
 }
 
 // What starts the routine's runs (02 §8): each schedule with its next and
 // last time, how late and how many missed, and a zone hint; each source with
-// its state and why, its polls and its last catch-up; the batch that waits.
+// its state and why, its polls and its last catch-up, and its webhook; the
+// batch that waits.
 export function TriggerLines({ status, head, routineId, now }) {
   const { list } = useRoutines();
   const { schedules, sources, batch } = status;
@@ -84,7 +108,7 @@ export function TriggerLines({ status, head, routineId, now }) {
       <h2 className="eos-label">What starts it</h2>
       <ul className="eos-card eos-triggers">
         {schedules.map((s) => <ScheduleLine key={`slot-${s.slot}`} status={s} head={head} routineId={routineId} routines={list} />)}
-        {sources.map((s) => <SourceLine key={s.sourceId} source={s} now={now} />)}
+        {sources.map((s) => <SourceLine key={s.sourceId} source={s} now={now} routineId={routineId} />)}
         {batch && (
           <li className="eos-trigger">
             <span className="eos-trigger__name">
