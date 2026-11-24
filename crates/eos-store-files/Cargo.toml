@@ -9,15 +9,18 @@ publish.workspace = true
 
 [dependencies]
 base64.workspace = true
+bytes.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-fs.workspace = true
 eos-platform.workspace = true
 getrandom.workspace = true
+image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_norway.workspace = true
+sha2.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
@@ -25,7 +28,6 @@ eos-genui.workspace = true
 eos-prompts.workspace = true
 eos-testkit.workspace = true
 eos-workers.workspace = true
-sha2.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 

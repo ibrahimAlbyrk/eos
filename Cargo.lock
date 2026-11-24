@@ -2887,6 +2887,7 @@ name = "eos-store-files"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "eos-contracts",
  "eos-core",
  "eos-domain",
@@ -2897,6 +2898,7 @@ dependencies = [
  "eos-testkit",
  "eos-workers",
  "getrandom 0.4.3",
+ "image",
  "serde",
  "serde_json",
  "serde_norway",

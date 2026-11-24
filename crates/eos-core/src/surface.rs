@@ -87,3 +87,69 @@ pub trait ViewCards: Send + Sync {
     /// Answers a question View's item with what the user pressed.
     fn answer<'a>(&'a self, item_id: &'a str, pressed: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }
+
+/// Where an image of a page issue comes from: an http(s) URL in its data, or
+/// a file in the run's own output folder (never another path).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImageSource {
+    Url(String),
+    RunFile(std::path::PathBuf),
+}
+
+/// An image the store holds: named by the SHA-256 of what it wrote.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageRef {
+    pub hash: String,
+    /// `image/jpeg` or `image/png`.
+    pub content_type: String,
+    pub width: u32,
+    pub height: u32,
+    pub bytes: u64,
+}
+
+/// Why an image of an issue could not be had; the page then shows its alt
+/// text in its place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageFailure {
+    Unreachable,
+    TooLarge,
+    NotAnImage,
+    Unreadable,
+}
+
+impl ImageFailure {
+    pub fn reason(self) -> &'static str {
+        match self {
+            ImageFailure::Unreachable => "could not be fetched",
+            ImageFailure::TooLarge => "is larger than 10 MB",
+            ImageFailure::NotAnImage => "is not a JPEG, PNG, GIF or WebP image",
+            ImageFailure::Unreadable => "could not be read",
+        }
+    }
+}
+
+/// An image as it is served or inlined.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredImage {
+    pub content_type: String,
+    pub body: bytes::Bytes,
+}
+
+/// The images of routine surfaces under `surfaces/<id>/img/`: fetched or read
+/// once when an issue is filled, decoded, scaled and written again (which
+/// drops EXIF and location), so a page never fetches anything when it is
+/// read.
+pub trait SurfaceImages: Send + Sync {
+    fn intake<'a>(&'a self, surface_id: &'a str, src: ImageSource) -> BoxFuture<'a, Result<ImageRef, ImageFailure>>;
+    /// The image by its hash; `max_width` scales it down (as JPEG or PNG
+    /// again) for the phone and mail.
+    fn read<'a>(
+        &'a self,
+        surface_id: &'a str,
+        hash: &'a str,
+        max_width: Option<u32>,
+    ) -> BoxFuture<'a, Result<Option<StoredImage>, Error>>;
+    /// Removes every image of the surface not in `keep`; the bytes freed.
+    fn collect<'a>(&'a self, surface_id: &'a str, keep: &'a [String]) -> BoxFuture<'a, Result<u64, Error>>;
+}
