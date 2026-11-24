@@ -138,3 +138,94 @@ fn the_frame_document_admits_only_the_runtime_and_loads_nothing() {
         assert!(!line.starts_with("https://fonts") && !line.starts_with("url(http"), "{line}");
     }
 }
+
+fn input_for<'a>(
+    design: &'a eos_surface::PageDesign,
+    data: &'a Value,
+    facts: &'a IssueFacts,
+    images: &'a HashMap<String, ImageState>,
+    live: &'a HashMap<String, Value>,
+    image_src: &'a dyn Fn(&str) -> Option<String>,
+) -> RenderInput<'a> {
+    RenderInput {
+        design,
+        data,
+        issue: facts,
+        images,
+        image_src,
+        live,
+        is_secret: &secret,
+        offset: 180,
+        lang: "en",
+        title: "Morning Paper",
+        comfort: Comfort::default(),
+    }
+}
+
+#[test]
+fn the_phone_and_share_documents_run_no_script_and_load_nothing() {
+    let design = paper::design();
+    let (data, facts, images, live) = (paper::json("sample.json"), facts(), images(), HashMap::new());
+    let data_uri = |_: &str| Some("data:image/jpeg;base64,AAAA".to_owned());
+    let input = input_for(&design, &data, &facts, &images, &live, &data_uri);
+    let phone = eos_surface::render::phone_document(&input);
+    assert!(!phone.contains("<script"), "no script on the phone");
+    assert!(phone.contains(&eos_surface::render::PHONE_CSP.replace('\'', "&#39;")));
+    assert!(phone.contains(
+        "<a class=\"eos-button\" href=\"eos-action:si-000000000041/good/\" data-part=\"good\">Good issue</a>"
+    ));
+    assert!(phone.contains("href=\"eos-action:si-000000000041/ask/1\""));
+    assert!(phone.contains("<a href=\"eos://needs-you\""));
+    assert!(!phone.contains("data-filters="), "filters are left out");
+    assert!(phone.contains("src=\"data:image/jpeg;base64,AAAA\""));
+    let share = eos_surface::render::share_document(&input);
+    assert!(!share.contains("<script") && !share.contains("eos-action:") && !share.contains("class=\"eos-button\""));
+    paper::golden("phone.body.html", &render(&data, Mode::Phone));
+    paper::golden("share.body.html", &render(&data, Mode::Share));
+}
+
+#[test]
+fn the_mail_is_one_column_with_every_style_inline_and_a_text_part() {
+    let design = paper::design();
+    let (data, facts, images, live) = (paper::json("sample.json"), facts(), images(), HashMap::new());
+    let cid = |hash: &str| Some(format!("cid:{}", &hash[..12]));
+    let input = input_for(&design, &data, &facts, &images, &live, &cid);
+    let mail = eos_surface::render::mail_body(&input);
+    assert!(!mail.html.contains("<style") && !mail.html.contains("<script") && !mail.html.contains("class="));
+    assert!(mail.html.contains("max-width:640px"));
+    assert!(
+        !mail.html.contains("display:flex")
+            && !mail.html.contains("display:grid")
+            && !mail.html.contains("grid-template")
+    );
+    assert!(!mail.html.contains("Fraunces"), "web fonts are replaced by their stacks");
+    assert!(
+        mail.html.contains("font-family:Georgia, 'Times New Roman', serif")
+            || mail.html.contains("font-family:Georgia,"),
+        "{}",
+        mail.html
+    );
+    assert!(mail.html.contains("src=\"cid:aaaaaaaaaaaa\""));
+    assert!(mail.html.contains("<a href=\"eos://issue/si-000000000041?button=good\">Good issue · Open in Eos</a>"));
+    assert!(mail.html.contains("eos://issue/si-000000000041?button=ask&amp;index=0"));
+    assert!(!mail.html.contains("clamp("), "mail clients drop clamp()");
+    assert!(!mail.html.contains("data-part"));
+    paper::golden("mail.html", &mail.html);
+    paper::golden("mail.txt", &mail.text);
+    assert!(
+        mail.text.contains("Deterministic replays are back in fashion for puzzle games <https://example.com/replays>")
+    );
+    assert!(mail.text.contains("- A talk on pacing procedural levels, now with slides. <https://example.com/pacing>"));
+    assert!(!mail.text.contains('<') || !mail.text.contains("<span"));
+}
+
+#[test]
+fn the_text_part_masks_secrets_and_keeps_outside_text_as_written() {
+    let design = paper::design();
+    let (data, facts, images, live) = (paper::json("issue-3.json"), facts(), images(), HashMap::new());
+    let none = |_: &str| None;
+    let mail = eos_surface::render::mail_body(&input_for(&design, &data, &facts, &images, &live, &none));
+    assert!(!mail.text.contains("ghp_") && mail.text.contains("••••"));
+    assert!(mail.text.contains("<script>alert('lead')</script>"), "text is text in a text part");
+    assert!(!mail.html.contains("<script>alert"));
+}

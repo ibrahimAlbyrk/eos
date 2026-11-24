@@ -4,9 +4,12 @@
 //! or fetches anything; a value always goes in as escaped text.
 
 mod comfort;
+mod components;
 pub(crate) mod format;
 mod frame;
 mod html;
+mod mail;
+mod phone;
 
 use std::collections::HashMap;
 
@@ -16,6 +19,8 @@ use crate::design::PageDesign;
 
 pub use frame::{BASE_CSS, RUNTIME_JS, frame_csp, frame_document, runtime_hash};
 pub use html::render_body;
+pub use mail::{MailBody, mail_body};
+pub use phone::{PHONE_CSP, phone_document, share_document};
 
 /// Where a page is drawn: each mode keeps what works there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,8 +31,10 @@ pub enum Mode {
     Phone,
     /// A file to share: no script, buttons left out.
     Share,
-    /// A mail body: one column, buttons as "Open in Eos" links.
+    /// A mail body: one column, styles inline, buttons as "Open in Eos" links.
     Mail,
+    /// The plain-text part of a mail.
+    Text,
 }
 
 /// What became of one image of an issue's data, by its `src`.

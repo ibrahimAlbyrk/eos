@@ -32,3 +32,12 @@ pub const CONFIRM_TOKEN_MS: i64 = 2 * 60 * 1000;
 
 /// The tiles on Home.
 pub const PIN_SLOTS: u8 = 3;
+
+/// The phone's document stays under this, so its frame through the relay
+/// stays under 5 MB; images past it are drawn as their alt text.
+pub const PHONE_DOCUMENT_BYTES: usize = 3_500_000;
+pub const PHONE_IMAGE_WIDTH: u32 = 800;
+/// A mail is laid out this wide; its images are at most 600 px and 5 MB in all.
+pub const MAIL_WIDTH: u16 = 640;
+pub const MAIL_IMAGE_WIDTH: u32 = 600;
+pub const MAIL_IMAGE_BYTES: usize = 5 * 1024 * 1024;
