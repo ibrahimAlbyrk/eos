@@ -122,14 +122,16 @@ fn facts_of(item: &Value) -> Facts {
 
 /// What the result may name without a flag: what its item names, and the
 /// addresses the user wrote into the Goes to. An item from outside names
-/// nothing by its title and text: whoever wrote them would choose who the
-/// result may mention or link to.
+/// nothing by its title, text or key: whoever wrote them would choose who
+/// the result may mention or link to (a mail's key is its Message-ID, which
+/// its sender writes).
 fn context(input: &GateInput, chosen: &[Chosen], traits: Option<&ChannelTraits>) -> OutboundContext {
     let mut context = OutboundContext::new(traits.map_or(usize::MAX, |traits| traits.max_bytes));
     let mut named = input.item_facts.clone();
     if let Some(fields) = named.as_object_mut().filter(|fields| fields.get("untrusted") != Some(&Value::Bool(false))) {
         fields.remove("title");
         fields.remove("text");
+        fields.remove("key");
     }
     context.add_from(&named.to_string());
     for target in chosen {
