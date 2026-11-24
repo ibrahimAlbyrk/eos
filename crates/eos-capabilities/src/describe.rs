@@ -2,11 +2,11 @@
 //! user does to make one work that does not.
 
 use eos_core::Error;
-use eos_core::capability::{ActionDescription, Capability, CapabilityDescription};
+use eos_core::capability::{ActionCaller, ActionDescription, Capability, CapabilityDescription};
 use eos_domain::capability::health::{HealthState, StateCode};
 
 use crate::CapabilityService;
-use crate::call::allows;
+use crate::call::{allows, open_to};
 
 /// The step that makes the capability work, in words an agent passes on.
 fn setup(capability: &Capability) -> Option<String> {
@@ -46,6 +46,7 @@ impl CapabilityService {
         id: Option<&str>,
     ) -> Result<Vec<CapabilityDescription>, Error> {
         let grant = self.ports.grants.grant(worker_id).await;
+        let agent = ActionCaller::Agent { worker_id: worker_id.to_owned() };
         let loaded = match id {
             Some(id) => vec![self.load_one(id).await?.ok_or_else(|| Error::not_found("capability", id))?],
             None => self.load(None).await?,
@@ -57,6 +58,7 @@ impl CapabilityService {
             let actions: Vec<ActionDescription> = manifest
                 .actions
                 .iter()
+                .filter(|action| open_to(action, &agent))
                 .filter(|action| grant.as_ref().is_none_or(|grant| allows(grant, &capability.id, action)))
                 .map(|action| ActionDescription {
                     name: action.name.clone(),

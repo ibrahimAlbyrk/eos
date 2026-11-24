@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use eos_core::capability::CapabilitySecrets;
+use eos_core::capability::{CapabilityCalls, CapabilityRegistry, CapabilitySecrets};
 use eos_core::net::hooks::HookUrl;
 use eos_core::signals::{PushEvent, PushOutcome, Scope, SourceError};
 use eos_testkit::{FakeBuiltin, FakeCapabilitySecrets};
@@ -124,6 +124,43 @@ async fn a_webhook_the_service_refused_leaves_no_secret_and_a_source_without_pus
     assert_eq!(source.add_push(&scope(), &hook).await, Err(SourceError::Bad("push")));
     let body = b"{}";
     assert_eq!(source.accept_push(&scope(), &event(HOOK, &sign("x", body), body)).await, Ok(PushOutcome::Refused));
+}
+
+#[tokio::test]
+async fn only_adding_push_may_register_a_webhook_and_a_refused_call_leaves_the_health_alone() {
+    use eos_core::capability::{ActionCaller, ActionError};
+    use eos_domain::capability::health::HealthState;
+
+    // The real builtin answers a call without the hook secret as a missing secret.
+    let github = Arc::new(
+        FakeBuiltin::new(PUSHING)
+            .answering("create_webhook", Err(ActionError::NotReady("secret_missing:webhook".into())))
+            .answering("poll_pull_requests", Ok(json!({ "items": [] }))),
+    );
+    let rig = rig(Setup {
+        builtins: vec![github.clone()],
+        secrets: FakeCapabilitySecrets::new().with("github", "token", "gho_x"),
+        ..Setup::default()
+    })
+    .await;
+    let input = json!({ "repo": "acme/game", "url": "https://relay.example/hooks/v1/x/y" });
+    let agent = crate::rig::agent_call("github", "create_webhook", input.clone());
+    assert_eq!(rig.service.call(agent).await, Err(ActionError::NotGranted));
+    for caller in [ActionCaller::Delivery { run_id: "r".into(), delivery_id: "d".into() }, ActionCaller::Source] {
+        let mut call = crate::rig::agent_call("github", "create_webhook", input.clone());
+        call.caller = caller;
+        assert_eq!(rig.service.call(call).await, Err(ActionError::NotGranted));
+    }
+    assert!(github.calls().is_empty(), "the builtin is never asked");
+    let state = rig.service.state("github").await.expect("read").expect("there");
+    assert_eq!((state.state, state.code), (HealthState::Ready, None));
+
+    let mut poll = crate::rig::agent_call("github", "poll_pull_requests", json!({}));
+    poll.caller = ActionCaller::Source;
+    rig.service.call(poll).await.expect("polls still run");
+    let described = rig.service.describe("w-1", None).await.expect("described");
+    let names: Vec<&str> = described[0].actions.iter().map(|action| action.name.as_str()).collect();
+    assert_eq!(names, ["poll_pull_requests"], "an agent is not told of an action it can never call");
 }
 
 async fn rig_without_push(manifest: &str) -> crate::rig::Rig {
