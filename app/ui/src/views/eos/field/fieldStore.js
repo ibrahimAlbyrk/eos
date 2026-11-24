@@ -14,6 +14,8 @@ const VIEWS = new Set(["auto", "field", "list"]);
 
 let state = { phase: "home", on: false, open: false, view: null };
 let timer = null;
+// The gallery's Slow plays every timing this many times longer (the CSS `--k`).
+let scale = 1;
 const subs = new Set();
 
 function set(patch) {
@@ -51,7 +53,7 @@ function go(event) {
   const from = state.phase;
   set({ phase, open: phase !== "home", on: phase === "field" || (phase === "entering" && from === "leaving") });
   if (phase === "entering" && from === "home") nextFrame(armField);
-  const ms = phaseMs(phase, reducedMotion());
+  const ms = phaseMs(phase, reducedMotion()) * scale;
   if (ms > 0) timer = setTimeout(() => go("ended"), ms);
 }
 
@@ -72,6 +74,10 @@ export function openField() {
 
 export function closeField() {
   go("leave");
+}
+
+export function setTransitionScale(k) {
+  scale = k;
 }
 
 export function setFieldView(view) {
