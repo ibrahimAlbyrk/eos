@@ -4,7 +4,8 @@
 //! check of data against a contract, the least data a contract accepts, and
 //! how versions, issues and pins move and age, and what a View outside a
 //! chat must bind, what a Page's template and style may be made of, and
-//! which edits in place its data takes.
+//! which edits in place its data takes, and what an App's code and manifest
+//! may hold.
 //! Nothing here is async, reads a clock or touches a file; the feature
 //! `eos-mod-surfaces` stores and serves what these rules decide.
 
@@ -13,6 +14,7 @@ pub mod limits;
 pub mod render;
 pub mod template;
 
+mod app;
 mod args;
 mod arrange;
 mod design;
@@ -27,6 +29,7 @@ mod validate;
 mod view_check;
 mod words;
 
+pub use app::{APP_HEIGHT, APP_HTML_BYTES, APP_TESTS_BYTES, AppDesign, AppManifest, FileRoot, FileScope};
 pub use args::{Sources, fill_args, pressed_row};
 pub use arrange::{ArrangeOp, arrange};
 pub use design::PageDesign;

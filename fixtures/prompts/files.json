@@ -117,6 +117,7 @@
   "tool/WebFetch.prompt.md": "4d513fa2bce36d8f89fb41fb5c715a5bbc999efe708463d964beb350a5525217",
   "tool/WebSearch.prompt.md": "68f25f229b48adcfbc9754463d723adead30f7d02531436f486fe8e4e30cfdcb",
   "tool/Write.prompt.md": "90a5bf87749fc1496494880b523e9936ac2d55676286d51224931ff69f7f984f",
+  "tool/app_propose.prompt.md": "d295e8535a19d1c0b380b80ebe407ea2f18de933842480129b1d147a15218d46",
   "tool/append_to_page.prompt.md": "794ac912d9b31ed316b5cd358e05030b85e7649b09e0f9993317786e51cb5cff",
   "tool/ask_choice.prompt.md": "e01faa86a6632459a1963ba31589cc9994f8fafea7e27c49da335c426cd8b75c",
   "tool/ask_peer.prompt.md": "a42b5d881ca8a4fac09fa6259b9e930e0c44a31936c44debd0738dec2ccc202e",

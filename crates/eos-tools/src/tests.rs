@@ -118,6 +118,16 @@ impl eos_core::surface::SurfaceTools for RunCalls {
         self.0.lock().expect("calls").push(format!("design propose {worker_id} {design} {note}"));
         Box::pin(std::future::ready(Ok("candidate version 2".to_owned())))
     }
+
+    fn app_propose<'a>(
+        &'a self,
+        worker_id: &'a str,
+        app: Value,
+        note: String,
+    ) -> eos_core::BoxFuture<'a, Result<String, eos_core::Error>> {
+        self.0.lock().expect("calls").push(format!("app propose {worker_id} {app} {note}"));
+        Box::pin(std::future::ready(Ok("version 1 waits for its review and its tests".to_owned())))
+    }
 }
 
 impl RoutineTools for RunCalls {
@@ -517,6 +527,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         "report_failure",
         "return_view",
         "fill_page",
+        "app_propose",
         "ask_user",
         "current_datetime",
         "search_memory",
@@ -549,7 +560,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.names("worker")
     );
     let lead = bench.names("run-lead");
-    assert_eq!(lead[9..], ["list_capabilities", "call_capability"]);
+    assert_eq!(lead[10..], ["list_capabilities", "call_capability"]);
     for never in
         ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
     {

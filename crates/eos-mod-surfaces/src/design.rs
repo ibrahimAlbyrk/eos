@@ -54,7 +54,7 @@ pub(crate) struct Designs {
     pub(crate) probing: tokio::sync::Mutex<()>,
 }
 
-fn announce(out: &mut Outbox, surface: &StoredSurface, version: i64, phase: &str) {
+pub(crate) fn announce(out: &mut Outbox, surface: &StoredSurface, version: i64, phase: &str) {
     let design = SurfacesDesign { surface_id: surface.id.clone(), version, phase: phase.into() };
     out.push(SURFACES_DESIGN.name(), &design);
     let change = SurfacesChange {
@@ -66,7 +66,7 @@ fn announce(out: &mut Outbox, surface: &StoredSurface, version: i64, phase: &str
 }
 
 /// The open candidate of `surface` is let go: a newer one takes its place.
-fn discard_open(tx: &dyn Tx, surface: &StoredSurface) -> Result<(), Error> {
+pub(crate) fn discard_open(tx: &dyn Tx, surface: &StoredSurface) -> Result<(), Error> {
     let Some(open) = surface.candidate_version else { return Ok(()) };
     let Some(mut version) = tx.surface_versions().find(&surface.id, open)? else { return Ok(()) };
     if version.status.can_move_to(VersionStatus::Discarded) {
