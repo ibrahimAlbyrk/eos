@@ -155,6 +155,14 @@ pub trait ShellHost: Send + Sync + 'static {
     fn set_shortcut(&self, _accelerator: &str) -> Option<Shortcut> {
         None
     }
+    /// Whether Eos may read the front app's selection through Accessibility; `None` for an app
+    /// that owns no door (a dev or test run never asks for it).
+    fn accessibility(&self) -> Option<bool> {
+        None
+    }
+    /// Raises the system's request for Accessibility (`prompt`), or opens its pane in System
+    /// Settings.
+    fn ask_accessibility(&self, _prompt: bool) {}
     /// Closes the quick panel; focus stays with the app that had it.
     fn close_panel(&self) {}
     /// Fits the quick panel to its page, in points, already within

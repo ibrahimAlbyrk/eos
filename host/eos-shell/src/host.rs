@@ -11,7 +11,7 @@ use tauri_runtime_cef::cef::{ImplBrowser, ImplFrame};
 
 use crate::hotkey::Hotkeys;
 use crate::log::log;
-use crate::native::{appkit, login, notify};
+use crate::native::{appkit, ax, login, notify};
 use crate::panel::QuickPanel;
 use crate::views::Views;
 
@@ -205,6 +205,17 @@ impl ShellHost for Host {
 
     fn close_panel(&self) {
         self.quick.close();
+    }
+
+    fn accessibility(&self) -> Option<bool> {
+        self.doors.then(ax::trusted)
+    }
+
+    fn ask_accessibility(&self, prompt: bool) {
+        if !self.doors {
+            return;
+        }
+        if prompt { ax::prompt() } else { ax::open_settings() }
     }
 
     fn shortcut(&self) -> Option<Shortcut> {

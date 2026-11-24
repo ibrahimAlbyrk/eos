@@ -11,7 +11,7 @@ import {
 } from "../state/eos/eosSettingsStore.js";
 import { ensureHaltLoaded, resumeEos, stopEos, useHalt } from "../state/eos/haltStore.js";
 import { ToggleControl } from "./controls.jsx";
-import { CommandRow, ShortcutRow } from "./EosDoors.jsx";
+import { AccessibilityRow, CommandRow, ShortcutRow } from "./EosDoors.jsx";
 
 function Row({ label, description, children }) {
   return (
@@ -186,6 +186,7 @@ export function EosSettings() {
         <Group title="Doors">
           <StartAtLogin doors={doors} />
           <ShortcutRow doors={doors} />
+          <AccessibilityRow doors={doors} />
           <CommandRow doors={doors} />
         </Group>
       )}

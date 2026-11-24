@@ -54,6 +54,25 @@ impl Bridge {
         Ok(held)
     }
 
+    /// `GET /_shell/doors/accessibility` answers `{available, trusted}`; `POST` with `{prompt:
+    /// true}` raises the system's request, with `{openSettings: true}` opens its pane.
+    pub(super) async fn accessibility_call(&self, post: bool, body: &Value) -> Outcome {
+        let ask = match (body.get("prompt"), body.get("openSettings")) {
+            _ if !post => None,
+            (Some(Value::Bool(true)), _) => Some(true),
+            (_, Some(Value::Bool(true))) => Some(false),
+            _ => return Err(Refusal(400, "prompt or openSettings required")),
+        };
+        self.blocking_value(move |host| {
+            let Some(trusted) = host.accessibility() else { return json!({ "available": false }) };
+            if let Some(prompt) = ask {
+                host.ask_accessibility(prompt);
+            }
+            json!({ "available": true, "trusted": trusted })
+        })
+        .await
+    }
+
     /// `POST /_shell/doors/panel` with `{close: true}` or `{size: {width, height}}`.
     pub(super) async fn panel_call(&self, body: &Value) -> Outcome {
         if body.get("close").and_then(Value::as_bool) == Some(true) {

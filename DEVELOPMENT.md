@@ -95,7 +95,10 @@ keychain identity, `-` ad hoc; `cargo xtask install --dest <Eos.app>` installs e
    identity; with none in the keychain it signs ad hoc and says so. An ad hoc build opens as
    usual (a build made on this Mac carries no quarantine flag, so Gatekeeper does not check it),
    but its signature changes with every build: macOS may ask again for location, local network
-   and keychain access after each install.
+   and keychain access after each install, and the Accessibility grant (which lets the quick
+   panel read the front app's selection) is lost: System Settings keeps the old entry, which
+   no longer matches. Remove it and allow the new build, or sign with a Developer ID, whose
+   grant survives rebuilds.
 2. **Quit**: the installed app is asked to quit as its Quit menu does (30 s), the 0.1.x
    app's daemon is stopped through launchd (`eos_update::legacy`, the call the app's own first
    start makes; only on the user's own `~/.eos`), and then nothing may run from the bundle.
@@ -320,6 +323,7 @@ stream. Members of the Electron preload and of main's calls into the page:
 | `eosHosts` | `list`, `switchTo`, `openInWindow`, `reconnect`, `requestConnect`, `onChange`, `onVisibility`, `onCommand` | |
 | `eosArtifacts` | `warm`, `peek`, `unpeek`, `attach`, `setBounds`, `setVisible`, `detach`, `reload`, `still`, `state`, `onState`, `onAction`, `account`, `signIn`, `signOut` | |
 | `eosTransfer` (a host's view running this computer's dashboard) | `list`, `destination`, `chooseFolder`, `pull`, `push`, `act`, `clear`, `reveal`, `onChange` | |
+| `eosDoors` | `loginItem`, `setLoginItem`, `shortcut`, `setShortcut`, `command`, `installCommand`, `accessibility`, `openAccessibilitySettings`, `held`, `onHeld`, `closePanel`, `sizePanel` (the doors on the Mac; the last four are the quick panel's) | |
 | `eosWindow` (5) | not applicable: Windows only | |
 
 66 members work; `eosWindow` is the Windows shell's. A host's view gets `__EOS_HOST`,

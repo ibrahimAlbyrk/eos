@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { commandLine, shortcutLine, shortcutWords } from "./EosDoors.jsx";
+import { accessLine, commandLine, shortcutLine, shortcutWords } from "./EosDoors.jsx";
 
 describe("Settings › Eos › Doors", () => {
   it("writes shortcuts as the Mac does", () => {
@@ -13,6 +13,11 @@ describe("Settings › Eos › Doors", () => {
     const fallback = { accelerator: "ctrl+alt+space", held: true, problem: "⌥Space is taken by another app, so ⌃⌥Space opens Eos." };
     expect(shortcutLine(fallback)).toBe(fallback.problem);
     expect(shortcutLine({ accelerator: "cmd+k", held: false })).toBe("⌘K is not held.");
+  });
+
+  it("says whether the quick panel may read the selection", () => {
+    expect(accessLine(true)).toMatch(/^Allowed/);
+    expect(accessLine(false)).toMatch(/Privacy & Security › Accessibility\.$/);
   });
 
   it("says where the eos command is, and what is left to do", () => {

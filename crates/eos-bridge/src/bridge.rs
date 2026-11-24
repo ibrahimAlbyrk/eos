@@ -292,7 +292,9 @@ impl Bridge {
                     None => self.refuse(&sink, 404, "unknown surface"),
                 };
             }
-            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM | SHORTCUT) | ("GET", CLI_COMMAND | DOORS_HELD) => {}
+            ("POST", _)
+            | ("GET" | "PUT", LOGIN_ITEM | SHORTCUT)
+            | ("GET", CLI_COMMAND | DOORS_HELD | ACCESSIBILITY) => {}
             _ => return self.refuse(&sink, 405, "method not allowed"),
         }
         // Everything else acts on this Mac: the dashboard itself only.
@@ -310,6 +312,7 @@ impl Bridge {
                 CLI_COMMAND => (me.cli_command(req_is_post).await, true),
                 DOORS_HELD => (Ok(me.held_item()), true),
                 SHORTCUT => (me.shortcut_call(put, &body).await, true),
+                ACCESSIBILITY => (me.accessibility_call(req_is_post, &body).await, true),
                 _ => (me.bridge(&path, body).await, false),
             };
             match outcome {
@@ -615,6 +618,8 @@ impl Service for Bridge {
 const LOGIN_ITEM: &str = "doors/login-item";
 /// The bridge of the `eos` command on the PATH (`/_shell/doors/cli`).
 const CLI_COMMAND: &str = "doors/cli";
+/// Reading the front app's selection (`/_shell/doors/accessibility`).
+const ACCESSIBILITY: &str = "doors/accessibility";
 /// The quick panel's global shortcut (`/_shell/doors/shortcut`).
 const SHORTCUT: &str = "doors/shortcut";
 /// The item a door holds for the quick panel (`/_shell/doors/held`).
