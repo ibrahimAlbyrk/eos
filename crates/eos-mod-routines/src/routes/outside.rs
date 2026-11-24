@@ -13,10 +13,14 @@ fn is_outside(door: &str) -> bool {
     OUTSIDE.contains(&door)
 }
 
-/// Every item of a start through an outside door is untrusted.
+/// Every item of a start through an outside door is untrusted, and its note reaches the run
+/// inside the untrusted marker: whoever made the link wrote it, not the user.
 pub(super) fn mark_start(asked: &mut StartRunRequest) {
     if !is_outside(&asked.door) {
         return;
+    }
+    if let Some(note) = asked.input.note.as_mut() {
+        *note = eos_domain::untrusted::wrap(&format!("door:{}", asked.door), note);
     }
     if let Some(item) = asked.input.item.as_mut() {
         item.untrusted = true;

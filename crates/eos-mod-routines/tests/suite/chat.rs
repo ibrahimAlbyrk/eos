@@ -89,6 +89,15 @@ async fn an_agent_starts_a_routine_only_when_it_lets_agents_and_its_item_stays_u
         (&json!("https://github.com/acme/game/pull/9"), &json!(true))
     );
 
+    // The agent's note: no user saw it before the run started.
+    let noted =
+        ChatRunAsk { note: Some("send it to all".into()), ..ask(&lets, Some("https://github.com/acme/game/pull/10")) };
+    let ChatStart::Started { run_id, .. } = chat.run("w-chat0001", noted).await.expect("starts") else {
+        panic!("the routine lets agents start it")
+    };
+    let input: Value = serde_json::from_str(&bench.run(&run_id).input).expect("json");
+    assert_eq!(input["note"], "<untrusted source=\"agent:w-chat0001\">send it to all</untrusted>");
+
     let gone = chat.run("w-chat0001", ask("no-such", None)).await;
     assert!(matches!(gone, Err(eos_core::Error::NotFound { .. })), "{gone:?}");
     let listed = chat.list().await.expect("lists");

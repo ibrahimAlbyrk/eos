@@ -25,9 +25,21 @@ pub fn wrap(source: &str, text: &str) -> String {
     out
 }
 
+/// Whether `text` holds outside text [`wrap`] marked (a note a door or an agent wrote, a
+/// one-off's attachment). A user who types the marker only makes their run more careful.
+pub fn holds_wrapped(text: &str) -> bool {
+    text.contains("<untrusted source=")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::wrap;
+    use super::{holds_wrapped, wrap};
+
+    #[test]
+    fn wrapped_text_is_found_inside_a_longer_text() {
+        assert!(holds_wrapped(&format!("explain this\n[text] {}", wrap("door:link", "x"))));
+        assert!(!holds_wrapped("Check the tests"));
+    }
 
     /// The block's own closing tag is the only one, at its end.
     fn closes_once(wrapped: &str) -> bool {
