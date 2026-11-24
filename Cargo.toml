@@ -137,6 +137,7 @@ hmac = "0.13"
 http = "1"
 icu_collator = "2"
 if-addrs = "0.15"
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 indexmap = { version = "2", features = ["serde"] }
 # Named time zones from the system's own zone files: no zone database is bundled.
 jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-zoneinfo"] }

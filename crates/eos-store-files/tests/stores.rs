@@ -212,3 +212,99 @@ fn a_real_data_folder_loads_and_round_trips_unchanged() {
     assert!(FileUserAvatarStore::new(home.join("profile")).read().expect("read").is_some());
     println!("round-tripped {} pages, {} memories, the profile", pages.len(), memories.len());
 }
+
+mod surface_images {
+    use std::io::Cursor;
+    use std::sync::Arc;
+
+    use eos_core::surface::{ImageFailure, ImageSource, SurfaceImages};
+    use eos_store_files::surface_images::FileSurfaceImages;
+    use eos_testkit::FakeMedia;
+    use image::{DynamicImage, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
+
+    fn encoded(image: &DynamicImage, format: ImageFormat) -> Vec<u8> {
+        let mut out = Vec::new();
+        image.write_to(&mut Cursor::new(&mut out), format).expect("encodes");
+        out
+    }
+
+    /// A JPEG with an EXIF block that names a place.
+    fn photo_with_location() -> &'static [u8] {
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(2400, 1200, Rgb([200, 120, 40])));
+        let jpeg = encoded(&image, ImageFormat::Jpeg);
+        let payload = b"Exif\0\0GPS-41.0082N-28.9784E";
+        let len = u16::try_from(payload.len() + 2).expect("short");
+        let mut out = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        out.extend_from_slice(&len.to_be_bytes());
+        out.extend_from_slice(payload);
+        out.extend_from_slice(&jpeg[2..]);
+        Box::leak(out.into_boxed_slice())
+    }
+
+    fn store(dir: &std::path::Path, media: FakeMedia) -> FileSurfaceImages {
+        FileSurfaceImages::new(dir.join("surfaces"), Arc::new(media))
+    }
+
+    #[tokio::test]
+    async fn an_image_is_scaled_written_again_without_its_metadata_and_named_by_its_hash() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let media = FakeMedia::default().with("https://example.com/a.jpg", "image/jpeg", photo_with_location(), "a");
+        let images = store(dir.path(), media);
+        let image = images
+            .intake("sf-1", ImageSource::Url("https://example.com/a.jpg".into()))
+            .await
+            .expect("the photo is taken in");
+        assert_eq!((image.width, image.height, image.content_type.as_str()), (1600, 800, "image/jpeg"));
+        let file = dir.path().join(format!("surfaces/sf-1/img/{}.jpg", image.hash));
+        let written = std::fs::read(&file).expect("stored under its hash");
+        assert!(!written.windows(3).any(|w| w == b"GPS"), "the location is gone");
+        let again = images.intake("sf-1", ImageSource::Url("https://example.com/a.jpg".into())).await.expect("again");
+        assert_eq!(again.hash, image.hash, "the same picture is stored once");
+        let small = images.read("sf-1", &image.hash, Some(600)).await.expect("reads").expect("is there");
+        let small = image::load_from_memory(&small.body).expect("decodes");
+        assert_eq!(small.width(), 600);
+        assert!(images.read("sf-1", "../../secret", None).await.expect("reads").is_none());
+    }
+
+    #[tokio::test]
+    async fn transparency_stays_png_and_what_is_not_an_image_is_refused() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let clear = DynamicImage::ImageRgba8(RgbaImage::from_pixel(20, 10, Rgba([0, 0, 0, 0])));
+        let png: &'static [u8] = Box::leak(encoded(&clear, ImageFormat::Png).into_boxed_slice());
+        let bmp: &'static [u8] = b"BM\x46\0\0\0\0\0\0\0\x36\0\0\0\x28\0\0\0";
+        let media = FakeMedia::default()
+            .with("https://example.com/clear.png", "image/png", png, "p")
+            .with("https://example.com/x.bmp", "image/bmp", bmp, "b")
+            .with("https://example.com/page", "text/html", b"<html><script>alert(1)</script>", "h");
+        let images = store(dir.path(), media);
+        let image = images.intake("sf-1", ImageSource::Url("https://example.com/clear.png".into())).await.expect("png");
+        assert_eq!(image.content_type, "image/png");
+        for url in ["https://example.com/x.bmp", "https://example.com/page"] {
+            let refused = images.intake("sf-1", ImageSource::Url(url.into())).await;
+            assert_eq!(refused, Err(ImageFailure::NotAnImage), "{url}");
+        }
+        let gone = images.intake("sf-1", ImageSource::Url("https://example.com/none.png".into())).await;
+        assert_eq!(gone, Err(ImageFailure::Unreachable));
+    }
+
+    #[tokio::test]
+    async fn a_run_file_is_read_only_when_it_is_a_plain_file_and_collection_keeps_what_is_named() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let images = store(dir.path(), FakeMedia::default());
+        let picture = DynamicImage::ImageRgb8(RgbImage::from_pixel(40, 20, Rgb([1, 2, 3])));
+        let file = dir.path().join("chart.png");
+        std::fs::write(&file, encoded(&picture, ImageFormat::Png)).expect("writes");
+        let link = dir.path().join("link.png");
+        std::os::unix::fs::symlink(&file, &link).expect("links");
+        assert_eq!(images.intake("sf-1", ImageSource::RunFile(link)).await, Err(ImageFailure::Unreachable));
+        let kept = images.intake("sf-1", ImageSource::RunFile(file)).await.expect("a plain file");
+        let other = DynamicImage::ImageRgb8(RgbImage::from_pixel(40, 20, Rgb([9, 9, 9])));
+        let other_file = dir.path().join("other.png");
+        std::fs::write(&other_file, encoded(&other, ImageFormat::Png)).expect("writes");
+        let dropped = images.intake("sf-1", ImageSource::RunFile(other_file)).await.expect("taken in");
+        let freed = images.collect("sf-1", std::slice::from_ref(&kept.hash)).await.expect("collects");
+        assert_eq!(freed, dropped.bytes);
+        assert!(images.read("sf-1", &kept.hash, None).await.expect("reads").is_some());
+        assert!(images.read("sf-1", &dropped.hash, None).await.expect("reads").is_none());
+    }
+}
