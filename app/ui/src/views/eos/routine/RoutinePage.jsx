@@ -8,6 +8,7 @@ import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SurfaceCard } from "../needs/SurfaceCard.jsx";
+import { RoutinePageLink } from "../surface/RoutinePageLink.jsx";
 import { reasonLine } from "../run/words.js";
 import { RoutineMenu } from "./RoutineMenu.jsx";
 import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
@@ -117,6 +118,7 @@ export function RoutinePage({ id, tab, version }) {
                   <SurfaceCard card={view} routineName={routine.name} />
                 </section>
               )}
+              {shown === "overview" && <RoutinePageLink routineId={id} />}
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
               {shown === "signals" && <SignalList routineId={id} />}

@@ -543,6 +543,12 @@ export const api = {
   },
   imageUrl(path) { return `${DAEMON}${ROUTES.fsImage}?path=${encodeURIComponent(path)}`; },
   rawUrl(path) { return `${RAW_ORIGIN}${ROUTES.fsRaw}${encodeRawPath(path)}`; },
+  // A page issue drawn in its frame on the raw origin (05 §6), in `version`
+  // when given, else in the design it was made with.
+  surfacePageUrl(surfaceId, issueId, version) {
+    const path = `/surfaces/${encodeURIComponent(surfaceId)}/issues/${encodeURIComponent(issueId)}/page.html`;
+    return `${RAW_ORIGIN}${path}${version == null ? "" : `?version=${version}`}`;
+  },
   pdfViewerUrl(path) {
     const file = encodeURIComponent(`${ROUTES.fsRaw}${encodeRawPath(path)}`);
     return `${RAW_ORIGIN}${ROUTES.pdfjs}/web/viewer.html?file=${file}`;
@@ -1454,6 +1460,12 @@ export const api = {
   // as the envelope, a refusal included.
   async eosGet(path) {
     return getJson(path, { headers: uiTokenHeader() });
+  },
+  // A route that answers HTML (a page issue's mail or share document).
+  async eosGetText(path) {
+    const r = await fetch(`${DAEMON}${path}`, { headers: uiTokenHeader() });
+    const text = await r.text().catch(() => "");
+    return { ok: r.ok, status: r.status, body: r.ok ? text : null };
   },
   async eosSend(method, path, body) {
     const headers = body === undefined ? uiTokenHeader() : { ...JSON_HEADERS, ...uiTokenHeader() };

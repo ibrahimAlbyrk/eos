@@ -1,0 +1,210 @@
+import { useEffect, useState } from "react";
+import { api } from "../../../api/client.js";
+import { ROUTES } from "../../../api/routes.js";
+import { notify } from "../../../lib/notify.js";
+import { refreshInbox } from "../../../state/eos/inboxStore.js";
+import { loadIssue, loadPage, loadVersion, pickIssue, reshape, sendFeedback, usePages } from "../../../state/eos/pageStore.js";
+import { ensurePinsLoaded } from "../../../state/eos/pinsStore.js";
+import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
+import { pressId, runSurfaceAction } from "../../../state/eos/surfacesStore.js";
+import { transport, useDevRunSeen } from "../../../state/eos/transport.js";
+import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { EosHeader } from "../nav/EosHeader.jsx";
+import { buildLocation, openLocation } from "../nav/eosNav.js";
+import { ConfirmBelow, SurfaceCard } from "../needs/SurfaceCard.jsx";
+import { EarlierIssues } from "./EarlierIssues.jsx";
+import { EosFrame } from "./EosFrame.jsx";
+import { PageRenderer } from "./PageRenderer.jsx";
+import { PinButton } from "./PinButton.jsx";
+import { ShareMenu } from "./ShareMenu.jsx";
+import { TellBar } from "./TellBar.jsx";
+import { issueLine, olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
+
+// What the core answered a press on the page, said outside the frame.
+function settle(press, answer, setAsking) {
+  switch (answer.status) {
+    case "done": return;
+    case "confirm":
+      setAsking({ press, token: answer.token, prompt: answer.prompt, typeToConfirm: answer.typeToConfirm });
+      return;
+    case "held":
+      notify.info("It waits in Needs you for you to send.");
+      void refreshInbox();
+      return;
+    default:
+      notify.error(answer.reason, { title: "That did not run" });
+  }
+}
+
+// A button pressed inside the page: the core reads the action and its
+// arguments from the issue's own design; Eos asks first below the frame.
+function usePagePress(issueId) {
+  const [asking, setAsking] = useState(null);
+  const [typed, setTyped] = useState("");
+  const ask = (next) => {
+    setTyped("");
+    setAsking(next);
+  };
+  const act = async (message) => {
+    const press = { issueId, button: message.button, clientId: pressId(), ...(message.index != null ? { index: message.index } : {}) };
+    settle(press, await runSurfaceAction(press), ask);
+  };
+  const confirm = async () => {
+    const { press, token, typeToConfirm } = asking;
+    ask(null);
+    settle(press, await runSurfaceAction({ ...press, confirm: token, ...(typeToConfirm ? { typed } : {}) }), ask);
+  };
+  const below = asking && (
+    <ConfirmBelow asking={asking} typed={typed} onType={setTyped} onConfirm={() => void confirm()} onCancel={() => ask(null)} />
+  );
+  return { act, below };
+}
+
+// The parts the reader opened, for memory (ids and indexes only).
+function reportRead(surfaceId, issueId, message) {
+  const strip = (list) => (Array.isArray(list) ? list.map(({ part, index }) => ({ part, index: index ?? null })) : []);
+  void transport.send("POST", ROUTES.surfaceIssueRead(surfaceId, issueId), { parts: strip(message.parts), links: strip(message.links) });
+}
+
+// The issue as it reads: the page in its frame, or a View when the issue fell
+// back to one or plain reading is on.
+function IssueBody({ surface, row, shown, maker, version }) {
+  const { act, below } = usePagePress(row.id);
+  if (!shown) return <Loading blocks={4} />;
+  if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;
+  const view = row.kind === "view" ? shown.body?.view : shown.body?.plain;
+  if (view) return <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} />;
+  return (
+    <EosFrame maker={maker} level="page" below={below}>
+      <PageRenderer
+        src={api.surfacePageUrl(surface.id, row.id, version)}
+        title={surface.title}
+        onAct={(m) => void act(m)}
+        onRead={(m) => reportRead(surface.id, row.id, m)}
+      />
+    </EosFrame>
+  );
+}
+
+// "Good issue" and "Not today": said once per issue.
+function Verdict({ issueId }) {
+  const [said, setSaid] = useState(null);
+  useEffect(() => setSaid(null), [issueId]);
+  const say = async (verdict) => {
+    const r = await sendFeedback(issueId, verdict);
+    if (r.ok) setSaid(verdict);
+    else notify.error(r.error, { title: "Eos did not hear that" });
+  };
+  if (said) return <span className="eos-page__said" role="status">{said === "good" ? "Noted: a good issue." : "Noted: not today."}</span>;
+  return (
+    <>
+      <button type="button" className="eos-btn eos-btn--pill" onClick={() => void say("good")}>Good issue</button>
+      <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void say("not_today")}>Not today</button>
+    </>
+  );
+}
+
+// eos:/surfaces/<id>?issue=<n> — a routine's Page: the issue in Eos's dark
+// frame as a light sheet, earlier issues in the design each was made with,
+// pin to Home, mail preview and a file to share, how the issue was, and what
+// to change about the page.
+export function SurfaceScreen({ surfaceId, seq }) {
+  const { pages, issues, versions } = usePages();
+  const { list: routines } = useRoutines();
+  const devRun = useDevRunSeen();
+  const [todayDesign, setTodayDesign] = useState(false);
+  useEffect(() => {
+    ensureRoutinesLoaded();
+    ensurePinsLoaded();
+    void loadPage(surfaceId);
+  }, [surfaceId]);
+
+  const page = pages[surfaceId];
+  const surface = page?.surface;
+  const row = pickIssue(page?.issues, seq);
+  useEffect(() => {
+    setTodayDesign(false);
+    if (row) void loadIssue(surfaceId, row.id);
+    // A new revision of the same issue reads it again; nothing else does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surfaceId, row?.id, row?.rev]);
+  useEffect(() => {
+    if (surface?.currentVersion != null) void loadVersion(surfaceId, surface.currentVersion);
+  }, [surfaceId, surface?.currentVersion]);
+
+  const routine = routines?.find((r) => r.id === surface?.routineId);
+  const maker = routine?.name ?? surface?.title;
+  const title = surface?.title ?? "Page";
+  const older = row?.version != null && surface?.currentVersion != null && row.version !== surface.currentVersion;
+  const tell = async (instruction) => {
+    const r = await reshape(surfaceId, { baseVersion: surface.currentVersion, instruction });
+    if (!r.ok) return r;
+    openLocation(buildLocation({ screen: "surface", surfaceId, mode: "reshape" }));
+    return r;
+  };
+  const current = surface?.currentVersion != null ? versions[`${surfaceId}:${surface.currentVersion}`] : null;
+
+  return (
+    <main className="eos-screen">
+      <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]}>
+        {row && <span className="eos-page__line">{issueLine(row)}</span>}
+        {surface && (
+          <>
+            <EarlierIssues page={page} row={row} />
+            <PinButton surface={surface} />
+            {surface.currentVersion != null && (
+              <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq, mode: "reshape" }))}>
+                Change the page
+              </button>
+            )}
+            {row && row.kind === "page" && <ShareMenu surface={surface} row={row} />}
+          </>
+        )}
+      </EosHeader>
+      <div className="eos-body eos-page">
+        {devRun && <DevRunNote />}
+        {page?.failed === "gone" && <p className="eos-note">This page is no longer here.</p>}
+        {page?.failed === "error" && <LoadFailed what="this page" retry={() => void loadPage(surfaceId)} />}
+        {!page && <Loading blocks={4} />}
+        {surface && (
+          <div className="eos-page__column">
+            {surface.needsRedesign && (
+              <div className="eos-band eos-band--warn" role="status">
+                <span className="eos-band__text">Its last issues did not fit the layout, so they came as plain cards. The page needs a new design.</span>
+                <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, mode: "reshape" }))}>Change the page</button>
+              </div>
+            )}
+            {older && (
+              <div className="eos-page__older" role="status">
+                <span>{todayDesign ? todayDesignLine(row, surface.currentVersion) : olderDesignLine(row)}</span>
+                <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setTodayDesign((t) => !t)}>
+                  {todayDesign ? "Show in its own design" : "Show in today's design"}
+                </button>
+              </div>
+            )}
+            {!row && page.issues && (
+              <p className="eos-note">No issue yet. The first one comes with the routine's next run.</p>
+            )}
+            {row && (
+              <IssueBody
+                surface={surface}
+                row={row}
+                shown={issues[row.id]}
+                maker={maker}
+                version={todayDesign ? surface.currentVersion : undefined}
+              />
+            )}
+            {current?.meta?.note && <p className="eos-page__design-note"><span className="eos-label">Design note</span> {current.meta.note}</p>}
+            {surface.currentVersion != null && (
+              <div className="eos-page__below">
+                <TellBar label="Tell Eos what to change about this page" onSend={tell} />
+                {row && !row.trial && row.status === "ready" && <Verdict issueId={row.id} />}
+              </div>
+            )}
+            {surface.currentVersion != null && <p className="eos-page__note">{PAGE_NOTE}</p>}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
