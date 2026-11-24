@@ -85,6 +85,9 @@ pub struct SurfaceVersion {
     pub meta: SurfaceVersionMeta,
     pub body: Value,
     pub checks: Value,
+    /// An App's line of access, written by Eos from its manifest.
+    #[serde(default, rename = "accessLine", skip_serializing_if = "Option::is_none")]
+    pub access_line: Option<String>,
 }
 
 impl Validate for SurfaceVersion {}

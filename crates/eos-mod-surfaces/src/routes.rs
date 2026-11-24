@@ -88,7 +88,8 @@ fn one_version(parts: &Arc<SurfacesParts>) -> RouteDef {
             let n: i64 = number.parse().map_err(|_| ApiError::NotFound(format!("version not found: {number}")))?;
             let found = parts.store.read(move |tx| tx.surface_versions().find(&id, n)).await?;
             let found = found.ok_or_else(|| ApiError::NotFound(format!("version not found: {n}")))?;
-            Ok(Response::json(200, &version(&found)))
+            let access = crate::apps::access_line(&parts, &found.body_json);
+            Ok(Response::json(200, &version(&found, access)))
         }
     })
     .access(Access::open().phone(Tier::Read))

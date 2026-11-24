@@ -132,3 +132,17 @@ impl eos_core::surface::AppHandOff for Promote {
         })
     }
 }
+
+/// The line under an App, in Eos's words from its manifest, naming each
+/// action and query by the title the registry gives it; `None` for a body
+/// that is no App.
+pub(crate) fn access_line(parts: &crate::SurfacesParts, body_json: &str) -> Option<String> {
+    let body: Value = serde_json::from_str(body_json).ok()?;
+    body.get("html")?;
+    let registry = parts.actions.registry();
+    let app = AppDesign::from_body(&body, |id| registry.action(id).is_some()).ok()?;
+    Some(app.access_line(|id| {
+        let title = registry.action(id).map(|a| a.title).or_else(|| registry.query(id).map(|q| q.title));
+        title.map_or_else(|| id.to_owned(), str::to_lowercase)
+    }))
+}

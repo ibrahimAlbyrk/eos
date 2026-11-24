@@ -232,3 +232,15 @@
 .eos-gallery-bar__state { max-width: 240px; height: 28px; border: 0; border-radius: 8px; background: var(--chip); color: var(--fg); font: inherit; }
 .eos-gallery-bar__play { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--solid-btn-bg); color: var(--solid-btn-fg); font: inherit; cursor: pointer; }
 .eos-gallery-bar__slow { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ── A routine's App (SurfaceApp.dc.html) ─────────────────────────────────── */
+.eos-app { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 10px; }
+.eos-app--panel { max-width: none; padding: 12px 0 16px; }
+.eos-app__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 16px; }
+.eos-app__name { flex: 1 1 160px; min-width: 0; }
+.eos-app__title { font-size: var(--text-md); font-weight: 600; color: var(--fg-strong); }
+.eos-app__maker { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-app__stage { margin: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+.eos-app__access { margin: 0 16px; display: flex; gap: 8px; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-app__access svg { flex: none; margin-top: 3px; fill: none; stroke: var(--fg-dim2); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.eos-app .eos-note { margin: 0 16px; }

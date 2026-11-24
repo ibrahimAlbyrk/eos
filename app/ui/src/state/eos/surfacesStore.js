@@ -140,6 +140,16 @@ export async function callSurfaceApp({ surfaceId, version, name, arguments: args
   throw new Error(r.body?.error ?? `The App's call failed (${r.status}).`);
 }
 
+// Hands an App in use to the Forge to become an Extension → the Forge run's
+// id, or the reason it did not start.
+export async function promoteApp(surfaceId, title) {
+  const need = `Make the App ${title} an Extension`;
+  const r = await transport.send("POST", ROUTES.forge, { need, fromSurface: surfaceId });
+  if (r.ok && r.body?.runId) return { runId: r.body.runId };
+  if (isDevRunRefusal(r)) return { error: "This is a dev run: the Forge starts nothing from here." };
+  return { error: r.body?.error ?? `The Forge did not start (${r.status}).` };
+}
+
 export async function runSurfaceAction({ issueId, actionId, button, state: input, clientId, confirm, typed, itemId, index }) {
   const body = {
     issueId, clientId,
