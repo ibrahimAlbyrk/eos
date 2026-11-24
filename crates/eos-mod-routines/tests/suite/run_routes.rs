@@ -356,3 +356,27 @@ async fn a_start_whose_capability_is_signed_out_is_refused_with_what_to_do() {
     let runs = routes.bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
     assert!(runs.is_empty(), "nothing was queued");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_item_through_a_door_outside_eos_is_untrusted_whatever_the_page_said() {
+    let routes = Routes::new();
+    let routine = routes.bench.routine(RoutineState::Active, blueprint(1));
+    for (door, number, untrusted) in [("shortcut", 41, true), ("dock", 42, true), ("home", 43, false)] {
+        let mut item = pr(number);
+        item["untrusted"] = json!(false);
+        let body = start(&routine, json!({"door": door, "input": {"result": "usual", "item": item}}));
+        let (status, body) = routes.post("/api/runs", body).await;
+        assert_eq!(status, 201, "{body}");
+        let run = routes.bench.run(body["runs"][0]["id"].as_str().expect("an id"));
+        let input: Value = serde_json::from_str(&run.input).expect("json");
+        assert_eq!(input["item"]["untrusted"], json!(untrusted), "{door}");
+    }
+    let (status, body) =
+        routes.post("/api/runs", start(&routine, json!({"door": "services", "items": [pr(44), pr(45)]}))).await;
+    assert_eq!(status, 201, "{body}");
+    for run in body["runs"].as_array().expect("runs") {
+        let input: Value =
+            serde_json::from_str(&routes.bench.run(run["id"].as_str().expect("an id")).input).expect("json");
+        assert_eq!(input["item"]["untrusted"], true, "{input}");
+    }
+}

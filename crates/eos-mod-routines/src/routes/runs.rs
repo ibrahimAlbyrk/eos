@@ -49,10 +49,11 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let start = RouteDef::post("/api/runs", move |req: Request| {
         let runs = starter.clone();
         async move {
-            let asked: StartRunRequest = req.parse()?;
+            let mut asked: StartRunRequest = req.parse()?;
             if !DOORS.contains(&asked.door.as_str()) {
                 return Err(ApiError::Validation(format!("invalid request: door: {} is no door", asked.door)));
             }
+            super::outside::mark_start(&mut asked);
             let origin = match asked.again_of {
                 Some(run_id) => RunOrigin::Again { run_id },
                 None => RunOrigin::Hand,
@@ -89,10 +90,11 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let once = RouteDef::post("/api/runs/once", move |req: Request| {
         let engine = asking.clone();
         async move {
-            let asked: OnceRequest = req.parse()?;
+            let mut asked: OnceRequest = req.parse()?;
             if !DOORS.contains(&asked.door.as_str()) {
                 return Err(ApiError::Validation(format!("invalid request: door: {} is no door", asked.door)));
             }
+            super::outside::mark_once(&mut asked);
             match crate::once::start(&engine, asked).await {
                 Ok(started) => Ok(Response::json(201, &started)),
                 Err(OnceRefused::Start(refused)) => start_refused(refused),
