@@ -343,5 +343,6 @@ fn run_summary(run: &StoredRun, needs_user: bool) -> RunSummary {
         created_at: run.created_at,
         started_at: run.started_at,
         ended_at: run.ended_at,
+        milestones_done: run.progress_done,
     }
 }

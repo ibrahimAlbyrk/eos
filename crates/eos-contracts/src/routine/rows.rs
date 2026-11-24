@@ -238,6 +238,9 @@ pub struct RunSummary {
     pub started_at: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended_at: Option<i64>,
+    /// A project run's milestones the gate is done with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub milestones_done: Option<i64>,
 }
 
 impl Validate for RunSummary {}

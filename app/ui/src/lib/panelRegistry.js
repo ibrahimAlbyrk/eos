@@ -11,7 +11,7 @@
 //   kbd         shortcut label shown on the launcher tile
 //   useTitle    (id, panelData) => string|null — a hook giving one tab's pill
 //               text (a page's title, …); null falls back to `label`
-//   launcher    { order, in: ["agent"|"code"], label?, Meta?({ scope }), useAvailable?() }
+//   launcher    { order, in: ["agent"|"code"|"eos"], label?, Meta?({ scope }), useAvailable?() }
 //               — a tile in the new-tab launcher of those surfaces
 
 import { createSlot } from "../slots/registry.js";
@@ -37,7 +37,7 @@ export function usePanels() {
   return panels.useItems();
 }
 
-// The launcher's tab types for a surface ("agent" | "code"), in order.
+// The launcher's tab types for a surface ("agent" | "code" | "eos"), in order.
 export function launcherTypes(list, surface) {
   return list
     .filter((p) => p.launcher?.in.includes(surface))

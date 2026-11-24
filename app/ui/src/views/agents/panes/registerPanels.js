@@ -33,6 +33,8 @@ import { ArtifactsPanel } from "../../artifacts/ArtifactsPanel.jsx";
 
 const AGENT = ["agent"];
 const BOTH = ["agent", "code"];
+// A project routine's page shows its folder's files too.
+const WITH_PROJECTS = [...BOTH, "eos"];
 // Transfer moves files between paired computers — not where this one can't pair.
 const useRemote = () => useFeature("remote");
 // The artifact list is this Mac's own — not in a view of another computer.
@@ -42,7 +44,7 @@ const descriptor = (type, label, rest) => ({ type, label, icon: TAB_ICONS[type],
 const panel = (type, label, rest) => registerPanel(descriptor(type, label, rest));
 
 panel("review", "Changes", { Component: GitDiffViewer, launcher: { order: 10, in: AGENT, Meta: DiffMeta } });
-panel("files", "Files", { Component: FilesPanel, kbd: shortcutLabel("mod+p"), launcher: { order: 30, in: BOTH, Meta: FilesMeta } });
+panel("files", "Files", { Component: FilesPanel, kbd: shortcutLabel("mod+p"), launcher: { order: 30, in: WITH_PROJECTS, Meta: FilesMeta } });
 panel("file", "File", { Component: FileViewer });
 panel("chatfiles", "Chat files", { Component: ChatFilesPanel, launcher: { order: 50, in: AGENT, Meta: ChatFilesMeta } });
 panel("subagents", "Subagents", { Component: SubagentsPanel, launcher: { order: 60, in: AGENT, Meta: SubagentMeta } });
