@@ -17,6 +17,7 @@ import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
 import { SignalList } from "./SignalList.jsx";
 import { UnconfirmedRecipients } from "./Unconfirmed.jsx";
 import { pausedLine } from "./words.js";
+import { ProjectSteps, doneCount, milestonesOf, stepLabel } from "./ProjectSteps.jsx";
 
 // Hand runs start in these states; a draft runs only trials.
 const RUNNABLE = new Set(["active", "paused"]);
@@ -85,12 +86,18 @@ export function RoutinePage({ id, tab, version }) {
   const routine = detail?.routine ?? list?.find((r) => r.id === id);
   const shown = tabOf(tab);
   const now = Date.now();
+  const milestones = milestonesOf(detail);
+  // A project's run is its page (08 G27): its newest run.
+  const projectRun = milestones && routine?.lastRun?.kind === "project" ? routine.lastRun : null;
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? "Routine" }]}>
         {routine && (
           <>
             <StatusChip routine={routine} />
+            {milestones?.length > 0 && projectRun && (
+              <span className="eos-chip">{stepLabel(doneCount(projectRun, milestones.length), milestones.length)}</span>
+            )}
             <RunNow routine={routine} />
             <PauseResume routine={routine} />
             <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }))}>Change it</button>
@@ -118,6 +125,7 @@ export function RoutinePage({ id, tab, version }) {
                   <SurfaceCard card={view} routineName={routine.name} />
                 </section>
               )}
+              {shown === "overview" && milestones && <ProjectSteps detail={detail} run={projectRun} />}
               {shown === "overview" && <RoutinePageLink routineId={id} />}
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
