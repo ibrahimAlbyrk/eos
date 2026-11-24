@@ -418,6 +418,8 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // Surfaces: a surface's saved state and how surfaces read are data in the data folder.
     ("PUT", "/api/surfaces/{id}/state"),
     ("PUT", "/api/settings/surfaces"),
+    // Pins are this Mac's Home layout, in the data folder.
+    ("PUT", "/api/surfaces/pins"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

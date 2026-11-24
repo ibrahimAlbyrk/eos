@@ -1,7 +1,7 @@
 //! A routine's surface follows the routine (05 G27): made when a routine
 //! whose blueprint makes a view, a page or an app is created, its candidate
-//! kept when the routine starts, archived and brought back with it. Each
-//! change is one write, announced on `surfaces:change`. Built before the
+//! kept when the routine starts, archived (and unpinned) and brought back
+//! with it. Each change is one write, announced on `surfaces:change`. Built before the
 //! routines feature, which holds it.
 
 use std::sync::Arc;
@@ -52,13 +52,13 @@ impl SurfaceAuthor {
         &self,
         routine_id: &str,
         what: &'static str,
-        change: impl Fn(&dyn Tx, &mut StoredSurface, i64) -> Result<bool, Error> + Send + 'static,
+        change: impl Fn(&dyn Tx, &mut Outbox, &mut StoredSurface, i64) -> Result<bool, Error> + Send + 'static,
     ) -> Result<(), Error> {
         let (id, now) = (routine_id.to_owned(), self.clock.now_ms());
         self.store
             .write(move |tx, out| {
                 for mut surface in tx.surfaces().of_routine(&id)? {
-                    if change(tx, &mut surface, now)? {
+                    if change(tx, out, &mut surface, now)? {
                         surface.updated_at = now;
                         tx.surfaces().put(&surface)?;
                         changed(out, &surface, what);
@@ -110,7 +110,7 @@ impl SurfaceAuthoring for SurfaceAuthor {
     }
 
     fn keep<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(self.each(routine_id, "version", |tx, surface, now| {
+        Box::pin(self.each(routine_id, "version", |tx, _, surface, now| {
             let Some(candidate) = surface.candidate_version else { return Ok(false) };
             let Some(mut version) = tx.surface_versions().find(&surface.id, candidate)? else { return Ok(false) };
             if !version.status.can_move_to(VersionStatus::Kept) {
@@ -126,7 +126,8 @@ impl SurfaceAuthoring for SurfaceAuthor {
     }
 
     fn archive_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(self.each(routine_id, "archived", |_, surface, now| {
+        Box::pin(self.each(routine_id, "archived", |tx, out, surface, now| {
+            crate::pins::unpin(tx, out, &surface.id)?;
             let fresh = surface.archived_at.is_none();
             surface.archived_at = surface.archived_at.or(Some(now));
             Ok(fresh)
@@ -134,6 +135,6 @@ impl SurfaceAuthoring for SurfaceAuthor {
     }
 
     fn restore_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(self.each(routine_id, "restored", |_, surface, _| Ok(surface.archived_at.take().is_some())))
+        Box::pin(self.each(routine_id, "restored", |_, _, surface, _| Ok(surface.archived_at.take().is_some())))
     }
 }

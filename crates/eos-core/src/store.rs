@@ -110,7 +110,7 @@ pub use signals::{
 };
 pub use surfaces::{
     ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceState, StoredSurfaceVersion,
-    SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
 };
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};

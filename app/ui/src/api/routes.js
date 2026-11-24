@@ -424,6 +424,8 @@ export const ROUTES = {
   // saved state, how surfaces read; the direct actions, running one, and
   // one recorded run.
   surfaces: "/api/surfaces",
+  surfacePins: "/api/surfaces/pins",
+  surfaceTiles: "/api/surfaces/tiles",
   surface: (id) => `/api/surfaces/${id}`,
   surfaceVersions: (id) => `/api/surfaces/${id}/versions`,
   surfaceVersion: (id, version) => `/api/surfaces/${id}/versions/${version}`,

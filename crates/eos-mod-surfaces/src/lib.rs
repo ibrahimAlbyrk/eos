@@ -16,6 +16,9 @@
 //!   the whole surface or one of its issues, announced on `surfaces:state`;
 //! - on the raw-content origin ([`SurfacesModule::raw_routes`]), a page
 //!   issue drawn in its frame, its images and the page probe's documents;
+//! - `GET`/`PUT /api/surfaces/pins` and `GET /api/surfaces/tiles`: up to
+//!   three surfaces pinned on this Mac's Home, announced on `surfaces:pins`,
+//!   and each as its tile shows it;
 //! - `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac, kept
 //!   in `settings.json` under keys only that route writes;
 //! - `GET /api/actions`, `POST /api/actions/run`, `GET /api/actions/records/:id`:
@@ -41,16 +44,18 @@ mod fill;
 mod issue_routes;
 mod issues;
 mod page;
+mod pins;
 mod queries;
 mod raw;
 mod records;
 mod routes;
 mod settings;
+mod tiles;
 mod wire;
 
 use std::sync::Arc;
 
-use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesIssue, SurfacesState};
+use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesIssue, SurfacesPins, SurfacesState};
 use eos_core::inbox::ActionGate;
 use eos_core::store::{Store, UserSettingsStore};
 use eos_core::surface::{DirectActions, SurfaceTools};
@@ -67,6 +72,7 @@ pub use raw::ProbeDocs;
 pub const SURFACES_CHANGE: Topic<SurfacesChange> = Topic::new("surfaces:change");
 pub const SURFACES_ISSUE: Topic<SurfacesIssue> = Topic::new("surfaces:issue");
 pub const SURFACES_STATE: Topic<SurfacesState> = Topic::new("surfaces:state");
+pub const SURFACES_PINS: Topic<SurfacesPins> = Topic::new("surfaces:pins");
 pub const ACTIONS_RECORD: Topic<ActionsRecord> = Topic::new("actions:record");
 
 /// What the module is built from.
@@ -171,7 +177,9 @@ impl Module for SurfacesModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        let mut out = routes::all(&self.parts);
+        let mut out = pins::routes(&self.parts);
+        out.extend(tiles::routes(&self.parts));
+        out.extend(routes::all(&self.parts));
         out.extend(issue_routes::all(&self.parts));
         out.extend(export::routes(&self.parts));
         out.extend(settings::all(&self.parts));
@@ -185,7 +193,13 @@ impl Module for SurfacesModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![SURFACES_CHANGE.decl(), SURFACES_ISSUE.decl(), SURFACES_STATE.decl(), ACTIONS_RECORD.decl()]
+        vec![
+            SURFACES_CHANGE.decl(),
+            SURFACES_ISSUE.decl(),
+            SURFACES_STATE.decl(),
+            SURFACES_PINS.decl(),
+            ACTIONS_RECORD.decl(),
+        ]
     }
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {
