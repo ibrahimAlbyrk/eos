@@ -9,10 +9,19 @@ export function tileLocation(tile) {
   return buildLocation({ screen: "routine", routineId: tile.routineId });
 }
 
-// A tile's link in words.
+// A tile's link in words: the design's own, or Eos's.
 export function tileAction(tile) {
   if (tile.action) return tile.action;
   return tile.level === "page" ? "Read the issue" : "Open it";
+}
+
+// What a tile with no headline says: its routine's status line (05 Q8), from
+// the `routine.status` answer `{ state, live, last: { headline } }`.
+export function tileStatus(status) {
+  if (!status || typeof status !== "object") return "Nothing yet";
+  if (status.live > 0) return "Running now";
+  if (status.state === "paused") return "Paused";
+  return status.last?.headline || "Nothing yet";
 }
 
 function Tile({ tile }) {
@@ -28,7 +37,7 @@ function Tile({ tile }) {
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><path d="M6 2.5h4l-.5 4 2 2.5h-7l2-2.5zM8 9v4.5" /></svg>
         </button>
       </div>
-      <p className="eos-tile__headline">{tile.headline ?? "Nothing yet"}</p>
+      <p className="eos-tile__headline">{tile.headline ?? tileStatus(tile.status)}</p>
       {tile.detail && <p className="eos-tile__detail">{tile.detail}</p>}
       <button type="button" className="eos-link eos-tile__open" onClick={() => openLocation(tileLocation(tile))}>{tileAction(tile)}</button>
     </article>

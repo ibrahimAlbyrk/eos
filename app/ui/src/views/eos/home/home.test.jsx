@@ -12,7 +12,7 @@ import { homeNext, homeRuns } from "../gallery/sample/home.js";
 import inbox from "../gallery/sample/inbox.json";
 import { HomeScreen } from "./HomeScreen.jsx";
 import { _resetPins, refreshPins } from "../../../state/eos/pinsStore.js";
-import { tileAction, tileLocation } from "./PinnedTiles.jsx";
+import { tileAction, tileLocation, tileStatus } from "./PinnedTiles.jsx";
 
 const NOW = new Date(2026, 10, 17, 9, 12).getTime();
 
@@ -49,6 +49,11 @@ describe("Eos › Home", () => {
     expect(tileLocation({ level: "page", surfaceId: "sf-1" })).toBe("eos:/surfaces/sf-1");
     expect(tileLocation({ level: "view", routineId: "rt-1" })).toBe("eos:/routines/rt-1");
     expect(tileAction({ level: "page" })).toBe("Read the issue");
+    expect(tileAction({ level: "page", action: "Read all 3" })).toBe("Read all 3");
+    expect(tileStatus({ state: "active", live: 1, last: { headline: "Two reviews" } })).toBe("Running now");
+    expect(tileStatus({ state: "active", live: 0, last: { headline: "Two reviews" } })).toBe("Two reviews");
+    expect(tileStatus({ state: "paused", live: 0, last: null })).toBe("Paused");
+    expect(tileStatus(undefined)).toBe("Nothing yet");
   });
 
 

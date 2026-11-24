@@ -67,7 +67,7 @@ async fn a_tile_reads_its_pages_tile_its_views_summary_or_its_title() {
         "template": "<section part=\"desk\"><h1>{title}</h1></section>",
         "style": "",
         "contract": {"type": "object", "fields": {"title": {"type": "text", "max": 40}, "count": {"type": "int"}}},
-        "tile": {"headline": "{title}", "detail": "{count} open"},
+        "tile": {"headline": "{title}", "detail": "{count} open", "action": "Read all {count}"},
         "sample": {"title": "Desk", "count": 1},
     })
     .to_string();
@@ -105,6 +105,7 @@ async fn a_tile_reads_its_pages_tile_its_views_summary_or_its_title() {
         ),
         (json!(1), json!("Three reviews wait"), json!("3 open"), json!(300))
     );
+    assert_eq!(tiles[0]["action"], "Read all 3", "the button's words, filled like the headline");
     assert_eq!((tiles[1]["headline"].clone(), tiles[1]["detail"].clone()), (json!("Overnight"), json!("Two mails")));
     assert_eq!(tiles[2]["title"], "Overnight mail");
     assert!(tiles[2].get("headline").is_none() && tiles[2].get("issueId").is_none(), "the default tile");

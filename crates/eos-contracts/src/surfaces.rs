@@ -255,7 +255,7 @@ pub struct Tile {
     pub headline: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
-    /// A direct action the tile's button runs.
+    /// The words on the tile's button, which opens the surface.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<String>,
     /// The newest ready issue the tile reads.
