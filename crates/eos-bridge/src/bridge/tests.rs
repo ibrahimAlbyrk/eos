@@ -36,6 +36,8 @@ struct FakeHost {
     downloads: Mutex<PathBuf>,
     /// The login item as the system would report it.
     login: Mutex<Option<LoginItem>>,
+    /// The `eos` command the app ships, when it owns the doors.
+    cli: Mutex<Option<crate::cli_link::CliCommand>>,
 }
 
 impl FakeHost {
@@ -45,6 +47,10 @@ impl FakeHost {
 }
 
 impl ShellHost for FakeHost {
+    fn cli_command(&self) -> Option<crate::cli_link::CliCommand> {
+        self.cli.lock().unwrap().clone()
+    }
+
     fn start_window_drag(&self) {
         self.log("drag");
     }
@@ -790,4 +796,30 @@ async fn the_login_item_takes_the_dashboards_token_and_a_choice() {
     assert_eq!(login_item(&w, "PUT", br#"{"on":"yes"}"#).await.status, 400);
     assert_eq!(login_item(&w, "DELETE", b"").await.status, 405);
     assert!(w.host.calls.lock().unwrap().is_empty());
+}
+
+// ---- The `eos` command ------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_eos_command_is_put_on_the_path_only_when_asked_and_only_by_an_app_that_owns_the_doors() {
+    let w = world();
+    let url = "http://eos.localhost/_shell/doors/cli";
+    let ask = |method: &'static str| call(&w.bridge, method, url, &[("x-eos-ui-token", TOKEN)], b"{}");
+    assert_eq!(ask("GET").await.json(), json!({ "available": false }), "a dev run owns no door");
+    assert_eq!(ask("POST").await.json(), json!({ "available": false }));
+
+    let helper = w.data.join("Eos.app/Contents/Helpers/eos");
+    std::fs::create_dir_all(helper.parent().unwrap()).unwrap();
+    std::fs::write(&helper, "mach-o").unwrap();
+    let home = w.data.join("home");
+    let bin_dir = home.join(".local/bin");
+    *w.host.cli.lock().unwrap() =
+        Some(crate::cli_link::CliCommand { helper: helper.clone(), bin_dir: bin_dir.clone(), home });
+    let read = ask("GET").await.json();
+    assert_eq!((read["available"].as_bool(), read["installed"].as_bool()), (Some(true), Some(false)));
+    assert!(!bin_dir.join("eos").exists(), "reading links nothing");
+    let installed = ask("POST").await.json();
+    assert_eq!(installed["installed"], true);
+    assert_eq!(std::fs::read_link(bin_dir.join("eos")).unwrap(), helper);
+    assert_eq!(call(&w.bridge, "GET", url, &[], b"").await.status, 403);
 }

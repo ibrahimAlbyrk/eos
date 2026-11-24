@@ -6,6 +6,7 @@
 //! eos restore [--no-open]                          cargo xtask install --restore
 //! eos start | stop | restart | status | help
 //! eos logs [--path] [-n <lines>]
+//! eos routines | run | once …                     the installed app's own `eos` command
 //! ```
 //!
 //! `stop` asks the app to quit as its Quit menu does, the installer's own
@@ -40,6 +41,9 @@ usage:
                  shell logs
   eos logs --path
                  only the logs' folder
+  eos routines | run | once …
+                 the installed app's own command: start routines from here
+                 (its usage: /Applications/Eos.app/Contents/Helpers/eos help)
   eos help       this text";
 
 /// How many lines of each log `eos logs` shows unless told.
@@ -58,7 +62,12 @@ enum Command {
         lines: usize,
     },
     Help,
+    /// What the installed app's own command (`Contents/Helpers/eos`) answers.
+    App(Vec<String>),
 }
+
+/// The commands the installed app's own `eos` takes.
+const APP_COMMANDS: [&str; 3] = ["routines", "run", "once"];
 
 /// Commands of the TypeScript `eos` that are not here, and what to use instead.
 fn retired(name: &str) -> Option<&'static str> {
@@ -115,6 +124,7 @@ fn parse(args: &[String]) -> anyhow::Result<Command> {
         "status" => bare(Command::Status),
         "logs" => logs_args(rest),
         "help" | "-h" | "--help" => Ok(Command::Help),
+        app if APP_COMMANDS.contains(&app) => Ok(Command::App(args.to_vec())),
         other => Err(match retired(other) {
             Some(instead) => refuse(format!("{other} is not available: {instead}.")),
             None => refuse(format!("{other} is not available.")),
@@ -156,6 +166,7 @@ pub(crate) fn run(args: &[String]) -> anyhow::Result<i32> {
             }
             Ok(0)
         }
+        Command::App(args) => forward(place.dest(), &args),
         command => {
             let (code, lines) = act(&command, &place, &MacSystem)?;
             for line in lines {
@@ -164,6 +175,18 @@ pub(crate) fn run(args: &[String]) -> anyhow::Result<i32> {
             Ok(code)
         }
     }
+}
+
+/// Runs the installed app's own command with the terminal's input and output; its exit code.
+fn forward(dest: &Path, args: &[String]) -> anyhow::Result<i32> {
+    installed(dest)?;
+    let command = dest.join("Contents/Helpers/eos");
+    if !command.is_file() {
+        bail!("the Eos at {} has no eos command: build a newer one with eos build", dest.display());
+    }
+    let status =
+        Process::new(&command).args(args).status().with_context(|| format!("could not run {}", command.display()))?;
+    Ok(status.code().unwrap_or(130))
 }
 
 fn installed(dest: &Path) -> anyhow::Result<()> {
@@ -186,7 +209,7 @@ fn act(command: &Command, place: &Place, system: &dyn System) -> anyhow::Result<
             lines.push(start(place, system)?);
         }
         Command::Status => return status(dest),
-        Command::Install(_) | Command::Help | Command::Logs { .. } => {}
+        Command::Install(_) | Command::Help | Command::Logs { .. } | Command::App(_) => {}
     }
     Ok((0, lines))
 }
@@ -365,6 +388,9 @@ mod tests {
         assert_eq!(args(&["logs"]).expect("logs"), Command::Logs { path_only: false, lines: TAIL_LINES });
         assert_eq!(args(&["logs", "--path"]).expect("logs"), Command::Logs { path_only: true, lines: TAIL_LINES });
         assert_eq!(args(&["logs", "-n", "5"]).expect("logs"), Command::Logs { path_only: false, lines: 5 });
+        let run = args(&["run", "pr-review", "482", "--wait"]).expect("run");
+        assert_eq!(run, Command::App(vec!["run".into(), "pr-review".into(), "482".into(), "--wait".into()]));
+        assert_eq!(args(&["routines"]).expect("routines"), Command::App(vec!["routines".into()]));
     }
 
     #[test]
