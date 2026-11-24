@@ -3,7 +3,8 @@
 //! language data, action arguments and query arguments are written in, the
 //! check of data against a contract, the least data a contract accepts, and
 //! how versions, issues and pins move and age, and what a View outside a
-//! chat must bind, and what a Page's template and style may be made of.
+//! chat must bind, what a Page's template and style may be made of, and
+//! which edits in place its data takes.
 //! Nothing here is async, reads a clock or touches a file; the feature
 //! `eos-mod-surfaces` stores and serves what these rules decide.
 
@@ -14,6 +15,7 @@ pub mod template;
 
 mod args;
 mod design;
+mod edit;
 mod lifecycle;
 mod minimal;
 mod problem;
@@ -25,6 +27,7 @@ mod words;
 
 pub use args::{Sources, fill_args, pressed_row};
 pub use design::PageDesign;
+pub use edit::{Edited, FieldEdit, apply_edit};
 pub use lifecycle::{IssueAge, PinError, VersionAge, arrange_pins, issues_to_drop, pin_slot, versions_to_drop};
 pub use minimal::minimal_data;
 pub use problem::{Problem, format_problems};

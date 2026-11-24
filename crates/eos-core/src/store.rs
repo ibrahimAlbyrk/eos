@@ -109,8 +109,9 @@ pub use signals::{
     StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
 };
 pub use surfaces::{
-    ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceState, StoredSurfaceVersion,
-    SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceEdit, StoredSurfaceState,
+    StoredSurfaceVersion, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo,
+    SurfaceVersionRepo,
 };
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};

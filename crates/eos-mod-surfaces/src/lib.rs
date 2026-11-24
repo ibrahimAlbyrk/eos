@@ -9,6 +9,9 @@
 //! - `GET /api/surfaces/:id/issues/:issueId/document?mode=phone|share` and
 //!   `…/mail`: a page issue with no script, for the phone or a file to
 //!   share, and as the mail it is sent as ([`SurfacesModule::render`]);
+//! - `PUT /api/surfaces/:id/issues/:issueId/fields` and `POST …/read`: an
+//!   edit in place a page's contract allows, kept as a revision with its
+//!   before and after, and what the reader opened, each told to memory;
 //! - `GET /api/surfaces/:id/queries/:queryId?args=` and
 //!   `…/issues/:issueId/parts/:part`: a named query its design reads, and a
 //!   Live part drawn with its answer, each naming the topics that change it;
@@ -39,6 +42,7 @@ mod action_routes;
 mod authoring;
 mod builtins;
 mod dispatch;
+mod edits;
 mod export;
 mod fill;
 mod issue_routes;
@@ -94,6 +98,8 @@ pub struct SurfacesParts {
     pub zone: Arc<dyn eos_core::os::TimeZone>,
     /// The reader's profile, for `issue.reader`.
     pub profile: Arc<dyn eos_core::store::UserProfileStore>,
+    /// Memory, told what the reader edits and opens.
+    pub feedback: Arc<dyn eos_core::experience::ExperienceFeedback>,
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -181,6 +187,7 @@ impl Module for SurfacesModule {
         out.extend(tiles::routes(&self.parts));
         out.extend(routes::all(&self.parts));
         out.extend(issue_routes::all(&self.parts));
+        out.extend(edits::routes(&self.parts));
         out.extend(export::routes(&self.parts));
         out.extend(settings::all(&self.parts));
         out.extend(queries::routes(&self.parts, &self.last_good));

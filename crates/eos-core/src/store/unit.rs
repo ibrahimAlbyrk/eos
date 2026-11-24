@@ -11,8 +11,8 @@ use super::{
     MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
     RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
     RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo,
-    SurfaceVersionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo,
+    SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -62,6 +62,7 @@ pub trait Tx {
     fn signal_schedules(&self) -> &dyn SignalScheduleRepo;
     fn signal_sources(&self) -> &dyn SignalSourceRepo;
     fn signals(&self) -> &dyn SignalRepo;
+    fn surface_edits(&self) -> &dyn SurfaceEditRepo;
     fn surface_issues(&self) -> &dyn SurfaceIssueRepo;
     fn surface_pins(&self) -> &dyn SurfacePinRepo;
     fn surface_state(&self) -> &dyn SurfaceStateRepo;

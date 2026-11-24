@@ -98,10 +98,50 @@ pub struct CheckVerdict {
     pub worker_id: String,
 }
 
-/// What routines tell memory about their runs.
+/// What the user did with a routine's surface (05 gaps 22, 23): ids, parts
+/// and indexes, and for an edit the value before and after.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SurfaceSignal {
+    pub surface_id: String,
+    pub routine_id: String,
+    /// The run whose issue it was.
+    pub run_id: Option<String>,
+    pub issue_id: String,
+    pub kind: SurfaceSignalKind,
+    /// The part read or the field's path edited.
+    pub at: Option<String>,
+    /// The repeat's index of the part read.
+    pub index: Option<u32>,
+    pub before: Option<serde_json::Value>,
+    pub after: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceSignalKind {
+    /// A part or a link the reader opened.
+    Opened,
+    /// The part the reader opened first.
+    ReadFirst,
+    /// A field edited in place.
+    Edited,
+}
+
+impl SurfaceSignalKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SurfaceSignalKind::Opened => "opened",
+            SurfaceSignalKind::ReadFirst => "read_first",
+            SurfaceSignalKind::Edited => "edited",
+        }
+    }
+}
+
+/// What routines and their surfaces tell memory about their runs.
 pub trait ExperienceFeedback: Send + Sync {
     fn run_ended(&self, outcome: RunOutcome) -> BoxFuture<'_, Result<(), Error>>;
     fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>>;
+    /// Called after the write it reports was committed.
+    fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>>;
     /// The routine left the trash for good: its notes close.
     fn routine_removed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }

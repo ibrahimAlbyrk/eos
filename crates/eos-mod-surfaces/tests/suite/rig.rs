@@ -17,8 +17,8 @@ use eos_runtime::router::{AllPluginsOn, BoxFuture};
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_surface::{Field, IssueKind, IssueStatus, Level, MadeBy, Place, Role, Type, VersionStatus};
 use eos_testkit::{
-    FakeActionGate, FakeClock, FakeSettings, FakeSurfaceImages, FakeTimeZone, FakeUserProfileStore, FakeViewCards,
-    SeqIds, TempStore,
+    FakeActionGate, FakeClock, FakeExperienceFeedback, FakeSettings, FakeSurfaceImages, FakeTimeZone,
+    FakeUserProfileStore, FakeViewCards, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -35,6 +35,7 @@ pub(crate) struct Rig {
     pub(crate) heard: Arc<Mutex<Vec<ActionCall>>>,
     /// Every read of the test's query, in order.
     pub(crate) read: Arc<Mutex<Vec<QueryCall>>>,
+    pub(crate) feedback: Arc<FakeExperienceFeedback>,
 }
 
 /// A feature with actions of every class, which records what it is called with.
@@ -123,6 +124,7 @@ impl Rig {
                 .with("/runs/rn-1/chart.png", &"b".repeat(64)),
         );
         let profile = Arc::new(FakeUserProfileStore::default());
+        let feedback = Arc::new(FakeExperienceFeedback::new());
         let mut me = eos_domain::user_profile::empty_user_profile();
         me.identity.call_name = "Ibrahim".into();
         eos_core::store::UserProfileStore::put(profile.as_ref(), me).expect("a profile");
@@ -137,13 +139,14 @@ impl Rig {
             images: images.clone(),
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
             profile,
+            feedback: feedback.clone(),
         }));
         let read = Arc::new(Mutex::new(Vec::new()));
         let probe = Arc::new(ProbeModule(heard.clone(), read.clone()));
         let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read }
+        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read, feedback }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

@@ -1,10 +1,11 @@
-//! `surface_defs`, `surface_versions`, `surface_issues`, `surface_state`,
-//! `surface_pins` and `surface_action_log`.
+//! `surface_defs`, `surface_versions`, `surface_issues`, `surface_edits`,
+//! `surface_state`, `surface_pins` and `surface_action_log`.
 
 use eos_core::Error;
 use eos_core::store::{
-    ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceState, StoredSurfaceVersion,
-    SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceEdit, StoredSurfaceState,
+    StoredSurfaceVersion, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo,
+    SurfaceVersionRepo,
 };
 use eos_kit_sqlite::rusqlite::{self, params};
 use eos_surface::{IssueKind, IssueStatus, Level, MadeBy, Place, Role, VersionStatus};
@@ -300,6 +301,37 @@ impl SurfaceStateRepo for SqliteTx<'_> {
             "SELECT surface_id, scope, data, bytes, updated_at FROM surface_state WHERE surface_id = ?1 AND scope = ?2",
             [surface_id, scope],
             state,
+        )
+    }
+}
+
+impl SurfaceEditRepo for SqliteTx<'_> {
+    fn insert(&self, e: &StoredSurfaceEdit) -> Result<(), Error> {
+        self.exec(
+            "INSERT INTO surface_edits (issue_id, rev, op, path, before, after, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![e.issue_id, e.rev, e.op, e.path, e.before_json, e.after_json, e.at],
+        )
+        .map(drop)
+    }
+
+    fn of_issue(&self, issue_id: &str) -> Result<Vec<StoredSurfaceEdit>, Error> {
+        self.rows(
+            "SELECT issue_id, rev, op, path, before, after, at FROM surface_edits WHERE issue_id = ?1 ORDER BY rev",
+            [issue_id],
+            |r| {
+                let read = || -> rusqlite::Result<StoredSurfaceEdit> {
+                    Ok(StoredSurfaceEdit {
+                        issue_id: r.get(0)?,
+                        rev: r.get(1)?,
+                        op: r.get(2)?,
+                        path: r.get(3)?,
+                        before_json: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                        after_json: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                        at: r.get(6)?,
+                    })
+                };
+                read().map_err(failed)
+            },
         )
     }
 }

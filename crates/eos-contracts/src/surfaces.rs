@@ -152,6 +152,55 @@ pub struct SurfaceStateDoc {
 
 impl Validate for SurfaceStateDoc {}
 
+/// `PUT /api/surfaces/{id}/issues/{issueId}/fields`: one edit in place of a
+/// page issue's data, made on revision `baseRev`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueFieldEdit {
+    pub base_rev: i64,
+    /// `set` (a text field), `move` (a list item from `from` to `to`) or
+    /// `remove` (the list item at `from`).
+    pub op: String,
+    /// The dotted path: `lead.title`, `stories.2.title`, `stories`.
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<usize>,
+}
+
+impl Validate for IssueFieldEdit {
+    fn validate(&self, issues: &mut Issues) {
+        if !matches!(self.op.as_str(), "set" | "move" | "remove") {
+            issues.push_at("op", "must be set, move or remove");
+        }
+    }
+}
+
+/// A part of a page read, and the repeat's index it was in.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PartRead {
+    pub part: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+}
+
+/// `POST /api/surfaces/{id}/issues/{issueId}/read`: what the reader opened
+/// on a page, in order: parts, and the parts whose links they followed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueReadReport {
+    #[serde(default)]
+    pub parts: Vec<PartRead>,
+    #[serde(default)]
+    pub links: Vec<PartRead>,
+}
+
+impl Validate for IssueReadReport {}
+
 /// `GET /api/surfaces/{id}/queries/{queryId}?args=`: one named query's
 /// answer, as a surface of its routine reads it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

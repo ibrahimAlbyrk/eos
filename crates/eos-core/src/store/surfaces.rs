@@ -138,6 +138,24 @@ pub trait SurfaceStateRepo {
     fn find(&self, surface_id: &str, scope: &str) -> Result<Option<StoredSurfaceState>, Error>;
 }
 
+/// A row of `surface_edits`: one edit in place, the revision it made.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredSurfaceEdit {
+    pub issue_id: String,
+    pub rev: i64,
+    pub op: String,
+    pub path: String,
+    pub before_json: String,
+    pub after_json: String,
+    pub at: i64,
+}
+
+pub trait SurfaceEditRepo {
+    fn insert(&self, edit: &StoredSurfaceEdit) -> Result<(), Error>;
+    /// An issue's edits, oldest first.
+    fn of_issue(&self, issue_id: &str) -> Result<Vec<StoredSurfaceEdit>, Error>;
+}
+
 /// The surfaces pinned on this Mac's Home, slots 1 to 3.
 pub trait SurfacePinRepo {
     /// `(slot, surface id)`, by slot.
