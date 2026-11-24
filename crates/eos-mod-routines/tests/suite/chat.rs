@@ -7,8 +7,9 @@ use std::sync::Arc;
 use eos_contracts::RoutineState;
 use eos_core::routine::{ChatRunAsk, ChatStart};
 use eos_core::store::{EventOrder, EventQuery};
+use eos_domain::envelope::Envelope;
 use eos_runtime::module::Module;
-use eos_sessions::{CommandAnswer, Dispatched, MessageInput, SlashCommand, SpawnRequest};
+use eos_sessions::{Dispatched, MessageInput, SlashCommand, SpawnRequest};
 use serde_json::{Value, json};
 
 use crate::bench::{Bench, blueprint};
@@ -114,16 +115,19 @@ async fn run_in_a_chat_starts_only_a_live_routine_and_the_chat_gets_its_card() {
     assert_eq!((&input["chat"], &input["result"]), (&json!(chat), &json!("showOnly")));
     assert_eq!((&input["item"]["text"], input["item"].get("untrusted")), (&json!("482"), Some(&json!(false))));
 
-    let refused = typed(&bench, &chat, &format!("/run {archived} 1")).await;
-    assert_eq!(
-        refused,
-        Dispatched::Command(CommandAnswer::new(
-            404,
-            json!({"ok": false, "error": format!("No routine named {archived}")})
-        ))
-    );
-    // Not a slug: the words go to the agent as typed.
-    assert!(!matches!(typed(&bench, &chat, "/run Fix the tests").await, Dispatched::Command(_)));
+    // No live routine by that name, or not a slug: the words go to the agent as typed.
+    for text in [format!("/run {archived} 1"), "/run tests".into(), "/run Fix the tests".into()] {
+        assert!(!matches!(typed(&bench, &chat, &text).await, Dispatched::Command(_)), "{text}");
+    }
+    // An agent's message is never the user's typing: a `/run` in it starts nothing.
+    let from_agent = MessageInput {
+        worker_id: chat.clone(),
+        text: format!("/run {live} 9"),
+        envelope: Some(Envelope::OrchestratorMessage { from_parent: "w-lead".into(), parent_name: None }),
+        ..MessageInput::default()
+    };
+    let told = bench.sessions.dispatch(from_agent).await.expect("dispatches");
+    assert!(!matches!(told, Dispatched::Command(_)), "{told:?}");
 
     let mut seen = Vec::new();
     for _ in 0..400 {

@@ -2,7 +2,7 @@
 //! features add: `/compact`, …), caught before a message is delivered.
 //!
 //! A typed `/name args` whose name is registered, whose worker has a live
-//! session and whose command accepts the arguments runs here and never
+//! session and whose command accepts and claims the arguments runs here and never
 //! reaches the agent. Anything else is delivered as typed (the agent's own
 //! commands and skills).
 
@@ -66,6 +66,11 @@ pub trait SlashCommand: Send + Sync + 'static {
     /// Whether the command runs for these arguments on a session that can
     /// do this much; `false` lets the text go to the agent as typed.
     fn accepts(&self, args: &str, capabilities: &AgentCapabilities) -> bool;
+    /// Whether the command takes these arguments once what they name is looked up (`/run`
+    /// takes only a live routine's name); `false` lets the text go to the agent as typed.
+    fn claims<'a>(&'a self, _args: &'a str) -> BoxFuture<'a, Result<bool, Error>> {
+        Box::pin(async { Ok(true) })
+    }
     /// Runs it; the answer is what the sender gets. A refusal the sender can
     /// read is an answer too (its own status); an `Err` is a failure.
     fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<CommandAnswer, Error>>;
