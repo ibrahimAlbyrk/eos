@@ -467,6 +467,7 @@ pub(crate) fn new_run(routine: &str, origin: RunOrigin, item: Option<ItemRef>) -
             result: ResultMode::Usual,
             at: None,
             surface: None,
+            chat: None,
         },
         items: vec![],
         origin,

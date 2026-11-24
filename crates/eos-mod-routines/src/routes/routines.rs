@@ -256,6 +256,7 @@ fn usual_cost(tx: &dyn Tx, routine_id: &str, blueprint: &Blueprint) -> Result<Op
         result: ResultMode::Usual,
         at: None,
         surface: None,
+        chat: None,
     };
     let found = usual(blueprint, &runs, &input, |_| None);
     Ok((found.basis == Basis::History).then_some(UsualCost { usd: Num(found.usd), ms: found.ms }))

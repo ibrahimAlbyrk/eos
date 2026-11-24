@@ -57,6 +57,7 @@ pub(crate) fn build(
         capabilities: Some(cx.capabilities.clone()),
         routines: Some(routines.tools()),
         architect: Some(routines.architect()),
+        chat_routines: Some(routines.chat()),
         surfaces: Some(surfaces.tools()),
     })))
 }

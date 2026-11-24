@@ -146,6 +146,7 @@ pub(crate) fn run_in(
         result: ResultMode::Usual,
         at: None,
         surface: None,
+        chat: None,
     };
     let admission = Admission { routine_id: routine.id.clone(), signal_id: signal.id, input };
     Ok(match intake.admit(tx, out, &admission)? {

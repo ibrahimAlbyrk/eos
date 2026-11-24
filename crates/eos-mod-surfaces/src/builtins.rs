@@ -152,6 +152,7 @@ impl ActionHandler for Ask {
                         issue_id: Some(issue_id),
                         item,
                     }),
+                    chat: None,
                 },
                 items: Vec::new(),
                 origin: RunOrigin::Surface { surface_id: surface.id },

@@ -79,6 +79,7 @@ pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<
             result: ResultMode::Usual,
             at: None,
             surface: None,
+            chat: None,
         };
         let usual =
             crate::routes::usual(&blueprint, &[], &input, |model| price_for_model(&config, Some(model)).cloned());

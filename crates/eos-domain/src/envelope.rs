@@ -59,13 +59,17 @@ pub enum Envelope {
         pct: Option<f64>,
     },
     /// Eos to a routine run's session: a nudge, a check's findings, the
-    /// user's words while a result waits.
+    /// user's words while a result waits. Or Eos to the chat a run was
+    /// started from (`chat` set): the run, and later its headline.
     RoutineNote {
         run_id: String,
         /// The words are the user's (a revision asked from Needs you, a late
         /// answer), not Eos's or a checker's: only these may teach memory.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         from_user: bool,
+        /// What the chat's run card shows; `None` for a note to a run's session.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        chat: Option<RunCard>,
     },
 }
 
@@ -82,6 +86,18 @@ impl Envelope {
             Self::RoutineNote { .. } => "routine_note",
         }
     }
+}
+
+/// A run as a chat's card shows it: which routine, how far it got and the
+/// headline once there is one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCard {
+    pub routine_id: String,
+    pub routine_name: String,
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headline: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,7 +208,7 @@ mod tests {
 
     #[test]
     fn a_routine_note_is_a_system_message_naming_its_run() {
-        let note = Envelope::RoutineNote { run_id: "rn-1".into(), from_user: false };
+        let note = Envelope::RoutineNote { run_id: "rn-1".into(), from_user: false, chat: None };
         let (class, attrs) = sender_tag(&note);
         assert_eq!(
             apply_sender_tag("submit_result, or report_failure", class, &attrs),
@@ -201,6 +217,23 @@ mod tests {
         let json = serde_json::to_string(&note).expect("json");
         assert_eq!(json, r#"{"kind":"routine_note","runId":"rn-1"}"#);
         assert_eq!(note.kind(), "routine_note");
+    }
+
+    #[test]
+    fn a_chat_note_carries_its_run_card() {
+        let card = RunCard {
+            routine_id: "rt-1".into(),
+            routine_name: "PR Review".into(),
+            state: "queued".into(),
+            headline: None,
+        };
+        let note = Envelope::RoutineNote { run_id: "rn-1".into(), from_user: false, chat: Some(card) };
+        let json = serde_json::to_string(&note).expect("json");
+        assert_eq!(
+            json,
+            r#"{"kind":"routine_note","runId":"rn-1","chat":{"routineId":"rt-1","routineName":"PR Review","state":"queued"}}"#
+        );
+        assert_eq!(serde_json::from_str::<Envelope>(&json).expect("reads"), note);
     }
 
     #[test]

@@ -13,6 +13,36 @@ pub fn key(item: &ItemRef) -> Option<String> {
         .or_else(|| given(&item.path).map(|path| folder_path(&path)))
 }
 
+/// An item handed in from outside Eos (a terminal, a chat agent): a link
+/// when it is a web address, else its text. Never taken for the user's own
+/// words, so it is marked untrusted.
+pub fn outside(kind: &str, text: &str) -> ItemRef {
+    let mut item = ItemRef {
+        kind: kind.into(),
+        key: None,
+        title: None,
+        url: None,
+        path: None,
+        text: None,
+        date: None,
+        range: None,
+        version: None,
+        untrusted: true,
+    };
+    match kind {
+        "link" => item.url = Some(text.into()),
+        "file" | "folder" => item.path = Some(text.into()),
+        _ => item.text = Some(text.into()),
+    }
+    item
+}
+
+/// [`outside`] for typed text: a link when it is a web address.
+pub fn typed(text: &str) -> ItemRef {
+    let web = text.starts_with("https://") || text.starts_with("http://");
+    outside(if web { "link" } else { "text" }, text)
+}
+
 /// A link without its fragment and trailing slash, its scheme and host in
 /// lower case: the forms one page is pasted in.
 fn link(url: &str) -> String {

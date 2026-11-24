@@ -263,7 +263,7 @@ async fn send_note(engine: &Engine, worker_id: &str, run_id: &str, text: &str, f
         display_text: Some(text.to_owned()),
         queue_when_busy: true,
         origin: Some("routine".into()),
-        envelope: Some(Envelope::RoutineNote { run_id: run_id.to_owned(), from_user }),
+        envelope: Some(Envelope::RoutineNote { run_id: run_id.to_owned(), from_user, chat: None }),
         ..MessageInput::default()
     };
     engine.sessions.dispatch(message).await.map(drop)
@@ -401,12 +401,13 @@ pub(crate) fn start_supervisor(engine: &Arc<Engine>) {
 /// From now on, a run that ends (done, failed, cancelled, skipped) has its
 /// sessions interrupted and suspended, after the write that ended it, a
 /// trial run tells the routine's architect how it went, and memory hears
-/// how it ended.
+/// how it ended. The chat a run was started from hears of it too.
 pub(crate) fn end_sessions_of_ended_runs(engine: &Arc<Engine>) {
     let weak = Arc::downgrade(engine);
     let subscription = engine.bus.on(RUN_CHANGE.name(), move |event| {
         let Some(engine) = weak.upgrade() else { return };
         let Ok(change) = event.payload_as::<RunChange>() else { return };
+        crate::chat::tell_chats(&engine, &change);
         if !matches!(change.state.as_str(), "done" | "failed" | "cancelled" | "skipped") {
             return;
         }

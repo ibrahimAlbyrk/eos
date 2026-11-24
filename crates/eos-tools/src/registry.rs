@@ -14,7 +14,7 @@ use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
 use eos_core::profile::{MemorySearch, MemorySuggestions};
-use eos_core::routine::{ArchitectTools, RoutineTools};
+use eos_core::routine::{ArchitectTools, ChatRoutines, RoutineTools};
 use eos_core::store::Store;
 use eos_core::surface::SurfaceTools;
 use eos_core::transfer::AgentTransfers;
@@ -62,6 +62,8 @@ pub struct Services {
     pub routines: Option<Arc<dyn RoutineTools>>,
     /// Routines: the tools of a routine's architect.
     pub architect: Option<Arc<dyn ArchitectTools>>,
+    /// Routines from a chat: list them, start or propose a run.
+    pub chat_routines: Option<Arc<dyn ChatRoutines>>,
     /// Surfaces: a run hands back a View.
     pub surfaces: Option<Arc<dyn SurfaceTools>>,
 }
@@ -158,6 +160,11 @@ impl Tools {
         orchestrator.extend(visual());
         orchestrator.extend(plugins::specs(&s.plugins));
         orchestrator.extend(reactions());
+        // A chat's routines, after everything the chat had before them.
+        let chat_routines = || {
+            s.chat_routines.as_ref().map(|c| vec![routines::run_spec(c), routines::list_spec(c)]).unwrap_or_default()
+        };
+        orchestrator.extend(chat_routines());
 
         let mut worker = vec![control::send_message_to_parent(&c), time::spec(&s.clock, &s.zone)];
         worker.extend(shared());
@@ -171,6 +178,7 @@ impl Tools {
         }
         focused.extend(visual());
         focused.extend(reactions());
+        focused.extend(chat_routines());
 
         // What every run session has besides its own tools.
         let run_shared = || {
@@ -205,6 +213,7 @@ impl Tools {
         if let Some(calls) = &s.capabilities {
             architect.extend(capabilities::specs(calls).into_iter().filter(|t| t.name == "list_capabilities"));
         }
+        architect.extend(s.chat_routines.as_ref().map(routines::list_spec));
 
         Self {
             prompts: s.prompts,

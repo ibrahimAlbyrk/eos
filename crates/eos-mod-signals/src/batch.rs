@@ -45,6 +45,7 @@ pub(crate) fn close_in(
         result: ResultMode::Usual,
         at: None,
         surface: None,
+        chat: None,
     };
     let admission = Admission { routine_id: routine.id.clone(), signal_id: first.signal_id, input };
     let AdmitOutcome::Queued { run_id } = intake.admit(tx, out, &admission)? else { return Ok(false) };

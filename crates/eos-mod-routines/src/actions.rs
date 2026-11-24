@@ -70,7 +70,13 @@ fn internal(error: eos_core::Error) -> ActionFailure {
 
 /// Why a start was refused, as the button shows it.
 fn not_started(refused: StartError) -> ActionFailure {
-    let (kind, reason) = match refused {
+    let (kind, reason) = refusal(refused);
+    ActionFailure::new(kind, reason)
+}
+
+/// Why a start was refused: its kind and a sentence for the user.
+pub(crate) fn refusal(refused: StartError) -> (&'static str, String) {
+    match refused {
         StartError::SameItem { .. } => ("same_item", "The routine handled this lately".to_owned()),
         StartError::RoutineState(_) => ("routine_state", "The routine does not take runs now".to_owned()),
         StartError::DayCap => ("day_cap", "Routines spent today's budget".to_owned()),
@@ -80,8 +86,7 @@ fn not_started(refused: StartError) -> ActionFailure {
         StartError::NewerFormat => ("newer_format", "A newer Eos made this routine".to_owned()),
         StartError::Invalid(text) => ("invalid", text),
         StartError::Store(error) => ("internal", error.to_string()),
-    };
-    ActionFailure::new(kind, reason)
+    }
 }
 
 /// `routine.run_again` and `routine.run_with`: one run started from the
@@ -113,6 +118,7 @@ impl ActionHandler for Start {
                 result: ResultMode::Usual,
                 at: None,
                 surface: None,
+                chat: None,
             };
             let new = NewRun {
                 routine_id,
