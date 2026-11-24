@@ -63,6 +63,7 @@ async fn replay(
                 result: ResultMode::ShowOnly,
                 at: None,
                 surface: None,
+                chat: None,
             },
             items: Vec::new(),
             origin: RunOrigin::Replay { candidate: candidate.to_owned() },

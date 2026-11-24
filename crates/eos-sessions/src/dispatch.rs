@@ -159,6 +159,12 @@ fn chat_row(
             if let Some(Envelope::RoutineNote { from_user: false, .. }) = &input.envelope {
                 base.insert(EOS_NOTE_FIELD.into(), true.into());
             }
+            // A chat's run card: the dashboard draws the row as the run.
+            if let Some(Envelope::RoutineNote { run_id, chat: Some(card), .. }) = &input.envelope {
+                let mut note = serde_json::to_value(card).map_err(Error::storage)?;
+                note["runId"] = run_id.as_str().into();
+                base.insert("routineNote".into(), note);
+            }
             if let Some(ids) = client_ids.filter(|ids| !ids.is_empty()) {
                 base.insert("clientMsgIds".into(), json!(ids));
             }

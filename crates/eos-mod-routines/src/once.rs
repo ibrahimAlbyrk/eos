@@ -82,6 +82,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<On
         result: asked.result,
         at: None,
         surface: None,
+        chat: None,
     };
     let new = NewRun {
         routine_id: engine.ids.routine_id(),

@@ -473,6 +473,45 @@ pub trait ArchitectTools: Send + Sync {
     fn start_trial<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<String>, Error>>;
 }
 
+/// A routine as a chat's agent lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatRoutine {
+    pub slug: String,
+    pub name: String,
+    pub summary: String,
+    /// What it takes, in the routine's own words (`a pull request`).
+    pub takes: String,
+    /// Whether an agent's start runs at once, without the user's click.
+    pub agents_may_start: bool,
+}
+
+/// What a chat's agent asks to run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatRunAsk {
+    /// The routine's slug, id or name.
+    pub routine: String,
+    pub item: Option<String>,
+    pub note: Option<String>,
+    pub show_only: bool,
+}
+
+/// What came of a chat's `run_routine`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChatStart {
+    /// The routine lets agents start it: the run is queued.
+    Started { run_id: String, routine_id: String, routine_name: String },
+    /// The user starts it: the chat shows the filled form to confirm.
+    Proposed { routine_id: String, routine_name: String },
+}
+
+/// What a chat's agent does with routines (`run_routine`, `list_routines`).
+pub trait ChatRoutines: Send + Sync {
+    /// The routines that take a run now.
+    fn list(&self) -> BoxFuture<'_, Result<Vec<ChatRoutine>, Error>>;
+    /// Starts the run when the routine lets agents start it, else proposes it.
+    fn run<'a>(&'a self, worker_id: &'a str, ask: ChatRunAsk) -> BoxFuture<'a, Result<ChatStart, Error>>;
+}
+
 /// A specialist of a run's team, as its lead sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Specialist {

@@ -135,6 +135,7 @@ fn reshape(parts: &Arc<SurfacesParts>) -> RouteDef {
                         issue_id: None,
                         item: None,
                     }),
+                    chat: None,
                 },
                 items: Vec::new(),
                 origin: RunOrigin::Surface { surface_id: surface.id.clone() },

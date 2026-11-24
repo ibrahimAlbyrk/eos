@@ -8,11 +8,12 @@ use serde_json::json;
 use crate::tests::{bench, call, run_session, session_of};
 
 /// Keyed on its reserved definition, whatever kind of session it is: its
-/// own tools and, with the preview on, `list_capabilities` alone.
+/// own tools, `list_capabilities` alone and `list_routines`.
 #[test]
 fn an_architect_gets_its_own_list() {
     let bench = bench(FakeFeatures::new([]));
     let own = ["get_routine", "propose_blueprint", "ask_choice", "find_past_items", "start_trial", "list_capabilities"];
+    let own = [own.as_slice(), &["list_routines"]].concat();
     assert_eq!(bench.names("architect"), own, "it never calls a capability itself");
     let as_worker = LaunchSpec { worker_definition: Some("eos-architect".into()), ..session_of("peer") };
     let names: Vec<String> = bench.tools.for_session(&as_worker).iter().map(|t| t.definition().name.clone()).collect();

@@ -6,12 +6,16 @@
 //! `stop_specialist`, `list_specialists`). Each call goes to the routines feature
 //! ([`RoutineTools`]), which knows the caller's run; a worker of no run is
 //! refused there. Results, reasons and lines never reach a log.
+//!
+//! A chat lists the routines (`list_routines`) and asks for a run
+//! (`run_routine`): it starts at once only when the routine lets agents
+//! start it, and is otherwise proposed to the user, whose click starts it.
 
 use std::sync::Arc;
 
 use eos_contracts::CheckVerdict;
 use eos_core::BoxFuture;
-use eos_core::routine::{RoutineTools, SubmittedResult};
+use eos_core::routine::{ChatRoutines, ChatRunAsk, ChatStart, RoutineTools, SubmittedResult};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -251,4 +255,90 @@ pub(crate) fn team_specs(tools: &Arc<dyn RoutineTools>) -> Vec<Spec> {
         Spec::new("stop_specialist", object(vec![("agent", agent())]), StopSpecialist(tools.clone())).always_load(),
         Spec::new("list_specialists", object(vec![]), ListSpecialists(tools.clone())).always_load(),
     ]
+}
+
+struct RunRoutine(Arc<dyn ChatRoutines>);
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RunArgs {
+    routine: String,
+    item: Option<String>,
+    note: Option<String>,
+    #[serde(default)]
+    show_only: bool,
+}
+
+impl Handler for RunRoutine {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let RunArgs { routine, item, note, show_only } = args(input)?;
+            let ask = ChatRunAsk { routine, item, note, show_only };
+            let answer = match self.0.run(call.self_id, ask).await? {
+                ChatStart::Started { run_id, routine_id, routine_name } => serde_json::json!({
+                    "state": "started",
+                    "runId": run_id,
+                    "routineId": routine_id,
+                    "routine": routine_name,
+                    "link": format!("eos://runs/{run_id}"),
+                    "next": "The run is queued. Its result comes back to this chat as a routine_note.",
+                }),
+                ChatStart::Proposed { routine_id, routine_name } => serde_json::json!({
+                    "state": "proposed",
+                    "routineId": routine_id,
+                    "routine": routine_name,
+                    "next": "The user sees a card in this chat and starts the run with one click. Do not ask again.",
+                }),
+            };
+            Ok(Output::text(serde_json::to_string_pretty(&answer).unwrap_or_default()))
+        })
+    }
+}
+
+struct ListRoutines(Arc<dyn ChatRoutines>);
+
+impl Handler for ListRoutines {
+    fn run<'a>(&'a self, _call: Call<'a>, _input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let rows: Vec<Value> = self
+                .0
+                .list()
+                .await?
+                .into_iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "slug": r.slug,
+                        "name": r.name,
+                        "summary": r.summary,
+                        "takes": r.takes,
+                        "agentsMayStart": r.agents_may_start,
+                    })
+                })
+                .collect();
+            Ok(Output::text(serde_json::to_string_pretty(&rows).unwrap_or_default()))
+        })
+    }
+}
+
+/// `list_routines`: a chat's and an architect's. Sent with every request.
+pub(crate) fn list_spec(chat: &Arc<dyn ChatRoutines>) -> Spec {
+    Spec::new("list_routines", object(vec![]), ListRoutines(chat.clone())).always_load()
+}
+
+/// `run_routine`: a chat's. Sent with every request.
+pub(crate) fn run_spec(chat: &Arc<dyn ChatRoutines>) -> Spec {
+    Spec::new(
+        "run_routine",
+        object(vec![
+            ("routine", string().min(1).describe("The routine's slug, as list_routines shows it.")),
+            (
+                "item",
+                string().max(8000).optional().describe("What the run works on: a link, a number or a short text."),
+            ),
+            ("note", string().max(4000).optional().describe("An instruction for this run only.")),
+            ("showOnly", boolean().optional().describe("Show the result in Eos and send it nowhere.")),
+        ]),
+        RunRoutine(chat.clone()),
+    )
+    .always_load()
 }

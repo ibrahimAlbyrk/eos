@@ -39,6 +39,10 @@ pub struct RunInput {
     /// surfaces start such a run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub surface: Option<SurfaceRunInput>,
+    /// The Agents chat the run was started from: it is told when the run's
+    /// result is ready and when the run ends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat: Option<String>,
 }
 
 /// The kinds of run a routine's surface starts (01 G51).

@@ -1954,6 +1954,53 @@
    "alwaysLoad": true,
    "searchHint": null,
    "plugin": null
+  },
+  {
+   "name": "run_routine",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "routine": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The routine's slug, as list_routines shows it."
+     },
+     "item": {
+      "type": "string",
+      "maxLength": 8000,
+      "description": "What the run works on: a link, a number or a short text."
+     },
+     "note": {
+      "type": "string",
+      "maxLength": 4000,
+      "description": "An instruction for this run only."
+     },
+     "showOnly": {
+      "type": "boolean",
+      "description": "Show the result in Eos and send it nowhere."
+     }
+    },
+    "required": [
+     "routine"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_routines",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
   }
  ],
  "sets": [
@@ -2011,7 +2058,9 @@
     "plugin_status",
     "plugin_preview",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2054,7 +2103,9 @@
     "plugin_status",
     "plugin_preview",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2107,7 +2158,9 @@
     "plugin_status",
     "plugin_preview",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2150,7 +2203,9 @@
     "plugin_status",
     "plugin_preview",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2204,7 +2259,9 @@
     "plugin_status",
     "plugin_preview",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2596,7 +2653,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2629,7 +2688,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2672,7 +2733,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2705,7 +2768,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2749,7 +2814,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2799,7 +2866,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2835,7 +2904,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2881,7 +2952,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2917,7 +2990,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -2964,7 +3039,9 @@
     "find_places",
     "current_location",
     "react",
-    "no_reply"
+    "no_reply",
+    "run_routine",
+    "list_routines"
    ]
   },
   {
@@ -3032,7 +3109,8 @@
     "ask_choice",
     "find_past_items",
     "start_trial",
-    "list_capabilities"
+    "list_capabilities",
+    "list_routines"
    ]
   }
  ]

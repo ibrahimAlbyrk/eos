@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use eos_contracts::cli::CliFrame;
 use eos_contracts::cli::{CliOnce, CliRequest, CliRun, exit};
 use eos_contracts::{EstimateRequest, IntentAttachment, ItemRef, OnceRequest, ResultMode, RunInput, StartRunRequest};
+use eos_domain::routine::item;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -119,37 +120,13 @@ async fn routine(ctx: &Ctx, name: &str) -> Result<Value, i32> {
     })
 }
 
-/// An item the terminal handed over. It came from outside Eos, so it is never taken for the
-/// user's own words.
-fn item(kind: &str, text: &str) -> ItemRef {
-    let mut item = ItemRef {
-        kind: kind.into(),
-        key: None,
-        title: None,
-        url: None,
-        path: None,
-        text: None,
-        date: None,
-        range: None,
-        version: None,
-        untrusted: true,
-    };
-    match kind {
-        "link" => item.url = Some(text.into()),
-        "file" | "folder" => item.path = Some(text.into()),
-        _ => item.text = Some(text.into()),
-    }
-    item
-}
-
 fn items_of(run: &CliRun) -> Vec<ItemRef> {
-    let typed = run.items.iter().map(|text| {
-        let web = text.starts_with("https://") || text.starts_with("http://");
-        item(if web { "link" } else { "text" }, text)
-    });
-    let files =
-        run.files.iter().map(|path| item(if std::path::Path::new(path).is_dir() { "folder" } else { "file" }, path));
-    typed.chain(files).chain(run.stdin.iter().map(|text| item("text", text))).collect()
+    let typed = run.items.iter().map(|text| item::typed(text));
+    let files = run
+        .files
+        .iter()
+        .map(|path| item::outside(if std::path::Path::new(path).is_dir() { "folder" } else { "file" }, path));
+    typed.chain(files).chain(run.stdin.iter().map(|text| item::outside("text", text))).collect()
 }
 
 fn result_mode(show_only: bool) -> ResultMode {
@@ -187,6 +164,7 @@ async fn start(ctx: &Ctx, run: CliRun) -> i32 {
         result: result_mode(run.show_only),
         at,
         surface: None,
+        chat: None,
     };
     if items.len() > 1 && !run.yes {
         let estimate = EstimateRequest { routine_id: id.clone(), input: input.clone(), count: items.len() as i64 };

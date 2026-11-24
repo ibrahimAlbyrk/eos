@@ -65,6 +65,7 @@ pub(crate) async fn design_first(engine: &Arc<Engine>, routine_id: &str) -> Resu
                 issue_id: None,
                 item: None,
             }),
+            chat: None,
         },
         items: Vec::new(),
         origin: RunOrigin::Surface { surface_id },

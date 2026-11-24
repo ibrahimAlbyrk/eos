@@ -173,6 +173,40 @@ impl RoutineTools for RunCalls {
     }
 }
 
+/// A routine `pr-review` that waits for the user's click, and `digest`, which
+/// agents may start.
+impl eos_core::routine::ChatRoutines for RunCalls {
+    fn list(&self) -> eos_core::BoxFuture<'_, Result<Vec<eos_core::routine::ChatRoutine>, eos_core::Error>> {
+        Box::pin(std::future::ready(Ok(vec![eos_core::routine::ChatRoutine {
+            slug: "pr-review".into(),
+            name: "PR Review".into(),
+            summary: "Reviews a pull request.".into(),
+            takes: "Pull request".into(),
+            agents_may_start: false,
+        }])))
+    }
+
+    fn run<'a>(
+        &'a self,
+        worker_id: &'a str,
+        ask: eos_core::routine::ChatRunAsk,
+    ) -> eos_core::BoxFuture<'a, Result<eos_core::routine::ChatStart, eos_core::Error>> {
+        use eos_core::routine::ChatStart;
+        let recorded = self.record(worker_id, format!("run {worker_id} {ask:?}"));
+        Box::pin(async move {
+            recorded.await?;
+            Ok(match ask.routine.as_str() {
+                "digest" => ChatStart::Started {
+                    run_id: "rn-1".into(),
+                    routine_id: "rt-2".into(),
+                    routine_name: "Digest".into(),
+                },
+                _ => ChatStart::Proposed { routine_id: "rt-1".into(), routine_name: "PR Review".into() },
+            })
+        })
+    }
+}
+
 impl eos_core::routine::ArchitectTools for RunCalls {
     fn get_routine<'a>(&'a self, worker_id: &'a str) -> eos_core::BoxFuture<'a, Result<Value, eos_core::Error>> {
         let read = self.record(worker_id, format!("get {worker_id}"));
@@ -288,6 +322,7 @@ pub(crate) fn bench_with(
         capabilities: Some(capabilities.clone()),
         routines: Some(Arc::new(runs.clone())),
         architect: Some(Arc::new(runs.clone())),
+        chat_routines: Some(Arc::new(runs.clone())),
         surfaces: Some(Arc::new(runs.clone())),
     });
     Bench { tools, runs, features, clock, store, capabilities, runner }
@@ -580,6 +615,30 @@ async fn a_team_leads_tools_hand_the_call_to_the_routines_feature() {
     );
 }
 
+#[tokio::test]
+async fn a_chat_starts_a_routine_only_when_it_lets_agents_and_proposes_it_otherwise() {
+    let bench = bench(FakeFeatures::new([]));
+    let run = bench.tool("orchestrator", "run_routine");
+    let proposed = call(&run, "w-chat", serde_json::json!({"routine": "pr-review", "item": "482"})).await;
+    let proposed: Value = serde_json::from_str(&proposed.text).expect("json");
+    assert_eq!((proposed["state"].as_str(), proposed["routineId"].as_str()), (Some("proposed"), Some("rt-1")));
+    let started = call(&run, "w-chat", serde_json::json!({"routine": "digest", "showOnly": true})).await;
+    let started: Value = serde_json::from_str(&started.text).expect("json");
+    assert_eq!((started["state"].as_str(), started["link"].as_str()), (Some("started"), Some("eos://runs/rn-1")));
+    let listed = call(&bench.tool("architect", "list_routines"), "w-arch", serde_json::json!({})).await;
+    let rows: Value = serde_json::from_str(&listed.text).expect("json");
+    assert_eq!(rows[0]["slug"], "pr-review");
+    assert_eq!(rows[0]["agentsMayStart"], false);
+    assert_eq!(
+        *bench.runs.0.lock().expect("calls"),
+        [
+            r#"run w-chat ChatRunAsk { routine: "pr-review", item: Some("482"), note: None, show_only: false }"#,
+            r#"run w-chat ChatRunAsk { routine: "digest", item: None, note: None, show_only: true }"#,
+        ]
+    );
+    assert!(bench.tools.for_session(&session_of("focused-peer")).iter().any(|t| t.definition().name == "run_routine"));
+}
+
 #[test]
 fn sessions_with_the_same_tools_share_them() {
     let bench = bench(FakeFeatures::new([]));
@@ -626,6 +685,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         capabilities: None,
         routines: None,
         architect: None,
+        chat_routines: None,
         surfaces: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {

@@ -81,6 +81,7 @@
 
 mod actions;
 mod architect;
+mod chat;
 mod design_first;
 mod engine;
 mod intent;
@@ -103,8 +104,8 @@ use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::routine::{
-    ArchitectTools, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake,
-    RunLookup, RunOutcomes, RunReplays, RunStarter,
+    ArchitectTools, ChatRoutines, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate,
+    RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
@@ -113,9 +114,9 @@ use eos_prompts::PromptService;
 use eos_runtime::actions::{ActionDecl, QueryDecl};
 use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
-use eos_runtime::module::{Module, ModuleError, ProtectedSettings};
+use eos_runtime::module::{Module, ModuleError, ProtectedSettings, SlashCommandDecl};
 use eos_runtime::router::RouteDef;
-use eos_sessions::Sessions;
+use eos_sessions::{Sessions, SlashCommand};
 use tokio::sync::Notify;
 
 use crate::engine::Engine;
@@ -335,6 +336,11 @@ impl RoutinesModule {
         Arc::new(architect::Architect(self.engine.clone()))
     }
 
+    /// What a chat's agent does with routines.
+    pub fn chat(&self) -> Arc<dyn ChatRoutines> {
+        Arc::new(chat::Chat(self.engine.clone()))
+    }
+
     /// What the tools of a run's sessions do.
     pub fn tools(&self) -> Arc<dyn RoutineTools> {
         Arc::new(engine::Tools(self.engine.clone()))
@@ -369,6 +375,11 @@ impl Module for RoutinesModule {
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {
         Some(routes::protected_settings())
+    }
+
+    fn slash_commands(&self) -> Vec<SlashCommandDecl> {
+        let command: Arc<dyn SlashCommand> = Arc::new(chat::RunCommand(self.engine.clone()));
+        vec![SlashCommandDecl { name: "run", command: Arc::new(command) }]
     }
 
     fn idle_hooks(&self) -> Vec<IdleHook> {
