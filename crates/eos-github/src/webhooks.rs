@@ -4,7 +4,7 @@
 //! from the service's own push setup, never from the call's input, so an
 //! agent that calls the action has none and is refused.
 
-use eos_core::capability::{ActionContext, ActionError, WEBHOOK_SECRET};
+use eos_core::capability::{ActionContext, ActionError, FailureKind, WEBHOOK_SECRET};
 use eos_domain::capability::health::StateCode;
 use serde_json::{Value, json};
 
@@ -33,7 +33,15 @@ impl GitHub {
             "events": ["pull_request"],
             "config": { "url": text(input, "url"), "content_type": "json", "secret": secret, "insecure_ssl": "0" },
         });
-        let created = self.send_json(token, Method::Post, &format!("/repos/{}/hooks", repo.0), body).await?;
+        let created = self.send_json(token, Method::Post, &format!("/repos/{}/hooks", repo.0), body).await.map_err(
+            |e| match e {
+                // GitHub answers a user without admin rights on the repository as if it had none.
+                ActionError::Failed { kind: FailureKind::Gone } => {
+                    ActionError::Failed { kind: FailureKind::NotAllowed }
+                }
+                e => e,
+            },
+        )?;
         Ok(json!({ "hookId": created["id"].as_i64().unwrap_or_default() }))
     }
 }

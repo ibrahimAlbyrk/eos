@@ -113,6 +113,8 @@ async fn a_webhook_the_service_refused_leaves_no_secret_and_a_source_without_pus
     let hook = HookUrl { id: HOOK.into(), url: "https://relay.example/hooks/v1/x/y".into() };
     assert_eq!(source.add_push(&scope(), &hook).await, Err(SourceError::Unauthorized));
     assert_eq!(rig.secrets.read("github", &format!("webhook.{HOOK}")).await.expect("read"), None);
+    let state = rig.service.state("github").await.expect("read").expect("there");
+    assert_eq!(state.state, eos_domain::capability::health::HealthState::NeedsSignIn, "a 401 is a sign-in");
 
     let polling = PUSHING.replace(
         "push = { verify = \"hmac-sha256\", signature_header = \"X-Hub-Signature-256\", delivery_header = \"X-GitHub-Delivery\" }\n",
@@ -165,4 +167,27 @@ async fn only_adding_push_may_register_a_webhook_and_a_refused_call_leaves_the_h
 
 async fn rig_without_push(manifest: &str) -> crate::rig::Rig {
     rig(Setup { builtins: vec![Arc::new(FakeBuiltin::new(manifest))], ..Setup::default() }).await
+}
+
+#[tokio::test]
+async fn an_account_without_admin_rights_is_told_so_and_the_capability_stays_ready() {
+    use eos_core::capability::{ActionError, FailureKind};
+    use eos_domain::capability::health::HealthState;
+
+    let github = Arc::new(
+        FakeBuiltin::new(PUSHING)
+            .answering("create_webhook", Err(ActionError::Failed { kind: FailureKind::NotAllowed })),
+    );
+    let rig = rig(Setup {
+        builtins: vec![github.clone()],
+        secrets: FakeCapabilitySecrets::new().with("github", "token", "gho_x"),
+        ..Setup::default()
+    })
+    .await;
+    let source = rig.service.signal_sources().get("github.pulls").expect("the source");
+    let hook = HookUrl { id: HOOK.into(), url: "https://relay.example/hooks/v1/x/y".into() };
+    assert_eq!(source.add_push(&scope(), &hook).await, Err(SourceError::Unauthorized), "it needs admin rights");
+    assert_eq!(rig.secrets.read("github", &format!("webhook.{HOOK}")).await.expect("read"), None);
+    let state = rig.service.state("github").await.expect("read").expect("there");
+    assert_eq!(state.state, HealthState::Ready);
 }

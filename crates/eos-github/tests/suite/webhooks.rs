@@ -1,7 +1,7 @@
 //! `create_webhook`: one request with the push setup's secret, never one
 //! from the input.
 
-use eos_core::capability::{ActionError, BuiltinCapability, WEBHOOK_SECRET};
+use eos_core::capability::{ActionError, BuiltinCapability, FailureKind, WEBHOOK_SECRET};
 use serde_json::json;
 use zeroize::Zeroizing;
 
@@ -32,6 +32,7 @@ async fn without_the_setups_secret_or_admin_rights_nothing_is_made() {
     rig.fake.not_admin(REPO);
     let mut ctx = ctx(None);
     ctx.secrets.insert(WEBHOOK_SECRET.to_owned(), Zeroizing::new("s3cret".to_owned()));
-    assert!(rig.github.call("create_webhook", json!({ "repo": REPO, "url": URL }), &ctx).await.is_err());
+    let refused = rig.github.call("create_webhook", json!({ "repo": REPO, "url": URL }), &ctx).await;
+    assert_eq!(refused, Err(ActionError::Failed { kind: FailureKind::NotAllowed }), "not a repository that is gone");
     assert!(rig.fake.webhooks(REPO).is_empty());
 }
