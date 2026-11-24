@@ -4,6 +4,7 @@ mod dispatch;
 mod issues;
 mod live;
 mod pages;
+mod pins;
 mod reads;
 mod rig;
 mod state;

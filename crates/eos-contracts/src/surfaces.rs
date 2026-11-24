@@ -180,6 +180,54 @@ pub struct LivePartDoc {
 
 impl Validate for LivePartDoc {}
 
+/// `GET`/`PUT /api/surfaces/pins`: the surfaces pinned on this Mac's Home,
+/// in slot order, at most three.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PinsBody {
+    pub surface_ids: Vec<String>,
+}
+
+impl Validate for PinsBody {}
+
+/// One pinned surface as Home's tile shows it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Tile {
+    /// 1 to 3.
+    pub slot: u8,
+    pub surface_id: String,
+    pub routine_id: String,
+    /// `view`, `page` or `app`.
+    pub level: String,
+    pub title: String,
+    /// The design's tile headline, or a View's title; none for the default tile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub headline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// A direct action the tile's button runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    /// The newest ready issue the tile reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issued_at: Option<i64>,
+    /// The owner routine's `routine.status` answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<Value>,
+}
+
+/// `GET /api/surfaces/tiles`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TileList {
+    pub tiles: Vec<Tile>,
+}
+
+impl Validate for TileList {}
+
 /// `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -388,6 +436,13 @@ pub struct SurfacesState {
 }
 
 impl Validate for SurfacesState {}
+
+/// `surfaces:pins`: the pins on Home changed.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfacesPins {}
+
+impl Validate for SurfacesPins {}
 
 /// `actions:record`: a press was recorded or finished.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

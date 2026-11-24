@@ -11,8 +11,8 @@ use eos_core::store::{
     MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
     RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
     RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
-    TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    SignalScheduleRepo, SignalSourceRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo,
+    SurfaceVersionRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -211,6 +211,10 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn surface_issues(&self) -> &dyn SurfaceIssueRepo {
+        self
+    }
+
+    fn surface_pins(&self) -> &dyn SurfacePinRepo {
         self
     }
 

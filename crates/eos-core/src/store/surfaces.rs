@@ -138,6 +138,16 @@ pub trait SurfaceStateRepo {
     fn find(&self, surface_id: &str, scope: &str) -> Result<Option<StoredSurfaceState>, Error>;
 }
 
+/// The surfaces pinned on this Mac's Home, slots 1 to 3.
+pub trait SurfacePinRepo {
+    /// `(slot, surface id)`, by slot.
+    fn list(&self) -> Result<Vec<(u8, String)>, Error>;
+    /// Writes the whole set in place of what it held.
+    fn replace(&self, pins: &[(u8, String)], at: i64) -> Result<(), Error>;
+    /// Unpins a surface; whether it was pinned.
+    fn remove(&self, surface_id: &str) -> Result<bool, Error>;
+}
+
 pub trait ActionLogRepo {
     /// Fails with a conflict when a record holds its client id already.
     fn insert(&self, record: &StoredActionRecord) -> Result<(), Error>;

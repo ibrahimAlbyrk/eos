@@ -396,6 +396,8 @@ pub const MEMORY_TIDY: Route = Route::new("memoryTidy", "/api/memory/tidy", &[Po
 pub const MEMORY_FORGET_ALL: Route = Route::new("memoryForgetAll", "/api/memory/forget-all", &[Post]).added();
 pub const MEMORY_EXPORT: Route = Route::new("memoryExport", "/api/memory/export", &[Get]).added();
 pub const SURFACES: Route = Route::new("surfaces", "/api/surfaces", &[Get]).added();
+pub const SURFACE_PINS: Route = Route::new("surfacePins", "/api/surfaces/pins", &[Get, Put]).added();
+pub const SURFACE_TILES: Route = Route::new("surfaceTiles", "/api/surfaces/tiles", &[Get]).added();
 pub const SURFACE: Route = Route::new("surface", "/api/surfaces/:id", &[Get]).added();
 pub const SURFACE_VERSIONS: Route = Route::new("surfaceVersions", "/api/surfaces/:id/versions", &[Get]).added();
 pub const SURFACE_VERSION: Route = Route::new("surfaceVersion", "/api/surfaces/:id/versions/:version", &[Get]).added();
@@ -777,6 +779,8 @@ pub const ROUTES: &[Route] = &[
     MEMORY_FORGET_ALL,
     MEMORY_EXPORT,
     SURFACES,
+    SURFACE_PINS,
+    SURFACE_TILES,
     SURFACE,
     SURFACE_VERSIONS,
     SURFACE_VERSION,

@@ -1,10 +1,10 @@
-//! `surface_defs`, `surface_versions`, `surface_issues`, `surface_state` and
-//! `surface_action_log`.
+//! `surface_defs`, `surface_versions`, `surface_issues`, `surface_state`,
+//! `surface_pins` and `surface_action_log`.
 
 use eos_core::Error;
 use eos_core::store::{
     ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceState, StoredSurfaceVersion,
-    SurfaceIssueRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
+    SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo,
 };
 use eos_kit_sqlite::rusqlite::{self, params};
 use eos_surface::{IssueKind, IssueStatus, Level, MadeBy, Place, Role, VersionStatus};
@@ -301,6 +301,29 @@ impl SurfaceStateRepo for SqliteTx<'_> {
             [surface_id, scope],
             state,
         )
+    }
+}
+
+impl SurfacePinRepo for SqliteTx<'_> {
+    fn list(&self) -> Result<Vec<(u8, String)>, Error> {
+        self.rows("SELECT slot, surface_id FROM surface_pins ORDER BY slot", [], |r| {
+            Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?))
+        })
+    }
+
+    fn replace(&self, pins: &[(u8, String)], at: i64) -> Result<(), Error> {
+        self.exec("DELETE FROM surface_pins", [])?;
+        for (slot, surface_id) in pins {
+            self.exec(
+                "INSERT INTO surface_pins (slot, surface_id, pinned_at) VALUES (?1, ?2, ?3)",
+                params![slot, surface_id, at],
+            )?;
+        }
+        Ok(())
+    }
+
+    fn remove(&self, surface_id: &str) -> Result<bool, Error> {
+        Ok(self.exec("DELETE FROM surface_pins WHERE surface_id = ?1", [surface_id])? > 0)
     }
 }
 
