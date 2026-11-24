@@ -91,6 +91,12 @@ async fn a_run_returns_its_view_as_an_issue_whose_templates_stay_in_the_core() {
     assert_eq!(one["body"]["actions"], json!(["again"]));
     assert_eq!(one["body"]["view"]["title"], "Overnight");
     assert!(one["body"].get("bindings").is_none(), "the frame never sees an argument template");
+    // An `eos://issue/<id>` link names no surface: the issue is found by its id alone.
+    let (status, found) = rig.ask(Method::Get, &format!("/api/surface-issues/{issue_id}"), None).await;
+    assert_eq!(status, 200);
+    assert_eq!((found["surfaceId"].as_str(), found["seq"].as_i64()), (Some(surface_id.as_str()), Some(1)));
+    let (status, _) = rig.ask(Method::Get, "/api/surface-issues/si-missing", None).await;
+    assert_eq!(status, 404);
 
     let pressed = json!({"issueId": issue_id, "actionId": "again", "clientId": "c-1"});
     let (_, answer) = rig.ask(Method::Post, "/api/actions/run", Some(pressed)).await;
