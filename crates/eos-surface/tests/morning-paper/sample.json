@@ -1,0 +1,23 @@
+{
+  "title": "The Morning Build",
+  "summary": "Nine stories from 31 sources · about 14 minutes",
+  "lead": {
+    "section": "engineering",
+    "title": "Deterministic replays are back in fashion for puzzle games",
+    "dek": "Recording inputs instead of state turns a bug report into something you can run. Three teams describe what it cost them and what they stopped doing afterwards.",
+    "body": "The idea is old, the reason it returned is new: with input logs small enough to attach to every crash, the question changes from \"can you reproduce it\" to \"which frame\".\n\nTwo of the three teams now refuse a bug report without one.",
+    "url": "https://example.com/replays",
+    "image": {"src": "https://example.com/replays.jpg", "alt": "A level editor with an input timeline", "credit": "Lead image, chosen by Eos"}
+  },
+  "desk": "Two reviews wait for your signature. One of them blocks the release branch.",
+  "starred": [
+    {"title": "A long post on shader variant stripping, with numbers.", "url": "https://example.com/shaders"},
+    {"title": "A talk on pacing procedural levels, now with slides.", "url": "https://example.com/pacing"}
+  ],
+  "left_out": "Fourteen funding and hiring stories. You have skipped that section for three weeks.",
+  "stories": [
+    {"section": "engine", "title": "What changed in batching this week", "dek": "Two changes you may feel in draw calls, and the settings to check in your own project.", "url": "https://example.com/batching", "published": "2026-11-17T04:10:00Z"},
+    {"section": "tools", "title": "A level editor pattern worth copying", "dek": "Undo as a list of commands. It is the step your Level Editor routine is building right now.", "url": "https://example.com/undo"},
+    {"section": "live-ops", "title": "Shorter events, more of them", "dek": "Why some teams moved from two-week events to four-day ones, and what it did to their calendar.", "url": "https://example.com/events", "published": "2026-11-16T21:45:00Z"}
+  ]
+}

@@ -1,3 +1,4 @@
+<div class="sheet">
 <header part="masthead">
   <div class="dateline"><span>{issue.date|weekday} {issue.date|date}</span><span>No. {issue.seq}</span><span>Printed for {issue.reader}</span></div>
   <h1 class="name">{title}</h1>
@@ -14,7 +15,7 @@
   </section>
   <aside part="rail" class="rail">
     <div part="desk" if="desk"><p class="kicker">On your desk today</p><p>{desk}</p><a href="eos:needs-you">Open Needs you</a></div>
-    <ul part="starred" class="starred" each="starred"><li><a href="{item.url}">{item.title}</a></li></ul>
+    <ul part="starred" class="starred" if="starred"><li part="star" each="starred"><a href="{item.url}">{item.title}</a></li></ul>
     <div part="left-out" if="left_out"><p class="kicker quiet">Left out today</p><p class="note">{left_out}</p></div>
   </aside>
 </main>
@@ -32,3 +33,4 @@
   <Button part="good" action="surface.feedback" args={{"verdict": "good"}} label="Good issue"/>
   <Button part="not-today" action="surface.feedback" args={{"verdict": "not_today"}} label="Not today"/>
 </footer>
+</div>

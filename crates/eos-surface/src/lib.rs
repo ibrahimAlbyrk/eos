@@ -9,21 +9,26 @@
 
 pub mod css;
 pub mod limits;
+pub mod render;
 pub mod template;
 
 mod args;
+mod design;
 mod lifecycle;
 mod minimal;
 mod problem;
+mod tile;
 mod types;
 mod validate;
 mod view_check;
 mod words;
 
 pub use args::{Sources, fill_args, pressed_row};
+pub use design::PageDesign;
 pub use lifecycle::{IssueAge, PinError, VersionAge, arrange_pins, issues_to_drop, pin_slot, versions_to_drop};
 pub use minimal::minimal_data;
 pub use problem::{Problem, format_problems};
+pub use tile::{TileSpec, TileText};
 pub use types::{Contract, Field, MAX_DEPTH, Type};
 pub use validate::{Validation, validate};
 pub use view_check::{Binding, view_check};

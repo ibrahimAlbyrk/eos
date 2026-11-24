@@ -39,6 +39,7 @@ fn the_morning_paper_passes_and_names_its_parts_actions_and_nothing_else() {
             "rail",
             "desk",
             "starred",
+            "star",
             "left-out",
             "filters",
             "stories",

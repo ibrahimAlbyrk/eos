@@ -1,0 +1,15 @@
+{
+  "title": "The Morning Build",
+  "summary": "Read this one with care: the feed held strange text",
+  "lead": {
+    "section": "engineering",
+    "title": "<script>alert('lead')</script> \"><img src=x onerror=alert(1)>",
+    "dek": "{lead.title} is not a slot here, and javascript:alert(1) is only words. \u202Eevil\u202C",
+    "body": "token=ghp_0123456789abcdefABCDEF0123456789abcd is a secret and stays hidden.",
+    "url": "javascript:alert(1)"
+  },
+  "starred": [{"title": "</style><script>alert(2)</script>", "url": "https://example.com/?a=1&b=<2>"}],
+  "stories": [
+    {"section": "tools", "title": "<b>bold?</b>", "dek": "&amp; stays as written", "url": "https://example.com/x"}
+  ]
+}

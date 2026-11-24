@@ -3,6 +3,7 @@
 mod contract;
 mod lifecycle;
 mod paper;
+mod render;
 mod style;
 mod template;
 mod view_check;
