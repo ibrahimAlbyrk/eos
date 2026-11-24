@@ -1,0 +1,16 @@
+{
+  "title": "The Morning Build",
+  "summary": "Six stories from 22 sources · about 9 minutes",
+  "lead": {
+    "section": "tools",
+    "title": "Merge queues stop being a big-company thing",
+    "dek": "Three small studios run one now. What it took, and the one setting each of them changed in the first week.",
+    "body": "A merge queue is a line your pull requests wait in, so main is never broken by two changes that pass alone.\n\nThe cost is a few minutes per merge.",
+    "url": "https://example.com/merge-queues"
+  },
+  "starred": [],
+  "stories": [
+    {"section": "engine", "title": "Shader caches, measured", "dek": "Cold starts fell by a third once the cache moved next to the build.", "url": "https://example.com/caches"},
+    {"section": "design", "title": "Tutorials that teach by taking away", "dek": "Removing a mechanic for one level, then giving it back.", "url": "https://example.com/tutorials"}
+  ]
+}

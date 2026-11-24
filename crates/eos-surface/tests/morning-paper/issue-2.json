@@ -1,0 +1,16 @@
+{
+  "title": "The Morning Build",
+  "summary": "One story · a quiet night",
+  "lead": {
+    "section": "engineering",
+    "title": "Nothing broke overnight",
+    "dek": "All four of your repositories built clean. One pull request is waiting for you.",
+    "body": "A quiet night.",
+    "url": "https://example.com/quiet"
+  },
+  "desk": "One review waits for you.",
+  "starred": [],
+  "stories": [
+    {"section": "engineering", "title": "The one waiting pull request", "dek": "A small fix to the save system.", "url": "https://example.com/pr-412"}
+  ]
+}

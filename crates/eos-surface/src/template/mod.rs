@@ -24,7 +24,8 @@ pub use rules::{COMPONENTS, Component, ELEMENTS, EOS_TARGETS, ISSUE_FIELDS};
 pub use slots::{Format, Seg, Slot};
 pub use tree::{Attr, AttrValue, Element, Node, TextNode, to_markup};
 
-use scope::Scope;
+pub(crate) use scope::{Scope, SlotType};
+pub(crate) use slots::parse_segments;
 
 /// A template that passed every check, with what it names.
 #[derive(Debug, Clone, PartialEq)]

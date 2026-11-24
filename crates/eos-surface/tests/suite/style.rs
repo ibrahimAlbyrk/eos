@@ -22,7 +22,10 @@ fn the_morning_papers_style_passes_and_resolves_its_custom_properties() {
     let css = sheet.to_css();
     assert!(!css.contains("var("), "custom properties are resolved: {css}");
     assert!(!css.contains("--paper"), "and not written out");
-    assert!(css.contains("header{background:#eceae4;color:#161616;"), "{css}");
+    assert!(
+        css.contains(".sheet{max-width:1000px;margin:0 auto;border-radius:6px;background:#eceae4;color:#161616;"),
+        "{css}"
+    );
     assert!(css.contains("@media (max-width: 600px){header,.front,.stories,.feedback{"), "{css}");
     assert_eq!(sheet.families(), ["Fraunces", "IBM Plex Mono", "Geist"]);
 }
