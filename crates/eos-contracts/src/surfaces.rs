@@ -232,6 +232,10 @@ pub struct ActionRunRequest {
     /// The token of Eos's own confirmation, when it asked for one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirm: Option<String>,
+    /// What the user typed in that confirmation, for an action that cannot
+    /// be taken back: its name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typed: Option<String>,
 }
 
 impl Validate for ActionRunRequest {
@@ -262,7 +266,15 @@ pub enum ActionAnswer {
     /// Eos asks the user in its own dialog, outside the frame, and repeats the
     /// call with `token` (single use, two minutes).
     #[serde(rename_all = "camelCase")]
-    Confirm { record_id: String, token: String, prompt: String },
+    Confirm {
+        record_id: String,
+        token: String,
+        prompt: String,
+        /// The name the user types before the repeat goes, for an action
+        /// that cannot be taken back.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        type_to_confirm: Option<String>,
+    },
     /// Held in Needs you as the item named.
     #[serde(rename_all = "camelCase")]
     Held { record_id: String, item_id: String },

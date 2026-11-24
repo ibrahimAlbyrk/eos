@@ -1,5 +1,6 @@
 //! A press of a button: the arguments come only from the stored issue and
-//! the user's input, a confirmation is good once and for two minutes, a
+//! the user's input, a confirmation is good once and for two minutes and
+//! needs the name typed for what cannot be taken back, a
 //! repeated client id answers its first record, and an action out of scope
 //! or out of shape never runs.
 
@@ -21,6 +22,7 @@ fn view_issue() -> StoredIssue {
         "bindings": {
             "dig": {"action": "probe.with", "args": {"item": "{data.lead.url}", "note": "{state.note}"}},
             "again": {"action": "probe.again"},
+            "erase": {"action": "probe.erase"},
             "broken": {"action": "probe.fails"},
             "ghost": {"action": "probe.nowhere"},
             "bad": {"action": "probe.with", "args": {"item": "not a url"}}}
@@ -138,6 +140,37 @@ async fn the_gate_holds_refuses_or_asks_and_a_confirmation_is_good_once() {
     let forged = json!({"issueId": "si-1", "actionId": "again", "clientId": "late", "confirm": "made-up"});
     assert_eq!(press(&rig, forged).await.1["status"], "refused");
     assert_eq!(rig.heard.lock().expect("heard").len(), 1, "an expired or forged token runs nothing");
+}
+
+#[tokio::test]
+async fn what_cannot_be_taken_back_goes_only_once_its_name_is_typed() {
+    let rig = rig().await;
+    rig.gate.set(ActionDecision::Confirm { prompt: "Probe cannot be taken back. Type its name to go ahead.".into() });
+    let ask = json!({"issueId": "si-1", "actionId": "erase", "clientId": "x"});
+    let (_, asked) = press(&rig, ask.clone()).await;
+    assert_eq!((asked["status"].as_str(), asked["typeToConfirm"].as_str()), (Some("confirm"), Some("Probe")));
+    let mut confirmed = ask.clone();
+    confirmed["confirm"] = asked["token"].clone();
+    for typed in [None, Some("Prob")] {
+        let mut attempt = confirmed.clone();
+        if let Some(typed) = typed {
+            attempt["typed"] = json!(typed);
+        }
+        let (_, answer) = press(&rig, attempt).await;
+        assert_eq!(
+            (answer["status"].as_str(), answer["reason"].as_str()),
+            (Some("refused"), Some("Type Probe to go ahead"))
+        );
+    }
+    assert!(rig.heard.lock().expect("heard").is_empty(), "a click alone runs nothing");
+    confirmed["typed"] = json!(" probe ");
+    let (_, done) = press(&rig, confirmed).await;
+    assert_eq!(done["status"], "done", "the token stays good while the name is typed again");
+    assert_eq!(rig.heard.lock().expect("heard").len(), 1);
+
+    // What can be taken back asks for no name.
+    let (_, plain) = press(&rig, json!({"issueId": "si-1", "actionId": "again", "clientId": "y"})).await;
+    assert!(plain.get("typeToConfirm").is_none(), "{plain}");
 }
 
 #[tokio::test]

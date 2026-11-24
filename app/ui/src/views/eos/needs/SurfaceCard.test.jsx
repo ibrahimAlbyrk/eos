@@ -4,7 +4,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { _resetSurfaces, refreshSurfaces, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { UiProvider } from "../../../state/ui.jsx";
-import { SurfaceCard } from "./SurfaceCard.jsx";
+import { ConfirmBelow, SurfaceCard, typedRight } from "./SurfaceCard.jsx";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 
@@ -72,6 +72,25 @@ describe("a routine's View in Needs you", () => {
       ["POST", ROUTES.actionsRun, { issueId: issue.id, actionId: "again", clientId: "c-1", state: { note: "short" } }],
       ["POST", ROUTES.actionsRun, { issueId: issue.id, actionId: "again", clientId: "c-1", confirm: "t-1" }],
     ]);
+  });
+
+  it("asks for the name of what cannot be taken back before Confirm goes, and sends what was typed", async () => {
+    const asking = { prompt: "Erase cannot be taken back. Type its name to go ahead.", typeToConfirm: "Erase" };
+    const below = (typed) => renderToStaticMarkup(
+      <ConfirmBelow asking={asking} typed={typed} onType={() => {}} onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(below("")).toContain('aria-label="Type Erase to go ahead"');
+    expect(below("")).toMatch(/<button[^>]*disabled=""[^>]*>Confirm<\/button>/);
+    expect(below(" erase ")).not.toMatch(/disabled=""/);
+    expect(typedRight(undefined, "")).toBe(true);
+    expect(renderToStaticMarkup(
+      <ConfirmBelow asking={{ prompt: "Run it again?" }} typed="" onType={() => {}} onConfirm={() => {}} onCancel={() => {}} />,
+    )).not.toContain("<input");
+
+    const send = vi.fn(async () => ({ ok: true, status: 200, body: { status: "done", recordId: "da-2" } }));
+    setEosTransport({ ...fixtureTransport(reads), send });
+    await runSurfaceAction({ issueId: issue.id, actionId: "erase", clientId: "c-3", confirm: "t-2", typed: "Erase" });
+    expect(send.mock.calls[0][2]).toEqual({ issueId: issue.id, actionId: "erase", clientId: "c-3", confirm: "t-2", typed: "Erase" });
   });
 
   it("says so when a dev run refuses the press", async () => {
