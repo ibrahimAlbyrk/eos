@@ -94,3 +94,86 @@ final class EosActionTests: XCTestCase {
         XCTAssertEqual(EosActionAnswer(.object(["error": .string("forbidden")])), .refused("forbidden"))
     }
 }
+
+final class OutboxTests: XCTestCase {
+    private func outbox() -> (AnswerOutbox, URL) {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("outbox-\(UUID().uuidString).json")
+        return (AnswerOutbox(file: file), file)
+    }
+
+    func testAnswersWaitForTheMacAndGoInOrderOnceItIsBack() async {
+        let (box, file) = outbox()
+        defer { try? FileManager.default.removeItem(at: file) }
+        box.add(.answer(item: "in-1", rev: 3, kind: "run_start", choice: "run"))
+        box.add(.discard(item: "in-2", rev: 1))
+        let away = await box.flush { _, _, _ in nil }
+        XCTAssertTrue(away.isEmpty, "the Mac is away: nothing leaves")
+        XCTAssertEqual(AnswerOutbox(file: file).entries.count, 2, "kept across launches")
+
+        var asked: [String] = []
+        let done = await box.flush { _, path, _ in asked.append(path); return (200, .object([:])) }
+        XCTAssertEqual(asked, ["/api/inbox/in-1/answer", "/api/inbox/in-2/discard"])
+        XCTAssertEqual(done.map(\.1), [.sent, .sent])
+        XCTAssertTrue(box.entries.isEmpty)
+    }
+
+    func testEachAnswerNamesItsRevisionAndAMovedOnItemAnswersChanged() async {
+        let (box, file) = outbox()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let send = OutboxEntry.send(item: "in-1", rev: 4, doc: nil, confirmStale: false)
+        XCTAssertEqual(send.body, .object(["rev": .number(4)]))
+        box.add(send)
+        let done = await box.flush { _, _, _ in (409, .object(["error": .string("changed"), "rev": .number(5)])) }
+        XCTAssertEqual(done.map(\.1), [.changed("It changed on your Mac.")], "never sent again on the new state")
+        XCTAssertTrue(box.entries.isEmpty)
+        XCTAssertEqual(AnswerOutbox.result(status: 409, body: .object(["error": .string("stale"),
+                                                                  "staleReason": .string("new commits")])),
+                       .stale("new commits"))
+    }
+
+    func testANewerAnswerToAnItemTakesThePlaceOfOneNotSent() {
+        let (box, file) = outbox()
+        defer { try? FileManager.default.removeItem(at: file) }
+        box.add(.later(item: "in-1"))
+        box.add(.discard(item: "in-1", rev: 2))
+        box.add(.start(.object(["routineId": .string("rt-1")])))
+        XCTAssertEqual(box.entries.map(\.path), ["/api/inbox/in-1/discard", "/api/runs"])
+    }
+
+    func testADraftReadsTheUsersSavedEditsFirstAndAPageIsEditedOnItsPage() throws {
+        let doc: JSONValue = .object(["kind": .string("github.review"), "channel": .string("github"),
+                                      "action": .string("review"),
+                                      "parts": .array([.object(["key": .string("summary"), "role": .string("summary"),
+                                                                "text": .string("held")])])])
+        var working = doc
+        if case .object(var o) = working {
+            o["parts"] = .array([.object(["key": .string("summary"), "role": .string("summary"),
+                                          "text": .string("edited")])])
+            working = .object(o)
+        }
+        XCTAssertEqual(ResultDocument.of(detail: .object(["payload": .object(["doc": doc])]))?.parts.first?.text, "held")
+        XCTAssertEqual(ResultDocument.of(detail: .object(["payload": .object(["doc": doc]), "working": working]))?
+            .parts.first?.text, "edited")
+        let page = ResultDocument(kind: "page.issue", channel: "c", action: "a", parts: [])
+        XCTAssertFalse(page.editable)
+        XCTAssertTrue(ResultDocument.removable(ResultPart(key: "c:1", role: "comment", text: "x", meta: nil)))
+        let edited = try JSONValue(encodable: page)
+        XCTAssertEqual(OutboxEntry.send(item: "i", rev: 1, doc: page, confirmStale: true).body,
+                       .object(["rev": .number(1), "doc": edited, "confirmStale": .bool(true)]))
+    }
+}
+
+final class EosLinkTests: XCTestCase {
+    func testEachRoutineLinkOpensItsPlaceAndNoneStartsARun() {
+        XCTAssertEqual(EosLink.parse(URL(string: "eos://run/pr-review?item=%23470&note=quick&show-only=1")!),
+                       .runForm(routine: "pr-review", item: "#470", note: "quick", showOnly: true))
+        XCTAssertEqual(EosLink.parse(URL(string: "eos://run/pr-review")!),
+                       .runForm(routine: "pr-review", item: nil, note: nil, showOnly: false))
+        XCTAssertNil(EosLink.parse(URL(string: "eos://run")!))
+        XCTAssertEqual(EosLink.parse(URL(string: "eos://runs/rn-82fa1c0d3e9b")!), .run("rn-82fa1c0d3e9b"))
+        XCTAssertEqual(EosLink.parse(URL(string: "eos://inbox/in-7")!), .inbox(item: "in-7", device: nil))
+        XCTAssertEqual(EosLink.parse(URL(string: "eos://inbox?device=dev-b")!), .inbox(item: nil, device: "dev-b"))
+        XCTAssertNil(EosLink.parse(URL(string: "eos://worker/w1")!), "the app's own links stay its own")
+        XCTAssertNil(EosLink.parse(URL(string: "https://run/x")!))
+    }
+}

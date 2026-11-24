@@ -5,8 +5,10 @@ import Foundation
 public enum EosRequests {
     /// `POST /api/runs`: one run of `routine` on `item` (or none), with the options set here (an
     /// option left out takes its default), a note, and where the result goes.
+    /// `door` is `phone`, or `link` when an `eos://run/…` link filled the form: the Mac then treats
+    /// its item and note as outside text.
     public static func startRun(routineId: String, item: EosItem?, options: [String: JSONValue], note: String?,
-                                showOnly: Bool, requestId: String) -> JSONValue {
+                                showOnly: Bool, requestId: String, door: String = "phone") -> JSONValue {
         var input: [String: JSONValue] = [
             "options": .object(options),
             "result": .string(showOnly ? "showOnly" : "usual"),
@@ -18,7 +20,7 @@ public enum EosRequests {
         return .object([
             "routineId": .string(routineId),
             "input": .object(input),
-            "door": .string("phone"),
+            "door": .string(door),
             "clientRequestId": .string(requestId),
         ])
     }
