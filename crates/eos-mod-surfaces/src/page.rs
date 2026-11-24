@@ -12,7 +12,7 @@ use eos_domain::redact::looks_secret;
 use eos_domain::time::{iso_from_ms, wall_clock};
 use eos_runtime::http::ApiError;
 use eos_surface::render::{Comfort, ImageState, IssueFacts, RenderInput};
-use eos_surface::{IssueKind, PageDesign};
+use eos_surface::{IssueKind, PageDesign, validate};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -78,8 +78,15 @@ impl Drawn {
     }
 }
 
+/// Whether an issue's `data` fits the design stored as `body`: what lets an
+/// issue show in a version it was not made with.
+pub(crate) fn fits(body: &str, data: &Value) -> bool {
+    let design = serde_json::from_str::<Value>(body).ok().and_then(|body| PageDesign::from_body(&body).ok());
+    design.is_some_and(|design| validate(&design.contract.as_type(), data).is_ok())
+}
+
 /// A page issue of surface `surface_id`, drawn with its own version or
-/// `version` when one is asked for.
+/// `version` when one is asked for, which its data must fit.
 pub(crate) async fn load(
     parts: &Arc<SurfacesParts>,
     surface_id: &str,
@@ -103,6 +110,11 @@ pub(crate) async fn load(
     let design =
         PageDesign::from_body(&body).map_err(|_| ApiError::Conflict("this design no longer reads as a page".into()))?;
     let stored: Value = serde_json::from_str(&issue.body_json).unwrap_or_default();
+    let data = stored.get("data").cloned().unwrap_or_default();
+    if version.is_some_and(|asked| Some(asked) != issue.version) && !validate(&design.contract.as_type(), &data).is_ok()
+    {
+        return Err(ApiError::Conflict("this issue's data does not fit that version of the design".into()));
+    }
     let images = images_of(&issue)
         .into_iter()
         .map(|image| {
@@ -124,7 +136,7 @@ pub(crate) async fn load(
     };
     Ok(Drawn {
         surface,
-        data: stored.get("data").cloned().unwrap_or_default(),
+        data,
         issue,
         design,
         facts,
