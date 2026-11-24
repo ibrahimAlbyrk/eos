@@ -1,5 +1,6 @@
-//! Shell → page events. The bridge script holds one `EventSource` on `/_shell/events`;
-//! every event is one frame, fanned out by name in the page.
+//! Shell → page events. Each document of the dashboard holds one `EventSource` on
+//! `/_shell/events`, named by its surface (`?surface=quick` for the quick panel); every event
+//! is one frame, fanned out by name in the page. A surface hears only its own events.
 
 use std::sync::Mutex;
 
@@ -14,6 +15,26 @@ const MAX_SUBSCRIBERS: usize = 4;
 /// before the dashboard loaded) wait for the first stream; beyond this the oldest is dropped.
 const MAX_WAITING: usize = 16;
 
+/// Which document of the dashboard listens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Surface {
+    /// The window's dashboard.
+    Dashboard,
+    /// The quick panel (07 §4.3).
+    Quick,
+}
+
+impl Surface {
+    /// The `surface` query parameter: none is the dashboard; an unknown name is no surface.
+    pub fn parse(name: Option<&str>) -> Option<Self> {
+        match name {
+            None | Some("") => Some(Surface::Dashboard),
+            Some("quick") => Some(Surface::Quick),
+            Some(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct State {
     sinks: Vec<Sink>,
@@ -22,13 +43,19 @@ struct State {
 
 #[derive(Debug, Default)]
 pub struct Events {
-    state: Mutex<State>,
+    dashboard: Mutex<State>,
+    quick: Mutex<State>,
 }
 
 impl Events {
-    /// Starts the stream on `sink`, beginning with the events that were waiting for a
-    /// listener. Past the limit the oldest subscriber is ended.
+    /// Starts the dashboard's stream on `sink`.
     pub fn subscribe(&self, sink: Sink) {
+        self.subscribe_to(Surface::Dashboard, sink);
+    }
+
+    /// Starts a surface's stream on `sink`, beginning with the events that were waiting for a
+    /// listener. Past the limit the oldest subscriber is ended.
+    pub fn subscribe_to(&self, surface: Surface, sink: Sink) {
         sink.head(Head {
             status: 200,
             headers: vec![
@@ -37,7 +64,7 @@ impl Events {
             ],
         });
         sink.chunk(b": connected\n\n");
-        let mut state = self.lock();
+        let mut state = self.lock(surface);
         for frame in state.waiting.drain(..) {
             sink.chunk(frame.as_bytes());
         }
@@ -48,23 +75,28 @@ impl Events {
         state.sinks.push(sink);
     }
 
-    /// Sends one event to every subscriber. A subscriber that stopped reading is ended (its
-    /// `EventSource` reconnects); one that went away is forgotten. With nobody listening the
-    /// event is dropped: right for a command that only means something now (an Edit-menu
-    /// command must not run after a reload).
+    /// Sends one event to every subscriber of the dashboard. A subscriber that stopped reading
+    /// is ended (its `EventSource` reconnects); one that went away is forgotten. With nobody
+    /// listening the event is dropped: right for a command that only means something now (an
+    /// Edit-menu command must not run after a reload).
     pub fn emit(&self, name: &str, payload: Value) {
-        self.send(name, payload, false);
+        self.send(Surface::Dashboard, name, payload, false);
     }
 
     /// [`Events::emit`] for an event that is still wanted later: with nobody listening it
     /// waits for the next subscriber.
     pub fn emit_or_wait(&self, name: &str, payload: Value) {
-        self.send(name, payload, true);
+        self.send(Surface::Dashboard, name, payload, true);
     }
 
-    fn send(&self, name: &str, payload: Value, wait: bool) {
+    /// [`Events::emit`] to another surface.
+    pub fn emit_to(&self, surface: Surface, name: &str, payload: Value) {
+        self.send(surface, name, payload, false);
+    }
+
+    fn send(&self, surface: Surface, name: &str, payload: Value, wait: bool) {
         let frame = format!("data: {}\n\n", json!({ "name": name, "payload": payload }));
-        let mut state = self.lock();
+        let mut state = self.lock(surface);
         state.sinks.retain(|sink| match sink.offer(frame.as_bytes()) {
             Offer::Sent => true,
             Offer::Full => {
@@ -81,12 +113,21 @@ impl Events {
         }
     }
 
+    /// The dashboard's open streams.
     pub fn subscribers(&self) -> usize {
-        self.lock().sinks.iter().filter(|s| !s.is_cancelled()).count()
+        self.subscribers_of(Surface::Dashboard)
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    pub fn subscribers_of(&self, surface: Surface) -> usize {
+        self.lock(surface).sinks.iter().filter(|s| !s.is_cancelled()).count()
+    }
+
+    fn lock(&self, surface: Surface) -> std::sync::MutexGuard<'_, State> {
+        let state = match surface {
+            Surface::Dashboard => &self.dashboard,
+            Surface::Quick => &self.quick,
+        };
+        state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 
@@ -122,6 +163,24 @@ mod tests {
                 ": connected\n\ndata: {\"name\":\"window:fullscreen\",\"payload\":{\"on\":true}}\n\n"
             );
         }
+    }
+
+    #[test]
+    fn each_surface_hears_only_its_own_events() {
+        let events = Events::default();
+        let (dash, dash_body) = channel();
+        let (quick, quick_body) = channel();
+        events.subscribe(dash);
+        events.subscribe_to(Surface::Quick, quick);
+        events.emit("navigate", json!({ "route": "eos:/needs" }));
+        events.emit_to(Surface::Quick, "doors:held", json!({ "source": "link" }));
+        let (dash, quick) = (drain(&dash_body), drain(&quick_body));
+        assert!(dash.contains("navigate") && !dash.contains("doors:held"));
+        assert!(quick.contains("doors:held") && !quick.contains("navigate"));
+        assert_eq!((events.subscribers(), events.subscribers_of(Surface::Quick)), (1, 1));
+        assert_eq!(Surface::parse(None), Some(Surface::Dashboard));
+        assert_eq!(Surface::parse(Some("quick")), Some(Surface::Quick));
+        assert_eq!(Surface::parse(Some("other")), None);
     }
 
     #[test]

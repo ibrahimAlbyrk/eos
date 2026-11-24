@@ -52,3 +52,5 @@ pub use tauri_macros::cef_entry_point;
 pub use webview::*;
 pub use window::{CefWindowDispatcher, NativeWindowToken};
 pub use window_builder::WindowBuilderWrapper;
+#[cfg(target_os = "macos")]
+pub use window_builder::PANEL_CLASS;

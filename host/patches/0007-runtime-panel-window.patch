@@ -1,0 +1,53 @@
+"Panel window": `window_classname("NSPanel")` makes a macOS window winit's non-activating panel.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7 (crates.io) + 0001, 0003, 0004, 0005, 0006,
+applied in vendor/tauri-runtime-cef. Not offered upstream.
+
+Why: Eos's quick panel (07 §4.3) must take the keyboard over another app without activating
+Eos or taking the menu bar. winit builds such a window (`WindowAttributesMacOS::with_panel`:
+an `NSPanel` subclass with `NSWindowStyleMaskNonactivatingPanel` that can become key), but
+Tauri's window builder offers no macOS attribute that reaches it. `window_classname` is the
+one builder call that is a no-op on macOS (it names a Windows window class), so the name
+`NSPanel` (`PANEL_CLASS`) asks for the panel there. Changing an existing window's class
+afterwards does not work: winit's delegate observes the window's `effectiveAppearance`, and
+AppKit's forwarded key-value observation breaks when the class changes under it (an
+`NSRangeException` when the window is released).
+
+--- a/src/lib.rs	2026-11-24 17:25:42
++++ b/src/lib.rs	2026-11-24 17:25:42
+@@ -52,3 +52,5 @@
+ pub use webview::*;
+ pub use window::{CefWindowDispatcher, NativeWindowToken};
+ pub use window_builder::WindowBuilderWrapper;
++#[cfg(target_os = "macos")]
++pub use window_builder::PANEL_CLASS;
+--- a/src/window_builder.rs	2026-11-24 17:25:42
++++ b/src/window_builder.rs	2026-11-24 17:25:42
+@@ -523,6 +523,16 @@
+     {
+       let pl_attrs =
+         platform_attrs(&mut self.attrs.inner).with_class_name(_window_classname.into());
++      self.attrs.inner = self
++        .attrs
++        .inner
++        .with_platform_attributes(Box::new(pl_attrs));
++    }
++    // On macOS the one class name read is `NSPanel`: winit's non-activating panel, which
++    // becomes key without activating the app.
++    #[cfg(target_os = "macos")]
++    if _window_classname.into() == PANEL_CLASS {
++      let pl_attrs = platform_attrs(&mut self.attrs.inner).with_panel(true);
+       self.attrs.inner = self
+         .attrs
+         .inner
+@@ -550,6 +560,10 @@
+   }
+ }
+ 
++/// The class name that makes a macOS window a non-activating panel (see `window_classname`).
++#[cfg(target_os = "macos")]
++pub const PANEL_CLASS: &str = "NSPanel";
++
+ #[cfg(windows)]
+ type PlatformAttributes = winit::platform::windows::WindowAttributesWindows;
+ #[cfg(target_os = "macos")]

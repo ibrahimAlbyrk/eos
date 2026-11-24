@@ -103,6 +103,12 @@ impl ShellHost for FakeHost {
     fn open_login_items_settings(&self) {
         self.log("login settings");
     }
+    fn close_panel(&self) {
+        self.log("panel close");
+    }
+    fn size_panel(&self, width: f64, height: f64) {
+        self.log(format!("panel {width}x{height}"));
+    }
 }
 
 #[derive(Default)]
@@ -822,4 +828,54 @@ async fn the_eos_command_is_put_on_the_path_only_when_asked_and_only_by_an_app_t
     assert_eq!(installed["installed"], true);
     assert_eq!(std::fs::read_link(bin_dir.join("eos")).unwrap(), helper);
     assert_eq!(call(&w.bridge, "GET", url, &[], b"").await.status, 403);
+}
+
+// ---- The quick panel ---------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_send_link_holds_its_text_for_the_panel_which_hears_it_on_its_own_stream() {
+    let w = world();
+    let held = "http://eos.localhost/_shell/doors/held";
+    let token = [("x-eos-ui-token", TOKEN)];
+    assert_eq!(call(&w.bridge, "GET", held, &token, b"").await.json(), Value::Null);
+    let quick = format!("http://eos.localhost/_shell/events?t={TOKEN}&surface=quick");
+    let (sink, body) = channel();
+    w.bridge.call(
+        Req { initiator: Initiator::Document, method: "GET".into(), url: quick, headers: vec![], body: vec![] },
+        sink,
+    );
+    let (dash, dash_body) = channel();
+    w.bridge.events().subscribe(dash);
+
+    assert!(matches!(w.bridge.open_link("eos://send?text=look+at+this"), crate::links::Link::Send(_)));
+    let item = json!({ "source": "link", "app": null, "parts": [{ "kind": "text", "text": "look at this" }] });
+    assert_eq!(call(&w.bridge, "GET", held, &token, b"").await.json(), item);
+    let mut buf = [0u8; 4096];
+    let mut text = String::new();
+    while !text.contains("doors:held") {
+        let Read::Data(n) = body.read(&mut buf, || {}) else { break };
+        text.push_str(&String::from_utf8_lossy(&buf[..n]));
+    }
+    assert!(text.contains(r#""name":"doors:held","payload":{"#), "{text}");
+    let Read::Data(n) = dash_body.read(&mut buf, || {}) else { panic!("the dashboard's stream") };
+    assert!(!String::from_utf8_lossy(&buf[..n]).contains("doors:held"), "the dashboard never hears it");
+
+    w.bridge.panel_closed();
+    assert_eq!(call(&w.bridge, "GET", held, &token, b"").await.json(), Value::Null, "closing drops it");
+    assert_eq!(call(&w.bridge, "GET", held, &[], b"").await.status, 403);
+    let other = format!("http://eos.localhost/_shell/events?t={TOKEN}&surface=elsewhere");
+    assert_eq!(call(&w.bridge, "GET", &other, &[], b"").await.status, 404);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_panel_page_closes_the_panel_or_fits_it_within_bounds() {
+    let w = world();
+    let url = "http://eos.localhost/_shell/doors/panel";
+    let ask = |body: &'static [u8]| call(&w.bridge, "POST", url, &[("x-eos-ui-token", TOKEN)], body);
+    assert_eq!(ask(br#"{"size":{"width":560,"height":9000}}"#).await.status, 200);
+    assert_eq!(ask(br#"{"close":true}"#).await.status, 200);
+    assert_eq!(ask(br#"{"size":{"width":"wide"}}"#).await.status, 400);
+    assert_eq!(ask(br#"{}"#).await.status, 400);
+    assert_eq!(call(&w.bridge, "POST", url, &[], br#"{"close":true}"#).await.status, 403);
+    assert_eq!(*w.host.calls.lock().unwrap(), ["panel 560x560", "panel close"]);
 }

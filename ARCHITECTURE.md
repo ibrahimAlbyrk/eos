@@ -255,7 +255,7 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   (`docs/first-rust-release.md`).
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
   notifications, the work hold's App Nap activity, the launch's Apple Event, the Dock's
-  number, the login item), each use with its reason. Also checked
+  number, the login item, the quick panel's window), each use with its reason. Also checked
   by `cargo xtask shell`. The one exception in the main workspace is
   `eos-platform/src/darwin/qos.rs`: two pthread calls that set and read the calling thread's
   scheduling class, behind a safe function.

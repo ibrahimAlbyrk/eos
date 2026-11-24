@@ -528,6 +528,16 @@ impl WindowBuilder for WindowBuilderWrapper {
         .inner
         .with_platform_attributes(Box::new(pl_attrs));
     }
+    // On macOS the one class name read is `NSPanel`: winit's non-activating panel, which
+    // becomes key without activating the app.
+    #[cfg(target_os = "macos")]
+    if _window_classname.into() == PANEL_CLASS {
+      let pl_attrs = platform_attrs(&mut self.attrs.inner).with_panel(true);
+      self.attrs.inner = self
+        .attrs
+        .inner
+        .with_platform_attributes(Box::new(pl_attrs));
+    }
 
     self
   }
@@ -549,6 +559,10 @@ impl WindowBuilder for WindowBuilderWrapper {
       .map(winit_theme_to_tauri_theme)
   }
 }
+
+/// The class name that makes a macOS window a non-activating panel (see `window_classname`).
+#[cfg(target_os = "macos")]
+pub const PANEL_CLASS: &str = "NSPanel";
 
 #[cfg(windows)]
 type PlatformAttributes = winit::platform::windows::WindowAttributesWindows;

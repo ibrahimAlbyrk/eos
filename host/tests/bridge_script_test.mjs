@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "crates", "eos-bridge", "src", "bridge.js"), "utf8");
 
 // A page with just enough of a browser for the script.
-function page({ seed = null, stored = {}, answers = {} } = {}) {
+function page({ seed = null, stored = {}, answers = {}, search = "" } = {}) {
   const sent = [];
   const storage = new Map(Object.entries(stored));
   const handlers = { window: {}, windowCapture: {}, windowBubble: {}, document: {} };
@@ -18,6 +18,7 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
   let source_ = null;
   const element = { classList: { add: (c) => classes.add(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) }, dataset: {} };
   const window = {
+    location: { search },
     addEventListener: (name, f, capture) => {
       handlers.window[name] = f;
       (capture === true ? handlers.windowCapture : handlers.windowBubble)[name] = f;
@@ -35,7 +36,7 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
     EventSource: class { constructor(url) { this.url = url; source_ = this; } },
     setInterval: () => 0, clearInterval: () => {}, performance: { now: () => 0 },
     getComputedStyle: (el) => ({ getPropertyValue: () => el.region ?? "" }),
-    Element: Object, TextEncoder, btoa, Date, JSON, String, Array, Object, Map, Set, Promise, encodeURIComponent,
+    URLSearchParams, Element: Object, TextEncoder, btoa, Date, JSON, String, Array, Object, Map, Set, Promise, encodeURIComponent,
   });
   const cfg = { coreUrl: "http://eos.localhost/_core", rawUrl: "http://raw.eos.localhost", uiToken: "tok", seed, seedMarker: "eos:migratedFromElectron" };
   vm.runInContext(source.replace("__CFG__", JSON.stringify(cfg)), context);
@@ -62,6 +63,19 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
     assert.equal(typeof p.window.webkit.messageHandlers[name].postMessage, "function", name);
   }
   assert.equal(p.sent.length, 0, "nothing is sent without a reason");
+}
+
+// ---- the quick panel: its own stream, the held item, close and fit
+{
+  const p = page({ search: "?surface=quick" });
+  assert.equal(p.events().url, "/_shell/events?t=tok&surface=quick");
+  const held = [];
+  p.window.eosDoors.onHeld((item) => held.push(item.source));
+  p.emit("doors:held", { source: "link", parts: [] });
+  assert.deepEqual(held, ["link"]);
+  p.window.eosDoors.closePanel();
+  p.window.eosDoors.sizePanel(560, 120);
+  assert.deepEqual(p.sent.map((s) => [s.path, s.body]), [["doors/panel", { close: true }], ["doors/panel", { size: { width: 560, height: 120 } }]]);
 }
 
 // ---- the storage carry-over: once, before anything else, and reported

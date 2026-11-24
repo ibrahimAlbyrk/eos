@@ -6,12 +6,14 @@ use serde_json::json;
 use super::Bridge;
 use crate::ask::ask;
 use crate::core::Plane;
-use crate::links::{Link, issue_location, parse};
+use crate::doors::{DoorItem, DoorPart, DoorSource};
+use crate::links::{Link, Sent, issue_location, parse};
 use crate::urlspace::percent_encode;
 
 impl Bridge {
-    /// Carries a link out on the page, once one listens. What the link means is
-    /// [`crate::links::parse`]'s; showing the window is the shell's.
+    /// Carries a link out on the page, once one listens; an `eos://send` link is held for the
+    /// quick panel. What the link means is [`crate::links::parse`]'s; showing the window or the
+    /// panel is the shell's.
     pub fn open_link(&self, url: &str) -> Link {
         let link = parse(url);
         match &link {
@@ -34,7 +36,14 @@ impl Bridge {
                     }
                 });
             }
-            Link::Send(_) | Link::Window => {}
+            Link::Send(sent) => {
+                let part = match sent {
+                    Sent::Text(text) => DoorPart::Text(text.clone()),
+                    Sent::Url(url) => DoorPart::Url(url.clone()),
+                };
+                self.hold(DoorItem::new(DoorSource::Link, None, vec![part]));
+            }
+            Link::Window => {}
         }
         link
     }

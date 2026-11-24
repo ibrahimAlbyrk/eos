@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::artifacts::ArtifactViews;
 use crate::assets::{Assets, Response};
 use crate::core::{Core, Plane};
-use crate::events::Events;
+use crate::events::{Events, Surface};
 use crate::host::{Banner, BannerTarget, EditCommand, LoginItem, ShellHost, Theme};
 use crate::hosts::HostViews;
 use crate::migrate::{Marker, Seed};
@@ -76,6 +76,8 @@ pub struct Bridge {
     seed: Mutex<Option<Seed>>,
     now_ms: fn() -> u64,
     events: Events,
+    /// What a door outside Eos handed the quick panel.
+    held: doors::Held,
     panel: Panel,
     /// The browser feature's element picker, once the core is up.
     element_picker: OnceLock<Arc<dyn ElementPicker>>,
@@ -121,6 +123,7 @@ impl Bridge {
             seed: Mutex::new(parts.seed),
             now_ms: parts.now_ms,
             events: Events::default(),
+            held: doors::Held::default(),
             panel: parts.panel,
             element_picker: OnceLock::new(),
             hosts: OnceLock::new(),
@@ -241,6 +244,7 @@ impl Bridge {
             "readyAfterLaunchMs": ready.map(|(since_launch, _)| since_launch),
             "readyInPageMs": ready.map(|(_, in_page)| in_page),
             "eventStreams": self.events.subscribers(),
+            "quickStreams": self.events.subscribers_of(Surface::Quick),
             "core": self.core.status(),
             "requests": {
                 "all": self.counters.requests.load(Ordering::Relaxed),
@@ -278,15 +282,17 @@ impl Bridge {
             ("GET", "ping") => return send(&sink, Response::new(200, "text/plain", "ok")),
             // An `EventSource` cannot set a header: the token rides the query.
             ("GET", "events") => {
-                return if token::is_from_dashboard(&req)
-                    && token::matches(&ui_token, urlspace::query_param(query, "t").as_deref())
+                if !token::is_from_dashboard(&req)
+                    || !token::matches(&ui_token, urlspace::query_param(query, "t").as_deref())
                 {
-                    self.events.subscribe(sink)
-                } else {
-                    self.refuse(&sink, 403, "ui token required")
+                    return self.refuse(&sink, 403, "ui token required");
+                }
+                return match Surface::parse(urlspace::query_param(query, "surface").as_deref()) {
+                    Some(surface) => self.events.subscribe_to(surface, sink),
+                    None => self.refuse(&sink, 404, "unknown surface"),
                 };
             }
-            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM) | ("GET", CLI_COMMAND) => {}
+            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM) | ("GET", CLI_COMMAND | DOORS_HELD) => {}
             _ => return self.refuse(&sink, 405, "method not allowed"),
         }
         // Everything else acts on this Mac: the dashboard itself only.
@@ -302,6 +308,7 @@ impl Bridge {
             let (outcome, bare) = match path.as_str() {
                 LOGIN_ITEM => (me.login_item(put, &body).await, true),
                 CLI_COMMAND => (me.cli_command(req_is_post).await, true),
+                DOORS_HELD => (Ok(me.held_item()), true),
                 _ => (me.bridge(&path, body).await, false),
             };
             match outcome {
@@ -345,6 +352,9 @@ impl Bridge {
             // ---- window
             "window/startDragging" => self.blocking(|host| host.start_window_drag()).await,
             "window/toggleZoom" => self.blocking(|host| host.toggle_window_zoom()).await,
+
+            // ---- the quick panel
+            "doors/panel" => self.panel_call(&body).await,
 
             // ---- notifications
             "notify" => Ok(json!(matches!(self.notify(&body), Notified::Shown))),
@@ -604,6 +614,8 @@ impl Service for Bridge {
 const LOGIN_ITEM: &str = "doors/login-item";
 /// The bridge of the `eos` command on the PATH (`/_shell/doors/cli`).
 const CLI_COMMAND: &str = "doors/cli";
+/// The item a door holds for the quick panel (`/_shell/doors/held`).
+const DOORS_HELD: &str = "doors/held";
 
 /// What the page hears when a file could not be written.
 pub(crate) const SAVE_FAILED: &str = "The file could not be saved in Downloads.";
@@ -666,5 +678,6 @@ fn entries(paths: Vec<String>) -> Value {
 
 mod artifacts;
 mod links;
+mod quick;
 #[cfg(test)]
 mod tests;

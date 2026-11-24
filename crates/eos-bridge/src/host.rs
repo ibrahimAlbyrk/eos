@@ -135,4 +135,9 @@ pub trait ShellHost: Send + Sync + 'static {
     fn cli_command(&self) -> Option<crate::cli_link::CliCommand> {
         None
     }
+    /// Closes the quick panel; focus stays with the app that had it.
+    fn close_panel(&self) {}
+    /// Fits the quick panel to its page, in points, already within
+    /// [`crate::doors::panel_size`]'s bounds.
+    fn size_panel(&self, _width: f64, _height: f64) {}
 }

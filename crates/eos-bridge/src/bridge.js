@@ -54,7 +54,11 @@
     early.delete(name);
     return () => set.delete(cb);
   };
-  const events = new EventSource("/_shell/events?t=" + encodeURIComponent(TOKEN));
+  // The quick panel is a second document of the dashboard with its own stream.
+  const SURFACE = (() => {
+    try { return new URLSearchParams(window.location?.search ?? "").get("surface") === "quick" ? "quick" : null; } catch { return null; }
+  })();
+  const events = new EventSource("/_shell/events?t=" + encodeURIComponent(TOKEN) + (SURFACE ? "&surface=" + SURFACE : ""));
   events.onmessage = (ev) => {
     let m;
     try { m = JSON.parse(ev.data); } catch { return; }
@@ -166,6 +170,11 @@
   if (!HOST) window.eosDoors = {
     loginItem: () => door("doors/login-item", "GET"),
     setLoginItem: (on) => door("doors/login-item", "PUT", { on: !!on }),
+    // The quick panel: what a door holds for it, and asking the panel to close or fit.
+    held: () => door("doors/held", "GET"),
+    onHeld: (cb) => on("doors:held", cb),
+    closePanel: () => send("doors/panel", { close: true }),
+    sizePanel: (width, height) => send("doors/panel", { size: { width, height } }),
   };
 
   // A click on a banner leads to a worker's chat or a named view.
