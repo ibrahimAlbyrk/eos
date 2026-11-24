@@ -654,6 +654,7 @@ impl App {
             browser: browser.clone(),
             picker: shell.as_ref().map(|s| s.picker.clone()),
             secret_prompt: shell.as_ref().map(|s| s.secret_prompt.clone()),
+            confinement: confinement.clone(),
             plugins: plugins.clone(),
             kernel: kernel.clone(),
             paths: paths.clone(),

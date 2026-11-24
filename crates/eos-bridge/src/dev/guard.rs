@@ -135,6 +135,9 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("DELETE", "/api/capabilities/{id}/secrets/{name}"),
     // The Forge: a run whose agents research, build and run code.
     ("POST", "/api/forge"),
+    // A proposal's live test reaches the user for real; its answer installs code.
+    ("POST", "/api/forge/proposals/{id}/live-test"),
+    ("POST", "/api/forge/proposals/{id}/answer"),
     // Signals: a replay admits runs, which start agents.
     ("POST", "/api/signals/replay"),
     // A source's webhook: made on the relay and at the service, as the user.

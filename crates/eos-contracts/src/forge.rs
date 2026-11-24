@@ -106,6 +106,9 @@ pub struct ForgeBuild {
     pub capability_id: String,
     pub version: String,
     pub summary: String,
+    /// The key of the researcher's way it builds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
 }
 
 impl Validate for ForgeBuild {
@@ -165,6 +168,137 @@ impl Validate for ForgeFinding {
     }
 }
 
+/// The capability Eos proposes once a Forge run's package passed its tests
+/// and review (`GET /api/forge/proposals/:runId`, and the payload of its
+/// `capability_install` item): what it does, reaches and costs, and how it
+/// was tested. Settings and secrets appear by name and label only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CapabilityProposal {
+    pub run_id: String,
+    pub capability_id: String,
+    pub name: String,
+    pub version: String,
+    pub summary: String,
+    /// `skill`, `script`, `mcp` or `plugin`.
+    pub form: String,
+    /// `this_mac` or `any_mac`.
+    pub works: String,
+    pub actions: Vec<ProposedAction>,
+    pub reach: ProposedReach,
+    pub secrets: Vec<ProposedField>,
+    pub settings: Vec<ProposedField>,
+    /// What the user said it costs, from the way they chose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<String>,
+    /// The package's hash: what was tested and reviewed is what installs.
+    pub hash: String,
+    pub size_bytes: u64,
+    pub tests: ProposedTests,
+    pub review: ForgeReview,
+    /// The live test, when the package declares one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live_test: Option<LiveTest>,
+    /// The routines that wait for it.
+    pub routines: Vec<ProposedRoutine>,
+    /// What Eos's checks cannot promise, in plain words.
+    pub limits: Vec<String>,
+}
+
+impl Validate for CapabilityProposal {}
+
+/// One action of a proposed capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposedAction {
+    pub name: String,
+    pub summary: String,
+    /// `read`, `write_local`, `tell_user`, `speak` or `irreversible`.
+    pub class: String,
+}
+
+/// What a proposed capability reaches.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposedReach {
+    pub hosts: Vec<String>,
+    /// The apps it sends Apple Events to, by bundle id.
+    pub apps: Vec<String>,
+    pub files: Vec<String>,
+}
+
+/// A secret or setting the user gives on install.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposedField {
+    pub name: String,
+    pub label: String,
+}
+
+/// Eos's own tests of the package.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposedTests {
+    pub passed: bool,
+    /// Reads of system preference files the audit let pass.
+    pub tolerated: usize,
+}
+
+/// The one real call the user starts before installing, and their word on it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveTest {
+    pub action: String,
+    /// `not_run`, `sent`, `failed`, `alerted` or `not_alerted`.
+    pub state: String,
+}
+
+/// A routine that waits for a proposed capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposedRoutine {
+    pub id: String,
+    pub name: String,
+}
+
+/// `GET /api/forge/proposals/:runId`: the proposal and where its item stands.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposalState {
+    pub item_id: String,
+    /// The item's state: `open`, `answered`, …
+    pub state: String,
+    pub proposal: CapabilityProposal,
+}
+
+impl Validate for ProposalState {}
+
+/// `POST /api/forge/proposals/:runId/answer`, this computer's dashboard only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ProposalAnswer {
+    pub choice: ProposalChoice,
+}
+
+impl Validate for ProposalAnswer {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalChoice {
+    Install,
+    Decline,
+    /// The live test reached the user.
+    Alerted,
+    /// It did not: the user may decline, or ask for another way.
+    NotAlerted,
+    /// Decline, and start a Forge run for another way than this one.
+    OtherWay,
+}
+
+/// `POST /api/forge/proposals/:runId/live-test`: the settings the live
+/// call needs, by name. They are kept for the install, never stored before.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+pub struct LiveTestStart {
+    #[serde(default)]
+    pub settings: std::collections::BTreeMap<String, String>,
+}
+
+impl Validate for LiveTestStart {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,6 +316,7 @@ mod tests {
             capability_id: "sms-messages".into(),
             version: "1.0.0".into(),
             summary: "Texts you.".into(),
+            option: None,
         };
         assert_eq!(issues(&build("package")), 0);
         for outside in ["", "../x", "/tmp/x", "a/../../x", "."] {

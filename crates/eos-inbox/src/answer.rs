@@ -38,7 +38,7 @@ const ANSWERED_HERE: [ItemKind; 8] = [
 const DISCARDED: &str = r#"{"discard":true}"#;
 
 /// What a write found when the item is not as the caller saw it.
-pub(crate) type Checked = Result<StoredItem, Error>;
+pub type Checked = Result<StoredItem, Error>;
 
 /// The item, if it still waits at `rev` (any rev when none is named).
 pub(crate) fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Checked, eos_core::Error> {
@@ -67,8 +67,9 @@ pub(crate) fn heard_in(
     Ok(())
 }
 
-/// Answers the item in one statement guarded by state and rev.
-pub(crate) fn answer_in(
+/// Answers the item in one statement guarded by state and rev, inside the
+/// caller's write job; the answer is announced once the job commits.
+pub fn answer_in(
     tx: &dyn Tx,
     out: &mut Outbox,
     id: &str,

@@ -93,6 +93,8 @@ pub(crate) struct Context {
     pub(crate) policy: Arc<PolicyGateway>,
     /// What Eos can reach for the user: the agent tools, the gateway and its feature share it.
     pub(crate) capabilities: Arc<eos_capabilities::CapabilityService>,
+    /// The engine's sandbox, which capability code and the Forge's tests run under.
+    pub(crate) confinement: Arc<crate::capabilities::LateConfinement>,
     /// The sources routines read: the built-ins', or a test's.
     pub(crate) signal_sources: Arc<dyn eos_core::signals::SignalSources>,
     /// The channels results go out through: the built-ins', or a test's.
@@ -228,6 +230,21 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         profile.memory_keeper(),
         profile.memory_reader(),
     );
+    let forge_steps = Arc::new(eos_mod_forge::ForgeSteps::new(eos_mod_forge::ForgeStepsParts {
+        store: cx.store.clone(),
+        clock: cx.clock.clone(),
+        ids: cx.ids.clone(),
+        zone: Arc::new(crate::host::HostTimeZone),
+        files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
+        scratch: cx.paths.join("scratch"),
+        trial: Arc::new(eos_capability_host::Trial::new(
+            cx.confinement.clone(),
+            eos_kit_proc::Runner::new(eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+                eos_platform::kill_process_tree(pid).is_ok()
+            })),
+            cx.ids.clone(),
+        )),
+    }));
     let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
         store: cx.store.clone(),
         clock: cx.clock.clone(),
@@ -263,12 +280,10 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
             cx.paths.join("surfaces"),
         )),
-        system_steps: Arc::new(eos_mod_forge::ForgeSteps::new(
-            Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
-            cx.paths.join("scratch"),
-        )),
+        system_steps: forge_steps.clone(),
     }));
     runs.attach(&routines);
+    forge_steps.attach(routines.control());
     cx.grants.attach(&routines.grants());
     cx.scripts.attach(&routines.scripts());
     // The delivery engine keeps the outcomes alive for the gate.
@@ -311,6 +326,10 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         builtins: routines.builtins(),
         capabilities: cx.capabilities.clone(),
         definitions: eos_workers::definition::records_from(&eos_store_files::worker_definitions::forge_definitions()),
+        steps: forge_steps,
+        service: cx.capabilities.clone(),
+        prompt: cx.secret_prompt.clone(),
+        bus: cx.bus.clone(),
     }));
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =

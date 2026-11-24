@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use eos_core::routine::SystemSteps;
 use eos_mod_forge::{ForgeSteps, REGISTRY_HOSTS, build_folder};
-use eos_testkit::TempHome;
+use eos_testkit::{FakeConfinement, TempHome, TempStore};
 
 fn steps(home: &TempHome) -> ForgeSteps {
-    let files = eos_fs::DiskFileSystem::new(eos_platform::generic_host(), &eos_platform::DataPaths::new(home.path()));
-    ForgeSteps::new(Arc::new(files), home.join("scratch"))
+    crate::rig::steps_in(home.path(), &TempStore::new(), Arc::new(FakeConfinement::new()))
 }
 
 #[tokio::test]

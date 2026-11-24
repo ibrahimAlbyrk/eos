@@ -1,0 +1,235 @@
+//! `forge.propose` (06 G9 station 6): once the reviewer passed the package,
+//! Eos proposes it to the user as one `capability_install` item, with what
+//! it does, reaches and costs, and how it was tested. The files proposed
+//! are the ones reviewed and tested: a package that changed after its
+//! review is not proposed, and one that changed after its tests is tested
+//! again. The version is recorded as `proposed`; nothing is installed here.
+
+use eos_contracts::{
+    CapabilityProposal, ForgeBuild, ForgeResearch, ForgeReview, LiveTest, ProposedAction, ProposedField, ProposedReach,
+    ProposedRoutine, ProposedTests,
+};
+use eos_core::Error;
+use eos_core::forge::ForgeStage;
+use eos_core::routine::{StepResult, SubmittedResult, SystemStepCall};
+use eos_core::store::StoredCapabilityVersion;
+use eos_domain::inbox::ItemKind;
+use eos_inbox::{NewItem, Opening, open_in};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+
+use crate::package::{Built, newest, read};
+use crate::request::report_event;
+use crate::steps::ForgeSteps;
+use crate::tested::{TEST_EVENT, Tested, test};
+
+/// The run event that names the proposal's item.
+pub const PROPOSAL_EVENT: &str = "forge_proposal";
+/// The module that acts on a proposal's answer.
+pub const PRODUCER: &str = "forge";
+/// The status of a version the user has not answered yet.
+pub(crate) const PROPOSED: &str = "proposed";
+
+/// What a proposal's event keeps.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Proposed {
+    pub(crate) item_id: String,
+}
+
+/// The subject a run's proposal item has.
+pub(crate) fn subject(run_id: &str) -> String {
+    format!("forge:{run_id}")
+}
+
+/// A passed review, with the hash of the files the reviewer read.
+#[derive(Deserialize)]
+struct Reviewed {
+    #[serde(flatten)]
+    review: ForgeReview,
+    #[serde(default)]
+    hash: Option<String>,
+}
+
+pub(crate) async fn step(steps: &ForgeSteps, call: &SystemStepCall) -> Result<StepResult, Error> {
+    let run_id = call.run_id.as_str();
+    let store = steps.store.as_ref();
+    let failed = |reason: &str| Ok(StepResult::Failed { reason: reason.to_owned() });
+    let Some(build) = newest::<ForgeBuild>(store, run_id, &report_event(ForgeStage::Build)).await? else {
+        return failed("The builder reported no package.");
+    };
+    let built = match read(steps, run_id, &build).await? {
+        Ok(built) => built,
+        Err(why) => return failed(&format!("The package cannot be proposed: {why}.")),
+    };
+    let reviewed = newest::<Reviewed>(store, run_id, &report_event(ForgeStage::Review)).await?;
+    let Some(reviewed) = reviewed.filter(|reviewed| reviewed.review.verdict == "pass") else {
+        return failed("The reviewer has not passed the package.");
+    };
+    if reviewed.hash.as_deref() != Some(built.hash.as_str()) {
+        return failed("The package changed after its review, so it is not proposed.");
+    }
+    let tested = match newest::<Tested>(store, run_id, TEST_EVENT).await? {
+        Some(tested) if tested.hash == built.hash => tested,
+        _ => test(steps, run_id, &built).await?,
+    };
+    if !tested.passed {
+        return failed(&format!("Eos's tests failed: {}.", tested.failures.join("; ")));
+    }
+    let research = newest::<ForgeResearch>(store, run_id, &report_event(ForgeStage::Research)).await?;
+    let cost = research.and_then(|research| {
+        let chosen = build.option.as_deref();
+        let only = research.options.len() == 1;
+        research.options.into_iter().find(|option| only || Some(option.key.as_str()) == chosen).map(|o| o.cost)
+    });
+    let waiting = call.input.options.get("routine").and_then(Value::as_str).map(str::to_owned);
+    let proposal = proposal_of(run_id, &built, &tested, reviewed.review, cost);
+    let manifest_json = serde_json::to_string(&built.manifest).map_err(Error::storage)?;
+    match open(steps, call, proposal, waiting, manifest_json).await? {
+        Ok(item_id) => Ok(StepResult::Done(SubmittedResult {
+            kind: "nothing".into(),
+            headline: format!("{} {} waits for your answer in Needs you", built.manifest.name, built.manifest.version),
+            body: json!({"itemId": item_id}),
+            files: Vec::new(),
+        })),
+        Err(why) => failed(&why),
+    }
+}
+
+fn proposal_of(
+    run_id: &str,
+    built: &Built,
+    tested: &Tested,
+    review: ForgeReview,
+    cost: Option<String>,
+) -> CapabilityProposal {
+    let manifest = &built.manifest;
+    let word = |value: Value| value.as_str().unwrap_or_default().to_owned();
+    let live_test = manifest
+        .tests
+        .as_ref()
+        .and_then(|tests| tests.live.clone())
+        .map(|action| LiveTest { action, state: "not_run".into() });
+    let mut limits = vec![
+        "Eos's audit cannot see a helper program whose name the system's log leaves out; the reviewer read the code for that."
+            .to_owned(),
+        "The system names no host when it stops a connection around Eos's proxy, so any such attempt failed the tests."
+            .to_owned(),
+    ];
+    if tested.tolerated > 0 {
+        limits.push(format!("{} reads of system preference files were let pass.", tested.tolerated));
+    }
+    if live_test.is_some() {
+        limits.push("The live test is one real call, made only when you start it.".to_owned());
+    }
+    CapabilityProposal {
+        run_id: run_id.to_owned(),
+        capability_id: manifest.id.clone(),
+        name: manifest.name.clone(),
+        version: manifest.version.clone(),
+        summary: manifest.summary.clone(),
+        form: word(json!(manifest.form)),
+        works: word(json!(manifest.works)),
+        actions: manifest
+            .actions
+            .iter()
+            .map(|action| ProposedAction {
+                name: action.name.clone(),
+                summary: action.summary.clone(),
+                class: word(json!(action.class)),
+            })
+            .collect(),
+        reach: ProposedReach {
+            hosts: manifest.reach.hosts.clone(),
+            apps: manifest.reach.apple_events.clone(),
+            files: manifest.reach.files_read.clone(),
+        },
+        secrets: manifest
+            .secrets
+            .iter()
+            .map(|s| ProposedField { name: s.name.clone(), label: s.label.clone() })
+            .collect(),
+        settings: manifest
+            .settings
+            .iter()
+            .map(|s| ProposedField { name: s.name.clone(), label: s.label.clone() })
+            .collect(),
+        cost,
+        hash: built.hash.clone(),
+        size_bytes: built.size,
+        tests: ProposedTests { passed: tested.passed, tolerated: tested.tolerated },
+        review,
+        live_test,
+        routines: Vec::new(),
+        limits,
+    }
+}
+
+/// Records the version as proposed and opens its item, in one job; the
+/// item's id, or why the version cannot be proposed.
+async fn open(
+    steps: &ForgeSteps,
+    call: &SystemStepCall,
+    mut proposal: CapabilityProposal,
+    waiting: Option<String>,
+    manifest_json: String,
+) -> Result<Result<String, String>, Error> {
+    let (ids, zone, control) = (steps.ids.clone(), steps.zone.clone(), steps.control()?);
+    let (run_id, routine_id, now) = (call.run_id.clone(), call.routine_id.clone(), steps.clock.now_ms());
+    steps
+        .store
+        .write(move |tx, out| {
+            if let Some(id) = waiting.as_deref()
+                && let Some(routine) = tx.routines().find(id)?
+            {
+                proposal.routines.push(ProposedRoutine { id: routine.id, name: routine.name });
+            }
+            let (id, version) = (proposal.capability_id.clone(), proposal.version.clone());
+            match tx.capability_versions().find(&id, &version)? {
+                None => tx.capability_versions().insert(&StoredCapabilityVersion {
+                    capability_id: id.clone(),
+                    version: version.clone(),
+                    status: PROPOSED.to_owned(),
+                    hash: proposal.hash.clone(),
+                    manifest_json,
+                    source: run_id.clone(),
+                    tests_json: Some(json!(proposal.tests).to_string()),
+                    review_json: Some(json!(proposal.review).to_string()),
+                    created_at: now,
+                    activated_at: None,
+                    retired_at: None,
+                })?,
+                Some(known) if known.hash != proposal.hash => {
+                    return Ok(Err(format!(
+                        "Version {version} was made before with other files: the package needs a new version."
+                    )));
+                }
+                Some(known) if known.status == "installed" => {
+                    return Ok(Err(format!("Version {version} is installed already.")));
+                }
+                Some(_) => drop(tx.capability_versions().set_status(&id, &version, PROPOSED, None, None)?),
+            }
+            let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+            let item = open_in(
+                tx,
+                out,
+                &at,
+                NewItem {
+                    kind: ItemKind::CapabilityInstall,
+                    producer: PRODUCER.to_owned(),
+                    routine_id: Some(routine_id),
+                    run_id: Some(run_id.clone()),
+                    subject_key: Some(subject(&run_id)),
+                    title: format!("Install {}?", proposal.name),
+                    summary: proposal.summary.clone(),
+                    payload: json!(proposal),
+                    by_hand: true,
+                },
+            )?;
+            let data = json!(Proposed { item_id: item.id.clone() }).to_string();
+            tx.runs().append_event(&run_id, now, PROPOSAL_EVENT, Some(&data))?;
+            tracing::info!(run_id, item_id = %item.id, "a capability was proposed");
+            Ok(Ok(item.id))
+        })
+        .await
+}

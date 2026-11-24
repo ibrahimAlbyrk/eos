@@ -3,17 +3,24 @@
 //! `forge.propose`).
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
-use eos_core::os::FileSystem;
-use eos_core::routine::{StepResult, SystemStepCall, SystemSteps};
-use eos_core::{BoxFuture, Error};
+use eos_capability_host::Trial;
+use eos_core::os::{FileSystem, TimeZone};
+use eos_core::routine::{RoutineControl, StepResult, SystemStepCall, SystemSteps};
+use eos_core::store::Store;
+use eos_core::{BoxFuture, Clock, Error, Ids};
 use serde_json::json;
 
 /// The hosts the builder's shell reaches without asking: package registries.
 /// Any other host the engine's sandbox asks Eos's gate about.
 pub const REGISTRY_HOSTS: [&str; 6] =
     ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "crates.io", "static.crates.io", "index.crates.io"];
+
+/// The system step that tests the package.
+pub const TEST_STEP: &str = "forge.test";
+/// The system step that proposes it to the user.
+pub const PROPOSE_STEP: &str = "forge.propose";
 
 /// The build folder of the Forge run `run_id`, in the scratch area.
 pub fn build_folder(scratch: &std::path::Path, run_id: &str) -> PathBuf {
@@ -37,10 +44,37 @@ fn sandbox_settings() -> String {
     format!("{settings:#}\n")
 }
 
-pub struct ForgeSteps {
-    files: Arc<dyn FileSystem>,
+/// What the Forge's steps are made of.
+pub struct ForgeStepsParts {
+    pub store: Arc<dyn Store>,
+    pub clock: Arc<dyn Clock>,
+    pub ids: Arc<dyn Ids>,
+    /// The user's time zone, for the items the steps open.
+    pub zone: Arc<dyn TimeZone>,
+    pub files: Arc<dyn FileSystem>,
     /// `<data folder>/scratch`.
-    scratch: PathBuf,
+    pub scratch: PathBuf,
+    /// Runs a package's tests under the sandbox.
+    pub trial: Arc<Trial>,
+}
+
+impl std::fmt::Debug for ForgeStepsParts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForgeStepsParts").field("scratch", &self.scratch).finish_non_exhaustive()
+    }
+}
+
+pub struct ForgeSteps {
+    pub(crate) store: Arc<dyn Store>,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) ids: Arc<dyn Ids>,
+    pub(crate) zone: Arc<dyn TimeZone>,
+    files: Arc<dyn FileSystem>,
+    pub(crate) scratch: PathBuf,
+    pub(crate) trial: Arc<Trial>,
+    /// Pauses a routine with too many items waiting; attached once the
+    /// routines exist, which are made with these steps.
+    control: OnceLock<Arc<dyn RoutineControl>>,
 }
 
 impl std::fmt::Debug for ForgeSteps {
@@ -50,15 +84,35 @@ impl std::fmt::Debug for ForgeSteps {
 }
 
 impl ForgeSteps {
-    pub fn new(files: Arc<dyn FileSystem>, scratch: PathBuf) -> Self {
-        Self { files, scratch }
+    pub fn new(parts: ForgeStepsParts) -> Self {
+        let ForgeStepsParts { store, clock, ids, zone, files, scratch, trial } = parts;
+        Self { store, clock, ids, zone, files, scratch, trial, control: OnceLock::new() }
     }
 
-    async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {
+    /// Hands in the routines' control, once they exist.
+    pub fn attach(&self, control: Arc<dyn RoutineControl>) {
+        let _ = self.control.set(control);
+    }
+
+    pub(crate) fn control(&self) -> Result<Arc<dyn RoutineControl>, Error> {
+        self.control.get().cloned().ok_or_else(|| Error::Conflict("the Forge is not ready yet".into()))
+    }
+
+    /// The build folder of `run_id`.
+    pub(crate) fn folder(&self, run_id: &str) -> Result<PathBuf, Error> {
         if run_id.is_empty() || !run_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return Err(Error::Validation(format!("run id {run_id:?} names no folder")));
         }
-        let folder = build_folder(&self.scratch, run_id);
+        Ok(build_folder(&self.scratch, run_id))
+    }
+
+    /// Where the Forge's tests make their data and temp folders.
+    pub(crate) fn tests_folder(&self) -> PathBuf {
+        self.scratch.join("forge-tests")
+    }
+
+    async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {
+        let folder = self.folder(run_id)?;
         self.files.write_text(&folder.join(".claude/settings.json"), &sandbox_settings(), true).await?;
         tracing::info!(run_id, "a Forge run's build folder was made");
         Ok(Some(folder.to_string_lossy().into_owned()))
@@ -67,8 +121,13 @@ impl ForgeSteps {
 
 impl SystemSteps for ForgeSteps {
     fn run(&self, call: SystemStepCall) -> BoxFuture<'_, Result<StepResult, Error>> {
-        let reason = format!("No part of this Eos runs the step `{}`.", call.step);
-        Box::pin(std::future::ready(Ok(StepResult::Failed { reason })))
+        Box::pin(async move {
+            match call.step.as_str() {
+                TEST_STEP => crate::tested::step(self, &call.run_id).await,
+                PROPOSE_STEP => crate::proposal::step(self, &call).await,
+                other => Ok(StepResult::Failed { reason: format!("No part of this Eos runs the step `{other}`.") }),
+            }
+        })
     }
 
     fn prepare_folder<'a>(&'a self, run_id: &'a str) -> BoxFuture<'a, Result<Option<String>, Error>> {
