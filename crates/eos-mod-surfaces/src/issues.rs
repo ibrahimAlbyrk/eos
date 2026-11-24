@@ -31,6 +31,7 @@ pub(crate) struct ViewIssues {
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) actions: Actions,
     pub(crate) cards: Arc<dyn ViewCards>,
+    pub(crate) designs: Arc<crate::design::Designs>,
 }
 
 /// Every problem of the View and its bindings, or the bindings.
@@ -171,5 +172,18 @@ impl SurfaceTools for ViewIssues {
 
     fn fill_page<'a>(&'a self, worker_id: &'a str, data: Value) -> BoxFuture<'a, Result<String, Error>> {
         crate::fill::fill_page(&self.parts, &self.fills, worker_id, data)
+    }
+
+    fn page_design_read<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Value, Error>> {
+        Box::pin(crate::designer::read(self, worker_id))
+    }
+
+    fn page_design_propose<'a>(
+        &'a self,
+        worker_id: &'a str,
+        design: Value,
+        note: String,
+    ) -> BoxFuture<'a, Result<String, Error>> {
+        Box::pin(crate::designer::propose(self, worker_id, design, note))
     }
 }

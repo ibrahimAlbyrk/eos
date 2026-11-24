@@ -41,6 +41,9 @@
 mod action_routes;
 mod authoring;
 mod builtins;
+mod design;
+mod design_checks;
+mod designer;
 mod dispatch;
 mod edits;
 mod export;
@@ -61,7 +64,7 @@ mod wire;
 
 use std::sync::Arc;
 
-use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesIssue, SurfacesPins, SurfacesState};
+use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesDesign, SurfacesIssue, SurfacesPins, SurfacesState};
 use eos_core::inbox::ActionGate;
 use eos_core::store::{Store, UserSettingsStore};
 use eos_core::surface::{DirectActions, SurfaceTools};
@@ -79,6 +82,7 @@ pub const SURFACES_CHANGE: Topic<SurfacesChange> = Topic::new("surfaces:change")
 pub const SURFACES_ISSUE: Topic<SurfacesIssue> = Topic::new("surfaces:issue");
 pub const SURFACES_STATE: Topic<SurfacesState> = Topic::new("surfaces:state");
 pub const SURFACES_PINS: Topic<SurfacesPins> = Topic::new("surfaces:pins");
+pub const SURFACES_DESIGN: Topic<SurfacesDesign> = Topic::new("surfaces:design");
 pub const ACTIONS_RECORD: Topic<ActionsRecord> = Topic::new("actions:record");
 
 /// What the module is built from.
@@ -104,6 +108,29 @@ pub struct SurfacesParts {
     pub feedback: Arc<dyn eos_core::experience::ExperienceFeedback>,
     /// Routines, which run a surface's design and ask runs.
     pub runs: Arc<dyn eos_core::routine::RunStarter>,
+    /// The shell's hidden view that lays a page design out to check it.
+    pub probe: Arc<dyn eos_core::surface::PageProbe>,
+    /// `surfaces/`, one folder per surface.
+    pub root: std::path::PathBuf,
+}
+
+/// No window: a page design waits in `checking` until there is one.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoProbeWindow;
+
+impl eos_core::surface::PageProbe for NoProbeWindow {
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn measure<'a>(
+        &'a self,
+        _doc: eos_core::surface::ProbeDoc,
+        _widths: &'a [u16],
+        _shots: &'a std::path::Path,
+    ) -> eos_core::BoxFuture<'a, Result<Vec<eos_core::surface::ProbeWidth>, eos_core::Error>> {
+        Box::pin(std::future::ready(Err(eos_core::Error::Unreachable("Eos's window is not open".into()))))
+    }
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -118,6 +145,7 @@ pub struct SurfacesModule {
     probe_docs: Arc<ProbeDocs>,
     fills: Arc<fill::Fills>,
     last_good: Arc<queries::LastGood>,
+    designs: Arc<design::Designs>,
 }
 
 impl std::fmt::Debug for SurfacesModule {
@@ -137,13 +165,15 @@ impl SurfacesModule {
             cards: parts.cards.clone(),
         }));
         let probe_docs = Arc::new(ProbeDocs::new(parts.clock.clone(), parts.ids.clone()));
-        SurfacesModule {
-            parts: Arc::new(parts),
-            dispatcher,
-            probe_docs,
-            fills: Arc::default(),
-            last_good: Arc::default(),
-        }
+        let parts = Arc::new(parts);
+        let designs = Arc::new(design::Designs {
+            parts: parts.clone(),
+            docs: probe_docs.clone(),
+            probe: parts.probe.clone(),
+            root: parts.root.clone(),
+            probing: tokio::sync::Mutex::new(()),
+        });
+        SurfacesModule { parts, dispatcher, probe_docs, fills: Arc::default(), last_good: Arc::default(), designs }
     }
 
     /// The raw-content origin's routes: pages, their images, probe documents.
@@ -171,6 +201,7 @@ impl SurfacesModule {
             ids: self.parts.ids.clone(),
             actions: self.parts.actions.clone(),
             cards: self.parts.cards.clone(),
+            designs: self.designs.clone(),
         })
     }
 
@@ -209,8 +240,20 @@ impl Module for SurfacesModule {
             SURFACES_ISSUE.decl(),
             SURFACES_STATE.decl(),
             SURFACES_PINS.decl(),
+            SURFACES_DESIGN.decl(),
             ACTIONS_RECORD.decl(),
         ]
+    }
+
+    fn after_ready(&self) -> eos_runtime::router::BoxFuture<'_, Result<(), eos_runtime::module::ModuleError>> {
+        // A design left waiting for the window is checked once there is one.
+        let designs = self.designs.clone();
+        tokio::spawn(async move {
+            if let Err(error) = designs.check_waiting().await {
+                tracing::warn!(%error, "the page designs left waiting could not be read");
+            }
+        });
+        Box::pin(std::future::ready(Ok(())))
     }
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {

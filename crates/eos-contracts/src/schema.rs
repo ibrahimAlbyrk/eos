@@ -658,6 +658,7 @@ bundle![
     SurfaceQueryAnswer,
     SurfaceRow,
     SurfacesChange,
+    SurfacesDesign,
     SurfaceSettings,
     SurfacesIssue,
     SurfacesPins,

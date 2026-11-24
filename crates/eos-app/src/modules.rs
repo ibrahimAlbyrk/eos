@@ -68,6 +68,8 @@ pub(crate) struct Context {
     pub(crate) paths: eos_platform::DataPaths,
     /// Routes of the raw-content origin, collected while the modules are built.
     pub(crate) raw_routes: crate::files::RawRoutes,
+    /// The shell's page probe, which checks page designs.
+    pub(crate) page_probe: Arc<dyn eos_core::surface::PageProbe>,
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
     /// The folder of memory's meaning model, when this run has one.
@@ -280,6 +282,8 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         profile: cx.notes.profile.profile.clone(),
         feedback: memory.experience_feedback(),
         runs: routines.runs(),
+        probe: cx.page_probe.clone(),
+        root: cx.paths.join("surfaces"),
     }));
     cx.raw_routes.add(surfaces.raw_routes());
     let transfer = crate::machines::transfer(cx);

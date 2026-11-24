@@ -78,6 +78,21 @@ impl eos_core::surface::SurfaceTools for RunCalls {
         self.0.lock().expect("calls").push(format!("page {worker_id} {data}"));
         Box::pin(std::future::ready(Ok("issue si-000000000002 accepted".to_owned())))
     }
+
+    fn page_design_read<'a>(&'a self, worker_id: &'a str) -> eos_core::BoxFuture<'a, Result<Value, eos_core::Error>> {
+        self.0.lock().expect("calls").push(format!("design read {worker_id}"));
+        Box::pin(std::future::ready(Ok(serde_json::json!({"current": null}))))
+    }
+
+    fn page_design_propose<'a>(
+        &'a self,
+        worker_id: &'a str,
+        design: Value,
+        note: String,
+    ) -> eos_core::BoxFuture<'a, Result<String, eos_core::Error>> {
+        self.0.lock().expect("calls").push(format!("design propose {worker_id} {design} {note}"));
+        Box::pin(std::future::ready(Ok("candidate version 2".to_owned())))
+    }
 }
 
 impl RoutineTools for RunCalls {
