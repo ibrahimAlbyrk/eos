@@ -21,8 +21,11 @@ pub(crate) struct Chosen {
 
 pub(crate) enum Targets {
     Go(Vec<Chosen>),
-    /// The routine names no place on the result's channel: nothing goes out.
+    /// The routine sends nowhere (a trial, or no Goes to): only shown.
     Nowhere,
+    /// The result was meant to be sent and no place is left for it: held
+    /// for the user, never only shown (D66).
+    NoneLeft,
     /// A recipient the user has not confirmed (03 G14, G22).
     Unconfirmed,
 }
@@ -36,15 +39,21 @@ fn channel_of(recipient: &Recipient) -> &str {
 }
 
 /// The recipients a mail names by its `to:` parts; none named, every one.
-fn named(doc: &ResultDoc, recipient: &Recipient) -> bool {
-    let names: Vec<&str> = doc.parts.iter().filter_map(|part| part.key.strip_prefix("to:")).collect();
+/// A part that names no confirmed recipient is ignored (D66).
+fn named(doc: &ResultDoc, confirmed: &[Recipient], recipient: &Recipient) -> bool {
+    let known = |name: &&str| confirmed.iter().any(|recipient| recipient.id == *name);
+    let names: Vec<&str> = doc.parts.iter().filter_map(|part| part.key.strip_prefix("to:")).filter(known).collect();
     doc.kind != MAIL || names.is_empty() || names.contains(&recipient.id.as_str())
 }
 
 pub(crate) fn choose(input: &GateInput, facts: &Facts) -> Targets {
     let doc = &input.doc;
+    if input.targets.is_empty() {
+        return Targets::Nowhere;
+    }
     let mut chosen = Vec::new();
-    for recipient in input.targets.iter().filter(|r| channel_of(r) == doc.channel && named(doc, r)) {
+    let named = |r: &&Recipient| named(doc, &input.goes_to_confirmed, r);
+    for recipient in input.targets.iter().filter(|r| channel_of(r) == doc.channel).filter(named) {
         if !input.goes_to_confirmed.contains(recipient) {
             return Targets::Unconfirmed;
         }
@@ -61,7 +70,7 @@ pub(crate) fn choose(input: &GateInput, facts: &Facts) -> Targets {
         let target = Target { recipient_id: recipient.id.clone(), place };
         chosen.push(Chosen { recipient: recipient.clone(), target, bounded });
     }
-    if chosen.is_empty() { Targets::Nowhere } else { Targets::Go(chosen) }
+    if chosen.is_empty() { Targets::NoneLeft } else { Targets::Go(chosen) }
 }
 
 /// What a recipient part of a mail shows the user.
