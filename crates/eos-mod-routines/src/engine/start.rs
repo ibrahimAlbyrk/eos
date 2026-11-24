@@ -30,7 +30,8 @@ const REQUEST_KEPT_MS: i64 = 10 * 60 * 1000;
 /// other routines', then triggers'.
 pub(crate) fn priority(origin: &RunOrigin) -> i64 {
     match origin {
-        RunOrigin::Hand | RunOrigin::Again { .. } | RunOrigin::Trial => 0,
+        // A surface's run answers what the user just said or pressed.
+        RunOrigin::Hand | RunOrigin::Again { .. } | RunOrigin::Trial | RunOrigin::Surface { .. } => 0,
         RunOrigin::Agent { .. } | RunOrigin::Routine { .. } => 1,
         // Memory's night check waits for everything the user asked for.
         RunOrigin::Replay { .. } => 2,
@@ -174,7 +175,7 @@ fn queue(
         return Err(StartError::RoutineState(routine.state));
     }
     let (version, blueprint) = version_in(tx, new)?;
-    check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin)?;
+    check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin, new.input.surface.is_some())?;
     let inputs = inputs(new, &blueprint)?;
     let keys: Vec<Option<String>> = inputs.iter().map(|input| input.item.as_ref().and_then(item::key)).collect();
     if !new.confirm_repeat {
@@ -185,7 +186,11 @@ fn queue(
         }
     }
     let is_trial = matches!(new.origin, RunOrigin::Trial | RunOrigin::Replay { .. });
-    let kind = if is_trial { "trial" } else { kind_word(routine.kind) };
+    let kind = match &new.input.surface {
+        Some(surface) => surface.kind.word(),
+        None if is_trial => "trial",
+        None => kind_word(routine.kind),
+    };
     let version_id = version.id;
     // Only a start for one version binds it now; the others run the head as it is when they leave the queue.
     let bound = new.version.as_ref().map(|_| version_id.clone());
@@ -234,6 +239,12 @@ fn takes_origin(state: RoutineState, origin: &RunOrigin) -> bool {
     match state {
         RoutineState::Active => true,
         _ if matches!(origin, RunOrigin::Replay { .. }) => false,
+        // A page is designed during the trial, and reshaped while paused.
+        RoutineState::Paused | RoutineState::Transient | RoutineState::Draft
+            if matches!(origin, RunOrigin::Surface { .. }) =>
+        {
+            true
+        }
         RoutineState::Paused | RoutineState::Transient => by_hand,
         RoutineState::Draft => *origin == RunOrigin::Trial,
         RoutineState::Archived | RoutineState::Deleted => false,
@@ -248,7 +259,12 @@ fn check_origin(
     routine_id: &str,
     blueprint: &Blueprint,
     origin: &RunOrigin,
+    input_names_surface: bool,
 ) -> Result<(), StartError> {
+    let from_surface = matches!(origin, RunOrigin::Surface { .. });
+    if from_surface != input_names_surface {
+        return Err(StartError::Invalid("surface: only a routine's surface starts its runs, with what it asks".into()));
+    }
     match origin {
         RunOrigin::Agent { .. } if !agents_may_start => {
             Err(StartError::Invalid("origin: the routine does not let agents start it".into()))
@@ -297,7 +313,9 @@ fn inputs(new: &NewRun, blueprint: &Blueprint) -> Result<Vec<RunInput>, StartErr
     let without_item = |input: &RunInput| input.item.is_none() && input.items.as_ref().is_none_or(Vec::is_empty);
     // A trial with no past item is a dry run (G7).
     let dry_run = new.origin == RunOrigin::Trial;
-    if blueprint.takes.empty == TakesEmpty::Required && !dry_run && inputs.iter().any(without_item) {
+    // A surface's run works on the surface, never on an item of its own.
+    let for_surface = new.input.surface.is_some();
+    if blueprint.takes.empty == TakesEmpty::Required && !dry_run && !for_surface && inputs.iter().any(without_item) {
         return Err(StartError::Invalid("item: Required".into()));
     }
     Ok(inputs)

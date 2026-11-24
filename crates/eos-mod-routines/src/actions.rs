@@ -112,6 +112,7 @@ impl ActionHandler for Start {
                 note: call.args["note"].as_str().map(str::to_owned),
                 result: ResultMode::Usual,
                 at: None,
+                surface: None,
             };
             let new = NewRun {
                 routine_id,

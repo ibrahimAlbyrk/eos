@@ -81,6 +81,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str) -> Result<Vec<
             note: None,
             result: ResultMode::ShowOnly,
             at: None,
+            surface: None,
         },
         items,
         origin: RunOrigin::Trial,

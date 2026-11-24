@@ -66,7 +66,9 @@ pub(crate) fn begin(engine: &Arc<Engine>, run_id: &str) {
 async fn check(engine: &Arc<Engine>, run_id: &str) -> Result<(), Error> {
     let Some(checking) = read(engine, run_id).await? else { return Ok(()) };
     let attempt = checking.result.attempt;
-    if checking.result.kind == NOTHING {
+    // A surface's run makes a page design or an answer that is only shown:
+    // its own checks are the surface's.
+    if checking.result.kind == NOTHING || checking.input.surface.is_some() {
         return judged(engine, run_id, attempt, passing()).await;
     }
     let findings = rules(engine, &checking).await;

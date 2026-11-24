@@ -304,6 +304,11 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
 }
 
 impl Bench {
+    /// The tools a run session of `definition` gets, by name.
+    pub(crate) fn names_of(&self, definition: &str) -> Vec<String> {
+        self.tools.for_session(&run_session(definition)).iter().map(|tool| tool.definition().name.clone()).collect()
+    }
+
     /// The tools a session of `kind` gets, by name.
     pub(crate) fn names(&self, kind: &str) -> Vec<String> {
         self.tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()
@@ -442,6 +447,8 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         let as_worker = LaunchSpec { worker_definition: Some(definition.into()), ..session_of("peer") };
         assert_eq!(names(&as_worker), expected, "{definition}: the definition decides, not the role");
     }
+    let designer: Vec<&str> = lead[..3].iter().chain(&["current_datetime", "search_memory"]).copied().collect();
+    assert_eq!(bench.names_of("eos-run-designer"), designer, "a designer neither fills, returns nor sends");
     // A specialist is a worker of its own definition and keeps the worker list.
     let specialist = LaunchSpec { worker_definition: Some("eos-run-specialist".into()), ..session_of("worker") };
     assert_eq!(

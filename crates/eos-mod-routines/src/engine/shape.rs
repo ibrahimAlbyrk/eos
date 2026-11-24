@@ -62,6 +62,9 @@ pub(crate) async fn refuse_misfit(engine: &Engine, run_id: &str, kind: &str, bod
         .store
         .read(move |tx| {
             let Some(run) = tx.runs().find(&id)? else { return Ok(None) };
+            if eos_contracts::SurfaceRunKind::is_surface_word(&run.kind) {
+                return Ok(None);
+            }
             let version_id = run.version_id.unwrap_or_default();
             let Some(version) = tx.routine_versions().find(&run.routine_id, &version_id)? else { return Ok(None) };
             Ok(readable(&version)?.map(|blueprint| blueprint.makes.kind))

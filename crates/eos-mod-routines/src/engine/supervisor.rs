@@ -37,7 +37,7 @@ const LOW_BATTERY_PERCENT: u8 = 20;
 /// Started by the user: the dev guard let the act through, so such a run
 /// starts even off the network.
 pub(crate) fn by_the_user(origin: &str) -> bool {
-    matches!(origin, "hand" | "again" | "trial")
+    matches!(origin, "hand" | "again" | "trial" | "surface")
 }
 
 pub(crate) fn spawn(engine: &Arc<Engine>) {

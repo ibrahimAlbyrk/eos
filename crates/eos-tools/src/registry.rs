@@ -95,6 +95,10 @@ pub struct Tools {
     /// A routine run's checker: its verdict, the date, memory search and the
     /// capability tools.
     pub(crate) run_checker: Vec<Spec>,
+    /// A design run's designer: its progress, result and failure, the date
+    /// and memory search; neither a page's fill nor a View, nor any
+    /// capability.
+    pub(crate) run_designer: Vec<Spec>,
     /// A routine's architect: its own tools and `list_capabilities`.
     pub(crate) architect: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
@@ -190,6 +194,9 @@ impl Tools {
             list.push(user::ask_user(&s.questions));
             list.extend(run_shared());
         }
+        let mut run_designer = lead();
+        let reaches_capabilities = |t: &Spec| t.name == "list_capabilities" || t.name == "call_capability";
+        run_designer.extend(run_shared().into_iter().filter(|t| !reaches_capabilities(t)));
         let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();
         run_checker.extend(run_shared());
 
@@ -208,6 +215,7 @@ impl Tools {
             run_lead,
             run_team_lead,
             run_checker,
+            run_designer,
             architect,
             handed: Mutex::default(),
         }
@@ -227,6 +235,7 @@ impl Tools {
                 return self.run_lead.iter().filter(on).collect();
             }
             Some(routines::CHECKER_DEFINITION) => return self.run_checker.iter().filter(on).collect(),
+            Some(routines::DESIGNER_DEFINITION) => return self.run_designer.iter().filter(on).collect(),
             Some(architect::ARCHITECT_DEFINITION) => return self.architect.iter().filter(on).collect(),
             _ => {}
         }

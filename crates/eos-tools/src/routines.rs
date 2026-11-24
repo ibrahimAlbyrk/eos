@@ -24,6 +24,9 @@ pub(crate) const LEAD_DEFINITIONS: [&str; 3] = ["eos-run-solo", "eos-run-lead", 
 /// The worker definition a team's lead starts as: the lead's tools and its team's.
 pub(crate) const TEAM_LEAD_DEFINITION: &str = "eos-run-lead";
 
+/// The worker definition a design run's designer starts as.
+pub(crate) const DESIGNER_DEFINITION: &str = "eos-run-designer";
+
 /// The worker definition a run's checker starts as.
 pub(crate) const CHECKER_DEFINITION: &str = "eos-run-checker";
 
