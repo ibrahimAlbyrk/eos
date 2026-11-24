@@ -280,3 +280,24 @@ fn a_sources_cursor_and_state_and_a_routines_runner_read_back_as_written() {
         temp.store.write_blocking(|tx, _| tx.signal_sources().insert(&source("src-b", "capability", "scope-a")));
     assert!(same_scope.is_err(), "one source serves one scope");
 }
+
+#[test]
+fn each_hook_wakes_the_one_source_it_was_made_for() {
+    let temp = TempStore::new();
+    let found = temp
+        .store
+        .write_blocking(|tx, _| {
+            tx.signal_hooks().insert("h2", "src-b", 10)?;
+            tx.signal_hooks().insert("h1", "src-a", 10)?;
+            tx.signal_hooks().insert("h3", "src-a", 11)?;
+            let again = tx.signal_hooks().insert("h1", "src-b", 12).is_err();
+            Ok((
+                tx.signal_hooks().source_of("h1")?,
+                tx.signal_hooks().source_of("h9")?,
+                tx.signal_hooks().hooked()?,
+                again,
+            ))
+        })
+        .expect("writes");
+    assert_eq!(found, (Some("src-a".into()), None, vec!["src-a".to_owned(), "src-b".to_owned()], true));
+}

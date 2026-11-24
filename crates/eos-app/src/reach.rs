@@ -21,6 +21,7 @@
 //! | The Mail app, for its capability's reads, sends and checks | `osascript` never runs; every program answers as macOS refusing Apple Events, so Mail reads `needs_setup` |
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
+//! | Outside services' events in the relay's hook inbox | there is no inbox: it is never dialled and no webhook is added |
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
 //! | The channels a run's results go out through (GitHub reviews) | every send answers `DevRun`: the delivery stays `frozen`, nothing is sent |
 //! | Memory's model calls nobody asked for (reflection, night tidying) | they never run; notes come from rules only |
@@ -39,7 +40,7 @@ use eos_contracts::update::UpdateOffReason;
 use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
 use eos_core::capability::CapabilitySecrets;
 use eos_core::delivery::Channels;
-use eos_core::net::hooks::HookUrl;
+use eos_core::net::hooks::{HookInbox, HookUrl};
 use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome as PhonePushOutcome, Relay};
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::signals::{
@@ -81,6 +82,11 @@ impl Reach {
     /// every push answers that the link is off.
     pub(crate) fn phone_notify(self, notify: Arc<dyn PhoneNotify>) -> Arc<dyn PhoneNotify> {
         if self.network { notify } else { Arc::new(NoPush) }
+    }
+
+    /// This computer's hook inbox on the relay, made only on the network.
+    pub(crate) fn hook_inbox(self, inbox: impl FnOnce() -> Arc<dyn HookInbox>) -> Option<Arc<dyn HookInbox>> {
+        self.network.then(inbox)
     }
 
     /// Whether paired computers may be listened for and dialled.
@@ -509,6 +515,18 @@ mod tests {
         let on = Reach::new(true).signal_sources(sources).get("github.pulls").expect("the source");
         assert!(on.poll(request).await.is_ok());
         assert_eq!(fake.requests().len(), 1);
+    }
+
+    #[test]
+    fn off_the_network_there_is_no_hook_inbox_to_dial() {
+        let made = std::cell::Cell::new(0);
+        let inbox = || {
+            made.set(made.get() + 1);
+            Arc::new(eos_testkit::relay::FakeHookInbox::new()) as Arc<dyn HookInbox>
+        };
+        assert!(Reach::new(false).hook_inbox(inbox).is_none());
+        assert_eq!(made.get(), 0, "not even made");
+        assert!(Reach::new(true).hook_inbox(inbox).is_some());
     }
 
     #[tokio::test]

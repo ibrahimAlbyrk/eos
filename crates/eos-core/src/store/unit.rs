@@ -10,9 +10,10 @@ use super::{
     MemBookRepo, MemCreditRepo, MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo,
     MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
     RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
-    RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo,
-    SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RunRepo, RunResultRepo, SignalAskRepo, SignalHookRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo,
+    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo,
+    SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
+    WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -56,6 +57,7 @@ pub trait Tx {
     fn run_results(&self) -> &dyn RunResultRepo;
     fn runs(&self) -> &dyn RunRepo;
     fn signal_asks(&self) -> &dyn SignalAskRepo;
+    fn signal_hooks(&self) -> &dyn SignalHookRepo;
     fn signal_retention(&self) -> &dyn SignalRetentionRepo;
     fn signal_routes(&self) -> &dyn SignalRouteRepo;
     fn signal_runners(&self) -> &dyn SignalRunnerRepo;

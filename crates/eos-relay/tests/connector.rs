@@ -337,7 +337,7 @@ mod hook_inbox {
         relay.plant_unreadable(&identity.inbox);
         relay.drop_events(&identity.inbox, 3);
         let batch = hooks.next(0, 0).await.expect("a batch");
-        assert_eq!(batch.head, 2);
+        assert_eq!((batch.head, batch.through), (2, 2), "the planted entry is the page's last");
         assert_eq!(batch.unreadable, 1, "the planted entry is dropped and counted");
         assert_eq!(batch.dropped, 3);
         let [event] = batch.events.as_slice() else { panic!("one event: {batch:?}") };
@@ -348,7 +348,7 @@ mod hook_inbox {
         );
         assert_eq!(event.body, b"{\"zen\":1}");
 
-        hooks.ack(batch.head).await.expect("acked");
+        hooks.ack(batch.through).await.expect("acked");
         assert_eq!(relay.acks(), [2]);
         assert!(hooks.next(2, 0).await.expect("a batch").events.is_empty());
 

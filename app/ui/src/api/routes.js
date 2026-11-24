@@ -358,7 +358,7 @@ export const ROUTES = {
   runAgent: (workerId) => `/api/run-agents/${workerId}`,
   // Signals (eos-contracts `signals.rs`): when each routine runs next, what
   // starts one routine's runs, the signal list, the counts, replay, the two
-  // previews and the setting; then
+  // previews, a source's webhook and the setting; then
   // which computer holds each routine, and moving one to this computer.
   signalsRoutines: "/api/signals/routines",
   signalsRoutine: (routineId) => `/api/signals/routines/${routineId}`,
@@ -367,6 +367,7 @@ export const ROUTES = {
   signalsReplay: "/api/signals/replay",
   signalsSchedulePreview: "/api/signals/schedule/preview",
   signalsWhichPreview: "/api/signals/which/preview",
+  signalsSourcePush: (sourceId) => `/api/signals/sources/${sourceId}/push`,
   signalsSettings: "/api/signals/settings",
   runners: "/api/runners",
   runnersClaim: "/api/runners/claim",

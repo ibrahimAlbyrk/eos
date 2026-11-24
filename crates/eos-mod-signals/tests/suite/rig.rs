@@ -17,6 +17,7 @@ use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::module::Module;
 use eos_store_files::prompts::LibraryPromptSource;
+use eos_testkit::relay::FakeHookInbox;
 use eos_testkit::{
     FakeCapabilityHealth, FakeClock, FakeConfig, FakePower, FakeRoutineControl, FakeRoutineDirectory, FakeSettings,
     FakeSignalSources, FakeSleeper, FakeSource, FakeTimeZone, FakeWatcher, FakeWorkHold, FakeZoneRules,
@@ -217,6 +218,8 @@ pub(crate) struct Bench {
     pub(crate) watcher: FakeWatcher,
     /// Eos's data folder.
     pub(crate) home: TempHome,
+    /// The relay's hook inbox; none unless the test gives one.
+    pub(crate) inbox: Option<Arc<FakeHookInbox>>,
 }
 
 impl Bench {
@@ -240,6 +243,7 @@ impl Bench {
             model: Arc::new(ScriptedOneShot::default()),
             watcher: FakeWatcher::new(),
             home: TempHome::new(),
+            inbox: None,
         }
     }
 
@@ -252,6 +256,7 @@ impl Bench {
             ids: Arc::new(SeqIds::new()),
             zones: Arc::new(FakeZoneRules::new()),
             sources: self.sources.clone(),
+            hooks: self.inbox.clone().map(|inbox| inbox as Arc<dyn eos_core::net::hooks::HookInbox>),
             health: self.health.clone(),
             runner: Arc::new(SoloRunner::new("dev-1")),
             intake,

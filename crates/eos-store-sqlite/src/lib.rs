@@ -27,6 +27,7 @@ mod routine_suggestions;
 mod routines;
 mod runs;
 mod signal_asks;
+mod signal_hooks;
 mod signal_retention;
 mod signals;
 mod store;

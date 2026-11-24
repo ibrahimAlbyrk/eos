@@ -10,9 +10,10 @@ use eos_core::store::{
     MemBookRepo, MemCreditRepo, MemCursorRepo, MemEvidenceRepo, MemGraphRepo, MemMomentRepo, MemNoteRepo, MemUseRepo,
     MemVectorRepo, MemVersionRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo,
     RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
-    RunRepo, RunResultRepo, SignalAskRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo,
-    SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo, SurfaceRepo,
-    SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RunRepo, RunResultRepo, SignalAskRepo, SignalHookRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo,
+    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo,
+    SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo,
+    WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -183,6 +184,10 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn signal_asks(&self) -> &dyn SignalAskRepo {
+        self
+    }
+
+    fn signal_hooks(&self) -> &dyn SignalHookRepo {
         self
     }
 

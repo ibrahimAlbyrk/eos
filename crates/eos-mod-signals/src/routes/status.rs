@@ -175,7 +175,7 @@ fn schedule_status(zones: &dyn ZoneRules, schedule: &Schedule, slot: i64, now: i
     }
 }
 
-fn source_status(row: StoredSignalSource) -> SourceStatus {
+pub(super) fn source_status(row: StoredSignalSource) -> SourceStatus {
     SourceStatus {
         source_id: row.id,
         kind: row.kind,

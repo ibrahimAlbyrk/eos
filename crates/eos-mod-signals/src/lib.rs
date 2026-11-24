@@ -37,6 +37,11 @@
 //! schedule fires and the router decides nothing: signals wait `received`.
 //! Switched off, the next pass catches up as after a wake.
 //!
+//! Outside services that push (a repository's webhook) reach a source
+//! through a hook of this computer's relay inbox (`push`): an event is only
+//! a hint to poll, or a push-only source's signal, once the source checked
+//! its signature.
+//!
 //! Changes are announced on `signals:change`; each new version of a
 //! subject on `signals:subject`. Keys, subjects, scopes and
 //! facts are the user's data: logs carry ids, kinds, decisions and counts.
@@ -49,6 +54,7 @@ mod ingest;
 mod limits;
 mod local;
 mod polls;
+mod push;
 mod retention;
 mod router;
 mod routes;
@@ -67,6 +73,7 @@ use eos_contracts::{
 use eos_core::agent::OneShot;
 use eos_core::capability::CapabilityHealth;
 use eos_core::git::{GitInfo, GitWatcher};
+use eos_core::net::hooks::HookInbox;
 use eos_core::os::{FileSystem, FileWatcher, Power, TimeZone, WorkHold, ZoneRules};
 use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake};
 use eos_core::signals::{PollPage, Runner, SignalSources};
@@ -81,6 +88,7 @@ use tokio::task::JoinHandle;
 use crate::awake::{Awake, AwakeParts, KEEP_AWAKE};
 use crate::local::Local;
 use crate::polls::Polls;
+use crate::push::Push;
 use crate::router::Router;
 use crate::scheduler::Scheduler;
 
@@ -91,6 +99,7 @@ pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
     WAKE_GRACE_MS, WAKE_RETRY_MS,
 };
+pub use push::{PUSH_BACKOFF_MS, PUSH_IDLE_MS, PUSH_WAIT_MS};
 pub use retention::{FACTS_KEPT_MS, ROWS_KEPT_MS, ROWS_MAX, SWEEP_EVERY_MS, SWEEP_ROWS};
 pub use runner::SoloRunner;
 pub use scheduler::SCHEDULER_MAX_SLEEP_MS;
@@ -117,6 +126,9 @@ pub struct SignalsParts {
     pub zones: Arc<dyn ZoneRules>,
     /// The sources the capabilities declare.
     pub sources: Arc<dyn SignalSources>,
+    /// This computer's hook inbox on the relay; none where nothing may
+    /// reach it.
+    pub hooks: Option<Arc<dyn HookInbox>>,
     /// Told when a source lost its sign-in or what it reads.
     pub health: Arc<dyn CapabilityHealth>,
     pub runner: Arc<dyn Runner>,
@@ -169,6 +181,7 @@ pub struct SignalsModule {
     parts: SignalsParts,
     router: Arc<Router>,
     scheduler: Arc<Scheduler>,
+    push: Option<Arc<Push>>,
     /// The router's and the scheduler's tasks, and the bus subscriptions
     /// that kick the scheduler, while the module runs.
     running: Mutex<Option<Running>>,
@@ -244,13 +257,26 @@ impl SignalsModule {
             zones: parts.zones.clone(),
             runner: parts.runner.clone(),
             router: router.clone(),
-            polls,
+            polls: polls.clone(),
             local,
             awake,
             swept_at: AtomicI64::new(i64::MIN / 2),
             kick,
         });
-        Self { parts, router, scheduler, running: Mutex::new(None) }
+        let push = parts.hooks.clone().map(|inbox| {
+            Arc::new(Push {
+                store: parts.store.clone(),
+                clock: parts.clock.clone(),
+                sleeper: parts.sleeper.clone(),
+                ids: parts.ids.clone(),
+                sources: parts.sources.clone(),
+                inbox,
+                router: router.clone(),
+                polls,
+                kick: Notify::new(),
+            })
+        });
+        Self { parts, router, scheduler, push, running: Mutex::new(None) }
     }
 
     fn running(&self) -> MutexGuard<'_, Option<Running>> {
@@ -264,6 +290,13 @@ impl SignalsModule {
     /// wait: nothing is dropped, the source polls again from its cursor.
     pub async fn ingest(&self, source_id: &str, page: PollPage) -> Result<usize, Error> {
         self.router.ingest(source_id, page).await
+    }
+
+    /// Has the service of the source row `source_id` push its events to
+    /// this computer (see `POST /api/signals/sources/:sourceId/push`).
+    pub async fn add_push(&self, source_id: &str) -> Result<(), Error> {
+        let push = self.push.as_ref().ok_or_else(|| Error::Unreachable("no hook inbox in this run of Eos".into()))?;
+        push.add(source_id).await.map(drop)
     }
 }
 
@@ -317,6 +350,7 @@ impl Module for SignalsModule {
             directory: parts.directory.clone(),
             settings: parts.settings.clone(),
             kick: self.scheduler.kick.clone(),
+            push: self.push.clone(),
         })
     }
 
@@ -356,12 +390,9 @@ impl Module for SignalsModule {
             }
         });
         let answers = self.hear_answers();
-        let running = Running {
-            tasks: [tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())],
-            _kicks: kicks,
-            _local: [files, git],
-            _answers: answers,
-        };
+        let mut tasks = vec![tokio::spawn(self.router.clone().run()), tokio::spawn(self.scheduler.clone().run())];
+        tasks.extend(self.push.clone().map(|push| tokio::spawn(push.run())));
+        let running = Running { tasks, _kicks: kicks, _local: [files, git], _answers: answers };
         if let Some(previous) = self.running().replace(running) {
             previous.tasks.iter().for_each(JoinHandle::abort);
         }
@@ -386,7 +417,7 @@ impl Module for SignalsModule {
 
 /// What runs between `after_ready` and `stop`.
 struct Running {
-    tasks: [JoinHandle<()>; 2],
+    tasks: Vec<JoinHandle<()>>,
     _kicks: [Subscription; 4],
     /// The watchers' changes to the folders and branches read here.
     _local: [Subscription; 2],

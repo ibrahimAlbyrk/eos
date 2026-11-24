@@ -160,7 +160,8 @@ impl HookInbox for RelayHookInbox {
             let request = self.http.get(format!("{base}/events?since={since}&wait={wait}"));
             let body = self.send(request, &identity.bearer, Duration::from_secs(wait)).await?;
             let page: Page = serde_json::from_value(body).map_err(|_| unexpected())?;
-            let mut batch = HookBatch { head: page.head, dropped: page.dropped, ..HookBatch::default() };
+            let through = page.entries.last().map_or(page.head, |entry| entry.seq);
+            let mut batch = HookBatch { head: page.head, through, dropped: page.dropped, ..HookBatch::default() };
             for entry in &page.entries {
                 match open(&identity.secret_key, entry) {
                     Some(event) => batch.events.push(event),

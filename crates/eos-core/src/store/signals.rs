@@ -267,6 +267,15 @@ pub trait SignalRetentionRepo {
     fn delete_stopped_sources(&self, before: i64, limit: i64) -> Result<usize, Error>;
 }
 
+/// Which source each hook of the relay's inbox wakes (02 §3 E.29).
+pub trait SignalHookRepo {
+    fn insert(&self, hook_id: &str, source_id: &str, created_at: i64) -> Result<(), Error>;
+    /// The source the hook wakes.
+    fn source_of(&self, hook_id: &str) -> Result<Option<String>, Error>;
+    /// The sources at least one hook wakes, by id.
+    fn hooked(&self) -> Result<Vec<String>, Error>;
+}
+
 /// The decisions the model's stage of Which takes.
 pub trait SignalAskRepo {
     /// Up to `limit` decisions of `routine_ids` `undecided` for one of
