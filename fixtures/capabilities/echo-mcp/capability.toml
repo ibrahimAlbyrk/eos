@@ -1,0 +1,46 @@
+id = "echo-mcp"
+name = "Echo server"
+version = "1.0.0"
+summary = "An MCP server that answers its input back, for the capability host's tests."
+form = "mcp"
+works = "any_mac"
+reach = { hosts = [], apple_events = [], files_read = [] }
+server = { run = ["/usr/bin/perl", "server.pl"] }
+
+[[secrets]]
+name = "token"
+label = "A token"
+env = "ECHO_TOKEN"
+
+[[actions]]
+name = "echo"
+summary = "Answer the input back."
+class = "read"
+recipient = "none"
+tool = "echo"
+timeout_s = 5
+input = { type = "object", properties = { text = { type = "string" } } }
+
+[[actions]]
+name = "fail"
+summary = "Answer with an error."
+class = "read"
+recipient = "none"
+tool = "fail"
+timeout_s = 5
+
+[[actions]]
+name = "crash"
+summary = "End the server."
+class = "read"
+recipient = "none"
+tool = "crash"
+timeout_s = 5
+
+[[actions]]
+name = "hang"
+summary = "Never answer."
+class = "read"
+recipient = "none"
+tool = "hang"
+timeout_s = 5

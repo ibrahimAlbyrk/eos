@@ -28,6 +28,8 @@ pub(crate) fn event_of(error: &ActionError) -> Option<Event> {
             StateCode::ScopeMissing => Some(Event::ScopeMissing),
             StateCode::HashMismatch => Some(Event::HashMismatch),
             StateCode::SandboxUnavailable => Some(Event::SandboxUnavailable),
+            StateCode::ServerCrashed => Some(Event::ServerCrashed),
+            StateCode::ToolsChanged => Some(Event::ToolsChanged),
             code @ (StateCode::SecretMissing(_)
             | StateCode::ClientIdMissing
             | StateCode::AutomationDenied

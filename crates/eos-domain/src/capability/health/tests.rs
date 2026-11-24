@@ -50,6 +50,8 @@ fn each_cause_of_g10_puts_a_working_capability_where_g10_says() {
         (Event::Missing(StateCode::AutomationDenied), at(NeedsSetup, Some(StateCode::AutomationDenied), 0)),
         (Event::HashMismatch, at(Broken, Some(StateCode::HashMismatch), 0)),
         (Event::SandboxUnavailable, at(Broken, Some(StateCode::SandboxUnavailable), 0)),
+        (Event::ServerCrashed, at(Broken, Some(StateCode::ServerCrashed), 0)),
+        (Event::ToolsChanged, at(Broken, Some(StateCode::ToolsChanged), 0)),
         (Event::Disabled, at(Disabled, None, 0)),
     ];
     for (event, expected) in cases {

@@ -2373,6 +2373,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-kit-proc",
+ "rmcp",
  "serde_json",
  "tokio",
  "tracing",

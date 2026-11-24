@@ -152,6 +152,8 @@ notify = { version = "8", default-features = false, features = ["macos_fsevent"]
 portable-pty = "0.9"
 regress = { version = "0.12", features = ["utf16"] }
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
+# A capability's own MCP server, spoken to over the pipes of its confined child (eos-capability-host).
+rmcp = { version = "3.9", default-features = false, features = ["base64", "client", "transport-async-rw"] }
 rusqlite = { version = "0.42", features = ["bundled"] }
 rustix = { version = "1", features = ["fs", "process", "system"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "std"] }
