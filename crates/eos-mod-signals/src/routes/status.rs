@@ -8,9 +8,10 @@ use std::sync::Arc;
 use eos_contracts::{
     OpenBatch, RoutineHolder, RoutineNext, RoutineTriggerStatus, Schedule, ScheduleStatus, SourceStatus, Trigger,
 };
+use eos_core::Error;
 use eos_core::os::ZoneRules;
 use eos_core::signals::{Holder, Runner};
-use eos_core::store::StoredSignalSource;
+use eos_core::store::{StoredSignalSource, Tx};
 use eos_domain::signals::key::capability_scope;
 use eos_domain::signals::schedule::next_slot;
 use eos_runtime::access::{Access, Tier};
@@ -28,6 +29,7 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
         let routes = routes.clone();
         async move {
             let routine = routes.routine(req.param("routineId").unwrap_or_default()).await?;
+            let push_routes = routes.clone();
             let now = routes.clock.now_ms();
             let today = day_start(routes.zone.as_ref(), now);
             let zones = routes.zones.clone();
@@ -55,7 +57,8 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
                             Trigger::Source { source, scope, .. } => {
                                 let (_, scope_hash) = capability_scope(source, scope);
                                 if let Some(row) = tx.signal_sources().by_scope(&scope_hash)? {
-                                    sources.push(source_status(row));
+                                    let push = push_state(&push_routes, tx, &row)?;
+                                    sources.push(source_status(row, push));
                                 }
                             }
                             _ => {}
@@ -175,7 +178,18 @@ fn schedule_status(zones: &dyn ZoneRules, schedule: &Schedule, slot: i64, now: i
     }
 }
 
-pub(super) fn source_status(row: StoredSignalSource) -> SourceStatus {
+/// Whether the source's service pushes (`on`), could push through this
+/// computer's hook inbox (`off`), or cannot (none).
+pub(super) fn push_state(routes: &Routes, tx: &dyn Tx, row: &StoredSignalSource) -> Result<Option<String>, Error> {
+    let pushes = row.source.as_deref().and_then(|name| routes.sources.get(name)).is_some_and(|source| source.pushes());
+    if !pushes || routes.push.is_none() {
+        return Ok(None);
+    }
+    let on = tx.signal_hooks().hooked()?.contains(&row.id);
+    Ok(Some(if on { "on" } else { "off" }.to_owned()))
+}
+
+pub(super) fn source_status(row: StoredSignalSource, push: Option<String>) -> SourceStatus {
     SourceStatus {
         source_id: row.id,
         kind: row.kind,
@@ -186,5 +200,6 @@ pub(super) fn source_status(row: StoredSignalSource) -> SourceStatus {
         next_poll_at: row.next_poll_at,
         last_signal_at: row.last_signal_at,
         catch_up: row.catch_up_json.as_deref().and_then(|json| serde_json::from_str(json).ok()),
+        push,
     }
 }

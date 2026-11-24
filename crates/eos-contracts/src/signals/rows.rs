@@ -192,6 +192,10 @@ pub struct SourceStatus {
     /// The last poll after a gap of over 15 minutes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catch_up: Option<CatchUp>,
+    /// `on` while the source's service pushes its events through a hook,
+    /// `off` while it could and does not; none when it cannot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub push: Option<String>,
 }
 
 impl Validate for SourceStatus {}

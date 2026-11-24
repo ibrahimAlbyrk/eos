@@ -142,3 +142,41 @@ async fn a_source_whose_service_cannot_push_gets_no_hook_and_without_an_inbox_no
     let module = bench.module(bench.temp.port(), Arc::new(SavedIntake::new(None)), true);
     assert!(matches!(module.add_push(SOURCE_ID).await, Err(Error::Unreachable(_))));
 }
+
+/// The trigger status names each source's push: `off` while its service
+/// could push and has no hook, `on` once the route added one, and nothing
+/// without a hook inbox.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_trigger_status_says_whether_a_source_pushes_and_the_route_turns_it_on() {
+    use eos_runtime::access::Caller;
+    use eos_runtime::http::{Method, Request};
+    use eos_runtime::router::AllPluginsOn;
+    use eos_runtime::{Kernel, KernelOptions, Runtime};
+
+    async fn ask(runtime: &Runtime, method: Method, path: &str) -> (u16, Value) {
+        let response = runtime.router.handle(Request::new(method, path, Caller::DASHBOARD)).await;
+        let status = response.status;
+        let bytes = response.body.collect().await.expect("a body");
+        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    }
+    let runtime_of = |module: SignalsModule| {
+        Runtime::build(Kernel::new(KernelOptions::default()), vec![Arc::new(module)], Arc::new(AllPluginsOn))
+            .expect("composes")
+    };
+
+    let mut bench = Bench::new(vec![routine("rt-a", RoutineState::Active, &["opened"], None)]);
+    bench.sources =
+        Arc::new(eos_testkit::FakeSignalSources::new().with("github.pulls", Arc::new(FakeSource::default().pushing())));
+    let runtime = runtime_of(bench.module(bench.temp.port(), Arc::new(SavedIntake::new(None)), false));
+    let (_, status) = ask(&runtime, Method::Get, "/api/signals/routines/rt-a").await;
+    assert_eq!(status["sources"][0].get("push"), None, "no inbox, no push");
+
+    bench.inbox = Some(Arc::new(FakeHookInbox::new()));
+    let runtime = runtime_of(bench.module(bench.temp.port(), Arc::new(SavedIntake::new(None)), false));
+    let (_, status) = ask(&runtime, Method::Get, "/api/signals/routines/rt-a").await;
+    assert_eq!(status["sources"][0]["push"], "off");
+    let (code, row) = ask(&runtime, Method::Post, &format!("/api/signals/sources/{SOURCE_ID}/push")).await;
+    assert_eq!((code, row["sourceId"].as_str(), row["push"].as_str()), (200, Some(SOURCE_ID), Some("on")));
+    let (_, status) = ask(&runtime, Method::Get, "/api/signals/routines/rt-a").await;
+    assert_eq!(status["sources"][0]["push"], "on");
+}

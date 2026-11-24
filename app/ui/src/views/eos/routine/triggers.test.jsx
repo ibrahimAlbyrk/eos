@@ -7,7 +7,7 @@ import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { _resetRoutines, loadRoutine, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import {
-  _resetSignals, loadSchedulePreview, loadSignals, loadTriggerStatus, loadWhichPreview, replaySignals, setSignalFilter,
+  _resetSignals, addSourcePush, loadSchedulePreview, loadSignals, loadTriggerStatus, loadWhichPreview, replaySignals, setSignalFilter,
 } from "../../../state/eos/signalsStore.js";
 import { notify } from "../../../lib/notify.js";
 import { EosMain } from "../EosMain.jsx";
@@ -131,6 +131,27 @@ describe("what starts a routine", () => {
       "Needs you: The sign-in may not read it",
       "Stopped: Nothing reads it any more",
     ]);
+  });
+
+  it("adds a source's webhook, then says it is told at once; a refusal for admin rights is said plainly", async () => {
+    const SRC = status.sources[0].sourceId;
+    const button = '<button type="button" class="eos-btn">Hear about changes at once</button>';
+    const t = recording(async () => ({ ok: false, status: 403, body: { error: "the service refused the webhook: it needs admin rights on the repository" } }));
+    expect(await page(`eos:/routines/${PR}`, t)).toContain(button);
+    expect(await addSourcePush(PR, SRC)).toBe(false);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.signalsSourcePush(SRC), {});
+    expect(draw()).toContain('<span class="eos-trigger__refused" role="alert">Not added: a webhook needs admin rights on the repository. Eos keeps looking for changes on its own schedule.</span>');
+
+    setEosTransport(recording(async () => ({ ok: false, status: 403, body: { error: "refused in a dev run: POST /api/signals/sources/x/push" } })));
+    await addSourcePush(PR, SRC);
+    expect(draw()).toContain('role="alert">Not added: this is a dev run.</span>');
+
+    setEosTransport(recording(async () => ({ ok: true, status: 200, body: { ...status.sources[0], push: "on" } })));
+    expect(await addSourcePush(PR, SRC)).toBe(true);
+    const html = section(draw(), "What starts it");
+    expect(html).not.toContain(button);
+    expect(html).not.toContain("eos-trigger__refused");
+    expect(lines(html, "eos-trigger__facts")[1]).toMatch(/^Told at once by a webhook · Last looked /);
   });
 
   it("reads the status again on signals:change for its routine, and for every routine when it names none", async () => {

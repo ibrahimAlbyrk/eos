@@ -26,6 +26,7 @@
         "lastPollAt": 1763456400000,
         "nextPollAt": 1763456700000,
         "lastSignalAt": 1763456300000,
+        "push": "off",
         "catchUp": {
           "at": 1763452800000,
           "items": 14,

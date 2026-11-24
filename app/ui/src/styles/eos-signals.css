@@ -6,6 +6,7 @@
 .eos-trigger__facts, .eos-signal__line { color: var(--fg-dim); }
 .eos-trigger__state { color: var(--fg-mid); }
 .eos-trigger__state--warn { color: var(--warn); }
+.eos-trigger__refused { color: var(--warn); }
 .eos-trigger__hint { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 0; color: var(--fg-mid); }
 .eos-signal__decision { color: var(--fg-mid); }
 .eos-signal__replay { color: var(--fg-dim); }

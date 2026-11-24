@@ -351,6 +351,7 @@ impl Module for SignalsModule {
             settings: parts.settings.clone(),
             kick: self.scheduler.kick.clone(),
             push: self.push.clone(),
+            sources: parts.sources.clone(),
         })
     }
 

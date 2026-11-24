@@ -16,7 +16,7 @@ use std::sync::Arc;
 use eos_contracts::{ItemRef, SignalDecision, SignalRow};
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{RoutineDirectory, RoutineTriggers, RunIntake};
-use eos_core::signals::Runner;
+use eos_core::signals::{Runner, SignalSources};
 use eos_core::store::{Store, StoredSignal, StoredSignalRoute, Tx, UserSettingsStore};
 use eos_core::{Clock, Error};
 use eos_domain::signals::decision::Decision;
@@ -44,6 +44,8 @@ pub(crate) struct Routes {
     pub(crate) kick: Arc<Notify>,
     /// Adds a source's hook; none without a hook inbox.
     pub(crate) push: Option<Arc<crate::push::Push>>,
+    /// The sources the capabilities declare: which of them can push.
+    pub(crate) sources: Arc<dyn SignalSources>,
 }
 
 impl Routes {

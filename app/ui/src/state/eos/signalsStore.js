@@ -14,7 +14,9 @@ import { isDevRunRefusal, transport } from "./transport.js";
 // { failed: true }. replays: signal id → "dev-run" or the SignalDecision a
 // replay answered. filters: routine id → the decision its list shows ("" for
 // all). previews: preview key → the core's answer, the 30 asked last.
-const EMPTY = { status: {}, lists: {}, replays: {}, filters: {}, previews: {} };
+// pushes: source id → "adding", or why its webhook was not added
+// ("dev-run", "admin", or the core's words).
+const EMPTY = { status: {}, lists: {}, replays: {}, filters: {}, previews: {}, pushes: {} };
 const PREVIEWS_KEPT = 30;
 let state = EMPTY;
 const subs = new Set();
@@ -77,6 +79,25 @@ export async function replaySignals(routineId, signalIds) {
   }
   if (isDevRunRefusal(r)) set({ replays: { ...state.replays, ...Object.fromEntries(signalIds.map((id) => [id, "dev-run"])) } });
   else notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Signals" });
+  return false;
+}
+
+// POST push: the source's service pushes its events through a webhook. The
+// answered row replaces the source's in its routine's status; a refusal stays
+// on the row. A 403 that is no dev run is the service asking for admin rights.
+export async function addSourcePush(routineId, sourceId) {
+  set({ pushes: { ...state.pushes, [sourceId]: "adding" } });
+  const r = await transport.send("POST", ROUTES.signalsSourcePush(sourceId), {}).catch(() => null);
+  const pushes = { ...state.pushes };
+  delete pushes[sourceId];
+  const status = state.status[routineId];
+  if (r?.ok && r.body?.sourceId === sourceId) {
+    const sources = status?.sources?.map((s) => (s.sourceId === sourceId ? r.body : s));
+    set({ pushes, status: sources ? { ...state.status, [routineId]: { ...status, sources } } : state.status });
+    return true;
+  }
+  const why = isDevRunRefusal(r) ? "dev-run" : r?.status === 403 ? "admin" : (r?.body?.error ?? "Eos could not reach the service.");
+  set({ pushes: { ...pushes, [sourceId]: why } });
   return false;
 }
 
