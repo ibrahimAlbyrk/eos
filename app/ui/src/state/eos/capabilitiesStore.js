@@ -134,6 +134,12 @@ export async function rollbackCapability(id, version) {
   if (row) putRow(row);
 }
 
+// Asks the Forge to build the broken capability again → the run's id, once it started.
+export async function repairCapability(id, need) {
+  const started = await write("POST", ROUTES.forge, { need, capabilityId: id });
+  return started?.runId ?? null;
+}
+
 // Opens the app's own secret prompt: the value is typed there, never on this page.
 // The core answers only whether it kept one.
 export async function enterSecret(id, name) {

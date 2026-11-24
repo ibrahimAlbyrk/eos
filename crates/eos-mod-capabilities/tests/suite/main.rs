@@ -1,6 +1,7 @@
 //! `eos-mod-capabilities` over the real store and the capability service,
 //! and what routines read and send through the service's GitHub.
 
+mod breakage;
 mod channels;
 mod github;
 mod reads;

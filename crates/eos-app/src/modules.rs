@@ -349,7 +349,13 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             cx.clock.clone(),
             cx.sleeper.clone(),
         )
-        .with_secret_prompt(cx.secret_prompt.clone()),
+        .with_secret_prompt(cx.secret_prompt.clone())
+        .with_breakage(eos_mod_capabilities::BreakageParts {
+            control: routines.control(),
+            ids: cx.ids.clone(),
+            zone: Arc::new(crate::host::HostTimeZone),
+            bus: cx.bus.clone(),
+        }),
     );
     let sign_in_links = capabilities.sign_in_links();
     let mut modules: Vec<Arc<dyn Module>> = vec![

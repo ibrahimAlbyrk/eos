@@ -6,14 +6,14 @@ use std::sync::Arc;
 use eos_capabilities::{CapabilityPorts, CapabilityService, Install};
 use eos_core::capability::{AllInstalled, BuiltinCapability};
 use eos_domain::capability::manifest::parse;
-use eos_mod_capabilities::CapabilitiesModule;
+use eos_mod_capabilities::{BreakageParts, CapabilitiesModule};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_testkit::{
-    FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeSecretPrompt, FakeSleeper, FakeTrash,
-    SeqIds, TempStore,
+    FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeRoutineControl, FakeSecretPrompt,
+    FakeSleeper, FakeTimeZone, FakeTrash, SeqIds, TempStore,
 };
 use serde_json::Value;
 
@@ -118,6 +118,7 @@ pub(crate) struct Rig {
     /// The native secret prompt, as the test answers it.
     pub(crate) prompt: Arc<FakeSecretPrompt>,
     pub(crate) runner: Arc<FakeActionRunner>,
+    pub(crate) files: Arc<FakeCapabilityFiles>,
 }
 
 /// The module over these built-ins, with GitHub signed in when `signed_in`,
@@ -134,15 +135,31 @@ pub(crate) async fn rig(builtins: Vec<Arc<dyn BuiltinCapability>>, signed_in: bo
 /// The module over these built-ins and the secrets they share with the
 /// service.
 pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets: Arc<FakeCapabilitySecrets>) -> Rig {
-    let temp = TempStore::new();
+    rig_on(builtins, secrets, None).await
+}
+
+/// The module whose broken capabilities pause routines through `control`.
+pub(crate) async fn rig_breaking(builtins: Vec<Arc<dyn BuiltinCapability>>, control: Arc<FakeRoutineControl>) -> Rig {
+    let secrets = FakeCapabilitySecrets::new().with("github", "token", SECRET);
+    rig_on(builtins, Arc::new(secrets), Some(control)).await
+}
+
+async fn rig_on(
+    builtins: Vec<Arc<dyn BuiltinCapability>>,
+    secrets: Arc<FakeCapabilitySecrets>,
+    control: Option<Arc<FakeRoutineControl>>,
+) -> Rig {
+    let kernel = Kernel::new(KernelOptions::default());
+    let temp = TempStore::on_bus(&kernel.bus);
     let clock = Arc::new(FakeClock::new());
     let sleeper = Arc::new(FakeSleeper::default());
     let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
     let (prompt, runner) = (Arc::new(FakeSecretPrompt::new()), Arc::new(FakeActionRunner::new()));
+    let files = Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash));
     let service = Arc::new(CapabilityService::new(
         CapabilityPorts {
             store: temp.port(),
-            files: Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash)),
+            files: files.clone(),
             secrets,
             grants: Arc::new(AllInstalled),
             runner: Some(runner.clone()),
@@ -151,17 +168,23 @@ pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets:
         },
         builtins,
     ));
-    let module = Arc::new(
-        CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone())
-            .with_secret_prompt(Some(prompt.clone())),
-    );
+    let mut module = CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone())
+        .with_secret_prompt(Some(prompt.clone()));
+    if let Some(control) = control {
+        module = module.with_breakage(BreakageParts {
+            control,
+            ids: Arc::new(SeqIds::new()),
+            zone: Arc::new(FakeTimeZone::new("UTC", 0)),
+            bus: kernel.bus.clone(),
+        });
+    }
+    let module = Arc::new(module);
     let links = module.sign_in_links();
-    let runtime =
-        Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
+    let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
     assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
     runtime.lifecycle.start().await.expect("starts");
     runtime.lifecycle.ready().await.expect("ready");
-    Rig { runtime, temp, clock, sleeper, service, links, prompt, runner }
+    Rig { runtime, temp, clock, sleeper, service, links, prompt, runner, files }
 }
 
 impl Rig {
