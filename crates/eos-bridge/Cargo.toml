@@ -15,6 +15,7 @@ dev-run = []
 [dependencies]
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-domain.workspace = true
 eos-runtime.workspace = true
 
 base64.workspace = true
