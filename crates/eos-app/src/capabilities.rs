@@ -6,7 +6,9 @@ use std::sync::{Arc, OnceLock, Weak};
 use eos_capabilities::{Browser, CapabilityPorts, CapabilityService, Notify};
 use eos_core::BoxFuture;
 use eos_core::agent::UserNotifier;
-use eos_core::capability::{BuiltinCapability, CapabilityGrants, CapabilitySecrets, Grant};
+use eos_core::capability::{
+    BuiltinCapability, CapabilityGrants, CapabilitySecrets, ConfineError, ConfineSpec, Confined, Confinement, Grant,
+};
 use eos_core::delivery::Channels;
 use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome};
 use eos_core::signals::SignalSources;
@@ -74,6 +76,27 @@ impl CapabilityGrants for LateGrants {
     }
 }
 
+/// The OS sandbox capability code runs under, attached once the engine is
+/// made, after the service. Until then, and without it, nothing is confined,
+/// so no package's code runs.
+#[derive(Default)]
+pub(crate) struct LateConfinement(OnceLock<Arc<dyn Confinement>>);
+
+impl LateConfinement {
+    pub(crate) fn attach(&self, confinement: Arc<dyn Confinement>) {
+        let _ = self.0.set(confinement);
+    }
+}
+
+impl Confinement for LateConfinement {
+    fn command(&self, spec: ConfineSpec) -> BoxFuture<'_, Result<Confined, ConfineError>> {
+        match self.0.get() {
+            Some(confinement) => confinement.command(spec),
+            None => Box::pin(std::future::ready(Err(ConfineError::Unavailable))),
+        }
+    }
+}
+
 /// How the `notify` built-in tells the user, attached once the banner (the
 /// questions feature) and the phone link (the remote feature) are built,
 /// after the service. Until then nothing is told.
@@ -129,6 +152,8 @@ pub(crate) struct Parts<'a> {
     pub(crate) mail: Option<Arc<dyn Script>>,
     pub(crate) grants: Arc<LateGrants>,
     pub(crate) notifiers: Arc<LateNotifiers>,
+    /// What script packages run under.
+    pub(crate) confinement: Arc<LateConfinement>,
     /// The app has a window whose views the browser tools drive.
     pub(crate) views: bool,
     pub(crate) options: CapabilityOptions,
@@ -137,7 +162,8 @@ pub(crate) struct Parts<'a> {
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
 /// every chat and the routines feature's grant to run sessions, the GitHub, Slack and Mail built-ins (which reach GitHub
-/// and Slack and drive Mail only on the network), the notify built-in and the browser's entry. No package runner yet.
+/// and Slack and drive Mail only on the network), the notify built-in and the browser's entry; script packages run
+/// confined by the engine's sandbox.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
     let Parts {
         reach,
@@ -154,6 +180,7 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         mail,
         grants,
         notifiers,
+        confinement,
         views,
         options,
     } = parts;
@@ -195,7 +222,15 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             files: Arc::new(FsCapabilityFiles::new(paths.join("capabilities"), trash)),
             secrets,
             grants,
-            runner: None,
+            runner: Some(Arc::new(eos_capability_host::ScriptHost::new(
+                paths.join("capabilities"),
+                paths.join("scratch").join("capability-calls"),
+                confinement,
+                eos_kit_proc::Runner::new(eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+                    eos_platform::kill_process_tree(pid).is_ok()
+                })),
+                ids.clone(),
+            ))),
             clock,
             ids,
         },

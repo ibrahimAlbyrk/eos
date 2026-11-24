@@ -8,7 +8,23 @@ use eos_agent_sdk as sdk;
 use eos_core::BoxFuture;
 use eos_core::capability::{ConfineError, ConfineGuard, ConfineReport, ConfineSpec, Confined, Confinement, Violation};
 
-use crate::Engine;
+use crate::{Engine, LazyEngine};
+
+/// Builds the engine on the first confined command; an engine that cannot
+/// be built confines nothing, so nothing runs.
+impl Confinement for LazyEngine {
+    fn command(&self, spec: ConfineSpec) -> BoxFuture<'_, Result<Confined, ConfineError>> {
+        Box::pin(async move {
+            match self.engine().await {
+                Ok(engine) => engine.command(spec).await,
+                Err(error) => {
+                    tracing::warn!(%error, "the engine could not be built to confine a command");
+                    Err(ConfineError::Unavailable)
+                }
+            }
+        })
+    }
+}
 
 impl Confinement for Engine {
     fn command(&self, spec: ConfineSpec) -> BoxFuture<'_, Result<Confined, ConfineError>> {

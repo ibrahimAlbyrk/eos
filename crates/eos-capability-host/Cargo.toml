@@ -1,0 +1,27 @@
+[package]
+name = "eos-capability-host"
+description = "Runs the actions of script and MCP capability packages, each under the OS sandbox its manifest's reach describes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-kit-proc.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["fs"] }
+tracing.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+eos-kit-proc.workspace = true
+eos-platform.workspace = true
+eos-testkit.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

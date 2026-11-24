@@ -1,0 +1,21 @@
+id = "echo-script"
+name = "Echo"
+version = "1.0.0"
+summary = "Answers its input back, for the capability host's tests."
+form = "script"
+works = "any_mac"
+reach = { hosts = [], apple_events = [], files_read = [] }
+
+[[secrets]]
+name = "token"
+label = "A token"
+env = "ECHO_TOKEN"
+
+[[actions]]
+name = "echo"
+summary = "Answer the input back."
+class = "read"
+recipient = "none"
+run = ["/bin/sh", "echo.sh"]
+timeout_s = 5
+input = { type = "object", properties = { text = { type = "string" }, mode = { type = "string" } } }

@@ -595,7 +595,7 @@ impl LazyEngine {
         }
     }
 
-    async fn engine(&self) -> Result<&Engine, Error> {
+    pub(crate) async fn engine(&self) -> Result<&Engine, Error> {
         self.built
             .get_or_try_init(|| async {
                 let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
