@@ -152,6 +152,9 @@ pub struct Options {
     /// only when the run [`reaches_network`](Self::reaches_network). Without
     /// it Mail is never asked: a send would go out as the user.
     pub mail: Option<Arc<dyn eos_mail_app::Script>>,
+    /// The command a Code-mode Claude pane's memory hooks run (`'<Eos.app>/Contents/Helpers/eos'
+    /// memory hook`, 04 G34), from the app that ships it. Without it panes get no memory hooks.
+    pub memory_hook: Option<String>,
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
@@ -217,6 +220,7 @@ impl Options {
             github: None,
             slack: None,
             mail: None,
+            memory_hook: None,
             keep_awake: None,
             extra_modules: Vec::new(),
             capabilities: CapabilityOptions::default(),
@@ -317,6 +321,7 @@ impl App {
             github,
             slack,
             mail,
+            memory_hook,
             keep_awake,
             extra_modules,
             capabilities: capability_options,
@@ -671,7 +676,11 @@ impl App {
             git_watcher: crate::files::git_watcher(&clock, &kernel.bus, &repos),
             file_watcher: crate::files::file_watcher(&clock, &kernel.bus),
             repos,
-            terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
+            terminals: crate::terminals::terminal(
+                credentials,
+                accounts_dir.join("claude"),
+                Arc::new(eos_mod_memory::PaneMemoryHooks { command: memory_hook, store: store.clone() }),
+            ),
             remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {
                 config: config.clone(),
                 store: Arc::new(RemoteFiles::new(paths.join("remote"))),

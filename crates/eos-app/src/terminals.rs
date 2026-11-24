@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_core::BoxFuture;
 use eos_core::accounts::{SessionCredential, SessionCredentials};
-use eos_core::terminal::ClaudeLaunchEnv;
+use eos_core::terminal::{ClaudeLaunchEnv, PaneHooks};
 use eos_kit_proc::{ProcessTrees, Runner};
 use eos_pty::{ClaudeLocator, ClaudeTranscriptFiles, PtyTerminals, ShellRunner};
 
@@ -52,7 +52,12 @@ impl ClaudeLaunchEnv for ClaudePaneEnv {
 }
 
 /// `default_store`: the folder of Eos's first Claude sign-in (`accounts/claude`).
-pub(crate) fn terminal(credentials: Arc<dyn SessionCredentials>, default_store: PathBuf) -> Terminal {
+/// `pane_hooks`: whether a new Claude pane gets memory's hooks.
+pub(crate) fn terminal(
+    credentials: Arc<dyn SessionCredentials>,
+    default_store: PathBuf,
+    pane_hooks: Arc<dyn PaneHooks>,
+) -> Terminal {
     let platform = eos_platform::host();
     let shell = platform.shell();
     let runner = Runner::new(ProcessTrees::new(eos_platform::isolate_command, |pid| {
@@ -64,6 +69,7 @@ pub(crate) fn terminal(credentials: Arc<dyn SessionCredentials>, default_store: 
         commands: Arc::new(ShellRunner::new(runner.clone(), shell, platform.script_shell())),
         claude: Arc::new(ClaudeLocator::new(runner, shell, home.clone())),
         claude_env: Arc::new(ClaudePaneEnv { credentials, default_store }),
+        pane_hooks,
         transcripts: Arc::new(ClaudeTranscriptFiles::new(home.clone().unwrap_or_default())),
         default_cwd: home.map_or_else(|| "/".to_owned(), |h| h.to_string_lossy().into_owned()),
     }

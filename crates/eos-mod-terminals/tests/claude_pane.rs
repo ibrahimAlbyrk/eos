@@ -67,6 +67,7 @@ impl Pane {
                 terminals: Arc::new(PtyTerminals::new(&*SH)),
                 claude: Arc::new(FakeClaudeProgram(claude.map(|p| p.to_string_lossy().into_owned()))),
                 claude_env: Arc::new(FakeClaudeEnv(Some(env))),
+                pane_hooks: Arc::new(eos_testkit::FakePaneHooks(None)),
                 bus: kernel.bus.clone(),
                 ids: Arc::new(RandomIds),
                 clock: Arc::new(SystemClock),

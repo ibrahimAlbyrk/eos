@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sid=$(sed -n 's/.*\"session_id\" *: *\"\\([^\"]*\\)\".*/\\1/p'); [ -w \"$EOS_TTY\" ] && printf '\\033]7777;eos-claude-session=%s\\007' \"$sid\" > \"$EOS_TTY\" || true"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Applications/Eos.app/Contents/Helpers/eos' memory hook --event SessionStart || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion|ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(base64 | tr -d '\\n'); [ -w \"$EOS_TTY\" ] && printf '\\033]7777;eos-claude-tool=%s\\007' \"$p\" > \"$EOS_TTY\" || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Applications/Eos.app/Contents/Helpers/eos' memory hook --event PreToolUse || true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Applications/Eos.app/Contents/Helpers/eos' memory hook --event UserPromptSubmit || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Applications/Eos.app/Contents/Helpers/eos' memory hook --event PostToolUseFailure || true"
+          }
+        ]
+      }
+    ]
+  }
+}

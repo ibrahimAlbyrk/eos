@@ -290,3 +290,61 @@ async fn what_a_chat_was_reminded_of_where_rules_were_said_and_the_switches() {
     let (status, _) = api.ask(Method::Post, "/api/memory/tidy", None).await;
     assert_eq!(status, 409, "no tidying where reflection is not composed");
 }
+
+#[tokio::test]
+async fn a_code_panes_hook_gets_what_was_learned_once_and_nothing_with_reminders_off() {
+    let api = Api::new().await;
+    api.seed();
+    // The user said it: firm, so it is worth a reminder, in this project, about `npm run lint`.
+    api.temp
+        .store
+        .write_blocking(|tx, _| {
+            let project = Scope { level: ScopeLevel::Project, key: "key:/repo".into() };
+            let mut said = note("mn-7", "Lint with npm run lint first.", project, NoteKind::Lesson);
+            (said.trust, said.state, said.body) = (Trust::Said, NoteState::Firm, NoteBody::None {});
+            tx.mem_notes().insert(&said, "npm run lint")?;
+            let hook = hook_id(HookKind::Command, "npm run lint");
+            tx.mem_graph().add_hook(&StoredHook {
+                id: hook.clone(),
+                kind: HookKind::Command,
+                key: "npm run lint".into(),
+                label: String::new(),
+                degree: 0,
+            })?;
+            tx.mem_graph().put_link(&StoredLink {
+                a: "mn-7".into(),
+                b: hook,
+                rel: "about".into(),
+                weight: 1.0,
+                co_uses: 0,
+                updated_at: 0,
+            })
+        })
+        .expect("a note");
+    let hook = |event: &str, input: Value| json!({ "event": event, "input": input });
+    let session = json!({"session_id": "cs-1", "cwd": "/repo", "hook_event_name": "SessionStart"});
+    let (status, start) = api.ask(Method::Post, "/api/memory/hook", Some(hook("SessionStart", session))).await;
+    assert_eq!(status, 200, "{start}");
+    let push =
+        json!({"session_id": "cs-1", "cwd": "/repo", "tool_name": "Bash", "tool_input": {"command": "npm run lint"}});
+    let (_, before) = api.ask(Method::Post, "/api/memory/hook", Some(hook("PreToolUse", push.clone()))).await;
+    let said = |answer: &Value| {
+        answer["hookSpecificOutput"]["additionalContext"]
+            .as_str()
+            .unwrap_or("")
+            .contains("Lint with npm run lint first.")
+    };
+    assert!(said(&start) ^ said(&before), "the lesson reaches the pane once: {start} {before}");
+    if said(&before) {
+        assert_eq!(before["hookSpecificOutput"]["hookEventName"], "PreToolUse");
+    }
+    let (_, again) = api.ask(Method::Post, "/api/memory/hook", Some(hook("PreToolUse", push.clone()))).await;
+    assert_eq!(again, Value::Null, "never twice in an epoch");
+
+    let (status, _) = api.ask(Method::Post, "/api/memory/hook", Some(hook("Stop", json!({})))).await;
+    assert_eq!(status, 400);
+    let off = json!({"learning": true, "reminders": false});
+    api.ask(Method::Put, "/api/memory/settings", Some(off)).await;
+    let fresh = json!({"session_id": "cs-2", "cwd": "/repo"});
+    assert_eq!(api.ask(Method::Post, "/api/memory/hook", Some(hook("SessionStart", fresh))).await, (200, Value::Null));
+}
