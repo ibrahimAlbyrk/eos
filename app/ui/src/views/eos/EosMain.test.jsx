@@ -29,12 +29,11 @@ describe("an Eos screen's header", () => {
 });
 
 describe("Eos's main column", () => {
-  it("lands a location without a screen yet on a plain page in Eos", () => {
+  it("lands a form on Home, the form over it once the routines are read", () => {
     openLocation("eos:/form?routine=pr-review");
     const html = renderToStaticMarkup(<EosMain />);
-    expect(html).toContain('<main class="eos-screen">');
-    expect(html).toContain('<h1 class="eos-title">Run a routine</h1>');
-    expect(html).toContain("This part of Eos is not here yet.");
+    expect(html).not.toContain("This part of Eos is not here yet.");
+    expect(html).not.toContain("A link wants to start a run");
   });
 
   it("lands a string that is no Eos location there too", () => {

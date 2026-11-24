@@ -43,6 +43,24 @@ export function ResultIcon({ name }) {
           <circle cx="7" cy="7" r="5" /><path d="m13 13-2.5-2.5" />
         </svg>
       );
+    case "routine":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 3.5v9l7-4.5z" />
+        </svg>
+      );
+    case "need":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2.5 9.5 4 3.5h8l1.5 6v3h-11z" /><path d="M2.5 9.5h3.5l.8 1.5h2.4l.8-1.5h3.5" />
+        </svg>
+      );
+    case "stop":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="4" width="8" height="8" rx="1.5" />
+        </svg>
+      );
     case "agent":
     default:
       return (

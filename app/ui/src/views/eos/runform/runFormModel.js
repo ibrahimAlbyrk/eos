@@ -98,7 +98,7 @@ export function formProblem(form, routine, now) {
   return null;
 }
 
-function inputOf(form, options, items) {
+function inputOf(form, options, items, chat) {
   const defaults = defaultsOf(options);
   const changed = Object.fromEntries(Object.entries(form.options).filter(([key, value]) => value !== defaults[key]));
   const note = form.note.trim();
@@ -108,16 +108,17 @@ function inputOf(form, options, items) {
     ...(note ? { note } : {}),
     result: form.result,
     ...(form.at != null ? { at: form.at } : {}),
+    ...(chat ? { chat } : {}),
   };
 }
 
 // The body of POST /api/runs: one item in the input, several as `items` (one
 // run each). Options are sent only where they differ from their default.
-export function startBody(routine, options, form, { door, clientRequestId, confirmRepeat = false, againOf }) {
+export function startBody(routine, options, form, { door, chat, clientRequestId, confirmRepeat = false, againOf }) {
   const items = chosenItems(form, routine.takes);
   return {
     routineId: routine.id,
-    input: inputOf(form, options, items),
+    input: inputOf(form, options, items, chat),
     ...(items.length > 1 ? { items } : {}),
     ...(againOf ? { againOf } : {}),
     door,

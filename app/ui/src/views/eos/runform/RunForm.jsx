@@ -43,15 +43,18 @@ function Outcome({ outcome, routine, details, now, runAgain }) {
       </div>
     );
   }
-  const text = outcome.devRun ? DEV_RUN_TEXT : outcome.dayCap ? DAY_CAP_TEXT : outcome.offline ? OFFLINE_TEXT : outcome.error;
-  return <p className="eos-note eos-runform__problem" role="alert">{text}</p>;
+  return <p className="eos-note eos-runform__problem" role="alert">{refusalText(outcome)}</p>;
 }
+
+// Why a start was refused, in words (not a repeat: that one asks).
+export const refusalText = (outcome) =>
+  (outcome.devRun ? DEV_RUN_TEXT : outcome.dayCap ? DAY_CAP_TEXT : outcome.offline ? OFFLINE_TEXT : outcome.error);
 
 // The run form (08 §4.7) over runFormModel: the item, the options, a note,
 // where the result goes, when, the estimate and Run ⌘↵. `layout` is "sheet"
 // (with its title) or "inline" (inside another screen). Starting waits for
 // the core; a started run opens its run view.
-export function RunForm({ routine, blueprint, form, setForm, layout, door, againOf, autoFocus, onStarted }) {
+export function RunForm({ routine, blueprint, form, setForm, layout, door, chat, againOf, autoFocus, onStarted }) {
   const { accounts } = useAccounts();
   const { details } = useRuns();
   const [estimate, setEstimate] = useState(null);
@@ -92,11 +95,13 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, again
     if (why) return;
     if (confirmRepeat || !requestId.current) requestId.current = newRequestId();
     setStarting(true);
-    const answer = await startRun(startBody(routine, options, form, { door, clientRequestId: requestId.current, confirmRepeat, againOf }));
+    const answer = await startRun(startBody(routine, options, form, { door, chat, clientRequestId: requestId.current, confirmRepeat, againOf }));
     setStarting(false);
     if (answer.repeat) await loadRun(answer.repeat);
     if (!answer.runs) return setOutcome(answer);
     onStarted?.(answer.runs);
+    // A chat's run shows in the chat as its card: the user stays there.
+    if (chat) return;
     openLocation(answer.runs.length === 1 ? runLocation(answer.runs[0].id) : buildLocation({ screen: "routine", routineId: routine.id, tab: "runs" }));
   };
 
@@ -107,7 +112,7 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, again
       e.preventDefault();
       void run();
     },
-  }, [form, starting, door, againOf]);
+  }, [form, starting, door, chat, againOf]);
 
   const line = estimateLine(estimate ?? usualEstimate(routine, options, form, count), { form, inline, count, plan: !billsByRun(accounts) });
   const option = (o) => <OptionControl key={o.key} option={o} value={form.options[o.key] ?? o.default} onChange={(v) => setOption(o.key, v)} />;

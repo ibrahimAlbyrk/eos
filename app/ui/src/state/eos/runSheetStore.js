@@ -6,7 +6,9 @@ import { useSyncExternalStore } from "react";
 
 // hosted: how many sheet hosts are mounted. request: null, or the routine to
 // run and the element the sheet opens beside; Run again adds the run's input
-// to fill the sheet with and the run it does again.
+// to fill the sheet with and the run it does again. A door that is no element
+// (⌘K, a chat's /run) names itself; a chat's run names the chat, which is told
+// how the run went and stays where it is.
 let state = { hosted: 0, request: null };
 const subs = new Set();
 
@@ -37,9 +39,10 @@ export function registerHost() {
   };
 }
 
-export function open({ routineId, anchor, input, againOf }) {
+export function open({ routineId, anchor, input, againOf, door, chat }) {
   if (state.hosted === 0) return;
-  set({ request: { routineId, anchor, ...(input ? { input } : {}), ...(againOf ? { againOf } : {}) } });
+  const extra = { ...(input ? { input } : {}), ...(againOf ? { againOf } : {}), ...(door ? { door } : {}), ...(chat ? { chat } : {}) };
+  set({ request: { routineId, anchor, ...extra } });
 }
 
 export function close() {

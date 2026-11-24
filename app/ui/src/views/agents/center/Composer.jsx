@@ -27,6 +27,10 @@ import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../..
 import { parentScope } from "../../../lib/mentionQuery.js";
 import { backendCaps, providerSpawn } from "../../../lib/backendCaps.js";
 import { parseSideQuestion } from "../../../lib/sideQuestion.js";
+import { parseRunCommand, routineNamed } from "../../../lib/runCommand.js";
+import { ensureRoutinesLoaded, offeredRoutines, routinesNow } from "../../../state/eos/routinesStore.js";
+import { open as openRunSheet } from "../../../state/eos/runSheetStore.js";
+import { typedItem } from "../../eos/runform/runFormModel.js";
 import { askSideQuestion } from "../../../state/sideQuestionStore.js";
 import { composerCwd } from "../../../lib/composerFolder.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
@@ -152,6 +156,8 @@ export function Composer({ live, worker, paneId, focused }) {
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
   // /btw is offered only while the side-question plugin is on, and only for an
   // agent whose backend can answer side questions.
+  // /run fills the run sheet from the routines the user has.
+  useEffect(() => { ensureRoutinesLoaded(); }, []);
   const btwOn = useBuiltinOn(BUILTIN_PLUGINS.btw);
   const canAskSide = btwOn && Boolean(selected) && backendCaps(selected.backend_kind).sideQuestion === true;
   const menuItems = useMemo(
@@ -638,6 +644,19 @@ export function Composer({ live, worker, paneId, focused }) {
       const tree = !!selected.is_orchestrator;
       api.exportWorker(selected.id, { tree }).catch((e) => console.error("export failed", e));
       return;
+    }
+
+    // "/run <routine> [item]" opens the routine's run sheet over the chat,
+    // filled; the run starts on Run and its card comes back to this chat. A
+    // name that is no routine goes to the agent as typed.
+    if (mode !== "term" && !gitMode && selected) {
+      const asked = parseRunCommand(t);
+      const routine = asked && routineNamed(offeredRoutines(routinesNow().list), asked.routine);
+      if (routine) {
+        setTextAndSync("", 0, "reset");
+        openRunSheet({ routineId: routine.id, input: runInputOf(asked, routine), door: "chat", chat: selected.id });
+        return;
+      }
     }
 
     // "/btw <question>" asks this agent a read-only side question in the side
@@ -1372,4 +1391,10 @@ function usePublishHeight(ref, prop) {
     publish();
     return () => ro.disconnect();
   }, [ref, prop]);
+}
+
+// What a typed /run fills the run sheet with: the user's own words.
+function runInputOf(asked, routine) {
+  const item = routine.takes ? typedItem(asked.item, routine.takes) : null;
+  return { ...(item ? { item } : {}), ...(asked.note ? { note: asked.note } : {}), ...(asked.showOnly ? { result: "showOnly" } : {}) };
 }

@@ -37,6 +37,9 @@ export function useRoutines() {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+// The store as it is now, for a reader outside React (the ⌘K palette).
+export const routinesNow = snapshot;
+
 // The routines Home offers (the field, the `/` menu, the intent): those the
 // core's intent reader knows, so a one-off, an archived routine or one in
 // Recently deleted is not read as one (eos-mod-routines intent.rs).

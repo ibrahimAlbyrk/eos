@@ -1,5 +1,6 @@
 import { NewRoutine } from "./blueprint/NewRoutine.jsx";
 import { HomeScreen } from "./home/HomeScreen.jsx";
+import { FormArrival } from "./input/FormArrival.jsx";
 import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosMemoryScreen } from "./memory/EosMemoryScreen.jsx";
@@ -46,6 +47,7 @@ function PlaceholderScreen({ location }) {
 export function EosMain() {
   const location = parseLocation(useEosLocation());
   if (location?.screen === "home") return <HomeScreen />;
+  if (location?.screen === "form") return <><HomeScreen /><FormArrival key={JSON.stringify(location)} location={location} /></>;
   if (location?.screen === "needs") return <NeedsYouList />;
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
   if (location?.screen === "new-routine") return <NewRoutine />;
