@@ -1,5 +1,6 @@
 //! Tool descriptions: each is the prompt `tool/<name>`, rendered once with the
-//! tool names and — for `present` — the visual-answer catalog, which is
+//! tool names and — for `present` — the visual-answer catalog, and for
+//! `page_design_propose` the page catalog, each
 //! generated from the validator's own tables so the reference cannot drift from
 //! what it accepts.
 
@@ -17,6 +18,7 @@ use crate::tool_names::tool_name_vars;
 pub fn render_tool_descriptions(registry: Arc<PromptRegistry>, names: &[&str]) -> Vec<(String, String)> {
     let mut globals = tool_name_vars();
     globals.insert("GENUI_CATALOG".to_owned(), Value::String(eos_genui::catalog_prompt()));
+    globals.insert("PAGE_CATALOG".to_owned(), Value::String(eos_surface::page_catalog_prompt()));
     let prompts = PromptService::new(registry, globals);
     names
         .iter()

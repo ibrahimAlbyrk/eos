@@ -33,7 +33,7 @@ mod spawn;
 mod start;
 mod steer;
 mod supervisor;
-mod surfaces;
+pub(crate) mod surfaces;
 mod team;
 mod versions;
 mod workspace;

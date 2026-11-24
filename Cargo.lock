@@ -2788,6 +2788,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-genui",
+ "eos-surface",
  "ryu-js",
  "serde",
  "serde_json",

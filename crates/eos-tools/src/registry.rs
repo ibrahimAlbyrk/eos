@@ -95,9 +95,9 @@ pub struct Tools {
     /// A routine run's checker: its verdict, the date, memory search and the
     /// capability tools.
     pub(crate) run_checker: Vec<Spec>,
-    /// A design run's designer: its progress, result and failure, the date
-    /// and memory search; neither a page's fill nor a View, nor any
-    /// capability.
+    /// A design run's designer: its page tools, its progress, result and
+    /// failure, the date and memory search; neither a page's fill nor a
+    /// View, nor any capability.
     pub(crate) run_designer: Vec<Spec>,
     /// A routine's architect: its own tools and `list_capabilities`.
     pub(crate) architect: Vec<Spec>,
@@ -194,7 +194,8 @@ impl Tools {
             list.push(user::ask_user(&s.questions));
             list.extend(run_shared());
         }
-        let mut run_designer = lead();
+        let mut run_designer = s.surfaces.as_ref().map(surfaces::designer_specs).unwrap_or_default();
+        run_designer.extend(lead());
         let reaches_capabilities = |t: &Spec| t.name == "list_capabilities" || t.name == "call_capability";
         run_designer.extend(run_shared().into_iter().filter(|t| !reaches_capabilities(t)));
         let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();

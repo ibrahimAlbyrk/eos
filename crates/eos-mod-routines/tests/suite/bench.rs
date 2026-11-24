@@ -347,6 +347,16 @@ impl Bench {
         self.start(new_run(routine, RunOrigin::Hand, item)).await.expect("starts").remove(0).id
     }
 
+    /// The routine's page, as surfaces would have made it, with no design yet.
+    pub(crate) fn page_surface(&self, routine: &str) -> String {
+        let id = format!("sf-{routine}");
+        self.temp.exec(&format!(
+            "INSERT INTO surface_defs (id, routine_id, level, place, role, title, created_at, updated_at) \
+             VALUES ('{id}', '{routine}', 'page', 'routine_page', 'page', 'Paper', 1, 1)"
+        ));
+        id
+    }
+
     pub(crate) fn run(&self, id: &str) -> StoredRun {
         let id = id.to_owned();
         self.temp.store.read_blocking(move |tx| tx.runs().find(&id)).expect("reads").expect("the run")

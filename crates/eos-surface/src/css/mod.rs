@@ -13,6 +13,7 @@ use crate::limits::STYLE_BYTES;
 use crate::problem::Problem;
 
 pub use fonts::{FAMILIES, Family, SYSTEM, font_faces};
+pub(crate) use props::PROPERTIES;
 pub use selector::ElementRef;
 pub use sheet::{Decl, Media};
 

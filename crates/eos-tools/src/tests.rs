@@ -462,7 +462,12 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         let as_worker = LaunchSpec { worker_definition: Some(definition.into()), ..session_of("peer") };
         assert_eq!(names(&as_worker), expected, "{definition}: the definition decides, not the role");
     }
-    let designer: Vec<&str> = lead[..3].iter().chain(&["current_datetime", "search_memory"]).copied().collect();
+    let designer: Vec<&str> = ["page_design_read", "page_design_propose"]
+        .iter()
+        .chain(&lead[..3])
+        .chain(&["current_datetime", "search_memory"])
+        .copied()
+        .collect();
     assert_eq!(bench.names_of("eos-run-designer"), designer, "a designer neither fills, returns nor sends");
     // A specialist is a worker of its own definition and keeps the worker list.
     let specialist = LaunchSpec { worker_definition: Some("eos-run-specialist".into()), ..session_of("worker") };

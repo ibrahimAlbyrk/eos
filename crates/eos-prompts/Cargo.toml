@@ -12,6 +12,7 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-genui.workspace = true
+eos-surface.workspace = true
 ryu-js.workspace = true
 serde.workspace = true
 serde_json.workspace = true

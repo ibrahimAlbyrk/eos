@@ -9,6 +9,8 @@ variables:
   - INSTRUCTION
   - PART
   - FOLDER
+  - PAGE_DESIGN_READ_TOOL
+  - PAGE_DESIGN_PROPOSE_TOOL
   - SUBMIT_RESULT_TOOL
   - REPORT_FAILURE_TOOL
 ---
@@ -34,4 +36,4 @@ What they pointed at: {{PART}}
 
 {{FOLDER}}
 
-When the design is proposed, end with {{SUBMIT_RESULT_TOOL}}, kind `nothing`, its note as the headline. If it cannot be done, call {{REPORT_FAILURE_TOOL}} with the reason.
+Read the page with {{PAGE_DESIGN_READ_TOOL}}, then hand your design in with {{PAGE_DESIGN_PROPOSE_TOOL}}. When it is proposed, end with {{SUBMIT_RESULT_TOOL}}, kind `nothing`, its note as the headline. If it cannot be done, call {{REPORT_FAILURE_TOOL}} with the reason.
