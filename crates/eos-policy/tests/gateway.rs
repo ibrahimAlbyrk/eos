@@ -558,3 +558,52 @@ async fn a_run_scope_holds_under_the_bundled_policy_and_full_access() {
         }
     }
 }
+
+/// What a script routine's kept scripts answer, by the `scriptPath` asked.
+struct Scripts;
+
+impl eos_core::policy::KeptScripts for Scripts {
+    fn check<'a>(
+        &'a self,
+        _worker_id: &'a str,
+        input: &'a UnknownRecord,
+    ) -> eos_core::BoxFuture<'a, Result<eos_core::policy::ScriptCall, Error>> {
+        use eos_core::policy::ScriptCall;
+        let answer = match input.get("scriptPath").and_then(Value::as_str) {
+            Some("/kept.js") => ScriptCall::Run(record(json!({"script": "export default 1", "args": {"n": 1}}))),
+            Some(_) => ScriptCall::Refused("not the kept script".into()),
+            None => ScriptCall::NotOurs,
+        };
+        Box::pin(std::future::ready(Ok(answer)))
+    }
+}
+
+/// A script routine's lead runs its kept script inline whatever the rules
+/// say, any other script of it is refused, and a session of no routine is
+/// the policy's; a subagent's Workflow call never gets the script.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_workflow_call_is_decided_by_the_kept_script_above_every_rule() {
+    let f = fixture("bypassPermissions", json!({"default": "deny", "rules": []}));
+    let gateway = PolicyGateway::new(GatewayOptions {
+        store: f.temp.port(),
+        clock: f.clock.clone(),
+        ids: Arc::new(SeqIds::new()),
+        file: f.file.clone(),
+        default_ttl_ms: 0,
+        plans_dir: None,
+        ask_routing: None,
+    })
+    .with_scripts(Arc::new(Scripts));
+    let focused = |input: Value| ToolCall { full_surface: true, ..call("Workflow", input) };
+    let ran = gateway.decide(focused(json!({"scriptPath": "/kept.js", "args": {"n": 1}}))).await.expect("decides");
+    let ExternalDecision::Allow(allow) = ran else { panic!("allowed: {ran:?}") };
+    assert_eq!(allow.updated_input, Some(record(json!({"script": "export default 1", "args": {"n": 1}}))));
+    let other = gateway.decide(focused(json!({"scriptPath": "/other.js"}))).await.expect("decides");
+    assert_eq!((behavior(&other), message(&other)), ("deny", "not the kept script"));
+    let theirs = gateway.decide(focused(json!({"name": "saved"}))).await.expect("decides");
+    let plain = f.gateway.decide(focused(json!({"name": "saved"}))).await.expect("decides");
+    assert_eq!(behavior(&theirs), behavior(&plain), "the policy decides as without scripts");
+    let sub = ToolCall { agent_id: Some("a1".into()), ..focused(json!({"scriptPath": "/kept.js"})) };
+    let ExternalDecision::Allow(allow) = gateway.decide(sub).await.expect("decides") else { return };
+    assert!(allow.updated_input.is_none_or(|input| !input.contains_key("script")), "never swapped for the script");
+}

@@ -12,7 +12,7 @@ use eos_contracts::{
 };
 use eos_core::capability::CapabilityRegistry;
 use eos_core::inbox::{AskRoute, AskRouting};
-use eos_core::policy::{DecisionCounter, DecisionCounts, PolicyDecider, PolicyFile, ToolCall};
+use eos_core::policy::{DecisionCounter, DecisionCounts, KeptScripts, PolicyDecider, PolicyFile, ScriptCall, ToolCall};
 use eos_core::store::{NewPending, Store};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use serde_json::{Value, json};
@@ -87,6 +87,9 @@ impl Drop for Parked {
     }
 }
 
+/// The engine's tool that runs a workflow script.
+const WORKFLOW_TOOL: &str = "Workflow";
+
 fn denied(message: impl Into<String>) -> ExternalDecision {
     ExternalDecision::Deny(DenyVariant { message: message.into() })
 }
@@ -101,6 +104,8 @@ pub struct PolicyGateway {
     ask_routing: Option<Arc<dyn AskRouting>>,
     /// Where `call_capability` finds the class of the action it calls.
     capabilities: Option<Arc<dyn CapabilityRegistry>>,
+    /// What a `Workflow` call of a script routine's lead runs.
+    scripts: Option<Arc<dyn KeptScripts>>,
     policy: RwLock<Arc<Policy>>,
     waiters: Waiters,
     /// One writer of the user's policy file at a time.
@@ -129,6 +134,7 @@ impl PolicyGateway {
             plans_dir: options.plans_dir,
             ask_routing: options.ask_routing,
             capabilities: None,
+            scripts: None,
             policy: RwLock::new(Arc::new(policy)),
             waiters: Waiters::default(),
             saving: Mutex::new(()),
@@ -143,6 +149,27 @@ impl PolicyGateway {
     pub fn with_capabilities(mut self, registry: Arc<dyn CapabilityRegistry>) -> Self {
         self.capabilities = Some(registry);
         self
+    }
+
+    /// Decides a `Workflow` call of a script routine's lead by its kept
+    /// script, above every rule (01 G9, D52).
+    pub fn with_scripts(mut self, scripts: Arc<dyn KeptScripts>) -> Self {
+        self.scripts = Some(scripts);
+        self
+    }
+
+    /// A `Workflow` call of a session's own: a script routine's lead runs
+    /// its kept script inline or is refused; `None` lets the policy decide.
+    async fn script_decision(&self, call: &ToolCall) -> Result<Option<Decision>, Error> {
+        let Some(scripts) = self.scripts.as_ref().filter(|_| call.tool_name == WORKFLOW_TOOL) else { return Ok(None) };
+        if call.agent_id.is_some() {
+            return Ok(None);
+        }
+        Ok(match scripts.check(&call.worker_id, &call.input).await? {
+            ScriptCall::NotOurs => None,
+            ScriptCall::Run(input) => Some(Decision::Allow(AllowVariant { updated_input: Some(input), message: None })),
+            ScriptCall::Refused(message) => Some(Decision::Deny(DenyVariant { message })),
+        })
     }
 
     /// The class of the action a `call_capability` call names; `None` for
@@ -186,21 +213,24 @@ impl PolicyGateway {
         let worker_id = call.worker_id.clone();
         let permissions = self.store.read(move |tx| worker_permissions(tx.workers(), &worker_id)).await?;
         let capability_class = self.capability_class(&call).await;
-        let decision = evaluate(
-            &policy,
-            &Call {
-                tool_name: &call.tool_name,
-                input: &call.input,
-                agent_id: call.agent_id.as_deref(),
-                full_surface: call.full_surface,
-                mode: call.subagent.map_or(permissions.mode.into(), |modes| modes.under(permissions.mode)),
-                looks_only: call.subagent.is_some_and(|modes| modes.looks_only),
-                scope: permissions.scope.as_ref(),
-                plans_dir: self.plans_dir.as_deref(),
-                writes_outside: call.writes_outside,
-                capability_class,
-            },
-        );
+        let scripted = self.script_decision(&call).await?;
+        let decision = scripted.unwrap_or_else(|| {
+            evaluate(
+                &policy,
+                &Call {
+                    tool_name: &call.tool_name,
+                    input: &call.input,
+                    agent_id: call.agent_id.as_deref(),
+                    full_surface: call.full_surface,
+                    mode: call.subagent.map_or(permissions.mode.into(), |modes| modes.under(permissions.mode)),
+                    looks_only: call.subagent.is_some_and(|modes| modes.looks_only),
+                    scope: permissions.scope.as_ref(),
+                    plans_dir: self.plans_dir.as_deref(),
+                    writes_outside: call.writes_outside,
+                    capability_class,
+                },
+            )
+        });
         let now = self.clock.now_ms();
         let (behavior, counter, parked) = match &decision {
             Decision::Allow(_) => ("allow", &self.allowed, None),

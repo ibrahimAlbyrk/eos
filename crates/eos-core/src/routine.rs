@@ -613,6 +613,23 @@ pub trait RunFolders: Send + Sync {
         run_id: &'a str,
         files: &'a [String],
     ) -> BoxFuture<'a, Result<Vec<KeptFile>, Error>>;
+    /// Where a script routine's version keeps its script:
+    /// `scripts/<versionId>.js` in the routine's folder.
+    fn script_path(&self, routine_id: &str, version_id: &str) -> PathBuf;
+    /// Writes the version's script there, replacing what is there.
+    fn keep_script<'a>(
+        &'a self,
+        routine_id: &'a str,
+        version_id: &'a str,
+        source: &'a str,
+    ) -> BoxFuture<'a, Result<PathBuf, Error>>;
+    /// The version's kept script as it is on disk; `None` when it is missing
+    /// or is no plain file (a link is never followed).
+    fn read_script<'a>(
+        &'a self,
+        routine_id: &'a str,
+        version_id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<String>, Error>>;
 }
 
 /// The largest file a result carries.

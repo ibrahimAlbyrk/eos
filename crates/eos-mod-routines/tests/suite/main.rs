@@ -24,6 +24,7 @@ mod recover;
 mod retention;
 mod routes;
 mod run_routes;
+mod script;
 mod seed;
 mod shape;
 mod solo;

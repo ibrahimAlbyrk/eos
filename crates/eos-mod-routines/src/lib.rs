@@ -103,6 +103,7 @@ use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
+use eos_core::policy::KeptScripts;
 use eos_core::routine::{
     ArchitectTools, BuiltinRoutines, ChatRoutines, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools,
     RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter, SystemSteps,
@@ -198,6 +199,8 @@ impl std::fmt::Debug for RoutinesParts {
 
 pub struct RoutinesModule {
     engine: Arc<Engine>,
+    /// One for the module's life: the permission gateway holds it weakly.
+    scripts: Arc<dyn KeptScripts>,
     /// One for the module's life: the capability service holds it weakly.
     grants: Arc<dyn CapabilityGrants>,
     /// One for the module's life: the gate holds it weakly.
@@ -296,7 +299,13 @@ impl RoutinesModule {
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         let control = Arc::new(engine::Control(engine.clone()));
-        Self { engine, grants, control }
+        let scripts = Arc::new(engine::Scripts(engine.clone()));
+        Self { engine, scripts, grants, control }
+    }
+
+    /// What a script routine's lead may run through `Workflow` (01 G9, D52).
+    pub fn scripts(&self) -> Arc<dyn KeptScripts> {
+        self.scripts.clone()
     }
 
     /// Where a feature keeps its built-in routines (01 G49).

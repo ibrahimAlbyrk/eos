@@ -82,6 +82,10 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
                 Some(lead) => (lead.clone(), RunRole::Lead, "lead", TEAM_LEAD_DEFINITION),
                 None => return Err((Reason::Invalid, Some(NOT_HERE), None)),
             },
+            (WhoDepth::Script, _) => match super::script::lead_of(&blueprint) {
+                Some(lead) => (lead, RunRole::Script, "script", super::script::SCRIPT_DEFINITION),
+                None => return Err((Reason::Invalid, Some(NOT_HERE), None)),
+            },
             _ => return Err((Reason::Invalid, Some(NOT_HERE), None)),
         };
     // A surface's run is one session on the routine's lead model, in a
@@ -108,6 +112,10 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         }
         Err(NoPlace::Failed(error)) => return Err(internal(error)),
     };
+    let script_call = match input.surface {
+        Some(_) => None,
+        None => super::script::keep(engine, &routine_id, &version_id, &blueprint, &input).await.map_err(internal)?,
+    };
     let (model, effort) = model_of(&blueprint, &agent, &input);
     let pack = super::memory::pack(engine, run_id, &routine_id, &input, &place).await;
     let session = RunSession {
@@ -130,7 +138,7 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     };
     let render = |folder: &str| match input.surface.as_ref().filter(|s| s.kind == SurfaceRunKind::Design) {
         Some(design) => design_brief(engine, &blueprint, design, folder),
-        None => render(engine, &blueprint, &agent, &input, folder),
+        None => render(engine, &blueprint, &agent, &input, folder, script_call.as_deref()),
     };
     let Some(worker_id) = spawn::start(engine, session, render).await.map_err(internal)? else { return Ok(()) };
     to_work(engine, run_id).await.map_err(internal)?;
@@ -223,6 +231,7 @@ fn render(
     agent: &RoutineAgent,
     input: &RunInput,
     folder: &str,
+    script_call: Option<&str>,
 ) -> Result<String, Error> {
     let mut items: Vec<String> = input.item.iter().chain(input.items.iter().flatten()).map(super::item_text).collect();
     if let Some(asked) = input.surface.as_ref().and_then(|surface| surface.item.as_ref()) {
@@ -239,6 +248,9 @@ fn render(
         .collect();
     let steps: Vec<String> = blueprint.how.steps.iter().map(|step| format!("- {step}")).collect();
     let mut how = format!("{}\n\nHow the result reads: {}", steps.join("\n"), blueprint.how.format);
+    if let Some(call) = script_call {
+        how = format!("{call}\n\n{how}");
+    }
     let project = super::project::brief_text(blueprint);
     if let Some(project) = &project {
         how = format!("{project}\n\n{how}");
