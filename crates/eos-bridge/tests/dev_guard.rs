@@ -45,3 +45,44 @@ async fn every_route_that_is_not_a_plain_read_is_classified() {
         assert!(!allows(method, pattern, b"{}", Some(home.path())));
     }
 }
+
+/// The terminal's gateway reaches the core the way the dashboard does: in a dev run the
+/// guard refuses a run it would start, and the command ends with 2.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_terminal_cannot_start_a_run_in_a_dev_run() {
+    use std::sync::Arc;
+
+    use eos_bridge::cli::{CliGateway, CliParts};
+    use eos_bridge::dev::Guarded;
+    use eos_bridge::{Classify, RouterCore};
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    let home = TempHome::new();
+    let app = eos_app::App::build(eos_app::Options::new(home.path())).expect("the app builds");
+    app.start().await.expect("the app starts");
+    let rt = tokio::runtime::Handle::current();
+    let callers = app.callers().clone();
+    let ui_token = callers.ui_token().to_owned();
+    let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
+    let guarded = Guarded::new(Arc::new(RouterCore::new(app.router(), ui_token, classify, rt.clone())));
+    let shell = home.path().join("shell");
+    let parts = CliParts { core: Arc::new(guarded), data_dir: shell.clone(), scheme: "eos-dev", version: "0".into() };
+    let _gateway = CliGateway::start(parts, &rt).expect("listens");
+
+    let stream = tokio::net::UnixStream::connect(shell.join("cli.sock")).await.expect("connects");
+    let (read, mut write) = stream.into_split();
+    write.write_all(b"{\"cmd\":\"once\",\"what\":\"Tidy my downloads\"}\n").await.expect("sent");
+    let mut lines = BufReader::new(read).lines();
+    let mut got = Vec::new();
+    while let Some(line) = lines.next_line().await.expect("a line") {
+        let done = line.contains("\"done\"");
+        got.push(line);
+        if done {
+            break;
+        }
+    }
+    assert_eq!(got.len(), 2, "{got:?}");
+    assert!(got[0].contains("refused in a dev run"), "{got:?}");
+    assert_eq!(got[1], r#"{"t":"done","exit":2}"#);
+    app.shutdown(std::time::Duration::from_secs(5)).await;
+}
