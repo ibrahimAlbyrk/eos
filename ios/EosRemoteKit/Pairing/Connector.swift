@@ -23,12 +23,27 @@ public final class Connector: Sendable {
     private let joinBearer: String
     private let log: @Sendable (String) -> Void
 
+    private let push: PushJoin?
+
     public init(connection: WSConnection, room: String, bearer: String,
+                push: PushJoin? = PushRegistration.shared.join,
                 log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.connection = connection
         self.roomBytes = Bytes.ascii(room)
         self.joinBearer = bearer
+        self.push = push
         self.log = log
+    }
+
+    /// The relay `join`: the room capability, and the APNs token with its push service when this
+    /// phone has one, so the relay can wake it (07 §4.6). A relay that predates push ignores both.
+    public static func joinPayload(room: String, bearer: String, push: PushJoin?) throws -> Data {
+        var join: [String: String] = ["t": "join", "room": room, "bearer": bearer]
+        if let push {
+            join["apnsToken"] = push.token
+            join["apnsEnv"] = push.env
+        }
+        return try JSONSerialization.data(withJSONObject: join)
     }
 
     public func run() async throws -> ConnectResult {
@@ -36,9 +51,8 @@ public final class Connector: Sendable {
         log("ws opened")
 
         // 1. join — clientId is 16 zero bytes until the relay assigns one.
-        let joinJSON = try JSONSerialization.data(withJSONObject: [
-            "t": "join", "room": String(decoding: roomBytes, as: UTF8.self), "bearer": joinBearer,
-        ])
+        let joinJSON = try Self.joinPayload(room: String(decoding: roomBytes, as: UTF8.self), bearer: joinBearer,
+                                            push: push)
         try await connection.sendEnvelopeRaw(Envelope(type: .join, dir: .c2s, epoch: 0, seq: 0,
                                                       room: roomBytes, clientId: Data(count: 16), payload: joinJSON))
         // Unbounded here — a silent relay is cut off by the caller's attempt deadline closing the socket.

@@ -1,0 +1,11 @@
+/* Push texts (07 §4.6): a push carries only a kind and a count; the words are this app's. */
+"push.needs_you.title" = "Eos needs you";
+"push.needs_you.body" = "Waiting for you: %@";
+"push.run_failed.title" = "A run failed";
+"push.run_failed.body" = "Runs that failed: %@";
+"push.routine_paused.title" = "A routine paused";
+"push.routine_paused.body" = "Routines paused: %@";
+"push.ready.title" = "Ready";
+"push.ready.body" = "Ready for you: %@";
+"push.test.title" = "Eos";
+"push.test.body" = "Notifications from your Mac work.";

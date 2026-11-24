@@ -93,6 +93,9 @@ struct RootView: View {
                 .environmentObject(model)
         }
         .onOpenURL { url in route(url) }
+        .onReceive(NotificationCenter.default.publisher(for: .eosOpenLink)) { note in
+            if let url = note.object as? URL { route(url) }
+        }
         // Root-screen flag for the drawer pan (pushed screens reserve the left edge for the
         // back-swipe). Persist what relaunch should reopen on every stack change (round 7).
         .onChange(of: path) { _, p in

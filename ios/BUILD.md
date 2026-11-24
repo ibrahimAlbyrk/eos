@@ -46,6 +46,16 @@ account. To use **your own** Apple ID instead (per design §9 — identity is pe
 A **free** Apple ID works but re-sign every 7 days; a **paid** account signs for 1 year and is
 required for the optional background-push add-on (§5.5/§9).
 
+### Push
+
+The app asks for notifications at launch and sends its APNs token with every relay join, so the
+relay can wake it when the Mac needs you (`EosRemote/EosRemote.entitlements` holds
+`aps-environment`). APNs delivers only to builds signed by the team whose key the relay holds:
+the TestFlight build of team `MW57K22389`. A build signed by another team, or by a free Apple
+ID, cannot register: Devices then says "Push needs the TestFlight app" and everything else
+works. For a team's own push, its App ID needs the Push Notifications capability and the relay
+its APNs key (`relay/README.md`).
+
 ## 3. Build & run on the Simulator (verified)
 
 ```bash
