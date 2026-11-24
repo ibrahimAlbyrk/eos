@@ -5,6 +5,7 @@
 
 mod comfort;
 mod components;
+pub mod fallback;
 pub(crate) mod format;
 mod frame;
 mod html;
