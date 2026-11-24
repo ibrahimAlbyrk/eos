@@ -68,7 +68,7 @@ use eos_core::{BoxFuture, Clock, Error, Ids};
 
 pub use browser::{BROWSER, Browser};
 pub use candidates::CANDIDATES_MAX;
-pub use install::Install;
+pub use install::{Install, KEPT_VERSIONS};
 pub use notify::{NOTIFY, Notify};
 
 /// The topic a capability's state or version change is announced on, with

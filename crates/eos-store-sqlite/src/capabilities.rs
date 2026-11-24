@@ -163,6 +163,22 @@ impl CapabilityVersionRepo for SqliteTx<'_> {
             version,
         )
     }
+
+    fn set_status(
+        &self,
+        capability_id: &str,
+        version_name: &str,
+        status: &str,
+        activated_at: Option<i64>,
+        retired_at: Option<i64>,
+    ) -> Result<bool, Error> {
+        let changed = self.exec(
+            "UPDATE capability_versions SET status = ?3, activated_at = ?4, retired_at = ?5 \
+             WHERE capability_id = ?1 AND version = ?2",
+            params![capability_id, version_name, status, activated_at, retired_at],
+        )?;
+        Ok(changed > 0)
+    }
 }
 
 impl CapabilityCallRepo for SqliteTx<'_> {

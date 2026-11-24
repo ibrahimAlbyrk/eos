@@ -88,6 +88,16 @@ pub trait CapabilityVersionRepo {
     fn find(&self, capability_id: &str, version: &str) -> Result<Option<StoredCapabilityVersion>, Error>;
     /// A capability's versions, newest first.
     fn of_capability(&self, capability_id: &str) -> Result<Vec<StoredCapabilityVersion>, Error>;
+    /// Sets a version's status, with when it became active or was retired;
+    /// `false` when there is no such version.
+    fn set_status(
+        &self,
+        capability_id: &str,
+        version: &str,
+        status: &str,
+        activated_at: Option<i64>,
+        retired_at: Option<i64>,
+    ) -> Result<bool, Error>;
 }
 
 pub trait CapabilityCallRepo {
