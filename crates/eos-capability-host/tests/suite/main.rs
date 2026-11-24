@@ -3,3 +3,4 @@
 mod mcp;
 mod script;
 mod sms;
+mod trial;

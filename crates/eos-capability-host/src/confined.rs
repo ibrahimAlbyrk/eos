@@ -7,6 +7,7 @@ use std::sync::Arc;
 use eos_core::capability::{
     ActionError, ConfineError, ConfineReport, ConfineSpec, Confined, Confinement, FailureKind, Package, Violation,
 };
+use eos_domain::capability::manifest::Manifest;
 use zeroize::Zeroizing;
 
 /// The state code an action is refused with while the sandbox does not work.
@@ -44,45 +45,76 @@ impl Layout {
         env: &[(String, Zeroizing<String>)],
         tmpdir: &Path,
     ) -> Result<Confined, ActionError> {
-        let id = package.id.as_str();
-        let Some((program, args)) = line.split_first() else {
-            return Err(code_failed(id, what, "no program to run"));
-        };
-        // Paths reach the sandbox as written: one it cannot name confines nothing.
-        if !Path::new(program).is_absolute() {
-            return Err(code_failed(id, what, "its program is no absolute path"));
-        }
-        if package.manifest.reach.files_read.iter().any(|path| !Path::new(path).is_absolute()) {
-            return Err(code_failed(id, what, "a file it reads is no absolute path"));
-        }
-        let (package_dir, data) = (self.package_dir(package), self.data_dir(package));
-        if let Err(error) = tokio::fs::create_dir_all(&data).await {
-            tracing::warn!(capability = id, what, %error, "a capability's data folder could not be made");
-            return Err(ActionError::Failed { kind: FailureKind::Internal });
-        }
-        let mut variables =
-            vec![("PATH".to_owned(), SYSTEM_PATH.to_owned()), ("HOME".to_owned(), data.to_string_lossy().into_owned())];
-        // Secrets go in the variables their manifest names, and nowhere else.
-        variables.extend(env.iter().map(|(name, value)| (name.clone(), value.as_str().to_owned())));
-        let spec = ConfineSpec {
-            program: PathBuf::from(program),
-            args: args.to_vec(),
-            cwd: package_dir.clone(),
-            env: variables,
-            package: package_dir,
-            data,
-            tmpdir: tmpdir.to_owned(),
-            reach: package.manifest.reach.clone(),
+        let at = At {
+            id: &package.id,
+            package: self.package_dir(package),
+            data: self.data_dir(package),
+            manifest: &package.manifest,
             audit: false,
         };
-        self.confinement.command(spec).await.map_err(|error| match error {
-            ConfineError::Unavailable => {
-                tracing::warn!(capability = id, what, "the sandbox does not work: the command did not run");
-                ActionError::NotReady(SANDBOX_UNAVAILABLE.into())
-            }
-            ConfineError::Failed(_) => code_failed(id, what, "it could not be confined"),
-        })
+        confine_at(self.confinement.as_ref(), &at, what, line, env, tmpdir).await
     }
+}
+
+/// Where a confined command of a package runs, and what it may reach.
+pub(crate) struct At<'a> {
+    pub(crate) id: &'a str,
+    /// The package's folder: readable, and where the command starts.
+    pub(crate) package: PathBuf,
+    /// Its data folder, its `HOME`: readable and writable.
+    pub(crate) data: PathBuf,
+    pub(crate) manifest: &'a Manifest,
+    /// The Forge's audit: reads outside its paths are reported, and nothing
+    /// leaves.
+    pub(crate) audit: bool,
+}
+
+/// `line` under the sandbox at `at`, with only `PATH`, `HOME` and `env`.
+pub(crate) async fn confine_at(
+    confinement: &dyn Confinement,
+    at: &At<'_>,
+    what: &str,
+    line: &[String],
+    env: &[(String, Zeroizing<String>)],
+    tmpdir: &Path,
+) -> Result<Confined, ActionError> {
+    let id = at.id;
+    let Some((program, args)) = line.split_first() else {
+        return Err(code_failed(id, what, "no program to run"));
+    };
+    // Paths reach the sandbox as written: one it cannot name confines nothing.
+    if !Path::new(program).is_absolute() {
+        return Err(code_failed(id, what, "its program is no absolute path"));
+    }
+    if at.manifest.reach.files_read.iter().any(|path| !Path::new(path).is_absolute()) {
+        return Err(code_failed(id, what, "a file it reads is no absolute path"));
+    }
+    if let Err(error) = tokio::fs::create_dir_all(&at.data).await {
+        tracing::warn!(capability = id, what, %error, "a capability's data folder could not be made");
+        return Err(ActionError::Failed { kind: FailureKind::Internal });
+    }
+    let mut variables =
+        vec![("PATH".to_owned(), SYSTEM_PATH.to_owned()), ("HOME".to_owned(), at.data.to_string_lossy().into_owned())];
+    // Secrets go in the variables their manifest names, and nowhere else.
+    variables.extend(env.iter().map(|(name, value)| (name.clone(), value.as_str().to_owned())));
+    let spec = ConfineSpec {
+        program: PathBuf::from(program),
+        args: args.to_vec(),
+        cwd: at.package.clone(),
+        env: variables,
+        package: at.package.clone(),
+        data: at.data.clone(),
+        tmpdir: tmpdir.to_owned(),
+        reach: at.manifest.reach.clone(),
+        audit: at.audit,
+    };
+    confinement.command(spec).await.map_err(|error| match error {
+        ConfineError::Unavailable => {
+            tracing::warn!(capability = id, what, "the sandbox does not work: the command did not run");
+            ActionError::NotReady(SANDBOX_UNAVAILABLE.into())
+        }
+        ConfineError::Failed(_) => code_failed(id, what, "it could not be confined"),
+    })
 }
 
 /// Removes a command's temp folder once it has ended.

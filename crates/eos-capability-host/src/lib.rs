@@ -20,6 +20,7 @@
 mod confined;
 mod mcp;
 mod script;
+mod trial;
 
 use mcp::McpHost;
 
@@ -37,6 +38,7 @@ use zeroize::Zeroizing;
 pub use confined::SANDBOX_UNAVAILABLE;
 pub use mcp::{CRASH_WINDOW_MS, CRASHES_TO_BREAK, IDLE_STOP_MS, SERVER_CRASHED, SERVERS_ALIVE_MAX, TOOLS_CHANGED};
 pub use script::{OUTPUT_MAX_BYTES, ScriptHost};
+pub use trial::{LIVE_TIMEOUT, TESTS_TIMEOUT, TOLERATED_READS, Trial, TrialOutcome, judge};
 
 /// Both forms behind one runner: a package's form picks its host.
 #[derive(Debug)]
