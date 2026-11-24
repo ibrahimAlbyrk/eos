@@ -1,7 +1,9 @@
 //! The gate over the real store: show-only and trial write nothing, an
 //! unconfirmed target refuses and pauses, caps hold a result as a draft,
 //! automatic sending stays locked, a second result to one place is held
-//! (D55), and a held result is taken back.
+//! (D55, on the same version of its item, or for a routine with no item on the
+//! same local day: D64, D65), a send to the user goes at once (D67), no grant
+//! or bound rests on a fact the sender writes (D63), and a held result is taken back.
 
 use std::sync::Arc;
 
@@ -369,4 +371,47 @@ async fn a_send_that_never_reached_the_recipient_or_another_subject_is_no_repeat
     delivered(&gated, "dl-other", "rn-3", "sent");
     let decision = gated.apply(GateInput { run_id: "rn-2".into(), ..input("on_its_own") }).await;
     assert!(matches!(decision, GateDecision::Delivering { .. }), "goes out: {decision:?}");
+}
+
+#[tokio::test]
+async fn a_new_version_of_the_item_sends_again_unless_the_first_send_is_still_on_its_way() {
+    // D65: the first review went out at `abc`; the next run reviews `def`.
+    for (state, repeats) in [("sent", false), ("holding", true)] {
+        let gated = Gated::new();
+        about(&gated, "rn-1", 482);
+        delivered(&gated, "dl-first", "rn-1", state);
+        about(&gated, "rn-2", 482);
+        gated.rig.temp.exec(
+            "UPDATE runs SET item_key = 'github:pr:acme/game#482@def', input = '{\"item\":{\"version\":\"def\"}}' \
+             WHERE id = 'rn-2'",
+        );
+        let decision = gated.apply(GateInput { run_id: "rn-2".into(), ..input("on_its_own") }).await;
+        assert_eq!(matches!(decision, GateDecision::Held { .. }), repeats, "{state}: {decision:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_routine_with_no_item_sends_to_one_recipient_once_a_local_day() {
+    // D64: the routine itself is the subject of a digest that has no item.
+    let boss: Recipient =
+        serde_json::from_value(json!({"id": "boss", "kind": "fixed", "channel": "github", "address": "boss@acme.dev"}))
+            .expect("a recipient");
+    let day_ms = 24 * 60 * 60 * 1000;
+    for (state, at, repeats) in [("sent", 1, true), ("sent", 1_000_000 - day_ms, false), ("queued", -day_ms, true)] {
+        let gated = Gated::new();
+        gated.rig.temp.exec(&format!(
+            "INSERT INTO inbox_deliveries (id, run_id, routine_id, channel, action, target_ref, target, body, \
+             body_hash, class, mode, state, created_at, updated_at) VALUES ('dl-first', 'rn-0', 'rt-1', 'github', \
+             'post_review', 'boss', '{{}}', '{{}}', 'h', 'speak', 'auto', '{state}', {at}, {at})"
+        ));
+        let digest = GateInput {
+            targets: vec![boss.clone()],
+            goes_to_confirmed: vec![boss.clone()],
+            item_facts: Value::Null,
+            subject_key: None,
+            ..input("on_its_own")
+        };
+        let decision = gated.apply(digest).await;
+        assert_eq!(matches!(decision, GateDecision::Held { .. }), repeats, "{state} at {at}: {decision:?}");
+    }
 }
