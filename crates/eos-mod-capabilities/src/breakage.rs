@@ -1,7 +1,8 @@
 //! A capability that breaks (06 G10): while it needs a sign-in, a setup
 //! step or a repair, is switched off or is gone, the routines that need it
 //! are paused with the reason `capability:<id>`, and, unless the user
-//! switched it off or removed it, one Needs-you item per capability says
+//! switched it off or removed it or no routine needs it, one Needs-you
+//! item per capability says
 //! what to do: sign in, set up, Repair (a Forge update run) or go back to
 //! the version before. Once it works again the item is withdrawn and only
 //! the routines paused for it resume. Settled on every `capabilities:change`
@@ -86,7 +87,7 @@ fn before_in(tx: &dyn Tx, install: &StoredInstall) -> Result<Option<String>, Err
 /// The paused routines, as the user reads them.
 fn paused_line(names: &[String]) -> String {
     match names {
-        [] => "No routine needs it now.".to_owned(),
+        [] => "The routines that need it are paused.".to_owned(),
         [one] => format!("{one} is paused."),
         [one, two] => format!("{one} and {two} are paused."),
         [one, rest @ ..] => format!("{one} and {} other routines are paused.", rest.len()),
@@ -99,7 +100,9 @@ fn standing_in(tx: &dyn Tx, id: &str, name: &str, users: &[String]) -> Result<St
     if works(state) {
         return Ok(Standing::Works);
     }
-    if matches!(state, HealthState::Disabled | HealthState::Available) {
+    // Nothing waits on one no routine needs: the user sees its state on
+    // its own page.
+    if matches!(state, HealthState::Disabled | HealthState::Available) || users.is_empty() {
         return Ok(Standing::Off);
     }
     let mut names = Vec::new();
