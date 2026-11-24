@@ -1,9 +1,12 @@
-//! What the user changes by hand: switching a capability off and on, and
-//! its settings. Settings are the user's: never logged.
+//! What the user changes by hand: switching a capability off and on, its
+//! settings and its secrets. Settings and secrets are the user's: never
+//! logged.
 
 use eos_core::Error;
 use eos_domain::capability::health::{Event, HealthState};
+use eos_domain::capability::manifest::Secret;
 use serde_json::{Map, Value};
+use zeroize::Zeroizing;
 
 use crate::CapabilityService;
 use crate::health::{announce, apply};
@@ -83,5 +86,41 @@ impl CapabilityService {
     /// Whether the capability's secret `name` is set; never its value.
     pub async fn secret_set(&self, id: &str, name: &str) -> Result<bool, Error> {
         self.ports.secrets.has(id, name).await
+    }
+
+    /// The secret `name` the capability declares, or 404.
+    pub async fn declared_secret(&self, id: &str, name: &str) -> Result<(String, Secret), Error> {
+        let loaded = self.load_one(id).await?.ok_or_else(|| Error::not_found("capability", id))?;
+        let manifest = loaded.capability.manifest;
+        let secret = manifest.secrets.into_iter().find(|secret| secret.name == name);
+        Ok((manifest.name, secret.ok_or_else(|| Error::not_found("secret", name))?))
+    }
+
+    /// Keeps the value the user entered for secret `name`, then checks the
+    /// capability again. Its running code is stopped: it read the old value.
+    pub async fn enter_secret(&self, id: &str, name: &str, value: Zeroizing<String>) -> Result<(), Error> {
+        self.declared_secret(id, name).await?;
+        self.ports.secrets.write(id, name, value).await?;
+        tracing::info!(capability = id, "a capability's secret was entered");
+        self.after_secret(id).await
+    }
+
+    /// Forgets secret `name`; the capability needs it again before it is called.
+    pub async fn forget_secret(&self, id: &str, name: &str) -> Result<(), Error> {
+        self.declared_secret(id, name).await?;
+        self.ports.secrets.delete(id, name).await?;
+        tracing::info!(capability = id, "a capability's secret was forgotten");
+        self.after_secret(id).await
+    }
+
+    async fn after_secret(&self, id: &str) -> Result<(), Error> {
+        if let Some(runner) = &self.ports.runner {
+            runner.stop(id).await;
+        }
+        let loaded = self.load_one(id).await?.ok_or_else(|| Error::not_found("capability", id))?;
+        if loaded.capability.health.state == HealthState::Disabled {
+            return Ok(());
+        }
+        self.check(id).await.map(drop)
     }
 }

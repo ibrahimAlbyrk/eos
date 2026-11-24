@@ -15,6 +15,9 @@
 //!   kept), from this computer only;
 //! - `GET /api/capabilities/candidates?item=&q=&limit=`: the items the
 //!   capabilities offer to pick, newest first;
+//! - `POST …/secrets/:name`: asks the user for the secret in the app's
+//!   native prompt and keeps it, answering only whether it did;
+//!   `DELETE …/secrets/:name` forgets it. From this computer only;
 //! - `POST`, `GET`, `DELETE …/sign-in`: sign in to a capability by a code on
 //!   the service's own page (GitHub), from this computer only: start it and
 //!   get the code, see how it stands, end it.
@@ -26,7 +29,7 @@
 //! sign-in or whose answer broke its shape.
 //!
 //! Logs carry ids, states, outcomes and durations; never settings, labels,
-//! sign-in codes, tokens, input or output.
+//! sign-in codes, tokens, secrets, input or output.
 
 mod routes;
 mod sign_in;
@@ -36,6 +39,7 @@ use std::sync::Arc;
 
 use eos_capabilities::{CAPABILITIES_CHANGE, CapabilityService};
 use eos_contracts::CapabilitiesChange;
+use eos_core::shell::SecretPrompt;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_runtime::bus::{Topic, TopicDecl};
@@ -54,6 +58,7 @@ pub struct CapabilitiesModule {
     sleeper: Arc<dyn Sleeper>,
     ticker: ticker::Ticker,
     sign_ins: Arc<sign_in::SignIns>,
+    prompt: Option<Arc<dyn SecretPrompt>>,
 }
 
 impl std::fmt::Debug for CapabilitiesModule {
@@ -72,7 +77,13 @@ impl CapabilitiesModule {
         sleeper: Arc<dyn Sleeper>,
     ) -> Self {
         let sign_ins = Arc::new(sign_in::SignIns::new(clock.clone()));
-        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins }
+        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins, prompt: None }
+    }
+
+    /// The window shell's secret prompt: without one, entering a secret is refused.
+    pub fn with_secret_prompt(mut self, prompt: Option<Arc<dyn SecretPrompt>>) -> Self {
+        self.prompt = prompt;
+        self
     }
 }
 
@@ -114,7 +125,7 @@ impl Module for CapabilitiesModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        routes::all(&self.service, &self.store, &self.sign_ins)
+        routes::all(&self.service, &self.store, &self.sign_ins, self.prompt.clone())
     }
 
     /// Sweeps what an interrupted install left and gives each built-in its

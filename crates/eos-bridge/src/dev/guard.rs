@@ -130,6 +130,9 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/capabilities/{id}/sign-in"),
     ("GET", "/api/capabilities/{id}/sign-in"),
     ("DELETE", "/api/capabilities/{id}/sign-in"),
+    // A capability's secret is the user's, kept in the app's own Keychain items.
+    ("POST", "/api/capabilities/{id}/secrets/{name}"),
+    ("DELETE", "/api/capabilities/{id}/secrets/{name}"),
     // Signals: a replay admits runs, which start agents.
     ("POST", "/api/signals/replay"),
     // A source's webhook: made on the relay and at the service, as the user.

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import {
-  checkCapability, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled, useCapabilities,
+  checkCapability, enterSecret, forgetSecret, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
+  useCapabilities,
 } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
@@ -35,6 +36,22 @@ function Controls({ detail }) {
       <button type="button" className={cls("check")} onClick={() => void checkCapability(id)}>Check now</button>
       <button type="button" className={cls("enable")} onClick={() => void setCapabilityEnabled(id, !enabled)}>{enabled ? "Disable" : "Enable"}</button>
       {detail.origin !== "builtin" && <button type="button" className="eos-btn" onClick={() => void remove()}>Remove</button>}
+    </div>
+  );
+}
+
+// A secret is typed only in the app's own prompt, which these buttons open.
+function SecretButtons({ detail }) {
+  return (
+    <div className="eos-actions">
+      {detail.secrets.map((s) => (
+        <span key={s.name} className="eos-actions">
+          <button type="button" className={s.set ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={() => void enterSecret(detail.id, s.name)}>
+            {s.set ? `Replace ${s.label}` : `Enter ${s.label}`}
+          </button>
+          {s.set && <button type="button" className="eos-btn" onClick={() => void forgetSecret(detail.id, s.name)}>Forget {s.label}</button>}
+        </span>
+      ))}
     </div>
   );
 }
@@ -122,6 +139,7 @@ function Detail({ detail }) {
               <div key={s.name} className="eos-facts__row"><dt>{s.label}</dt><dd>{s.set ? "Set" : "Missing"}</dd></div>
             ))}
           </dl>
+          {!signsIn(detail) && <SecretButtons detail={detail} />}
         </Section>
       )}
       {detail.settings.length > 0 && (

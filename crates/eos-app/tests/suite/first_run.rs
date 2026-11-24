@@ -120,6 +120,7 @@ fn quiet_app(home: &TempHome, agents: &ScriptedRuntime) -> (App, Watched) {
         views: FakeBrowserViews::new(),
         panel: FakeBrowserPanel::new(),
         picker: Arc::new(NoPicker),
+        secret_prompt: Arc::new(eos_testkit::FakeSecretPrompt::new()),
         opener: Arc::new(FakeBrowser::default()),
         work_hold: watched.holds.clone(),
         dock_badge: Arc::new(FakeDockBadge::new()),

@@ -63,6 +63,8 @@ pub(crate) struct Context {
     pub(crate) browser: Arc<eos_mod_browser::BrowserModule>,
     /// The shell's open panel, when there is a window.
     pub(crate) picker: Option<Arc<dyn eos_core::shell::FilePicker>>,
+    /// The shell's secret prompt, when there is a window.
+    pub(crate) secret_prompt: Option<Arc<dyn eos_core::shell::SecretPrompt>>,
     pub(crate) plugins: Arc<PluginHost>,
     pub(crate) kernel: eos_runtime::Kernel,
     pub(crate) paths: eos_platform::DataPaths,
@@ -310,12 +312,15 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     );
     let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
 
-    let capabilities = Arc::new(eos_mod_capabilities::CapabilitiesModule::new(
-        cx.capabilities.clone(),
-        cx.store.clone(),
-        cx.clock.clone(),
-        cx.sleeper.clone(),
-    ));
+    let capabilities = Arc::new(
+        eos_mod_capabilities::CapabilitiesModule::new(
+            cx.capabilities.clone(),
+            cx.store.clone(),
+            cx.clock.clone(),
+            cx.sleeper.clone(),
+        )
+        .with_secret_prompt(cx.secret_prompt.clone()),
+    );
     let sign_in_links = capabilities.sign_in_links();
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(

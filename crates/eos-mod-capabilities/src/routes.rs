@@ -7,10 +7,11 @@ use std::sync::Arc;
 use eos_capabilities::CapabilityService;
 use eos_contracts::{
     CapabilityAction, CapabilityCall, CapabilityDetail, CapabilityReach, CapabilityRow, CapabilitySecret,
-    CapabilitySetting, CapabilitySettings, CapabilityVersion, RollbackRequest,
+    CapabilitySetting, CapabilitySettings, CapabilityVersion, RollbackRequest, SecretStored,
 };
 use eos_core::Error;
 use eos_core::capability::{Capability, CapabilityRegistry};
+use eos_core::shell::{SecretAsk, SecretPrompt};
 use eos_core::store::{Store, Tx};
 use eos_domain::capability::health::StateCode;
 use eos_runtime::access::{Access, Tier};
@@ -140,6 +141,26 @@ fn id_of(req: &Request) -> String {
     req.param("id").unwrap_or_default().to_owned()
 }
 
+fn name_of(req: &Request) -> String {
+    req.param("name").unwrap_or_default().to_owned()
+}
+
+/// Asks the user for the secret in the native prompt and keeps what they
+/// typed. Nothing of the value crosses the wire: the answer says only
+/// whether it was kept.
+async fn ask_secret(p: &Parts, id: &str, name: &str) -> Result<SecretStored, Error> {
+    let (capability, secret) = p.service.declared_secret(id, name).await?;
+    let Some(prompt) = &p.prompt else {
+        return Err(Error::Conflict("the secret prompt needs the app's window".into()));
+    };
+    let ask = SecretAsk { capability, label: secret.label, help: secret.help };
+    let Some(value) = prompt.ask(ask).await.filter(|value| !value.trim().is_empty()) else {
+        return Ok(SecretStored { stored: false });
+    };
+    p.service.enter_secret(id, name, value).await?;
+    Ok(SecretStored { stored: true })
+}
+
 fn limit_of(req: &Request) -> Result<usize, ApiError> {
     match req.query().get("limit") {
         None => Ok(CANDIDATES_DEFAULT),
@@ -157,10 +178,17 @@ struct Parts {
     service: Arc<CapabilityService>,
     store: Arc<dyn Store>,
     sign_ins: Arc<SignIns>,
+    /// The window shell's secret prompt; none without a window.
+    prompt: Option<Arc<dyn SecretPrompt>>,
 }
 
-pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>, sign_ins: &Arc<SignIns>) -> Vec<RouteDef> {
-    let parts = Parts { service: service.clone(), store: store.clone(), sign_ins: sign_ins.clone() };
+pub(crate) fn all(
+    service: &Arc<CapabilityService>,
+    store: &Arc<dyn Store>,
+    sign_ins: &Arc<SignIns>,
+    prompt: Option<Arc<dyn SecretPrompt>>,
+) -> Vec<RouteDef> {
+    let parts = Parts { service: service.clone(), store: store.clone(), sign_ins: sign_ins.clone(), prompt };
 
     let p = parts.clone();
     let list = RouteDef::get("/api/capabilities", move |_req: Request| {
@@ -249,6 +277,19 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>, sign
             Ok(Response::json(200, &json!({ "ok": true })))
         }
     });
+    let p = parts.clone();
+    let secret_enter = RouteDef::post("/api/capabilities/{id}/secrets/{name}", move |req: Request| {
+        let p = p.clone();
+        async move { Ok(Response::json(200, &ask_secret(&p, &id_of(&req), &name_of(&req)).await?)) }
+    });
+    let p = parts.clone();
+    let secret_forget = RouteDef::delete("/api/capabilities/{id}/secrets/{name}", move |req: Request| {
+        let p = p.clone();
+        async move {
+            p.service.forget_secret(&id_of(&req), &name_of(&req)).await?;
+            Ok(Response::json(200, &json!({ "ok": true })))
+        }
+    });
     let p = parts;
     let remove = RouteDef::delete("/api/capabilities/{id}", move |req: Request| {
         let p = p.clone();
@@ -259,7 +300,8 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>, sign
     });
 
     // What a capability is and does reads from the phone; switching one off and checking it
-    // act from there too. Its settings, versions, sign-in and removal are this computer's alone.
+    // act from there too. Its settings, secrets, versions, sign-in and removal are this
+    // computer's alone.
     let read = Access::ui_token().phone_user(Tier::Read);
     let act = Access::ui_token().phone_user(Tier::Low);
     let here = Access::ui_token().local_only();
@@ -275,6 +317,8 @@ pub(crate) fn all(service: &Arc<CapabilityService>, store: &Arc<dyn Store>, sign
         sign_in.access(here),
         sign_in_status.access(here),
         sign_in_cancel.access(here),
+        secret_enter.access(here),
+        secret_forget.access(here),
         remove.access(here),
     ]
 }

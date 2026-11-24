@@ -1,5 +1,5 @@
 //! What the core may ask of the window shell: embedded Chromium views, screenshots, the
-//! open panel and this computer's position.
+//! open panel, the secret prompt and this computer's position.
 //!
 //! The shell implements these on its own threads; every method returns at once and resolves
 //! later, so a caller never blocks the window.
@@ -173,6 +173,27 @@ pub trait Capture: Send + Sync {
 pub trait FilePicker: Send + Sync {
     fn pick_directory(&self) -> BoxFuture<'_, Option<String>>;
     fn pick_files(&self) -> BoxFuture<'_, Option<Vec<String>>>;
+}
+
+/// What the native secret prompt asks the user for. Every field is text the app shows, written
+/// from a capability's manifest; the value the user types never leaves the shell but as the
+/// answer to [`SecretPrompt::ask`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SecretAsk {
+    /// The capability's name, as its manifest gives it.
+    pub capability: String,
+    /// What the secret is ("Your Twilio API key").
+    pub label: String,
+    /// Where the user finds it, when the manifest says.
+    pub help: Option<String>,
+}
+
+/// The app's own modal prompt with a secure text field: the one way a capability's secret
+/// is entered. The value goes from the shell to the Keychain inside the process, never
+/// through a route, a page, a log or a model. `None` means the user cancelled, or the
+/// prompt could not be shown.
+pub trait SecretPrompt: Send + Sync {
+    fn ask(&self, ask: SecretAsk) -> BoxFuture<'_, Option<zeroize::Zeroizing<String>>>;
 }
 
 /// One reading of the system's location service.

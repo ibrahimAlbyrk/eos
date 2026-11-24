@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetCapabilities, checkCapability, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { _resetCapabilities, checkCapability, enterSecret, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
 import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -104,6 +104,33 @@ describe("a capability's page", () => {
     expect(html).toContain('<button type="button" class="eos-btn">Disable</button>');
     expect(html).not.toContain(">Remove<");
     expect(html).toContain("Not called yet.");
+  });
+
+  it("offers the app's own prompt for a secret, never a field on the page, and none for a sign-in", async () => {
+    const html = await page("linear-issues");
+    expect(html).toContain("<dt>Linear API key</dt><dd>Set</dd>");
+    expect(html).toContain('<button type="button" class="eos-btn">Replace Linear API key</button>');
+    expect(html).toContain('<button type="button" class="eos-btn">Forget Linear API key</button>');
+    expect(html).not.toContain("<input");
+    const missing = { ...byId["linear-issues"], secrets: [{ name: "api_key", label: "Linear API key", set: false }] };
+    setEosTransport(fixtureTransport(reads([missing])));
+    const asked = await page("linear-issues");
+    expect(asked).toContain('<button type="button" class="eos-btn eos-btn--primary">Enter Linear API key</button>');
+    expect(asked).not.toContain(">Forget Linear API key<");
+    expect(await page("github")).not.toContain(">Enter GitHub sign-in<");
+  });
+
+  it("asks the core to open the prompt and reloads the page once a secret was kept", async () => {
+    const sent = [];
+    const get = vi.fn(fixtureTransport(reads()).get);
+    const send = async (method, path, body) => {
+      sent.push([method, path, body]);
+      return { ok: true, status: 200, body: { stored: true } };
+    };
+    setEosTransport({ get, send });
+    await enterSecret("linear-issues", "api_key");
+    expect(sent).toEqual([["POST", "/api/capabilities/linear-issues/secrets/api_key", {}]]);
+    expect(get).toHaveBeenCalledWith(ROUTES.capability("linear-issues"));
   });
 
   it("shows who it is signed in as, as plain text, when GitHub needs signing in again", async () => {

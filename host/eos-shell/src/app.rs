@@ -335,6 +335,7 @@ impl Shell {
             panel: Arc::new(panel.clone()),
             capture: Arc::new(ViewPorts(views.clone())),
             picker: Arc::new(ViewPorts(views.clone())),
+            secret_prompt: Arc::new(ViewPorts(views.clone())),
             previewer: Arc::new(Previewer::new(views.clone())),
             page_probe: page_views.clone(),
             page_printer: page_views.clone(),
