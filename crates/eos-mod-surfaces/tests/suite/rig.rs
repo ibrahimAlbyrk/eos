@@ -8,7 +8,9 @@ use eos_core::inbox::ActionDecision;
 use eos_core::store::{StoredIssue, StoredSurface, StoredSurfaceVersion};
 use eos_mod_surfaces::{SurfacesModule, SurfacesParts};
 use eos_runtime::access::Caller;
-use eos_runtime::actions::{ActionCall, ActionDecl, ActionFailure, ActionHandler, ActionScope, no_args};
+use eos_runtime::actions::{
+    ActionCall, ActionDecl, ActionFailure, ActionHandler, ActionScope, QueryCall, QueryDecl, QueryHandler, no_args,
+};
 use eos_runtime::http::{Method, Request};
 use eos_runtime::module::Module;
 use eos_runtime::router::{AllPluginsOn, BoxFuture};
@@ -31,6 +33,8 @@ pub(crate) struct Rig {
     pub(crate) images: Arc<FakeSurfaceImages>,
     /// Every call the test's actions heard, in order.
     pub(crate) heard: Arc<Mutex<Vec<ActionCall>>>,
+    /// Every read of the test's query, in order.
+    pub(crate) read: Arc<Mutex<Vec<QueryCall>>>,
 }
 
 /// A feature with actions of every class, which records what it is called with.
@@ -46,7 +50,25 @@ impl ActionHandler for Probe {
     }
 }
 
-struct ProbeModule(Arc<Mutex<Vec<ActionCall>>>);
+struct ProbeModule(Arc<Mutex<Vec<ActionCall>>>, Arc<Mutex<Vec<QueryCall>>>);
+
+/// Answers how many it heard before, and fails once told to.
+struct Counter(Arc<Mutex<Vec<QueryCall>>>);
+
+impl QueryHandler for Counter {
+    fn read(&self, call: QueryCall) -> BoxFuture<'_, Result<Value, ActionFailure>> {
+        let mut read = self.0.lock().expect("read");
+        read.push(call.clone());
+        let count = read.len();
+        Box::pin(async move {
+            if call.args["of"] == "broken" {
+                Err(ActionFailure::new("broken", "It broke"))
+            } else {
+                Ok(json!({"count": count}))
+            }
+        })
+    }
+}
 
 impl Module for ProbeModule {
     fn id(&self) -> &'static str {
@@ -72,6 +94,17 @@ impl Module for ProbeModule {
             decl("probe.global", ActionClass::Read, ActionScope::Any, no_args()),
             decl("probe.erase", ActionClass::Irreversible, ActionScope::OwnerRoutine, no_args()),
         ]
+    }
+
+    fn surface_queries(&self) -> Vec<QueryDecl> {
+        vec![QueryDecl {
+            id: "probe.count",
+            title: "How many",
+            args: Type::Object { fields: vec![Field::optional("of", Type::Text { max: 20 })] },
+            scope: ActionScope::Any,
+            topics: &["probe:change"],
+            handler: Arc::new(Counter(self.1.clone())),
+        }]
     }
 }
 
@@ -105,11 +138,12 @@ impl Rig {
             zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
             profile,
         }));
-        let probe = Arc::new(ProbeModule(heard.clone()));
+        let read = Arc::new(Mutex::new(Vec::new()));
+        let probe = Arc::new(ProbeModule(heard.clone(), read.clone()));
         let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, cards, images, heard }
+        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

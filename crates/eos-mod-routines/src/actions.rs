@@ -42,12 +42,16 @@ pub(crate) fn declared(engine: &Arc<Engine>) -> Vec<ActionDecl> {
     ]
 }
 
+/// What may change how a routine stands and its runs.
+const STATUS_TOPICS: &[&str] = &[crate::ROUTINE_CHANGE.name(), crate::RUN_CHANGE.name()];
+
 pub(crate) fn queries(engine: &Arc<Engine>) -> Vec<QueryDecl> {
     let decl = |id, title, handler: Arc<dyn QueryHandler>| QueryDecl {
         id,
         title,
         args: no_args(),
         scope: ActionScope::OwnerRoutine,
+        topics: STATUS_TOPICS,
         handler,
     };
     vec![

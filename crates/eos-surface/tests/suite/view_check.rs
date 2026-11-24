@@ -61,7 +61,7 @@ fn argument_templates_fill_from_the_stored_data_and_the_users_input_only() {
         "list": ["{data.items.1}", 3], "plain": "no slots", "missing": "{data.nowhere}"});
     let data = json!({"lead": {"url": "https://example.com/a", "title": "Invoice"}, "rev": 2, "items": ["a", "b"]});
     let state = json!({"note": "call back"});
-    let from = eos_surface::Sources { data: &data, state: &state, item: &Value::Null };
+    let from = eos_surface::Sources { data: &data, state: &state, item: &Value::Null, fields: &Value::Null };
     let filled = eos_surface::fill_args(template.as_object().expect("an object"), from);
     assert_eq!(
         filled,
@@ -90,7 +90,7 @@ fn a_button_in_a_lists_rows_binds_the_row_it_was_pressed_on() {
     assert_eq!(row(Some("s-9"), Some(0)), None, "an id that names no row is no row");
     assert_eq!(row(None, Some(5)), None);
     let pressed = eos_surface::pressed_row(&data, "data.stories", None, Some(1)).expect("a row");
-    let from = eos_surface::Sources { data: &data, state: &json!({}), item: pressed };
+    let from = eos_surface::Sources { data: &data, state: &json!({}), item: pressed, fields: &Value::Null };
     let template = json!({"item": "{item.url}", "about": "Story {item.id}"});
     let filled = eos_surface::fill_args(template.as_object().expect("an object"), from);
     assert_eq!(filled, json!({"item": "https://b.example", "about": "Story 7"}));

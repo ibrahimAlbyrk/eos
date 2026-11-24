@@ -98,6 +98,9 @@ pub struct QueryDecl {
     pub title: &'static str,
     pub args: Type,
     pub scope: ActionScope,
+    /// The topics whose events may change the answer: a live part reads
+    /// the query again when one of them fires.
+    pub topics: &'static [&'static str],
     pub handler: Arc<dyn QueryHandler>,
 }
 

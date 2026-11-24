@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use crate::design::PageDesign;
 
 pub use frame::{BASE_CSS, RUNTIME_JS, frame_csp, frame_document, runtime_hash};
-pub use html::render_body;
+pub use html::{render_body, render_part};
 pub use mail::{MailBody, mail_body};
 pub use phone::{PHONE_CSP, phone_document, share_document};
 

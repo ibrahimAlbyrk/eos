@@ -2,6 +2,7 @@
 
 mod dispatch;
 mod issues;
+mod live;
 mod pages;
 mod reads;
 mod rig;

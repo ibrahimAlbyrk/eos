@@ -9,6 +9,9 @@
 //! - `GET /api/surfaces/:id/issues/:issueId/document?mode=phone|share` and
 //!   `…/mail`: a page issue with no script, for the phone or a file to
 //!   share, and as the mail it is sent as ([`SurfacesModule::render`]);
+//! - `GET /api/surfaces/:id/queries/:queryId?args=` and
+//!   `…/issues/:issueId/parts/:part`: a named query its design reads, and a
+//!   Live part drawn with its answer, each naming the topics that change it;
 //! - `GET`/`PUT /api/surfaces/:id/state?scope=`: its small saved state, for
 //!   the whole surface or one of its issues, announced on `surfaces:state`;
 //! - on the raw-content origin ([`SurfacesModule::raw_routes`]), a page
@@ -38,6 +41,7 @@ mod fill;
 mod issue_routes;
 mod issues;
 mod page;
+mod queries;
 mod raw;
 mod records;
 mod routes;
@@ -97,6 +101,7 @@ pub struct SurfacesModule {
     dispatcher: Arc<Dispatcher>,
     probe_docs: Arc<ProbeDocs>,
     fills: Arc<fill::Fills>,
+    last_good: Arc<queries::LastGood>,
 }
 
 impl std::fmt::Debug for SurfacesModule {
@@ -116,7 +121,13 @@ impl SurfacesModule {
             cards: parts.cards.clone(),
         }));
         let probe_docs = Arc::new(ProbeDocs::new(parts.clock.clone(), parts.ids.clone()));
-        SurfacesModule { parts: Arc::new(parts), dispatcher, probe_docs, fills: Arc::default() }
+        SurfacesModule {
+            parts: Arc::new(parts),
+            dispatcher,
+            probe_docs,
+            fills: Arc::default(),
+            last_good: Arc::default(),
+        }
     }
 
     /// The raw-content origin's routes: pages, their images, probe documents.
@@ -164,6 +175,7 @@ impl Module for SurfacesModule {
         out.extend(issue_routes::all(&self.parts));
         out.extend(export::routes(&self.parts));
         out.extend(settings::all(&self.parts));
+        out.extend(queries::routes(&self.parts, &self.last_good));
         out.extend(action_routes::all(&self.parts, &self.parts.actions, &self.dispatcher));
         out
     }

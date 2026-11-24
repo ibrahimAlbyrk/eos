@@ -73,6 +73,7 @@ impl<'a> Walker<'a, '_> {
                     return;
                 }
                 let query = el.literal("query").unwrap_or_default();
+                let start = self.out.len();
                 self.out.push_str("<div class=\"eos-live\"");
                 self.marks(el);
                 if self.mode == Mode::Frame {
@@ -85,6 +86,9 @@ impl<'a> Walker<'a, '_> {
                     self.live = outer;
                 }
                 self.out.push_str("</div>");
+                if self.found.is_none() && self.only.as_deref() == Some(part.as_str()) {
+                    self.found = Some(self.out[start..].to_owned());
+                }
             }
             _ => {}
         }

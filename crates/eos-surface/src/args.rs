@@ -19,6 +19,9 @@ pub struct Sources<'v> {
     pub data: &'v Value,
     pub state: &'v Value,
     pub item: &'v Value,
+    /// A page's data, whose fields a page's slots name with no prefix
+    /// (`{lead.url}`); null for a View.
+    pub fields: &'v Value,
 }
 
 /// The template with every slot filled from `from`.
@@ -30,7 +33,7 @@ pub fn fill_args(template: &Map<String, Value>, from: Sources<'_>) -> Value {
 /// when the press names one, else by its index.
 pub fn pressed_row<'v>(data: &'v Value, path: &str, id: Option<&str>, index: Option<u32>) -> Option<&'v Value> {
     static NONE: Value = Value::Null;
-    let rows = lookup(path, Sources { data, state: &NONE, item: &NONE })?.as_array()?;
+    let rows = lookup(path, Sources { data, state: &NONE, item: &NONE, fields: &NONE })?.as_array()?;
     match id {
         Some(id) => rows.iter().find(|row| match &row["id"] {
             Value::String(text) => text == id,
@@ -56,7 +59,7 @@ fn lookup<'v>(slot: &str, from: Sources<'v>) -> Option<&'v Value> {
         "data" => from.data,
         "state" => from.state,
         "item" => from.item,
-        _ => return None,
+        name => from.fields.get(name)?,
     };
     for part in parts {
         at = match at {
