@@ -1,7 +1,7 @@
 #!/bin/bash
 # Signs the bundle locally with the Developer ID identity, inside out: the framework's
 # libraries, the framework, the helper apps, the bundled esbuild, the applier, the `eos` command, the location
-# helper, the screen saver, the app; hardened runtime
+# helper, the screen saver, the share extension, the app; hardened runtime
 # on the executables, and the CEF entitlements on those that run Chromium.
 #
 # --timestamp=none on purpose: nothing is sent to Apple's timestamp service, nothing is
@@ -43,5 +43,8 @@ LOCATION="$APP/Contents/Resources/EosLocation.app"
 # it carries the app's identity by itself.
 SAVER="$APP/Contents/Resources/Eos.saver"
 [ ! -d "$SAVER" ] || sign --options runtime "$SAVER"
+# The share extension, in the installed identity's build only: sandboxed, as every extension.
+SHARE="$APP/Contents/PlugIns/EosShare.appex"
+[ ! -d "$SHARE" ] || sign --options runtime --entitlements "$HOST_DIR/bundle/share.entitlements" "$SHARE"
 sign --options runtime --entitlements "$ENT" "$APP"
 codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"

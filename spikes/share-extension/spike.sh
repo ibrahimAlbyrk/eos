@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Can a sandboxed macOS share extension hand what was shared to the app that contains it
-# (07 G15)? Builds a stand-in app (`Host.swift`, scheme `eos-spike`, never `eos`) holding the
-# extension (`Share.swift`, sandboxed), registers both for this run only, shares a file, a text
-# and a web address through the extension the way the Share menu does (`Drive.swift`), and
-# prints what the stand-in received.
+# (07 G15)? Builds a stand-in app (`Host.swift`, scheme `eos-spike`, never `eos`) holding
+# Eos's own share extension (`host/share/`, built by `host/scripts/share.sh`, sandboxed),
+# registers both for this run only, shares a file, a text and a web address through the
+# extension the way the Share menu does (`Drive.swift`), and prints what the stand-in received.
 #
 #   spikes/share-extension/spike.sh
 #
@@ -31,7 +31,7 @@ TITLE="Eos Spike"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 WORK="$(cd "$(mktemp -d)" && pwd -P)"
 APP="$WORK/Host.app"
-APPEX="$APP/Contents/PlugIns/Share.appex"
+APPEX="$APP/Contents/PlugIns/EosShare.appex"
 
 cleanup() {
   pluginkit -r "$APPEX" 2>/dev/null || true
@@ -46,42 +46,21 @@ plist() { # path, then key/value pairs written as given
   { echo '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>'; printf '%s\n' "$@"; echo '</dict></plist>'; } >"$path"
 }
 
-mkdir -p "$APP/Contents/MacOS" "$APPEX/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS"
 plist "$APP/Contents/Info.plist" \
   "<key>CFBundleIdentifier</key><string>$ID</string>" \
   "<key>CFBundleExecutable</key><string>host</string>" \
+  "<key>CFBundleName</key><string>$TITLE</string>" \
+  "<key>CFBundleShortVersionString</key><string>1.0</string>" \
   "<key>CFBundlePackageType</key><string>APPL</string>" \
   "<key>LSUIElement</key><true/>" \
   "<key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>Item</string><key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>None</string><key>LSItemContentTypes</key><array><string>public.item</string><string>public.folder</string></array></dict></array>" \
   "<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>$ID</string><key>CFBundleURLSchemes</key><array><string>eos-spike</string></array></dict></array>"
-plist "$APPEX/Contents/Info.plist" \
-  "<key>CFBundleIdentifier</key><string>$EXT_ID</string>" \
-  "<key>CFBundleExecutable</key><string>share</string>" \
-  "<key>CFBundleDisplayName</key><string>$TITLE</string>" \
-  "<key>CFBundleName</key><string>$TITLE</string>" \
-  "<key>CFBundlePackageType</key><string>XPC!</string>" \
-  "<key>CFBundleShortVersionString</key><string>1.0</string>" \
-  "<key>CFBundleVersion</key><string>1</string>" \
-  "<key>LSMinimumSystemVersion</key><string>14.0</string>" \
-  "<key>EosLinkScheme</key><string>eos-spike</string>" \
-  "<key>NSExtension</key><dict>
-     <key>NSExtensionPointIdentifier</key><string>com.apple.share-services</string>
-     <key>NSExtensionPrincipalClass</key><string>ShareViewController</string>
-     <key>NSExtensionAttributes</key><dict><key>NSExtensionActivationRule</key><dict>
-       <key>NSExtensionActivationSupportsText</key><true/>
-       <key>NSExtensionActivationSupportsWebURLWithMaxCount</key><integer>1</integer>
-       <key>NSExtensionActivationSupportsFileWithMaxCount</key><integer>20</integer>
-     </dict></dict>
-   </dict>"
-
 xcrun swiftc -O -target arm64-apple-macos14.0 -o "$APP/Contents/MacOS/host" "$HERE/Host.swift"
-xcrun swiftc -O -target arm64-apple-macos14.0 -application-extension -parse-as-library -module-name Share \
-  -Xlinker -e -Xlinker _NSExtensionMain -o "$APPEX/Contents/MacOS/share" "$HERE/Share.swift"
+"$HERE/../../host/scripts/share.sh" "$APP"
 xcrun swiftc -O -target arm64-apple-macos14.0 -o "$WORK/drive" "$HERE/Drive.swift"
-codesign --force -s - --options runtime --entitlements "$HERE/share.entitlements" "$APPEX"
 codesign --force -s - --options runtime "$APP"
 codesign --verify --deep --strict "$APP"
-codesign -d --entitlements - "$APPEX" 2>/dev/null | grep -q app-sandbox || { echo "the extension is not sandboxed" >&2; exit 1; }
 
 "$LSREGISTER" -f "$APP"
 pluginkit -a "$APPEX"

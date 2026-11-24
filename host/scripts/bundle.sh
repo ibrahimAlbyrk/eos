@@ -89,6 +89,8 @@ if [ "$SCHEME" = "eos" ]; then
     || { echo "Info.plist lost the Dock's document types" >&2; exit 1; }
   [ "$(/usr/libexec/PlistBuddy -c "Print :NSServices:0:NSMessage" "$APP/Contents/Info.plist")" = "sendToEos" ] \
     || { echo "Info.plist lost the Services entry" >&2; exit 1; }
+  # "Eos" in the Share menu: hands files and send links to this app (share.sh).
+  "$HOST_DIR/scripts/share.sh" "$APP"
 elif /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes" "$APP/Contents/Info.plist" >/dev/null 2>&1 \
   || /usr/libexec/PlistBuddy -c "Print :NSServices" "$APP/Contents/Info.plist" >/dev/null 2>&1; then
   echo "a build that owns no door declares document types or Services" >&2; exit 1
