@@ -12,8 +12,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use eos_bridge::cli::{CliGateway, CliParts};
 use eos_bridge::dashboard_life::DASHBOARD_RELEASE_AFTER_MS;
-use eos_bridge::launch::{bundle_id_of, data_folder, logs_folder, owns_doors, reaches_network};
+use eos_bridge::launch::{bundle_id_of, data_folder, link_scheme, logs_folder, owns_doors, reaches_network};
 use eos_bridge::splash::update_caption;
 use eos_bridge::{Bridge, Classify, Core, LateCore, NoCore, RouterCore};
 use eos_contracts::update::UpdateApply;
@@ -169,6 +170,10 @@ struct Eos {
     /// the window's bridges whatever the core is doing.
     rt: tokio::runtime::Runtime,
     core: Arc<CoreState>,
+    /// The shell's data folder: the terminal's socket goes there.
+    shell_data: PathBuf,
+    /// How the links the terminal is shown begin (`eos` or `eos-dev`).
+    scheme: &'static str,
 }
 
 /// The core as the hooks see it, shared with the thread that builds and starts it: the
@@ -180,6 +185,8 @@ struct CoreState {
     late: OnceLock<Arc<LateCore>>,
     /// The menu-bar item's counts, once the core is up.
     duty: OnceLock<Arc<follow::Duty>>,
+    /// The terminal's gateway, once the core is up; dropped at quit, which removes its socket.
+    cli: Mutex<Option<CliGateway>>,
     started: Mutex<Started>,
 }
 
@@ -358,6 +365,7 @@ impl Hooks for Eos {
         let late = Arc::new(LateCore::new(callers.ui_token().to_owned()));
         let _ = self.core.late.set(late.clone());
         let (state, dist, rt, ports) = (self.core.clone(), self.dist.clone(), self.rt.handle().clone(), ports.clone());
+        let (shell_data, scheme) = (self.shell_data.clone(), self.scheme);
         let settling = late.clone();
         // On a thread of the core's own pool, at the core's thread class.
         drop(self.rt.spawn_blocking(move || {
@@ -371,6 +379,15 @@ impl Hooks for Eos {
                     let _ = state.app.set((app, rt.clone()));
                     #[cfg(feature = "dev-run")]
                     let core = dev::guarded(core);
+                    // The terminal reaches the core as the dashboard does, guard included.
+                    let version = env!("CARGO_PKG_VERSION").into();
+                    match CliGateway::start(CliParts { core: core.clone(), data_dir: shell_data, scheme, version }, &rt)
+                    {
+                        Ok(gateway) => {
+                            *state.cli.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(gateway)
+                        }
+                        Err(e) => tracing::warn!(target: "eos", error = %e, "the terminal's gateway did not start"),
+                    }
                     settle.core = Some(core);
                 }
                 Ok(None) => {}
@@ -446,6 +463,8 @@ impl Hooks for Eos {
     }
 
     fn shutdown(&self) {
+        // The terminal first: its socket goes, and no command reaches a core that stops.
+        drop(self.core.cli.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take());
         // A core still starting is let finish first (for a while), then stopped like any other.
         if let Some(late) = self.core.late.get()
             && !late.wait_settled(SHUTDOWN_START)
@@ -479,6 +498,13 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let hooks = Eos { home: core_home, dist: options.ui_dist.clone(), rt, core: Arc::default() };
+    let hooks = Eos {
+        home: core_home,
+        dist: options.ui_dist.clone(),
+        rt,
+        core: Arc::default(),
+        shell_data: options.data_dir.clone(),
+        scheme: link_scheme(options.doors),
+    };
     std::process::exit(eos_shell::run(options, Arc::new(hooks)));
 }
