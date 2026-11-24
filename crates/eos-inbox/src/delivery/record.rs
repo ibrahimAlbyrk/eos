@@ -270,7 +270,7 @@ pub(crate) fn sent_in(
     match item {
         Some(item) => {
             let sent: ResultDoc = serde_json::from_str(&row.body).map_err(|e| Error::storage(e.to_string()))?;
-            let outcome = sent_outcome(&item, &sent);
+            let outcome = sent_outcome(tx, &item, &sent)?;
             let ended = Ended { item: &item, delivery_id: Some(row.id.clone()), outcome, at: at.now };
             ended_in(tx, out, outcomes, ended)?;
         }
@@ -324,7 +324,10 @@ fn first_hold_in(tx: &dyn Tx, at: &Opening<'_>, row: &StoredDelivery) -> Result<
     Ok(FirstHold {
         rung: payload["rung"].as_str().unwrap_or("draft").to_owned(),
         untrusted: payload["untrusted"].as_bool().unwrap_or(true),
-        edited: sent.is_none_or(|sent| sent_outcome(&item, &sent) == Outcome::SentEdited),
+        edited: match sent {
+            Some(sent) => sent_outcome(tx, &item, &sent)? == Outcome::SentEdited,
+            None => true,
+        },
     })
 }
 
