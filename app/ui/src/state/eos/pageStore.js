@@ -17,7 +17,9 @@ const VERSIONS_KEPT = 20;
 // versions: `${surfaceId}:${n}` → { meta, body, checks }.
 // design: surface id → the newest surfaces:design { version, phase }.
 // byRoutine: routine id → its Page's surface id, or null when it makes none.
-const EMPTY = { pages: {}, issues: {}, versions: {}, design: {}, byRoutine: {} };
+// working: surface id → the run of its designer started from this window,
+// until a version it made is checked or the user stops it.
+const EMPTY = { pages: {}, issues: {}, versions: {}, design: {}, byRoutine: {}, working: {} };
 let state = EMPTY;
 const subs = new Set();
 
@@ -131,9 +133,20 @@ export async function sendFeedback(issueId, verdict) {
 }
 
 // Say what to change: the designer starts on `baseVersion` (202 { runId }).
-export function reshape(surfaceId, { baseVersion, instruction, part, index }) {
+export async function reshape(surfaceId, { baseVersion, instruction, part, index }) {
   const body = { baseVersion, instruction, ...(part ? { part } : {}), ...(index != null ? { index } : {}) };
-  return sendAndReload(surfaceId, "POST", ROUTES.surfaceReshape(surfaceId), body, "The change");
+  const r = await sendAndReload(surfaceId, "POST", ROUTES.surfaceReshape(surfaceId), body, "The change");
+  if (r.ok && r.body?.runId) set({ working: { ...state.working, [surfaceId]: r.body.runId } });
+  return r;
+}
+
+// Cancel: the designer's run stops, and nothing it had not proposed stays.
+export async function stopReshape(surfaceId) {
+  const runId = state.working[surfaceId];
+  if (!runId) return;
+  const { [surfaceId]: _, ...rest } = state.working;
+  set({ working: rest });
+  await transport.send("POST", ROUTES.runStop(runId), {});
 }
 
 // Remove, Move up or Move down a part: a new candidate, with no agent.
@@ -170,7 +183,9 @@ export function applyPageChange(payload) {
 export function applyDesignChange(payload) {
   const id = payload?.surfaceId;
   if (!id) return;
-  set({ design: { ...state.design, [id]: { version: payload.version, phase: payload.phase } } });
+  const settled = payload.phase === "candidate" || payload.phase === "failed";
+  const { [id]: _, ...rest } = state.working;
+  set({ design: { ...state.design, [id]: { version: payload.version, phase: payload.phase } }, ...(settled ? { working: rest } : {}) });
   if (state.pages[id]) void loadPage(id);
 }
 
