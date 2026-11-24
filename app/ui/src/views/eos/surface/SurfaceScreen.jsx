@@ -1,91 +1,20 @@
 import { useEffect, useState } from "react";
-import { api } from "../../../api/client.js";
-import { ROUTES } from "../../../api/routes.js";
 import { notify } from "../../../lib/notify.js";
-import { refreshInbox } from "../../../state/eos/inboxStore.js";
 import { loadIssue, loadPage, loadVersion, pickIssue, reshape, sendFeedback, usePages } from "../../../state/eos/pageStore.js";
 import { ensurePinsLoaded } from "../../../state/eos/pinsStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
-import { pressId, runSurfaceAction } from "../../../state/eos/surfacesStore.js";
-import { transport, useDevRunSeen } from "../../../state/eos/transport.js";
+import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
-import { ConfirmBelow, SurfaceCard } from "../needs/SurfaceCard.jsx";
+import { PageDataEditor } from "../needs/editors/PageDataEditor.jsx";
 import { EarlierIssues } from "./EarlierIssues.jsx";
-import { EosFrame } from "./EosFrame.jsx";
-import { PageRenderer } from "./PageRenderer.jsx";
+import { IssueBody } from "./IssueBody.jsx";
 import { PinButton } from "./PinButton.jsx";
 import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
 import { TellBar } from "./TellBar.jsx";
 import { issueLine, olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
-
-// What the core answered a press on the page, said outside the frame.
-function settle(press, answer, setAsking) {
-  switch (answer.status) {
-    case "done": return;
-    case "confirm":
-      setAsking({ press, token: answer.token, prompt: answer.prompt, typeToConfirm: answer.typeToConfirm });
-      return;
-    case "held":
-      notify.info("It waits in Needs you for you to send.");
-      void refreshInbox();
-      return;
-    default:
-      notify.error(answer.reason, { title: "That did not run" });
-  }
-}
-
-// A button pressed inside the page: the core reads the action and its
-// arguments from the issue's own design; Eos asks first below the frame.
-function usePagePress(issueId) {
-  const [asking, setAsking] = useState(null);
-  const [typed, setTyped] = useState("");
-  const ask = (next) => {
-    setTyped("");
-    setAsking(next);
-  };
-  const act = async (message) => {
-    const press = { issueId, button: message.button, clientId: pressId(), ...(message.index != null ? { index: message.index } : {}) };
-    settle(press, await runSurfaceAction(press), ask);
-  };
-  const confirm = async () => {
-    const { press, token, typeToConfirm } = asking;
-    ask(null);
-    settle(press, await runSurfaceAction({ ...press, confirm: token, ...(typeToConfirm ? { typed } : {}) }), ask);
-  };
-  const below = asking && (
-    <ConfirmBelow asking={asking} typed={typed} onType={setTyped} onConfirm={() => void confirm()} onCancel={() => ask(null)} />
-  );
-  return { act, below };
-}
-
-// The parts the reader opened, for memory (ids and indexes only).
-function reportRead(surfaceId, issueId, message) {
-  const strip = (list) => (Array.isArray(list) ? list.map(({ part, index }) => ({ part, index: index ?? null })) : []);
-  void transport.send("POST", ROUTES.surfaceIssueRead(surfaceId, issueId), { parts: strip(message.parts), links: strip(message.links) });
-}
-
-// The issue as it reads: the page in its frame, or a View when the issue fell
-// back to one or plain reading is on.
-function IssueBody({ surface, row, shown, maker, version }) {
-  const { act, below } = usePagePress(row.id);
-  if (!shown) return <Loading blocks={4} />;
-  if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;
-  const view = row.kind === "view" ? shown.body?.view : shown.body?.plain;
-  if (view) return <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} />;
-  return (
-    <EosFrame maker={maker} level="page" below={below}>
-      <PageRenderer
-        src={api.surfacePageUrl(surface.id, row.id, version)}
-        title={surface.title}
-        onAct={(m) => void act(m)}
-        onRead={(m) => reportRead(surface.id, row.id, m)}
-      />
-    </EosFrame>
-  );
-}
 
 // "Good issue" and "Not today": said once per issue.
 function Verdict({ issueId }) {
@@ -115,6 +44,7 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
   const { list: routines } = useRoutines();
   const devRun = useDevRunSeen();
   const [todayDesign, setTodayDesign] = useState(false);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     ensureRoutinesLoaded();
     ensurePinsLoaded();
@@ -126,6 +56,7 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
   const row = pickIssue(page?.issues, seq);
   useEffect(() => {
     setTodayDesign(false);
+    setEditing(false);
     if (row) void loadIssue(surfaceId, row.id);
     // A new revision of the same issue reads it again; nothing else does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,7 +95,10 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
                 Change the page
               </button>
             )}
-            {row && row.kind === "page" && <ShareMenu surface={surface} row={row} />}
+            {row?.kind === "page" && issues[row.id]?.body?.data && (
+              <button type="button" className="eos-btn eos-btn--quiet" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>Edit</button>
+            )}
+            {row?.kind === "page" && <ShareMenu surface={surface} row={row} />}
           </>
         )}
       </EosHeader>
@@ -205,6 +139,11 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
                 maker={maker}
                 version={todayDesign ? surface.currentVersion : undefined}
               />
+            )}
+            {editing && issues[row.id]?.issue && (
+              <section className="eos-card eos-page__edit" aria-label="Edit this issue">
+                <PageDataEditor key={row.id} surfaceId={surfaceId} issue={issues[row.id].issue} data={issues[row.id].body.data} />
+              </section>
             )}
             {current?.meta?.note && <p className="eos-page__design-note"><span className="eos-label">Design note</span> {current.meta.note}</p>}
             {surface.currentVersion != null && (

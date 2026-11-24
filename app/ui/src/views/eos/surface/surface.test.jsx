@@ -13,6 +13,11 @@ import { partName, popoverPlace } from "./PointPopover.jsx";
 import { failedFindings } from "./ReshapeBar.jsx";
 import { applyDesignChange, arrange, reshape, stopReshape } from "../../../state/eos/pageStore.js";
 import paper from "../gallery/sample/paper.json";
+import { editableFields, fieldLabel, textProblem } from "../needs/editors/pageFields.js";
+import { PageDataEditor } from "../needs/editors/PageDataEditor.jsx";
+import { editField } from "../../../state/eos/pageStore.js";
+import { ItemView } from "../needs/ItemView.jsx";
+import { _resetSurfaces, loadItemView } from "../../../state/eos/surfacesStore.js";
 import routines from "../gallery/sample/routines.json";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
@@ -207,5 +212,55 @@ describe("reshape mode", () => {
     const finding = { check: "readable", part: "lead", detail: "text under 12 px" };
     const checks = { probe: [{ widths: [{ findings: [finding] }, { findings: [finding] }] }] };
     expect(failedFindings(checks)).toEqual(["lead: text under 12 px"]);
+  });
+});
+
+describe("the page data editor", () => {
+  const contract = paper.versionBodies["2"].body.contract;
+  const one = paper.issueBodies["si-7b3m1c000003"];
+
+  it("finds only what the contract marks to edit, the lists with their rows", () => {
+    const fields = editableFields(contract, one.body.data);
+    expect(fields.map((f) => [f.kind, f.path])).toEqual([["text", "summary"], ["text", "lead.title"], ["list", "stories"]]);
+    const stories = fields[2];
+    expect(stories.editable).toBe(true);
+    expect(stories.rows[0].label).toBe(one.body.data.stories[0].title);
+    expect(fieldLabel("lead.title")).toBe("Lead title");
+    expect(textProblem({ kind: "text", max: 5 }, "a\nb")).toBe("One line only.");
+    expect(textProblem({ kind: "text", max: 5 }, "abcdef")).toBe("At most 5 characters.");
+  });
+
+  it("draws the marked fields with Move up, Move down and Remove per row", async () => {
+    setEosTransport(fixtureTransport(reads));
+    await loadVersion(SF, 2);
+    const html = renderToStaticMarkup(<PageDataEditor surfaceId={SF} issue={one.issue} data={one.body.data} />);
+    expect(html).toContain('<label class="eos-edit__label" for="page-field-summary">Summary</label>');
+    expect(html).toContain('for="page-field-lead.title">Lead title</label>');
+    expect(html).toContain("<legend class=\"eos-edit__label\">Stories</legend>");
+    expect(html).toContain(">Move up</button>");
+    expect(html).toContain(">Remove</button>");
+    expect(html).not.toContain("page-field-lead.dek");
+  });
+
+  it("sends each edit on the revision on screen", async () => {
+    const transport = recording(async (method, path, body) => ({ ok: true, status: 200, body: { issue: { ...one.issue, rev: 2 }, body: one.body, sent: body } }));
+    setEosTransport(transport);
+    await editField(SF, one.issue.id, { baseRev: 1, op: "move", path: "stories", from: 1, to: 0 });
+    expect(transport.send.mock.calls[0]).toEqual(["PUT", ROUTES.surfaceIssueFields(SF, one.issue.id), { baseRev: 1, op: "move", path: "stories", from: 1, to: 0 }]);
+  });
+});
+
+describe("a page issue in Needs you", () => {
+  it("shows the page in its frame with its marked fields to edit before it goes", async () => {
+    _resetSurfaces();
+    setEosTransport(fixtureTransport(reads));
+    const view = { surfaceId: SF, issueId: "si-7b3m1c000003" };
+    await loadItemView(view);
+    await loadIssue(SF, view.issueId);
+    await loadVersion(SF, 2);
+    const html = renderToStaticMarkup(<ItemView item={{ id: "in-1", view }} routineName="Morning Paper" />);
+    expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html"`);
+    expect(html).toContain('aria-label="Edit before it goes"');
+    expect(html).toContain("Lead title");
   });
 });

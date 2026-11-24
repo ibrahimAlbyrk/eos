@@ -13,7 +13,7 @@ import { actionsOf, cardOf } from "./cards/index.js";
 import { followReplacement } from "./cards/DraftCard.jsx";
 import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
-import { ItemView } from "./SurfaceCard.jsx";
+import { ItemView } from "./ItemView.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
 import { closedLine, isShownOnly } from "./words.js";

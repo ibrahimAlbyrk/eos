@@ -8,7 +8,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { AgentsWaitingLine } from "./AgentsWaitingLine.jsx";
 import { onControl, plainKey } from "./keys.js";
-import { ItemView } from "./SurfaceCard.jsx";
+import { ItemView } from "./ItemView.jsx";
 import { GROUPS, groupOf, isShownOnly, primaryAction } from "./words.js";
 
 export const itemLocation = (id) => `eos:/needs/${encodeURIComponent(id)}`;
