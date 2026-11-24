@@ -1,0 +1,85 @@
+//! Page templates: Eos page markup, the markup syntax of a View with a fixed
+//! list of HTML elements and five components, slots that put data in as text,
+//! repeats, guards and the part names pointing picks.
+//!
+//! ```text
+//! <section part="lead"><h2>{lead.title}</h2>
+//!   <img part="lead-image" if="lead.image" src="{lead.image}" alt="{lead.image.alt}"/></section>
+//! <article part="stories" each="stories"><h3>{item.title}</h3></article>
+//! ```
+
+mod check;
+mod rules;
+mod scope;
+mod slots;
+mod tree;
+
+use eos_genui::markup::parse_markup;
+
+use crate::limits::TEMPLATE_BYTES;
+use crate::problem::Problem;
+use crate::types::Contract;
+
+pub use rules::{COMPONENTS, Component, ELEMENTS, EOS_TARGETS, ISSUE_FIELDS};
+pub use slots::{Format, Seg, Slot};
+pub use tree::{Attr, AttrValue, Element, Node, TextNode, to_markup};
+
+use scope::Scope;
+
+/// A template that passed every check, with what it names.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PageTemplate {
+    pub nodes: Vec<Node>,
+    /// Every part name, in document order.
+    pub parts: Vec<String>,
+    /// The direct actions its Buttons run.
+    pub actions: Vec<String>,
+    /// The named queries its Live parts read.
+    pub queries: Vec<String>,
+    /// Each `style=` with where it stands, for the style check.
+    pub(crate) inline_styles: Vec<(usize, usize, String)>,
+}
+
+impl PageTemplate {
+    /// Reads and checks a template against the contract it fills from. Every
+    /// problem comes back at once, each at `template:<line>:<col>`.
+    pub fn check(src: &str, contract: &Contract) -> Result<PageTemplate, Vec<Problem>> {
+        if src.len() > TEMPLATE_BYTES {
+            return Err(vec![Problem::new("template", format!("is {} bytes, max {TEMPLATE_BYTES}", src.len()))]);
+        }
+        let parsed = parse_markup(src);
+        let units: Vec<u16> = src.encode_utf16().collect();
+        let mut found = Vec::new();
+        let nodes = tree::from_markup(&parsed.nodes, &units, &mut found);
+        let mut problems: Vec<(usize, usize, String)> =
+            parsed.errors.into_iter().map(|e| (e.line, e.col, e.message)).collect();
+        problems.append(&mut found);
+        let mut checker = check::Checker::new(Scope::new(&contract.fields));
+        checker.nodes(&nodes, 0);
+        checker.finish();
+        problems.append(&mut checker.problems);
+        if nodes.iter().all(|n| n.as_element().is_none()) {
+            problems.push((1, 1, "holds no element".into()));
+        }
+        if !problems.is_empty() {
+            problems.sort_by_key(|(line, col, _)| (*line, *col));
+            return Err(problems.into_iter().map(|(l, c, m)| at(l, c, m)).collect());
+        }
+        let found = checker.found;
+        Ok(PageTemplate {
+            nodes,
+            parts: found.parts,
+            actions: found.actions,
+            queries: found.queries,
+            inline_styles: found.styles,
+        })
+    }
+
+    pub fn to_markup(&self) -> String {
+        to_markup(&self.nodes)
+    }
+}
+
+pub(crate) fn at(line: usize, col: usize, message: impl Into<String>) -> Problem {
+    Problem::new(format!("template:{line}:{col}"), message)
+}
