@@ -76,6 +76,15 @@ fn test_count(rule: &Rule) -> usize {
     }
 }
 
+/// The facts `rule` tests, in reading order.
+pub fn facts_tested(rule: &Rule) -> Vec<&str> {
+    match rule {
+        Rule::All { all: rules, .. } | Rule::Any { any: rules, .. } => rules.iter().flat_map(facts_tested).collect(),
+        Rule::Not { not, .. } => facts_tested(not),
+        Rule::Test { fact, .. } => vec![fact.as_str()],
+    }
+}
+
 /// Whether an item's facts pass `rule`.
 pub fn evaluate(rule: &Rule, facts: &Facts) -> Verdict {
     verdict(rule, facts, 0)

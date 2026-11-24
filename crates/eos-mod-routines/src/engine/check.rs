@@ -226,6 +226,7 @@ pub(crate) async fn judged(
     let kept = serde_json::to_string(&verdict).map_err(|e| Error::storage(e.to_string()))?;
     let pass = verdict.pass;
     let job = engine.clone();
+    let untrusted = if pass { super::versions::untrusted_facts(engine).await? } else { Default::default() };
     let next = engine
         .store
         .write(move |tx, out| {
@@ -235,7 +236,7 @@ pub(crate) async fn judged(
             };
             tx.run_results().set_verdict(&id, attempt, &kept)?;
             if verdict.pass {
-                gate::hand_over(&job, tx, out, &run, now)?;
+                gate::hand_over(&job, tx, out, &run, &untrusted, now)?;
                 return Ok(Some(Next::Passed));
             }
             match next_attempt(attempt) {

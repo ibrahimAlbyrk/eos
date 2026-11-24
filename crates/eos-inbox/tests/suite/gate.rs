@@ -101,6 +101,7 @@ pub(crate) fn input(rung: &str) -> GateInput {
         targets: vec![pull_request()],
         item_facts: json!({"kind": "github.pull_request", "key": "github:pr:acme/game#482@abc", "untrusted": true}),
         signal_facts: [("repo".to_owned(), eos_contracts::Fact::Text("acme/game".into()))].into_iter().collect(),
+        untrusted_facts: Default::default(),
         subject_key: Some("github:pr:acme/game#482".into()),
         trust: Trust::Untrusted,
         freedom_confirmed: Some(freedom(rung)),
@@ -222,6 +223,37 @@ async fn an_item_of_a_repository_outside_the_bound_is_held_and_one_without_facts
     held(&gated.apply(GateInput { signal_facts: other, ..input("on_its_own") }).await);
     held(&gated.apply(GateInput { signal_facts: Default::default(), ..input("on_its_own") }).await);
     assert_eq!(gated.rows(), 0);
+}
+
+#[tokio::test]
+async fn a_bound_or_grant_resting_on_a_fact_the_sender_writes_is_ignored() {
+    // D63: the bound passes on `repo`, but the source marks it untrusted.
+    let gated = Gated::new();
+    let untrusted_facts = ["repo".to_owned()].into_iter().collect();
+    held(&gated.apply(GateInput { untrusted_facts, ..input("on_its_own") }).await);
+    assert_eq!(gated.rows(), 0, "an item place bounded only by an untrusted fact is unbounded");
+
+    // A grant on a mail's `from` would send a sender's own mail on its own.
+    let grant = |untrusted: &[&str]| GateInput {
+        freedom_confirmed: Some(
+            serde_json::from_value(json!({"rung": "draft", "grants": [
+                {"id": "g1", "when": {"fact": "from", "is": "boss@acme.dev"}, "rung": "on_its_own"}]}))
+            .expect("a freedom"),
+        ),
+        signal_facts: [
+            ("repo".to_owned(), eos_contracts::Fact::Text("acme/game".into())),
+            ("from".to_owned(), eos_contracts::Fact::Text("boss@acme.dev".into())),
+        ]
+        .into_iter()
+        .collect(),
+        untrusted_facts: untrusted.iter().map(|name| (*name).to_owned()).collect(),
+        ..input("draft")
+    };
+    let gated = Gated::new();
+    held(&gated.apply(grant(&["from"])).await);
+    assert_eq!(gated.rows(), 0, "the grant on an untrusted fact adds no freedom");
+    let gated = Gated::new();
+    assert!(matches!(gated.apply(grant(&[])).await, GateDecision::Delivering { .. }), "a trusted fact's grant holds");
 }
 
 #[tokio::test]

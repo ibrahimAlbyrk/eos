@@ -546,6 +546,9 @@ pub struct GateInput {
     /// `draft`, …), for the Goes-to bounds and the grants. Never what a
     /// result may name.
     pub signal_facts: eos_contracts::Facts,
+    /// The facts the item's source marks untrusted (a mail's `from`): Which
+    /// may test them, but no grant or bound rests on them (D63).
+    pub untrusted_facts: std::collections::BTreeSet<String>,
     /// The item's key: one subject's results replace each other.
     pub subject_key: Option<String>,
     pub trust: Trust,

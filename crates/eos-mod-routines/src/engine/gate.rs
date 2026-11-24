@@ -13,6 +13,7 @@ use serde_json::json;
 
 use super::check::{NOTHING, result_doc};
 use super::control::confirmed_in;
+use super::versions::{SourceFacts, untrusted_for};
 use super::{Engine, failures, move_run};
 use crate::routes::readable;
 
@@ -33,6 +34,7 @@ pub(crate) fn hand_over(
     tx: &dyn Tx,
     out: &mut Outbox,
     run: &StoredRun,
+    untrusted: &SourceFacts,
     now: i64,
 ) -> Result<(), Error> {
     let result = tx.run_results().by_run(&run.id)?.into_iter().find(|r| r.attempt == run.attempt);
@@ -40,7 +42,7 @@ pub(crate) fn hand_over(
     if result.kind == NOTHING {
         return done(engine, tx, out, run, Outcome::Nothing, now);
     }
-    let input = gate_input(tx, run, &result)?;
+    let input = gate_input(tx, run, &result, untrusted)?;
     let decision = engine.gate.apply_in(tx, out, now, engine.ids.as_ref(), &input)?;
     let at = |state, station, reason| RunMove { state, station: Some(station), reason, at: now };
     match decision {
@@ -75,7 +77,12 @@ pub(crate) fn done(
     failures::ended_in(engine, tx, out, &run.id, now)
 }
 
-fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunResult) -> Result<GateInput, Error> {
+fn gate_input(
+    tx: &dyn Tx,
+    run: &StoredRun,
+    result: &eos_core::store::StoredRunResult,
+    untrusted: &SourceFacts,
+) -> Result<GateInput, Error> {
     let version_id = run.version_id.clone().unwrap_or_default();
     let version = tx.routine_versions().find(&run.routine_id, &version_id)?;
     let version = version.ok_or_else(|| Error::not_found("version", version_id.clone()))?;
@@ -88,6 +95,7 @@ fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunR
         Err(error) => return Err(error),
     };
     let trial = run.kind == "trial";
+    let untrusted_facts = untrusted_for(untrusted, &blueprint);
     let result_mode = match (run.kind.as_str(), input.result) {
         ("trial", _) => GateMode::Trial,
         (_, eos_contracts::ResultMode::ShowOnly) => GateMode::ShowOnly,
@@ -105,6 +113,7 @@ fn gate_input(tx: &dyn Tx, run: &StoredRun, result: &eos_core::store::StoredRunR
         targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
         signal_facts: signal_facts_in(tx, &input)?,
+        untrusted_facts,
         subject_key: run.item_key.clone(),
         trust: eos_domain::routine::trust::of_run(Some(version.trust), &input),
         freedom_confirmed,
