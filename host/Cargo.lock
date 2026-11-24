@@ -3049,8 +3049,10 @@ dependencies = [
 name = "eos-mod-surfaces"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-genui",
  "eos-runtime",
  "eos-surface",
@@ -3293,6 +3295,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-genui",
+ "eos-surface",
  "ryu-js",
  "serde",
  "serde_json",
@@ -3409,15 +3412,18 @@ name = "eos-store-files"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-kit-fs",
  "eos-platform",
  "getrandom 0.4.3",
+ "image",
  "serde",
  "serde_json",
  "serde_norway",
+ "sha2 0.11.1",
  "tokio",
 ]
 
@@ -3438,7 +3444,11 @@ dependencies = [
 name = "eos-surface"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
+ "cssparser 0.37.0",
+ "eos-genui",
  "serde_json",
+ "sha2 0.11.1",
  "thiserror 2.0.21",
 ]
 
