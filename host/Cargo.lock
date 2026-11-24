@@ -2265,6 +2265,7 @@ dependencies = [
  "eos-mod-routines",
  "eos-mod-settings",
  "eos-mod-signals",
+ "eos-mod-surfaces",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -2399,6 +2400,7 @@ dependencies = [
  "eos-contracts",
  "eos-domain",
  "eos-genui",
+ "eos-surface",
  "getrandom 0.4.3",
  "indexmap 2.14.2",
  "serde",
@@ -2827,6 +2829,7 @@ dependencies = [
  "eos-inbox",
  "eos-policy",
  "eos-runtime",
+ "eos-surface",
  "indexmap 2.14.2",
  "serde_json",
  "tokio",
@@ -3004,6 +3007,7 @@ dependencies = [
  "eos-prompts",
  "eos-runtime",
  "eos-sessions",
+ "eos-surface",
  "eos-workers",
  "serde",
  "serde_json",
@@ -3033,6 +3037,21 @@ dependencies = [
  "eos-inbox",
  "eos-prompts",
  "eos-runtime",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-surfaces"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-genui",
+ "eos-runtime",
+ "eos-surface",
+ "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -3319,6 +3338,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-platform",
+ "eos-surface",
  "futures-core",
  "serde",
  "serde_json",
@@ -3387,8 +3407,17 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-kit-sqlite",
+ "eos-surface",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "eos-surface"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
