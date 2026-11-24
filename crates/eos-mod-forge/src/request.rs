@@ -13,6 +13,9 @@ use eos_domain::capability::health::HealthState;
 use eos_domain::run_scope::RunRole;
 use serde_json::Value;
 
+use crate::package::{newest, read};
+use crate::steps::ForgeSteps;
+
 /// The run event a stage's report is kept as: `forge_research`, …
 pub fn report_event(stage: ForgeStage) -> String {
     format!("forge_{}", stage.as_str())
@@ -25,6 +28,8 @@ pub(crate) struct ForgeService {
     pub(crate) capabilities: Arc<dyn CapabilityCalls>,
     /// The `forge` routine's id, once it is kept.
     pub(crate) routine: OnceLock<String>,
+    /// Reads the package a review passed.
+    pub(crate) steps: Arc<ForgeSteps>,
 }
 
 impl ForgeService {
@@ -97,9 +102,12 @@ impl ForgeService {
         Ok(ForgeAnswer::Started { run_id })
     }
 
-    async fn report(&self, worker_id: &str, stage: ForgeStage, report: Value) -> Result<(), Error> {
+    async fn report(&self, worker_id: &str, stage: ForgeStage, mut report: Value) -> Result<(), Error> {
         check(stage, &report)?;
         let routine = self.routine()?.to_owned();
+        if stage == ForgeStage::Review && report["verdict"] == "pass" {
+            report["hash"] = self.reviewed_hash(worker_id).await?.into();
+        }
         let (id, now, data) = (worker_id.to_owned(), self.clock.now_ms(), report.to_string());
         self.store
             .write(move |tx, _| {
@@ -115,6 +123,22 @@ impl ForgeService {
                 Ok(())
             })
             .await
+    }
+}
+
+impl ForgeService {
+    /// The hash of the package the reviewer passed, as its files are now:
+    /// only those files are proposed.
+    async fn reviewed_hash(&self, worker_id: &str) -> Result<String, Error> {
+        let id = worker_id.to_owned();
+        let run = self.store.read(move |tx| tx.routine_sessions().run_of(&id)).await?;
+        let run = run.ok_or_else(|| Error::Conflict("this session works for no Forge run".into()))?;
+        let build = newest::<ForgeBuild>(self.store.as_ref(), &run.run_id, &report_event(ForgeStage::Build)).await?;
+        let build = build.ok_or_else(|| Error::Validation("report: the builder has reported no package yet".into()))?;
+        match read(&self.steps, &run.run_id, &build).await? {
+            Ok(built) => Ok(built.hash),
+            Err(why) => Err(Error::Validation(format!("report: the package cannot be read: {why}"))),
+        }
     }
 }
 

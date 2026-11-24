@@ -79,7 +79,7 @@ use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};
 use eos_domain::inbox::ItemState;
 
-pub use answer::{Items, ItemsParts};
+pub use answer::{Checked, Items, ItemsParts, answer_in};
 pub use edits::Edits;
 pub use halt::HALTED;
 pub use handoff::consume_in;
@@ -123,8 +123,9 @@ pub enum Error {
     Core(#[from] eos_core::Error),
 }
 
-/// Announces an item as it is now, with how many items are open.
-fn announce(tx: &dyn Tx, out: &mut Outbox, item: &StoredItem) -> Result<(), eos_core::Error> {
+/// Announces an item as it is now, with how many items are open, once the
+/// write job commits.
+pub fn announce(tx: &dyn Tx, out: &mut Outbox, item: &StoredItem) -> Result<(), eos_core::Error> {
     let change = InboxChange {
         id: item.id.clone(),
         kind: item.kind.as_str().to_owned(),

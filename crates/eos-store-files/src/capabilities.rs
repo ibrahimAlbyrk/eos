@@ -80,6 +80,16 @@ fn hash_dir(dir: &Path) -> Result<String, Error> {
     Ok(package_hash(&files))
 }
 
+/// The hash and size in bytes of the package in `dir`, a folder that is not
+/// installed (the Forge's build folder). A link in it refuses it.
+pub fn package_of(dir: &Path) -> Result<(String, u64), Error> {
+    let mut size = 0;
+    for (_, path) in walk(dir)? {
+        size += fs::metadata(&path).map_err(io(&path))?.len();
+    }
+    Ok((hash_dir(dir)?, size))
+}
+
 /// The package hash's format over each file's size and change time in place
 /// of its bytes.
 fn stamp_dir(dir: &Path) -> Result<String, Error> {

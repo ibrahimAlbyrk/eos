@@ -402,6 +402,7 @@
       "updatedAt": 1763438000000
     },
     "payload": {
+      "runId": "rn-4k8m2q6w0e3r",
       "capabilityId": "calendar",
       "name": "Calendar",
       "summary": "Reads today's events from the Calendar app.",
@@ -418,7 +419,14 @@
           "com.apple.iCal"
         ],
         "files": []
-      }
+      },
+      "secrets": [],
+      "settings": [],
+      "cost": "free",
+      "tests": { "passed": true, "tolerated": 2 },
+      "review": { "verdict": "pass", "findings": [] },
+      "routines": [{ "id": "rt-2x8k5n1q6w0r", "name": "Morning paper" }],
+      "limits": ["Eos's audit cannot see a helper program whose name the system's log leaves out; the reviewer read the code for that."]
     }
   },
   {

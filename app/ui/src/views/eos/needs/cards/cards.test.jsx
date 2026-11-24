@@ -152,14 +152,37 @@ describe("the other cards", () => {
     expect(offer).toContain("10 in a row went out as written.");
   });
 
-  it("install a proposed capability through the inbox, and check a capability again through its own route", async () => {
+  it("install a proposed capability through the Forge's own route, and check a capability again through its own", async () => {
     const t = recording();
     setEosTransport(t);
     await refreshInbox();
     await act("capability_install", "Install");
     expect(await act("capability_attention", "Check again")).toBe(false);
-    expect(t.send.mock.calls[0][2].answer).toEqual({ kind: "capability_install", choice: "install" });
+    const runId = byKind.capability_install.payload.runId;
+    expect(t.send.mock.calls[0]).toEqual(["POST", ROUTES.forgeProposalAnswer(runId), { choice: "install" }]);
     expect(t.send.mock.calls[1].slice(0, 2)).toEqual(["POST", ROUTES.capabilityCheck("mail")]);
+  });
+
+  it("offer Install only once the live test reached the user, after a test they start", async () => {
+    const sample = byKind.capability_install;
+    const at = (state) => ({
+      ...sample,
+      payload: { ...sample.payload, settings: [{ name: "phone_number", label: "Your mobile number" }], liveTest: { action: "send_to_me", state } },
+    });
+    const before = await screen("capability_install", at("not_run"));
+    expect(buttons(before)).toEqual(["Send a test", "Not now", "Later", "Discard"]);
+    expect(before).toContain("Your mobile number");
+    expect(buttons(await screen("capability_install", at("sent")))).toEqual(["Yes, it did", "No", "Not now", "Later", "Discard"]);
+    expect(buttons(await screen("capability_install", at("not_alerted")))).toEqual(["Send a test", "Find another way", "Not now", "Later", "Discard"]);
+    expect(buttons(await screen("capability_install", at("alerted")))).toEqual(["Install", "Not now", "Later", "Discard"]);
+
+    const t = recording();
+    setEosTransport(t);
+    const send = actionsOf(at("not_run")).find((a) => a.label === "Send a test");
+    expect(await send.run(at("not_run"), { "setting:phone_number": "+90 555 010 0000" })).toBe(false);
+    expect(t.send.mock.calls[0]).toEqual([
+      "POST", ROUTES.forgeProposalLiveTest(sample.payload.runId), { settings: { phone_number: "+90 555 010 0000" } },
+    ]);
   });
 
   it("show a notice's one action under its own name, beside Dismiss", async () => {

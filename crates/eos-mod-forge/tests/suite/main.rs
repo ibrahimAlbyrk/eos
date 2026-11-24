@@ -2,6 +2,7 @@
 //! reports its sessions hand in, and its build folder.
 
 mod blueprint;
+mod proposals;
 mod request;
 mod rig;
 mod steps;

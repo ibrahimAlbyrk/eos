@@ -408,6 +408,9 @@ export const ROUTES = {
   capabilitySecret: (id, name) => `/api/capabilities/${id}/secrets/${name}`,
   // The Forge (eos-contracts `forge.rs`): build a capability Eos lacks.
   forge: "/api/forge",
+  forgeProposal: (id) => `/api/forge/proposals/${id}`,
+  forgeProposalLiveTest: (id) => `/api/forge/proposals/${id}/live-test`,
+  forgeProposalAnswer: (id) => `/api/forge/proposals/${id}/answer`,
   // Memory (eos-contracts `experience.rs`): the screen's head, the notes,
   // one note (editing and forgetting it), bringing a forgotten one back,
   // saying one is not right, what a chat or a run was reminded of, where

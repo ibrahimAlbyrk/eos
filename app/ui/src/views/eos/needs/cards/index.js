@@ -3,7 +3,7 @@
 // core and is held back while the core is unreachable. A kind with no card
 // shows its title and summary with Open.
 
-import { answerInboxItem, decideRunAsk, decideSuggestion, isHolding, sendInboxDraft } from "../../../../state/eos/inboxStore.js";
+import { answerInboxItem, answerProposal, decideRunAsk, decideSuggestion, isHolding, sendInboxDraft, startLiveTest } from "../../../../state/eos/inboxStore.js";
 import { openLocation } from "../../nav/eosNav.js";
 import { dropEdit } from "../editDrafts.js";
 import { docChanged, sendLabel } from "../editors/editDoc.js";
@@ -12,7 +12,7 @@ import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
 import { editedGuess, MemoryQuestion } from "./MemoryQuestion.jsx";
 import { PlainCard } from "./PlainCard.jsx";
-import { CapabilityProblem, CapabilityProposal } from "./CapabilityCards.jsx";
+import { CapabilityProblem, CapabilityProposal, liveStateOf, settingKey } from "./CapabilityCards.jsx";
 import { FreedomOffer } from "./FreedomOffer.jsx";
 import { checkCapability } from "../../../../state/eos/capabilitiesStore.js";
 
@@ -32,6 +32,20 @@ const openRoutine = {
     return false;
   },
 };
+
+// An answer to a Forge proposal; one that leaves it open keeps the card.
+const propose = (choice, label, { primary = false, when, stays = false } = {}) => ({
+  label,
+  primary,
+  write: true,
+  when,
+  run: async (detail) => {
+    const took = await answerProposal(detail.item.id, detail.payload.runId, choice);
+    return stays ? false : took;
+  },
+});
+
+const live = (...states) => (detail) => states.includes(liveStateOf(detail));
 
 const KINDS = {
   draft: {
@@ -120,7 +134,26 @@ const KINDS = {
   freedom_offer: { Body: FreedomOffer, actions: [answer("freedom_offer", "accept", "Allow", true), answer("freedom_offer", "not_now", "Not now")] },
   capability_install: {
     Body: CapabilityProposal,
-    actions: [answer("capability_install", "install", "Install", true), answer("capability_install", "decline", "Not now")],
+    actions: [
+      propose("install", "Install", { primary: true, when: (detail) => !liveStateOf(detail) || liveStateOf(detail) === "alerted" }),
+      {
+        label: "Send a test",
+        primary: true,
+        write: true,
+        when: live("not_run", "failed", "not_alerted"),
+        run: async (detail, values) => {
+          const settings = Object.fromEntries(
+            (detail.payload.settings ?? []).map((s) => [s.name, values[settingKey(s.name)] ?? ""]).filter(([, v]) => v.trim()),
+          );
+          await startLiveTest(detail.item.id, detail.payload.runId, settings);
+          return false;
+        },
+      },
+      propose("alerted", "Yes, it did", { primary: true, when: live("sent"), stays: true }),
+      propose("not_alerted", "No", { when: live("sent"), stays: true }),
+      propose("other_way", "Find another way", { when: live("not_alerted") }),
+      propose("decline", "Not now"),
+    ],
   },
   capability_attention: {
     Body: CapabilityProblem,

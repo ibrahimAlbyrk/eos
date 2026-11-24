@@ -128,6 +128,12 @@ impl CapabilityService {
         }
     }
 
+    /// Where capabilities' secrets are kept: the Forge's live test asks for
+    /// one before its capability is installed.
+    pub fn secrets(&self) -> Arc<dyn eos_core::capability::CapabilitySecrets> {
+        self.ports.secrets.clone()
+    }
+
     /// The signal sources the built-ins declare, by `<capability>.<source>`.
     pub fn signal_sources(self: &Arc<Self>) -> Arc<dyn SignalSources> {
         Arc::new(sources::Sources(self.clone()))

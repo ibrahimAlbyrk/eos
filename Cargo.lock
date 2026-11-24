@@ -2203,10 +2203,14 @@ dependencies = [
 name = "eos-mod-forge"
 version = "0.0.1"
 dependencies = [
+ "eos-capabilities",
+ "eos-capability-host",
  "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-fs",
+ "eos-inbox",
+ "eos-kit-proc",
  "eos-platform",
  "eos-runtime",
  "eos-store-files",
@@ -2216,6 +2220,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]

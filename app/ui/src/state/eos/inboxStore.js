@@ -209,6 +209,17 @@ export function answerInboxItem(id, answer) {
   return answerWith(id, "POST", ROUTES.inboxAnswer(id), { rev: revOf(id), answer });
 }
 
+// A Forge proposal's answer and live test go to the Forge's own routes,
+// which only this computer's dashboard may call; the item's change comes
+// back on inbox:change.
+export function answerProposal(id, runId, choice) {
+  return answerWith(id, "POST", ROUTES.forgeProposalAnswer(runId), { choice });
+}
+
+export function startLiveTest(id, runId, settings) {
+  return answerWith(id, "POST", ROUTES.forgeProposalLiveTest(runId), { settings });
+}
+
 // The draft saves in flight, by item id: each save and a send wait for the
 // one before, so each goes on the rev the last one left.
 const saving = new Map();

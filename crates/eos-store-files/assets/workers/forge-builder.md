@@ -68,5 +68,7 @@ Rules the package is held to:
   errors. It must never reach a real service or send a message.
 
 Run the tests yourself until they pass. Then call `forge_report` with stage
-`build` and `{"package", "capabilityId", "version", "summary"}`, and tell the
-lead in one line what you built.
+`build` and `{"package", "capabilityId", "version", "summary", "option"}`
+(`option`: the key of the researcher's way you built), and tell the lead in
+one line what you built. Change no file after the reviewer passed it: Eos
+proposes only the files the reviewer read.
