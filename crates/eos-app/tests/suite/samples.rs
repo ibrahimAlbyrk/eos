@@ -33,7 +33,11 @@ async fn every_area_reads_its_samples_and_each_item_opens() {
     let routines = get(&app, "/api/routines").await;
     assert_eq!(rows(&routines).len(), 4, "four routines: {routines}");
     let inbox = get(&app, "/api/inbox").await;
-    assert_eq!(rows(&inbox).len(), 13, "an item of every kind: {inbox}");
+    // An item of every kind, and the one GitHub opens: the sample PR Review
+    // needs it, and nobody signed in to it here.
+    assert_eq!(rows(&inbox).len(), 14, "an item of every kind: {inbox}");
+    let github = rows(&inbox).iter().filter(|item| item["title"] == "GitHub needs setting up").count();
+    assert_eq!(github, 1, "{inbox}");
     for item in rows(&inbox) {
         let id = item["id"].as_str().expect("an id");
         get(&app, &format!("/api/inbox/{id}")).await;
