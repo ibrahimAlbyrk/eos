@@ -30,13 +30,44 @@ pointers (`stable/win32-*.json`) stay where they are until there is a Rust build
 | Version `major.minor.patch`, higher than 0.1.5, and the same in the pointer, the manifest and `Contents/Resources/update.json` | the old applier waits for exactly the pointer's version in `boot-ok`; the new app writes the version of its `update.json` | `cargo xtask publish-update` refuses an app whose `update.json` names another version or is missing |
 | `Contents/Resources/update.json` = `{"version":"…","channel":"stable","platform":"darwin-arm64"}` | without it the Rust app is "a build from source" and never updates itself again | `EOS_UPDATE_CHANNEL=stable host/scripts/bundle.sh release`; the version is the host workspace's (`host/Cargo.toml`) |
 | Bundle identifier `com.ibrahimalbyrk.eos`, executable `Contents/MacOS/Eos` | the app keeps its identity: privacy grants, notifications, `eos://` links; the old applier opens the bundle at the old path | `EOS_BUNDLE_ID=com.ibrahimalbyrk.eos` (the script's default is a development id) |
-| Signed by the same Developer ID team as 0.1.x, hardened runtime and a secure timestamp on every Mach-O, notarized, ticket stapled **before** publishing | the old daemon compares teams and asks `codesign` and Gatekeeper about the staged copy, offline | the release signing step (not `host/scripts/sign.sh` as it is: that one signs with `--timestamp=none` and notarizes nothing) |
+| Signed by the same Developer ID team as 0.1.x, hardened runtime and a secure timestamp on every Mach-O, notarized, ticket stapled **before** publishing | the old daemon compares teams and asks `codesign` and Gatekeeper about the staged copy, offline | `host/scripts/sign.sh <Eos.app> "Developer ID Application" release`, then notarizing and stapling (below); `sign.sh` without `release` signs with `--timestamp=none` and is for local builds only |
 | The signature must survive a rebuild from files, modes and links alone | the staged copy carries no extended attributes, no ACLs, no hard links, no special mode bits | every non-Mach-O file under `Contents/Resources` (sealed as a resource); no script under `Contents/MacOS` or `Contents/Helpers` — a signed script keeps its signature in extended attributes, which the update drops |
 | `Contents/MacOS/eos-apply`, signed on its own | the Rust app's applier for every later update | `bundle.sh` copies it, `sign.sh` signs it |
+| The doors only the installed identity owns: `Contents/Helpers/eos` (a Mach-O), `Contents/PlugIns/EosShare.appex` (sandboxed, `host/bundle/share.entitlements`), and the `eos` scheme, `NSServices` and `CFBundleDocumentTypes` in `Info.plist` | the terminal's command, Share › Eos, links, Services and Dock drops; a build with any other identifier must own none of them | `bundle.sh` adds them for `com.ibrahimalbyrk.eos` alone and refuses them in any other build; `cargo xtask install` refuses a build that lacks one (`xtask/src/install/bundle.rs`) |
 | Feed: same URL, same key (`eos-update-signing`), manifest format 1, same chunker, one zstd frame per chunk, the pointer uploaded last | every installed app reads exactly this | `cargo xtask publish-update`: byte for byte what the 0.1.x publisher wrote for the same bundle (`crates/eos-update/tests/publish.rs`, `fixtures/update`) |
 
 Anything else may change: the layout below `Contents`, the frameworks, `Resources/daemon` going
 away. The update format describes a tree; it does not care what is in it.
+
+### Signing and notarizing a release
+
+Notarization uploads the app to Apple, so it is done by hand, never by a script of this
+repository or a test.
+
+1. **Build.** `EOS_BUNDLE_ID=com.ibrahimalbyrk.eos EOS_UPDATE_CHANNEL=stable host/scripts/bundle.sh release`
+   prints the path of `Eos.app`.
+2. **Sign inside out, with a secure timestamp.** `host/scripts/sign.sh <Eos.app> "Developer ID
+   Application" release` signs, in this order: the CEF framework's libraries, the framework, the
+   five helper apps (CEF entitlements), the bundled esbuild, `Contents/MacOS/eos-apply`,
+   `Contents/Helpers/eos`, `EosLocation.app`, `Eos.saver`, `Contents/PlugIns/EosShare.appex`
+   (its own entitlements: the sandbox), and the app last (`host/bundle/entitlements.plist`,
+   Apple Events included). Every piece gets the hardened runtime. It ends with
+   `codesign --verify --deep --strict`, checks the runtime flag on every program and the sandbox
+   on the extension, and prints `signed and verified`.
+3. **Notarize the whole app, nested code included.** Once per Mac, store the team's credentials:
+   `xcrun notarytool store-credentials eos-notary --apple-id <id> --team-id LUAYX8ZA66`. Then
+   `ditto -c -k --keepParent Eos.app Eos.zip` and
+   `xcrun notarytool submit Eos.zip --keychain-profile eos-notary --wait`. It must end
+   `status: Accepted`; on `Invalid`, `xcrun notarytool log <submission id>` names each piece
+   Apple refused.
+4. **Staple.** `xcrun stapler staple Eos.app`, then `xcrun stapler validate Eos.app`.
+5. **Check what the old daemon checks.** `codesign --verify --deep --strict Eos.app`;
+   `spctl -a -vv --type execute Eos.app` says `source=Notarized Developer ID`;
+   `codesign -dv --verbose=2 Eos.app` shows team `LUAYX8ZA66`; `codesign -dv Eos.app/Contents/PlugIns/EosShare.appex`
+   shows the same team.
+6. **Publish** as in §5. LaunchServices registers the share extension when the updated app
+   first starts. Whether Share › Eos then shows at once or must be turned on in System Settings
+   (Extensions › Sharing) is seen only on the installed app.
 
 ## 3. What the Rust app must do on its first start
 
@@ -152,7 +183,9 @@ Only when A – F pass: upload the same files to the public feed, pointer last.
 
 ## 7. What could not be verified here
 
-- The Rust/CEF bundle signed with the real identity, notarized and stapled; and that a copy of it
+- The Rust/CEF bundle signed with the real identity and a secure timestamp, notarized and
+  stapled (a local `sign.sh` run with the Developer ID identity and no timestamp passes its
+  checks); and that a copy of it
   rebuilt from chunks — as the old daemon stages it — still passes `codesign --verify --deep
   --strict` and `spctl`. The release builder and the staging code are tested against bundles of
   invented files, never against a signed app.
