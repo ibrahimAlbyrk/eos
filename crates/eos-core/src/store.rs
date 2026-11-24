@@ -104,9 +104,9 @@ pub use runs::{
 };
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use signals::{
-    BatchedSignal, MANUAL_SCOPE_HASH, ManualSignal, NewSignal, SignalAskRepo, SignalRepo, SignalRetentionRepo,
-    SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SignalTally, SlotTally, StoredSignal,
-    StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
+    BatchedSignal, MANUAL_SCOPE_HASH, ManualSignal, NewSignal, SignalAskRepo, SignalHookRepo, SignalRepo,
+    SignalRetentionRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SignalTally,
+    SlotTally, StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
 };
 pub use surfaces::{
     ActionLogRepo, StoredActionRecord, StoredIssue, StoredSurface, StoredSurfaceEdit, StoredSurfaceState,

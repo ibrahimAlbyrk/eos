@@ -34,4 +34,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("077_routine_once_asks"),
     // Surfaces: their designs, issues, edits, saved state, pins and the record of each action run from one.
     embed!("078_surfaces"),
+    // Which signal source each hook of the relay's inbox wakes.
+    embed!("079_signal_hooks"),
 ];

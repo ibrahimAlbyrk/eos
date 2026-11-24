@@ -45,8 +45,12 @@ impl std::fmt::Debug for HookEvent {
 /// What the inbox held after a cursor.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HookBatch {
-    /// The inbox's latest sequence number: ack through it once the batch is handled.
+    /// The inbox's latest sequence number.
     pub head: u64,
+    /// The last entry the batch covers (the head when it held none): the
+    /// next read starts after it, and an ack through it deletes only what
+    /// was read, since a page holds at most 100 entries.
+    pub through: u64,
     pub events: Vec<HookEvent>,
     /// Entries in this batch that did not open with this computer's key or
     /// were not an event: dropped, never guessed at.

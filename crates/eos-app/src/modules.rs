@@ -411,6 +411,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             ids: cx.ids.clone(),
             zones: Arc::new(crate::host::HostZoneRules),
             sources: cx.reach.signal_sources(cx.signal_sources.clone()),
+            hooks: cx.reach.hook_inbox(|| hook_inbox(cx)),
             health: cx.capabilities.clone(),
             runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
             intake: routines.intake(),
@@ -492,4 +493,17 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);
     Ok(Features { modules, tools, worker_rows, brief_worker_rows, sign_in_links })
+}
+
+/// The hook inbox on the phone link's relay, under the identity kept in
+/// `remote/hooks.json`.
+fn hook_inbox(cx: &Context) -> Arc<dyn eos_core::net::hooks::HookInbox> {
+    let config = cx.config.clone();
+    // The relay is the one the user's own phone link names: no guard for agent-written URLs.
+    let http = eos_kit_net::http_client(&eos_kit_net::ClientOptions::new("Eos")).unwrap_or_default();
+    Arc::new(eos_relay::RelayHookInbox::new(
+        http,
+        Arc::new(move || config.current().remote.relay.as_ref().map(|relay| relay.url.clone())),
+        Arc::new(eos_store_files::remote::RemoteFiles::new(cx.paths.join("remote"))),
+    ))
 }

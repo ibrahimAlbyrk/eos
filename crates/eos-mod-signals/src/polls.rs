@@ -227,7 +227,7 @@ impl Polls {
                 Some(at) if at > now => next = Some(next.map_or(at, |next: i64| next.min(at))),
                 _ => {
                     if locked(&self.polling).insert(row.id.clone()) {
-                        tasks.spawn(self.clone().poll(row));
+                        tasks.spawn(self.clone().poll(row, None));
                     }
                 }
             }
@@ -242,9 +242,25 @@ impl Polls {
         locked(&self.polling).clear();
     }
 
+    /// A push said the source `source_id` has news: polls it now, looking
+    /// at `focus` first, unless it polls already or does not poll. Answers
+    /// whether a poll started.
+    pub(crate) async fn poll_now(self: &Arc<Self>, source_id: &str, focus: Option<String>) -> Result<bool, Error> {
+        let lookup = source_id.to_owned();
+        let row = self.store.read(move |tx| tx.signal_sources().find(&lookup)).await?;
+        let Some(row) = row.filter(|row| row.kind == CAPABILITY && POLLING.contains(&row.state.as_str())) else {
+            return Ok(false);
+        };
+        if !locked(&self.polling).insert(row.id.clone()) {
+            return Ok(false);
+        }
+        locked(&self.tasks).spawn(self.clone().poll(row, focus));
+        Ok(true)
+    }
+
     /// Polls one source, page by page, and settles its row.
-    async fn poll(self: Arc<Self>, row: StoredSignalSource) {
-        let polled = self.read_pages(&row).await;
+    async fn poll(self: Arc<Self>, row: StoredSignalSource, focus: Option<String>) {
+        let polled = self.read_pages(&row, focus).await;
         let error = polled.error.clone();
         let source_id = row.id.clone();
         let job = move |tx: &dyn eos_core::store::Tx, _: &mut eos_core::store::Outbox| {
@@ -274,8 +290,9 @@ impl Polls {
         self.kick.notify_one();
     }
 
-    /// Reads up to [`PAGES_MAX`] pages, each kept through ingest.
-    async fn read_pages(&self, row: &StoredSignalSource) -> Polled {
+    /// Reads up to [`PAGES_MAX`] pages, each kept through ingest; the first
+    /// looks at `focus` first.
+    async fn read_pages(&self, row: &StoredSignalSource, mut focus: Option<String>) -> Polled {
         let source = row.source.as_deref().and_then(|name| self.sources.get(name));
         let wait_ms = source.as_ref().map_or(0, |source| source.wait_ms());
         let slots = if wait_ms > 0 { &self.long } else { &self.short };
@@ -292,7 +309,7 @@ impl Polls {
         let mut cursor: Option<Value> = row.cursor_json.as_deref().and_then(|json| serde_json::from_str(json).ok());
         let limit = POLL_TIMEOUT_MS + i64::try_from(wait_ms).unwrap_or(i64::MAX / 2);
         for _ in 0..PAGES_MAX {
-            let request = PollRequest { scope: scope.clone(), cursor: cursor.clone(), wait_ms, focus: None };
+            let request = PollRequest { scope: scope.clone(), cursor: cursor.clone(), wait_ms, focus: focus.take() };
             let answer = tokio::select! {
                 answer = source.poll(request) => answer,
                 () = self.sleeper.sleep(limit) => Err(SourceError::Unreachable),

@@ -322,7 +322,7 @@ impl FakeHookInbox {
         let mut state = lock(&self.state);
         let unreadable = std::mem::take(&mut state.unreadable);
         let events = state.events.iter().filter(|event| event.seq > since).cloned().collect();
-        HookBatch { head: state.head, events, unreadable, dropped: state.dropped }
+        HookBatch { head: state.head, through: state.head, events, unreadable, dropped: state.dropped }
     }
 }
 

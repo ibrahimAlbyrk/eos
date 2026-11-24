@@ -1,9 +1,11 @@
 //! The signal routes (02 §6): when each routine runs next and what starts
 //! one routine's runs (`status`), the signal list, replay (`replay`) and
-//! the two previews (`preview`), and the keep-awake setting (`settings`). Every one needs the user; the phone reads
+//! the two previews (`preview`), the keep-awake setting (`settings`) and
+//! adding a source's webhook (`push`). Every one needs the user; the phone reads
 //! at `Read` and replays at `High`, and never tries a Which.
 
 mod preview;
+mod push;
 mod replay;
 mod settings;
 mod status;
@@ -40,6 +42,8 @@ pub(crate) struct Routes {
     pub(crate) settings: Arc<dyn UserSettingsStore>,
     /// Starts a scheduler pass, which counts the work holds again.
     pub(crate) kick: Arc<Notify>,
+    /// Adds a source's hook; none without a hook inbox.
+    pub(crate) push: Option<Arc<crate::push::Push>>,
 }
 
 impl Routes {
@@ -65,6 +69,7 @@ pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
         settings::read(&routes),
         settings::route(&routes),
         summary::route(&routes),
+        push::route(&routes),
     ]
 }
 
