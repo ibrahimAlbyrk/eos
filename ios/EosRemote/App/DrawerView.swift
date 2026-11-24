@@ -45,6 +45,9 @@ struct DrawerView: View {
                            isSelected: sidebar.section == .code) { select(.code) }
                 SidebarRow("terminal", "Terminals",
                            isSelected: sidebar.section == .terminals) { select(.terminals) }
+                if model.eosServes {
+                    SidebarRow("sparkles", "Eos", isSelected: sidebar.section == .eos) { select(.eos) }
+                }
                 SidebarRow("laptopcomputer", "Devices",
                            isSelected: sidebar.section == .devices) { select(.devices) }
             }

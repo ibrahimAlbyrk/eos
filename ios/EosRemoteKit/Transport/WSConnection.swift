@@ -37,6 +37,8 @@ public actor WSConnection: RemoteLink {
     private var closed = false
 
     private var pending: [String: CheckedContinuation<ControlResponse, Error>] = [:]
+    // Controls whose answer resolves whatever its status (sendControlAnswer).
+    private var anyStatus: Set<String> = []
     private var pings: [UUID: CheckedContinuation<Bool, Never>] = [:]
     private var heartbeat: Task<Void, Never>?
     private let heartbeatMs: UInt64 = 15_000
@@ -177,6 +179,7 @@ public actor WSConnection: RemoteLink {
             resolve(a.correlationId, status: a.status, .asset(a))
         case .error(let e):
             if let cid = e.correlationId, let cont = pending.removeValue(forKey: cid) {
+                anyStatus.remove(cid)
                 cont.resume(throwing: WSError.controlFailed(0))
             }
             framesContinuation.yield(frame)
@@ -199,7 +202,7 @@ public actor WSConnection: RemoteLink {
 
     private func resolve(_ correlationId: String, status: Int, _ response: ControlResponse) {
         guard let cont = pending.removeValue(forKey: correlationId) else { return }
-        if (200..<300).contains(status) { cont.resume(returning: response) }
+        if (200..<300).contains(status) || anyStatus.remove(correlationId) != nil { cont.resume(returning: response) }
         else { cont.resume(throwing: WSError.controlFailed(status)) }
     }
 
@@ -213,11 +216,22 @@ public actor WSConnection: RemoteLink {
         return r
     }
 
+    // Variant whose answer comes back whatever its status, for routes whose refusal carries what
+    // the phone shows next (409 with the item's new state).
+    public func sendControlAnswer(method: String, path: String, bodyData: Data,
+                                  timeoutMs: UInt64 = 30_000) async throws -> ReplyFrame {
+        guard case .reply(let r) = try await sendControlRaw(method: method, path: path, bodyData: bodyData,
+                                                            timeoutMs: timeoutMs, anyStatus: true)
+        else { throw WSError.badFrame }
+        return r
+    }
+
     // Variant for routes that may answer with a binary `asset` frame (/fs/image).
     public func sendControlRaw(method: String, path: String, bodyData: Data,
-                               timeoutMs: UInt64 = 30_000) async throws -> ControlResponse {
+                               timeoutMs: UInt64 = 30_000, anyStatus: Bool = false) async throws -> ControlResponse {
         guard !closed, let session, let task else { throw WSError.notConnected }
         let correlationId = UUID().uuidString
+        if anyStatus { self.anyStatus.insert(correlationId) }
         let bodyStr = String(decoding: bodyData, as: UTF8.self)
         let frame = ControlFrame(correlationId: correlationId, method: method, path: path, body: bodyStr)
         let envelope = session.frameToEnvelope(try JSONEncoder().encode(frame))
@@ -247,6 +261,7 @@ public actor WSConnection: RemoteLink {
     }
 
     private func fail(_ correlationId: String, _ error: Error) {
+        anyStatus.remove(correlationId)
         pending.removeValue(forKey: correlationId)?.resume(throwing: error)
     }
 
@@ -268,6 +283,11 @@ public actor WSConnection: RemoteLink {
     // the socket, so the owner re-sends it after every reconnect.
     public func sendFocus(_ focus: FocusFrame) {
         sendFrame(focus)
+    }
+
+    // The run this phone has open (Mac cap "eos"). Fire-and-forget; re-sent after every reconnect.
+    public func sendWatch(_ watch: WatchFrame) {
+        sendFrame(watch)
     }
 
     private func sendFrame<F: Encodable>(_ frame: F) {

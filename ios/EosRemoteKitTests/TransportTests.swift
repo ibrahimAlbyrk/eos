@@ -208,6 +208,13 @@ final class TransportTests: XCTestCase {
 
     func testHelloListsThisAppsCaps() throws {
         let obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(HelloFrame())) as? [String: Any]
-        XCTAssertEqual(obj?["caps"] as? [String], ["focus", "rows", "deflate"])
+        XCTAssertEqual(obj?["caps"] as? [String], ["focus", "rows", "deflate", "eos"])
+    }
+
+    func testAWatchNamesTheOpenRunOrNull() throws {
+        XCTAssertEqual(String(decoding: try JSONEncoder().encode(WatchFrame(run: "rn-1")), as: UTF8.self),
+                       #"{"t":"watch","run":"rn-1"}"#)
+        XCTAssertEqual(String(decoding: try JSONEncoder().encode(WatchFrame(run: nil)), as: UTF8.self),
+                       #"{"t":"watch","run":null}"#)
     }
 }

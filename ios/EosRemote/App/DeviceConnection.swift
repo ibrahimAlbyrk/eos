@@ -123,15 +123,20 @@ final class DeviceConnection: NSObject {
     private var ptyInputDraining = false
 
     let store = Store()
+    // Routines, runs and Needs you, when the Mac serves them (cap "eos").
+    let eos: EosFeed
     private let link: ConnectionSupervisor<WSConnection>
     private var connection: WSConnection? { link.liveLink }
 
     init(device: Device) {
         self.device = device
+        eos = EosFeed(deviceId: device.id, cache: EosCache.shared())
         let room = device.room, bearer = device.bearer ?? ""
         // activate() refuses to start without a relay URL, so the unwrap only runs when it is set.
         link = ConnectionSupervisor { WSConnection(url: device.relayURL!, room: room, bearer: bearer) }
         super.init()
+        eos.attach(call: { [weak self] method, path, body in await self?.eosCall(method, path, body) },
+                   sendWatch: { [weak self] run in self?.sendWatch(run) })
         link.onChange = { [weak self] in self?.onChange?() }
         link.onFrame = { [weak self] frame in await self?.handle(frame) }
         link.onLive = { [weak self] in self?.didGoLive() }
@@ -206,6 +211,18 @@ final class DeviceConnection: NSObject {
     func approve(pendingId: String, allow: Bool) async {
         await control("POST", "/pending/\(pendingId)/decision",
                       .object(["decision": .string(allow ? "allow" : "deny")]))
+    }
+
+    fileprivate func sendWatch(_ run: String?) {
+        guard let connection else { return }
+        let frame = WatchFrame(run: run)
+        Task { await connection.sendWatch(frame) }
+    }
+
+    // A control whose answer the Eos tab reads whatever its status (a 409 carries the new state).
+    fileprivate func eosCall(_ method: String, _ path: String, _ body: JSONValue) async -> ReplyFrame? {
+        guard let connection else { return nil }
+        return try? await connection.sendControlAnswer(method: method, path: path, bodyData: encodeOnce(body))
     }
 
     private func encodeOnce(_ body: JSONValue) -> Data {
@@ -546,6 +563,7 @@ final class DeviceConnection: NSObject {
         }
         // Pushed rows resume from the focus just sent; otherwise pull what landed meanwhile.
         if openId != nil && !(rowsPushed && transcriptLoaded) { scheduleDelta() }
+        eos.live()
     }
 
     // MARK: focus (Mac cap "focus")
@@ -752,6 +770,7 @@ final class DeviceConnection: NSObject {
     // The Mac's caps + what its join snapshot carried beyond the lists.
     private func applySnapshotExtras(_ snap: SnapshotFrame) {
         macCaps = Set(snap.caps ?? [])
+        eos.macCaps(macCaps)
         if let ptys = snap.ptys { applyPtySessions(ptys); bootCarriedPtys = true }
         if let raw = snap.uiConfig, let config = UiConfig(raw: raw) {
             uiConfig = config
@@ -971,6 +990,7 @@ extension DeviceConnection {
             handleTranscriptEvent(event)
             await handleListEvent(event)
             handlePtyEvent(event)
+            eos.handle(event)
         case .error(let error):
             setError("\(error.code): \(error.message ?? "")")
         case .reply, .asset, .ka:
