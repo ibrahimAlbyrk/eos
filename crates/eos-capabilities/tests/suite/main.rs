@@ -8,3 +8,4 @@ mod limits;
 mod mail;
 mod notify;
 mod rig;
+mod slack;

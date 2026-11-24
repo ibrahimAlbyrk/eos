@@ -11,13 +11,14 @@ use eos_core::{BoxFuture, Error};
 use eos_domain::capability::health::{Event, StateCode};
 use eos_domain::capability::schema::input_error;
 use eos_domain::result_doc::shape::ResultShape;
-use eos_domain::result_doc::{GITHUB_REVIEW, MAIL, TEXT};
+use eos_domain::result_doc::{GITHUB_REVIEW, MAIL, SLACK_MESSAGE, SLACK_REPLY, TEXT};
 use serde_json::{Map, Value};
 
 use crate::health::apply;
 use crate::mail::{MAIL_CHANNEL, mail_of, mail_shape, send_input};
 use crate::notify::{NOTIFY, text_of, text_shape};
 use crate::pull::{GITHUB, PULL_REQUEST, Pull, action_input, review_of, review_shape};
+use crate::slack::{self, SLACK, slack_shape};
 use crate::{CapabilityService, call};
 
 impl CapabilityService {
@@ -55,6 +56,7 @@ impl CapabilityService {
             GITHUB_REVIEW if self.builtins.contains_key(GITHUB) => Some(review_shape()),
             MAIL if self.builtins.contains_key(MAIL_CHANNEL) => Some(mail_shape()),
             TEXT if self.builtins.contains_key(NOTIFY) => Some(text_shape()),
+            SLACK_MESSAGE | SLACK_REPLY if self.builtins.contains_key(SLACK) => Some(slack_shape(kind)),
             _ => None,
         }
     }
@@ -77,6 +79,14 @@ impl CapabilityService {
             send_input("someone@example.com", &subject, &text)
         } else if kind == TEXT {
             serde_json::json!({ "body": text_of(body)? })
+        } else if kind == SLACK_MESSAGE || kind == SLACK_REPLY {
+            // Where it goes is the delivery's; any conversation fits the schema here.
+            let text = slack::text_of(body)?;
+            match body.action.as_str() {
+                "reply_in_thread" => serde_json::json!({ "conversation": "C0", "threadTs": "1.0", "text": text }),
+                "tell_me" => serde_json::json!({ "text": text }),
+                _ => serde_json::json!({ "to": "C0", "text": text }),
+            }
         } else {
             let pull = Pull::of_item(item).ok_or_else(|| format!("a {kind} result needs a pull request"))?;
             let commit_id = pull.sha.clone().ok_or_else(|| "the pull request names no commit".to_owned())?;

@@ -22,6 +22,11 @@ pub const MAIL: &str = "mail";
 pub const PAGE_ISSUE: &str = "page.issue";
 /// A text (a message, a push, a note): [`BODY`].
 pub const TEXT: &str = "text";
+/// A Slack message to a conversation, a person or the user: a
+/// [`paragraph_key`] per paragraph, in order.
+pub const SLACK_MESSAGE: &str = "slack.message";
+/// A Slack reply in the thread of the run's message: as [`SLACK_MESSAGE`].
+pub const SLACK_REPLY: &str = "slack.reply";
 
 pub const EVENT: &str = "event";
 pub const SUMMARY: &str = "summary";

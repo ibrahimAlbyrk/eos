@@ -2,7 +2,8 @@
 //! built-ins' actions. `github` sends a review result as one review that
 //! ends with the delivery's marker, so a send repeated after a crash finds
 //! the first; it is taken back by withdrawing the review. `mail` and
-//! `notify` are in [`crate::mail`] and [`crate::notify`].
+//! `notify` are in [`crate::mail`] and [`crate::notify`], `slack` in
+//! [`crate::slack`].
 
 use std::sync::Arc;
 
@@ -19,6 +20,7 @@ use crate::CapabilityService;
 use crate::mail::{MAIL_CHANNEL, MailChannel};
 use crate::notify::{NOTIFY, NotifyChannel};
 use crate::pull::{GITHUB, Pull, action_input, review_of};
+use crate::slack::{SLACK, SlackChannel};
 
 /// The largest review body GitHub takes.
 const REVIEW_MAX_BYTES: usize = 65_536;
@@ -37,6 +39,7 @@ impl Channels for BuiltinChannels {
             GITHUB => Some(Arc::new(GitHubChannel(self.0.clone()))),
             MAIL_CHANNEL => Some(Arc::new(MailChannel(self.0.clone()))),
             NOTIFY => Some(Arc::new(NotifyChannel(self.0.clone()))),
+            SLACK => Some(Arc::new(SlackChannel(self.0.clone()))),
             _ => None,
         }
     }

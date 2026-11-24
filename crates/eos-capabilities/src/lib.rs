@@ -51,6 +51,7 @@ mod pull;
 mod reads;
 mod registry;
 mod sign_in;
+mod slack;
 mod sources;
 
 use std::collections::HashMap;
