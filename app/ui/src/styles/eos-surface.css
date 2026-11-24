@@ -167,3 +167,14 @@
 .eos-point__send { width: 28px; height: 28px; }
 .eos-point__picks { display: flex; flex-wrap: wrap; gap: 6px; }
 .eos-point__picks .eos-btn { height: 28px; padding: 0 11px; }
+
+/* ── Editing a page issue's marked fields ─────────────────────────────────── */
+.eos-page-edit { display: flex; flex-direction: column; gap: 14px; }
+.eos-edit__list { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.eos-edit__list > legend { margin-bottom: 6px; }
+.eos-edit__row { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--panel); }
+.eos-edit__row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.eos-edit__row-title { flex: 1 1 200px; min-width: 0; font-size: var(--text-sm); color: var(--fg); }
+.eos-edit__row .eos-btn { height: 26px; padding: 0 10px; }
+.eos-edit__problem { margin: 0; font-size: var(--text-sm); color: var(--err); }
+.eos-page__edit { padding: 18px; }

@@ -65,11 +65,13 @@ export async function loadRoutineView(routineId) {
   set({ byRoutine: { ...state.byRoutine, [routineId]: card } });
 }
 
-// The View a Needs-you item shows ({ surfaceId, issueId } of the item).
+// The View or page issue a Needs-you item shows ({ surfaceId, issueId } of
+// the item).
 export async function loadItemView({ surfaceId, issueId }) {
   if (issueId in state.byIssue) return;
   const one = await transport.get(ROUTES.surfaceIssue(surfaceId, issueId));
-  const card = one.ok && one.body?.body?.view ? { issue: one.body.issue, body: one.body.body } : null;
+  const shown = one.ok && (one.body?.body?.view || one.body?.issue?.kind === "page");
+  const card = shown ? { issue: one.body.issue, body: one.body.body } : null;
   set({ byIssue: { ...state.byIssue, [issueId]: card } });
 }
 
