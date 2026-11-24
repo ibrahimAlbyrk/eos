@@ -8,6 +8,8 @@ struct RunFormView: View {
     @ObservedObject var feed: EosFeed
     let routine: EosRoutine
     let onStarted: (String) -> Void
+    /// What an `eos://run/…` link filled in; its words are outside text.
+    var link: (item: String?, note: String?, showOnly: Bool)?
 
     @State private var itemText = ""
     @State private var picked: EosItem?
@@ -65,7 +67,12 @@ struct RunFormView: View {
             .padding(.vertical, EosSpacing.lg)
         }
         .background(EosColor.bg)
-        .task { candidates = await feed.candidates(routine.id) }
+        .task {
+            if let link {
+                itemText = link.item ?? ""; note = link.note ?? ""; showOnly = link.showOnly
+            }
+            candidates = await feed.candidates(routine.id)
+        }
     }
 
     @ViewBuilder private func optionField(_ option: EosRoutineOption) -> some View {
@@ -98,7 +105,8 @@ struct RunFormView: View {
         refusal = nil
         let item = picked ?? EosItem.typed(itemText)
         let body = EosRequests.startRun(routineId: routine.id, item: item, options: options.filter { $0.value != .null },
-                                        note: note, showOnly: showOnly, requestId: requestId)
+                                        note: note, showOnly: showOnly, requestId: requestId,
+                                        door: link == nil ? "phone" : "link")
         Task {
             let started = await feed.start(body)
             starting = false

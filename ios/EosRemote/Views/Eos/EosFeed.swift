@@ -18,9 +18,14 @@ final class EosFeed: ObservableObject {
     @Published private(set) var runs: [String: EosRunDetail] = [:]
     /// The live lines of the watched run, newest last.
     @Published private(set) var activity: [EosRunActivity] = []
+    /// The items whose answer waits in the outbox for the Mac.
+    @Published private(set) var waiting: Set<String> = []
+    /// What became of the last answer sent for an item, when it did not simply go.
+    @Published private(set) var outcomes: [String: OutboxResult] = [:]
 
     private let deviceId: String
     private let cache: EosCache
+    private let outbox: AnswerOutbox
     private var call: Call = { _, _, _ in nil }
     private var sendWatch: (String?) -> Void = { _ in }
     private var fetchAsset: (String) async -> Data? = { _ in nil }
@@ -31,6 +36,8 @@ final class EosFeed: ObservableObject {
     init(deviceId: String, cache: EosCache) {
         self.deviceId = deviceId
         self.cache = cache
+        outbox = AnswerOutbox.shared(device: deviceId)
+        waiting = Set(outbox.entries.compactMap(\.itemId))
         if let saved = cache.load(device: deviceId) {
             routines = saved.routines; inbox = saved.inbox; seenAt = saved.seenAt
         }
@@ -55,7 +62,7 @@ final class EosFeed: ObservableObject {
     func live() {
         guard serves else { return }
         sendWatch(watched)
-        Task { await reloadRoutines(); await reloadInbox() }
+        Task { await flush(); await reloadRoutines(); await reloadInbox() }
     }
 
     func handle(_ event: EventFrame) {
@@ -114,6 +121,36 @@ final class EosFeed: ObservableObject {
     func press(_ body: JSONValue) async -> EosActionAnswer {
         guard let reply = await call("POST", "/api/actions/run", body) else { return .refused(EosRefusal.unreachable.text) }
         return EosActionAnswer(reply.body)
+    }
+
+    /// `GET /api/inbox/:id`: the item with what its kind carries.
+    func itemDetail(_ id: String) async -> JSONValue? {
+        guard let reply = await call("GET", "/api/inbox/\(id)", .object([:])), (200..<300).contains(reply.status)
+        else { return nil }
+        return reply.body
+    }
+
+    // MARK: answers, through the outbox
+
+    /// Keeps an answer until the Mac takes it, and sends it at once when it is there.
+    func answer(_ entry: OutboxEntry) {
+        outbox.add(entry)
+        if let item = entry.itemId { waiting.insert(item); outcomes[item] = nil }
+        Task { await flush() }
+    }
+
+    func flush() async {
+        let call = self.call
+        let done = await outbox.flush { method, path, body in
+            guard let reply = await call(method, path, body) else { return nil }
+            return (reply.status, reply.body)
+        }
+        waiting = Set(outbox.entries.compactMap(\.itemId))
+        for (entry, result) in done {
+            guard let item = entry.itemId else { continue }
+            outcomes[item] = result == .sent ? nil : result
+        }
+        if !done.isEmpty { await reloadInbox() }
     }
 
     // MARK: writes

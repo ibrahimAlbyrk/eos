@@ -28,9 +28,14 @@ public final class EosCache: @unchecked Sendable {
     /// The shared container; this app's own support folder when the group is not there (a build
     /// signed without the App Group).
     public static func shared() -> EosCache {
+        EosCache(dir: sharedDir())
+    }
+
+    /// Where the app and its share extension keep what they share about each Mac.
+    public static func sharedDir() -> URL {
         let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)
         let base = group ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return EosCache(dir: base.appendingPathComponent("eos", isDirectory: true))
+        return base.appendingPathComponent("eos", isDirectory: true)
     }
 
     public func load(device: String) -> EosSnapshot? {

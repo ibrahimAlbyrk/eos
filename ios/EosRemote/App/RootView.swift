@@ -8,7 +8,10 @@ enum Route: Hashable {
     case newSession
     case terminal(String)       // PTY sessionId
     case runForm(String)        // routine id
+    case linkForm(routine: String, item: String?, note: String?, showOnly: Bool)   // eos://run/…
     case run(String)            // run id
+    case inboxItem(String)      // Needs-you item id
+    case page(surface: String, issue: String)
 }
 
 // Root shell (contract §B1): SidebarContainer { DrawerView | NavigationStack }. Stack root is the
@@ -81,8 +84,24 @@ struct RootView: View {
                             if let feed = model.eos, let routine = feed.routines.first(where: { $0.id == routineId }) {
                                 RunFormView(feed: feed, routine: routine, onStarted: { replaceWith(.run($0)) })
                             }
+                        case .linkForm(let routine, let item, let note, let showOnly):
+                            if let feed = model.eos,
+                               let found = feed.routines.first(where: { $0.slug == routine || $0.id == routine }) {
+                                RunFormView(feed: feed, routine: found, onStarted: { replaceWith(.run($0)) },
+                                            link: (item, note, showOnly))
+                            } else {
+                                Text("No routine \(routine) on this Mac.").font(EosFont.body).padding()
+                            }
                         case .run(let runId):
                             if let feed = model.eos { RunView(feed: feed, runId: runId) }
+                        case .inboxItem(let itemId):
+                            if let feed = model.eos {
+                                InboxItemView(feed: feed, itemId: itemId, onOpenPage: {
+                                    path.append(Route.page(surface: $0.surfaceId, issue: $0.issueId))
+                                })
+                            }
+                        case .page(let surface, let issue):
+                            if let feed = model.eos { SurfaceDocumentView(feed: feed, surfaceId: surface, issueId: issue) }
                         }
                     }
             }
@@ -135,7 +154,7 @@ struct RootView: View {
         case .eos:
             if let feed = model.eos {
                 EosTabView(feed: feed, connected: model.connected,
-                           onOpenItem: { _ in },
+                           onOpenItem: { path.append(Route.inboxItem($0.id)) },
                            onRun: { path.append(Route.runForm($0.id)) },
                            onOpenRun: { path.append(Route.run($0)) })
                     .eosTopChrome(title: "Eos") { EmptyView() }
@@ -176,8 +195,27 @@ struct RootView: View {
         path.append(Route.conversation(id))
     }
 
+    // Routines' links open the Eos tab's screens; a link names a Mac only from a tapped push.
+    private func open(_ link: EosLink) {
+        switch link {
+        case .runForm(let routine, let item, let note, let showOnly):
+            select(.eos)
+            path.append(Route.linkForm(routine: routine, item: item, note: note, showOnly: showOnly))
+        case .run(let id):
+            select(.eos)
+            path.append(Route.run(id))
+        case .inbox(let item, let device):
+            Task {
+                if let device, device != model.activeDeviceId { await model.switchDevice(device) }
+                select(.eos)
+                if let item { path.append(Route.inboxItem(item)) }
+            }
+        }
+    }
+
     private func route(_ url: URL) {
         guard url.scheme == "eos" else { return }
+        if let link = EosLink.parse(url) { return open(link) }
         switch url.host {
         case "worker":
             if let id = url.pathComponents.dropFirst().first { openWorker(id) }

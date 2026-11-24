@@ -20,16 +20,7 @@ struct EosTabView: View {
                         .foregroundStyle(EosColor.inkTertiary)
                 }
                 SectionHeader("Needs you")
-                let waiting = feed.inbox.filter { $0.state == "open" || $0.state == "later" }
-                if waiting.isEmpty {
-                    Text("Nothing waits for you.")
-                        .font(EosFont.body)
-                        .foregroundStyle(EosColor.inkSecondary)
-                } else {
-                    ForEach(waiting) { item in
-                        Button { onOpenItem(item) } label: { inboxRow(item) }.buttonStyle(.plain)
-                    }
-                }
+                InboxView(feed: feed, onOpenItem: onOpenItem)
                 SectionHeader("Routines")
                 ForEach(feed.routines) { routine in routineRow(routine) }
             }
@@ -39,18 +30,6 @@ struct EosTabView: View {
         }
         .background(EosColor.bg)
         .refreshable { await feed.reloadInbox(); await feed.reloadRoutines() }
-    }
-
-    private func inboxRow(_ item: EosInboxItem) -> some View {
-        EosCard {
-            Text(item.title).font(EosFont.label).foregroundStyle(EosColor.ink)
-            if !item.summary.isEmpty {
-                Text(item.summary).font(EosFont.caption).foregroundStyle(EosColor.inkSecondary).lineLimit(2)
-            }
-            if item.staleAt != nil {
-                Text("Its subject changed since").font(EosFont.captionSmall).foregroundStyle(EosColor.State.waitingDot)
-            }
-        }
     }
 
     private func routineRow(_ routine: EosRoutine) -> some View {
