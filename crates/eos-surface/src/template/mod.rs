@@ -36,8 +36,6 @@ pub struct PageTemplate {
     pub actions: Vec<String>,
     /// The named queries its Live parts read.
     pub queries: Vec<String>,
-    /// Each `style=` with where it stands, for the style check.
-    pub(crate) inline_styles: Vec<(usize, usize, String)>,
 }
 
 impl PageTemplate {
@@ -58,21 +56,25 @@ impl PageTemplate {
         checker.nodes(&nodes, 0);
         checker.finish();
         problems.append(&mut checker.problems);
+        let mut style_problems = Vec::new();
+        for (line, col, style) in &checker.found.styles {
+            let place = |_: u32, _: u32| format!("template:{line}:{col}");
+            if let Err(mut found) = crate::css::sanitize_inline(style, &place) {
+                style_problems.append(&mut found);
+            }
+        }
         if nodes.iter().all(|n| n.as_element().is_none()) {
             problems.push((1, 1, "holds no element".into()));
         }
         if !problems.is_empty() {
             problems.sort_by_key(|(line, col, _)| (*line, *col));
-            return Err(problems.into_iter().map(|(l, c, m)| at(l, c, m)).collect());
+            return Err(problems.into_iter().map(|(l, c, m)| at(l, c, m)).chain(style_problems).collect());
+        }
+        if !style_problems.is_empty() {
+            return Err(style_problems);
         }
         let found = checker.found;
-        Ok(PageTemplate {
-            nodes,
-            parts: found.parts,
-            actions: found.actions,
-            queries: found.queries,
-            inline_styles: found.styles,
-        })
+        Ok(PageTemplate { nodes, parts: found.parts, actions: found.actions, queries: found.queries })
     }
 
     pub fn to_markup(&self) -> String {

@@ -1,6 +1,6 @@
 [package]
 name = "eos-surface"
-description = "Routine surfaces: the data type language and contracts, View checks and the lifecycle rules. Pure: no async, no I/O, no clock."
+description = "Routine surfaces: the data type language and contracts, View checks, page templates and styles, and the lifecycle rules. Pure: no async, no I/O, no clock."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,8 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
+cssparser.workspace = true
 eos-genui.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

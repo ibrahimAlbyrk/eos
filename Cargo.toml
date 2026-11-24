@@ -119,6 +119,7 @@ aes-gcm = "0.11"
 anyhow = "1"
 aws-lc-rs = "1"
 base64 = "0.22"
+cssparser = "0.37"
 bytes = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 crossbeam-channel = "0.5"
