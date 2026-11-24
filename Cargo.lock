@@ -1703,6 +1703,7 @@ dependencies = [
 name = "eos-capability-host"
 version = "0.0.1"
 dependencies = [
+ "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-kit-proc",

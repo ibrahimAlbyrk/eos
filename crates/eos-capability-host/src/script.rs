@@ -85,36 +85,49 @@ impl ScriptHost {
     ) -> Result<Value, ActionError> {
         let (id, name) = (package.id.as_str(), action.name.as_str());
         let confined = self.layout.confine(package, name, &action.run, &env, tmpdir).await?;
-        let mut environment = Env::empty();
-        for (variable, value) in &confined.env {
-            environment = environment.set(variable, value);
-        }
-        let body = serde_json::to_vec(&input).map_err(|_| ActionError::Failed { kind: FailureKind::Internal })?;
-        let command = Command::new(&confined.program)
-            .args(&confined.args)
-            .cwd(self.layout.package_dir(package))
-            .env(environment)
-            .stdin(body)
-            .timeout(timeout)
-            .max_output(OUTPUT_MAX_BYTES, Overflow::Fail);
-        let ran = self.runner.run(command).await;
-        report(id, name, confined.guard.finish().await);
-        let output = match ran {
-            Ok(output) => output,
-            Err(eos_kit_proc::Error::OutputTooLarge { .. }) => return Err(code_failed(id, name, "it said too much")),
-            Err(_) => return Err(code_failed(id, name, "it could not start")),
-        };
-        if output.timed_out {
-            tracing::info!(capability = id, action = name, "a script action ran past its deadline");
-            return Err(ActionError::Timeout);
-        }
-        if !output.success() {
-            tracing::info!(capability = id, action = name, code = ?output.exit_code, "a script action failed");
-            return Err(ActionError::Failed { kind: FailureKind::Code });
-        }
-        serde_json::from_slice(&output.stdout).map_err(|_| {
-            tracing::info!(capability = id, action = name, "a script action's answer was no JSON");
-            ActionError::Failed { kind: FailureKind::Output }
-        })
+        answer_of(&self.runner, confined, &self.layout.package_dir(package), input, timeout, (id, name)).await
     }
+}
+
+/// Runs a confined script action in `cwd` with `input` on stdin, and reads
+/// its answer from stdout; `(id, name)` name it in the log.
+pub(crate) async fn answer_of(
+    runner: &Runner,
+    confined: eos_core::capability::Confined,
+    cwd: &Path,
+    input: Value,
+    timeout: Duration,
+    (id, name): (&str, &str),
+) -> Result<Value, ActionError> {
+    let mut environment = Env::empty();
+    for (variable, value) in &confined.env {
+        environment = environment.set(variable, value);
+    }
+    let body = serde_json::to_vec(&input).map_err(|_| ActionError::Failed { kind: FailureKind::Internal })?;
+    let command = Command::new(&confined.program)
+        .args(&confined.args)
+        .cwd(cwd)
+        .env(environment)
+        .stdin(body)
+        .timeout(timeout)
+        .max_output(OUTPUT_MAX_BYTES, Overflow::Fail);
+    let ran = runner.run(command).await;
+    report(id, name, confined.guard.finish().await);
+    let output = match ran {
+        Ok(output) => output,
+        Err(eos_kit_proc::Error::OutputTooLarge { .. }) => return Err(code_failed(id, name, "it said too much")),
+        Err(_) => return Err(code_failed(id, name, "it could not start")),
+    };
+    if output.timed_out {
+        tracing::info!(capability = id, action = name, "a script action ran past its deadline");
+        return Err(ActionError::Timeout);
+    }
+    if !output.success() {
+        tracing::info!(capability = id, action = name, code = ?output.exit_code, "a script action failed");
+        return Err(ActionError::Failed { kind: FailureKind::Code });
+    }
+    serde_json::from_slice(&output.stdout).map_err(|_| {
+        tracing::info!(capability = id, action = name, "a script action's answer was no JSON");
+        ActionError::Failed { kind: FailureKind::Output }
+    })
 }
