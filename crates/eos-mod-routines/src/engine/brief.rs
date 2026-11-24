@@ -20,9 +20,9 @@ use eos_domain::run_scope::{RunRole, Trust};
 
 use super::launch::fence_of;
 use super::spawn::{self, RunSession};
-use super::workspace::{self, NO_CLONE_HEADLINE, NO_LOCAL_CLONE, NoPlace};
+use super::workspace::{self, NO_CLONE_HEADLINE, NO_LOCAL_CLONE, NoPlace, Place};
 use super::{Engine, fail, move_run};
-use crate::routes::readable;
+use crate::routes::{BUILTIN, readable};
 
 /// The definition a solo run's lead starts as; its tools and prompt key on it.
 pub(crate) const SOLO_DEFINITION: &str = "eos-run-solo";
@@ -44,6 +44,8 @@ struct Briefing {
     blueprint: Blueprint,
     input: RunInput,
     trust: Trust,
+    /// The routine is Eos's own (01 G49).
+    builtin: bool,
 }
 
 /// Starts the lead of a run at the brief. Whatever goes wrong fails the run
@@ -70,7 +72,7 @@ fn internal(error: Error) -> Refusal {
 
 async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     let Some(briefing) = read(engine, run_id).await.map_err(internal)? else { return Ok(()) };
-    let Briefing { routine_id, version_id, blueprint, input, trust } = briefing;
+    let Briefing { routine_id, version_id, blueprint, input, trust, builtin } = briefing;
     if !passes(&routine_id, &blueprint) {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
     }
@@ -104,7 +106,16 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
             agent.tools = AgentTools { allow: allow.collect(), deny: Vec::new(), extra: Default::default() };
         }
     }
-    let place = match workspace::place(engine, run_id, &blueprint, &input, &agent.key, agent.workspace, None).await {
+    // A built-in routine's feature may give its run a folder of its own making.
+    let made = match builtin {
+        true => engine.system_steps.prepare_folder(run_id).await.map_err(internal)?,
+        false => None,
+    };
+    let place = match made {
+        Some(dir) => Ok(Place::Folder { dir, read_only: false }),
+        None => workspace::place(engine, run_id, &blueprint, &input, &agent.key, agent.workspace, None).await,
+    };
+    let place = match place {
         Ok(place) => place,
         Err(NoPlace::NoClone) => {
             no_clone(engine, run_id).await.map_err(internal)?;
@@ -178,7 +189,8 @@ async fn read(engine: &Engine, run_id: &str) -> Result<Option<Briefing>, Error> 
             let input: RunInput =
                 serde_json::from_str(&run.input).map_err(|_| Error::storage(format!("run {id} has no input")))?;
             let trust = eos_domain::routine::trust::of_run(Some(version.trust), &input);
-            Ok(Some(Briefing { routine_id: run.routine_id, version_id, blueprint, input, trust }))
+            let builtin = tx.routines().find(&run.routine_id)?.is_some_and(|routine| routine.origin == BUILTIN);
+            Ok(Some(Briefing { routine_id: run.routine_id, version_id, blueprint, input, trust, builtin }))
         })
         .await
 }

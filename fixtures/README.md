@@ -140,7 +140,7 @@ What the TypeScript computed for inputs no route shows, frozen at `059c4b38`.
 |---|---|---|
 | `browser/` | 292 accessibility trees rendered as snapshot text with their refs, roles and states of 200 nodes, 56 key chords, 434 navigations against the origin allowlist, header redaction, storage names | `eos-mod-browser` |
 | `policy/` | 47,040 permission decisions over policies × tools × inputs × modes × tool scopes; each policy text as the `yaml` package read it (the fourth is the bundled policy) | `eos-policy`, the `policy.yaml` reader |
-| `workers/` | resolution, `extends`, defaults, the catalog, model tiers | `eos-workers`, the definition-file reader |
+| `workers/` | resolution, `extends`, defaults, the catalog, model tiers; `forge.json`: the SHA-256 of each of the Forge's own definitions, which are Eos's and no orchestrator's | `eos-workers`, the definition-file reader |
 | `prompts/` | every prompt read and rendered, 641 assembled system prompts byte for byte; `files.json`: each library file's SHA-256 as the 0.1.x app shipped it, with Eos's changes; `files-before-eos.json`: the same before Eos changed any, which the upgrade check holds the changes to | `eos-prompts`, the library in `eos-store-files` |
 | `genui/` | the visual-answer parsers, validator and catalog over generated and hand-picked inputs, the catalog prompt | `eos-genui` |
 | `genui-media/` | what a page names as its preview image and icons, image sniffing, cache keys and files, the map proxy's paths and rewritten documents, Nominatim requests and answers, Overpass queries, elements as `Place` entities, distances | `eos-genui-media` |

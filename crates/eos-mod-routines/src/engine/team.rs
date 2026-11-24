@@ -22,7 +22,7 @@ use super::launch::fence_of;
 use super::spawn::{self, RunSession};
 use super::workspace::{self, NO_CLONE_HEADLINE, NoPlace};
 use super::{Engine, fail, item_text};
-use crate::routes::readable;
+use crate::routes::{BUILTIN, readable};
 
 /// The definition a specialist starts as.
 pub(crate) const SPECIALIST_DEFINITION: &str = "eos-run-specialist";
@@ -37,6 +37,8 @@ struct Team {
     sessions: Vec<StoredRoutineSession>,
     /// The lead's folder, for a specialist that shares it.
     lead_dir: Option<String>,
+    /// The routine is Eos's own (01 G49).
+    builtin: bool,
 }
 
 impl Team {
@@ -71,7 +73,8 @@ async fn team(engine: &Engine, worker_id: &str) -> Result<Team, Error> {
             let sessions = tx.routine_sessions().by_run(&run.run_id)?;
             let sessions = sessions.into_iter().filter(|session| session.role == SPECIALIST).collect();
             let lead_dir = tx.workers().find(&id)?.and_then(|lead| lead.work_dir().map(str::to_owned));
-            Ok(Team { run, blueprint, input, sessions, lead_dir })
+            let builtin = tx.routines().find(&run.routine_id)?.is_some_and(|routine| routine.origin == BUILTIN);
+            Ok(Team { run, blueprint, input, sessions, lead_dir, builtin })
         })
         .await
 }
@@ -94,13 +97,14 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
         Err(NoPlace::Failed(error)) => return Err(error),
     };
     let (model, effort) = model_of(blueprint, &agent, input);
+    let (definition, role) = forge_role(&team, &agent).unwrap_or((SPECIALIST_DEFINITION, RunRole::Specialist));
     let session = RunSession {
         run_id: run_id.clone(),
         routine_id: team.run.routine_id.clone(),
-        role: RunRole::Specialist,
+        role,
         role_word: SPECIALIST,
         agent_key: Some(agent.key.clone()),
-        definition: SPECIALIST_DEFINITION,
+        definition,
         name: format!("{} · {}", blueprint.name, agent.name),
         model,
         effort,
@@ -118,6 +122,13 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
     };
     tracing::info!(run_id = %team.run.run_id, worker_id = %started, agent_key = key, "a specialist started");
     Ok(())
+}
+
+/// The Forge definition and role a built-in routine's agent names
+/// (`"definition": "forge-builder"`); no other routine's agent takes one.
+fn forge_role(team: &Team, agent: &RoutineAgent) -> Option<(&'static str, RunRole)> {
+    let named = agent.extra.get("definition").and_then(serde_json::Value::as_str)?;
+    team.builtin.then(|| RunRole::of_forge_definition(named)).flatten()
 }
 
 fn render(

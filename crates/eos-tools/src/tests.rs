@@ -56,6 +56,31 @@ impl RunCalls {
     }
 }
 
+impl eos_core::forge::Forge for RunCalls {
+    fn request(
+        &self,
+        request: eos_core::forge::ForgeRequest,
+    ) -> eos_core::BoxFuture<'_, Result<eos_core::forge::ForgeAnswer, eos_core::Error>> {
+        use eos_core::forge::{ForgeAnswer, ForgeCaller};
+        let ForgeCaller::Agent { worker_id } = &request.caller else { panic!("an agent asks") };
+        let written = self.record(worker_id, format!("forge {worker_id} {} {:?}", request.need, request.routine_id));
+        let answer = match request.need.as_str() {
+            "github" => ForgeAnswer::Setup { capability_id: "github".into(), step: "Sign in to GitHub.".into() },
+            _ => ForgeAnswer::Started { run_id: "rn-forge".into() },
+        };
+        Box::pin(async move { written.await.map(|()| answer) })
+    }
+
+    fn report<'a>(
+        &'a self,
+        worker_id: &'a str,
+        stage: eos_core::forge::ForgeStage,
+        report: Value,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("report {worker_id} {} {report}", stage.as_str()))
+    }
+}
+
 impl eos_core::surface::SurfaceTools for RunCalls {
     fn return_view<'a>(
         &'a self,
@@ -332,6 +357,7 @@ pub(crate) fn bench_with(
         architect: Some(Arc::new(runs.clone())),
         chat_routines: Some(Arc::new(runs.clone())),
         surfaces: Some(Arc::new(runs.clone())),
+        forge: Some(Arc::new(runs.clone())),
     });
     Bench { tools, runs, features, clock, store, capabilities, runner }
 }
@@ -357,6 +383,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "run-team-lead" => run_session("eos-run-lead"),
         "run-checker" => run_session("eos-run-checker"),
         "architect" => run_session("eos-architect"),
+        "run-forge" => LaunchSpec { worker_definition: Some("forge-builder".into()), ..session_of("worker") },
         other => panic!("unknown session kind {other}"),
     }
 }
@@ -384,7 +411,7 @@ impl Bench {
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
         let has = |kind: &str| self.tools.for_session(&session_of(kind)).iter().any(|t| t.definition().name == bare);
-        let kinds = ["orchestrator", "focused-peer", "run-team-lead", "architect"];
+        let kinds = ["orchestrator", "focused-peer", "run-team-lead", "architect", "run-forge"];
         let kind = kinds.into_iter().find(|kind| has(kind)).unwrap_or("run-checker");
         self.tool(kind, bare)
     }
@@ -448,11 +475,12 @@ fn each_tool_is_described_to_the_model_as_today() {
 fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
-    let mut names: Vec<String> = ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect"]
-        .iter()
-        .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
-        .map(|tool| tool.definition().name.clone())
-        .collect();
+    let mut names: Vec<String> =
+        ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect", "run-forge"]
+            .iter()
+            .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
+            .map(|tool| tool.definition().name.clone())
+            .collect();
     names.sort();
     names.dedup();
     assert!(names.iter().any(|name| name == CALL_CAPABILITY_TOOL) && !is_eos_control_tool(CALL_CAPABILITY_TOOL));
@@ -468,7 +496,8 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
 fn every_agents_chat_gets_the_capability_tools() {
     let bench = bench(FakeFeatures::new([]));
     let capability_tools = |names: Vec<String>| -> Vec<String> {
-        names.into_iter().filter(|name| name.ends_with("_capability") || name.ends_with("_capabilities")).collect()
+        let reaching = |name: &String| name.ends_with("_capability") || name.ends_with("_capabilities");
+        names.into_iter().filter(reaching).filter(|name| name != "request_capability").collect()
     };
     for kind in ["orchestrator", "worker", "focused"] {
         assert_eq!(capability_tools(bench.names(kind)), ["list_capabilities", "call_capability"], "{kind}");
@@ -700,6 +729,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         architect: None,
         chat_routines: None,
         surfaces: None,
+        forge: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()
@@ -890,4 +920,30 @@ async fn an_orchestrator_lists_the_workers_it_may_start_and_defines_its_own() {
     let bad = call(&bench.any_tool("create_worker"), "o-ORCH", unnamed).await;
     let refusal = r#"daemon 400: {"error":"invalid request: name: String must contain at least 1 character(s)"}"#;
     assert_eq!((bad.text.as_str(), bad.is_error), (refusal, true));
+}
+
+#[tokio::test]
+async fn an_agent_asks_the_forge_and_a_forge_session_reports_to_it() {
+    let bench = bench(FakeFeatures::new([]));
+    assert_eq!(bench.names("run-forge"), ["send_message_to_parent", "forge_report", "current_datetime"]);
+    for kind in ["worker", "focused", "run-lead", "run-checker"] {
+        assert!(!bench.names(kind).iter().any(|name| name.contains("forge") || name == "request_capability"), "{kind}");
+    }
+    let asked =
+        call(&bench.tool("orchestrator", "request_capability"), "o-self0001", serde_json::json!({"need": "Text me"}))
+            .await;
+    assert_eq!(serde_json::from_str::<Value>(&asked.text).expect("json")["forgeRun"], "rn-forge");
+    let setup =
+        call(&bench.tool("architect", "request_capability"), "w-arch", serde_json::json!({"need": "github"})).await;
+    assert_eq!(serde_json::from_str::<Value>(&setup.text).expect("json")["setup"], "Sign in to GitHub.");
+    let report = bench.tool("run-forge", "forge_report");
+    let kept = call(&report, "w-build", serde_json::json!({"stage": "build", "report": {"package": "p"}})).await;
+    assert!(!kept.is_error, "{}", kept.text);
+    let odd = call(&report, "w-build", serde_json::json!({"stage": "deploy", "report": {}})).await;
+    assert!(odd.is_error, "{}", odd.text);
+    let calls = bench.runs.0.lock().expect("calls").clone();
+    assert_eq!(
+        calls,
+        ["forge o-self0001 Text me None", "forge w-arch github None", r#"report w-build build {"package":"p"}"#]
+    );
 }

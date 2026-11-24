@@ -324,6 +324,10 @@ pub(crate) async fn hand_start_in_flight(
     let live = engine
         .store
         .read(move |tx| {
+            // A built-in routine runs once per thing its feature is asked for.
+            if tx.routines().find(&routine_id)?.is_some_and(|routine| routine.origin == crate::routes::BUILTIN) {
+                return Ok(None);
+            }
             for run in tx.runs().live_of(&routine_id)? {
                 if run.lead_id.is_some() && blueprint_in(tx, &run)?.is_some() {
                     return Ok(Some(run));

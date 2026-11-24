@@ -11,13 +11,14 @@
 //!
 //! | Session | Tools |
 //! |---|---|
-//! | orchestrator | control, pages, memory, browser, capabilities, visual answers, plugins, reactions |
+//! | orchestrator | control, pages, memory, browser, capabilities, visual answers, plugins, reactions, `request_capability` |
 //! | worker (and its sub-workers, the git worker) | report, date, pages, memory, browser, capabilities, plugins |
 //! | … started to collaborate | + the peer tools |
 //! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers, reactions |
 //! | a routine run's lead (`eos-run-solo`, `eos-run-lead`, `eos-run-script`) | its run tools, `ask_user`, date, memory search, capabilities |
 //! | a routine run's checker (`eos-run-checker`) | `submit_verdict`, date, memory search, capabilities |
-//! | a routine's architect (`eos-architect`) | its routine tools, `list_capabilities` |
+//! | a routine's architect (`eos-architect`) | its routine tools, `list_capabilities`, `request_capability` |
+//! | a session of the Forge (`forge-researcher`, `forge-builder`, `forge-reviewer`) | its report, `forge_report`, date |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions
 //! started meanwhile. A feature that has not been handed over
@@ -30,6 +31,7 @@ mod architect;
 mod browser;
 mod capabilities;
 mod control;
+mod forge;
 mod js;
 mod memory;
 mod messages;

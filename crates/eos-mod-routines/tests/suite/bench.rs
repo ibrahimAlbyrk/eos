@@ -83,6 +83,8 @@ pub(crate) struct Bench {
 pub(crate) struct FakeSteps {
     results: std::sync::Mutex<std::collections::VecDeque<eos_core::routine::StepResult>>,
     calls: std::sync::Mutex<Vec<eos_core::routine::SystemStepCall>>,
+    /// The folder a built-in routine's lead is given.
+    folder: std::sync::Mutex<Option<String>>,
 }
 
 impl FakeSteps {
@@ -92,6 +94,10 @@ impl FakeSteps {
 
     pub(crate) fn calls(&self) -> Vec<eos_core::routine::SystemStepCall> {
         self.calls.lock().expect("calls").clone()
+    }
+
+    pub(crate) fn give_folder(&self, folder: &str) {
+        *self.folder.lock().expect("folder") = Some(folder.to_owned());
     }
 }
 
@@ -104,6 +110,14 @@ impl eos_core::routine::SystemSteps for FakeSteps {
         let next = self.results.lock().expect("results").pop_front();
         let result = next.unwrap_or(eos_core::routine::StepResult::Failed { reason: "no step scripted".into() });
         Box::pin(std::future::ready(Ok(result)))
+    }
+
+    fn prepare_folder<'a>(
+        &'a self,
+        _run_id: &'a str,
+    ) -> eos_core::BoxFuture<'a, Result<Option<String>, eos_core::Error>> {
+        let folder = self.folder.lock().expect("folder").clone();
+        Box::pin(std::future::ready(Ok(folder)))
     }
 }
 

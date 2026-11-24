@@ -423,6 +423,13 @@ pub enum StepResult {
 /// The steps the features that own built-in routines run (01 G49).
 pub trait SystemSteps: Send + Sync {
     fn run(&self, call: SystemStepCall) -> BoxFuture<'_, Result<StepResult, Error>>;
+    /// The folder the lead of a built-in routine's run `run_id` works in
+    /// and shares with its team, made by the feature that owns the routine
+    /// (the Forge's build folder); `None` leaves the lead its own.
+    fn prepare_folder<'a>(&'a self, run_id: &'a str) -> BoxFuture<'a, Result<Option<String>, Error>> {
+        let _ = run_id;
+        Box::pin(std::future::ready(Ok(None)))
+    }
 }
 
 /// No feature here owns a system step: each fails its run.

@@ -49,6 +49,7 @@ eos-mod-btw = { path = "crates/eos-mod-btw" }
 eos-mod-capabilities = { path = "crates/eos-mod-capabilities" }
 eos-mod-compaction = { path = "crates/eos-mod-compaction" }
 eos-mod-dreams = { path = "crates/eos-mod-dreams" }
+eos-mod-forge = { path = "crates/eos-mod-forge" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-genui = { path = "crates/eos-mod-genui" }
 eos-mod-inbox = { path = "crates/eos-mod-inbox" }

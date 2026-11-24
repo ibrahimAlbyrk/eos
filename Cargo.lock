@@ -1569,6 +1569,7 @@ dependencies = [
  "eos-mod-capabilities",
  "eos-mod-compaction",
  "eos-mod-dreams",
+ "eos-mod-forge",
  "eos-mod-fs",
  "eos-mod-genui",
  "eos-mod-inbox",
@@ -2195,6 +2196,25 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-normalization",
+]
+
+[[package]]
+name = "eos-mod-forge"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-fs",
+ "eos-platform",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "eos-workers",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

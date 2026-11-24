@@ -35,7 +35,20 @@ pub enum RunRole {
     ForgeReviewer,
 }
 
+/// The worker definitions the Forge's sessions start as, by role. Only a
+/// built-in routine's agent may name one.
+pub const FORGE_DEFINITIONS: [(&str, RunRole); 3] = [
+    ("forge-researcher", RunRole::ForgeResearcher),
+    ("forge-builder", RunRole::ForgeBuilder),
+    ("forge-reviewer", RunRole::ForgeReviewer),
+];
+
 impl RunRole {
+    /// The Forge role a session of the worker definition `name` has.
+    pub fn of_forge_definition(name: &str) -> Option<(&'static str, RunRole)> {
+        FORGE_DEFINITIONS.into_iter().find(|(definition, _)| *definition == name)
+    }
+
     /// The role a `routine_sessions` row stores; `None` for any other word,
     /// the architect's included (it is no run session).
     pub fn of_routine_session(word: &str) -> Option<RunRole> {
@@ -112,7 +125,12 @@ pub fn scope_for(
     let mut allow: Vec<String> = groups.iter().flat_map(|group| group.iter()).map(|tool| (*tool).to_owned()).collect();
     let mut deny: Vec<String> = SHELL_DENIED.iter().map(|pattern| (*pattern).to_owned()).collect();
     let folder = format!("{}/", regex_escaped(edit_folder.trim_end_matches('/')));
-    let mut edit_regex = format!("^{folder}");
+    let mut edit_regex = match role {
+        // The folder's sandbox settings hold the builder's shell: its own
+        // edits never reach them.
+        RunRole::ForgeBuilder => format!(r"^{folder}(?!\.claude/)"),
+        _ => format!("^{folder}"),
+    };
     if let Some(def) = def_scope {
         if !def.allow.is_empty() {
             allow = allow.iter().flat_map(|tool| kept(&def.allow, tool)).collect();

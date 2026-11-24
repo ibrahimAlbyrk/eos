@@ -386,6 +386,7 @@ pub const CAPABILITY_SIGN_IN: Route =
     Route::new("capabilitySignIn", "/api/capabilities/:id/sign-in", &[Post, Get, Delete]).added();
 pub const CAPABILITY_SECRET: Route =
     Route::new("capabilitySecret", "/api/capabilities/:id/secrets/:name", &[Post, Delete]).added();
+pub const FORGE: Route = Route::new("forge", "/api/forge", &[Post]).added();
 pub const MEMORY_SUMMARY: Route = Route::new("memorySummary", "/api/memory/summary", &[Get]).added();
 pub const MEMORY_NOTES: Route = Route::new("memoryNotes", "/api/memory/notes", &[Get]).added();
 pub const MEMORY_NOTE: Route = Route::new("memoryNote", "/api/memory/notes/:id", &[Get, Put, Delete]).added();
@@ -790,6 +791,7 @@ pub const ROUTES: &[Route] = &[
     CAPABILITY_ROLLBACK,
     CAPABILITY_SIGN_IN,
     CAPABILITY_SECRET,
+    FORGE,
     MEMORY_SUMMARY,
     MEMORY_NOTES,
     MEMORY_NOTE,

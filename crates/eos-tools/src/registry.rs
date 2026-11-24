@@ -10,6 +10,7 @@ use eos_core::agent::{
 use eos_core::browser::BrowserTools;
 use eos_core::capability::CapabilityCalls;
 use eos_core::experience::ExperienceSearch;
+use eos_core::forge::Forge;
 use eos_core::os::TimeZone;
 use eos_core::pages::PageEditor;
 use eos_core::plugin::Plugins;
@@ -19,6 +20,7 @@ use eos_core::store::Store;
 use eos_core::surface::SurfaceTools;
 use eos_core::transfer::AgentTransfers;
 use eos_core::{Clock, Sleeper};
+use eos_domain::run_scope::RunRole;
 use eos_prompts::PromptRegistry;
 use eos_prompts::tool_descriptions::render_tool_descriptions;
 use eos_workers::WorkerDefinitions;
@@ -27,8 +29,8 @@ use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
 use crate::{
-    architect, browser, capabilities, control, memory, pages, peers, plugins, reactions, routines, surfaces, time,
-    transfer, user, visual,
+    architect, browser, capabilities, control, forge, memory, pages, peers, plugins, reactions, routines, surfaces,
+    time, transfer, user, visual,
 };
 
 /// What the tools call. The optional parts belong to features that may not
@@ -66,6 +68,8 @@ pub struct Services {
     pub chat_routines: Option<Arc<dyn ChatRoutines>>,
     /// Surfaces: a run hands back a View.
     pub surfaces: Option<Arc<dyn SurfaceTools>>,
+    /// The Forge: a capability asked for, and its sessions' reports.
+    pub forge: Option<Arc<dyn Forge>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -101,8 +105,12 @@ pub struct Tools {
     /// failure, the date and memory search; neither a page's fill nor a
     /// View, nor any capability.
     pub(crate) run_designer: Vec<Spec>,
-    /// A routine's architect: its own tools and `list_capabilities`.
+    /// A routine's architect: its own tools, `list_capabilities` and
+    /// `request_capability`.
     pub(crate) architect: Vec<Spec>,
+    /// A session of the Forge: its report to the lead, its report to Eos and
+    /// the date; nothing that reaches a capability, a page or memory.
+    pub(crate) run_forge: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
     /// only when its description changed. A name is one tool whichever list
@@ -165,6 +173,8 @@ impl Tools {
             s.chat_routines.as_ref().map(|c| vec![routines::run_spec(c), routines::list_spec(c)]).unwrap_or_default()
         };
         orchestrator.extend(chat_routines());
+        let request_capability = || s.forge.as_ref().map(forge::request_spec);
+        orchestrator.extend(request_capability());
 
         let mut worker = vec![control::send_message_to_parent(&c), time::spec(&s.clock, &s.zone)];
         worker.extend(shared());
@@ -213,7 +223,12 @@ impl Tools {
         if let Some(calls) = &s.capabilities {
             architect.extend(capabilities::specs(calls).into_iter().filter(|t| t.name == "list_capabilities"));
         }
+        architect.extend(request_capability());
         architect.extend(s.chat_routines.as_ref().map(routines::list_spec));
+
+        let mut run_forge = vec![control::send_message_to_parent(&c)];
+        run_forge.extend(s.forge.as_ref().map(forge::report_spec));
+        run_forge.push(time::spec(&s.clock, &s.zone));
 
         Self {
             prompts: s.prompts,
@@ -227,6 +242,7 @@ impl Tools {
             run_checker,
             run_designer,
             architect,
+            run_forge,
             handed: Mutex::default(),
         }
     }
@@ -247,6 +263,9 @@ impl Tools {
             Some(routines::CHECKER_DEFINITION) => return self.run_checker.iter().filter(on).collect(),
             Some(routines::DESIGNER_DEFINITION) => return self.run_designer.iter().filter(on).collect(),
             Some(architect::ARCHITECT_DEFINITION) => return self.architect.iter().filter(on).collect(),
+            Some(name) if RunRole::of_forge_definition(name).is_some() => {
+                return self.run_forge.iter().filter(on).collect();
+            }
             _ => {}
         }
         let mut list: Vec<&Spec> = self.worker.iter().collect();
