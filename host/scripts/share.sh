@@ -25,5 +25,5 @@ xcrun swiftc -O -target arm64-apple-macos14.0 -application-extension -parse-as-l
   -module-name EosShare -Xlinker -e -Xlinker _NSExtensionMain \
   -o "$APPEX/Contents/MacOS/EosShare" "$HOST_DIR"/share/*.swift >&2
 codesign --force -s - --options runtime --entitlements "$HOST_DIR/bundle/share.entitlements" "$APPEX" 2>/dev/null
-codesign -d --entitlements - "$APPEX" 2>/dev/null | grep -q com.apple.security.app-sandbox \
-  || { echo "the share extension is not sandboxed" >&2; exit 1; }
+SHOWN="$(codesign -d --entitlements - "$APPEX" 2>/dev/null)"
+grep -q com.apple.security.app-sandbox <<<"$SHOWN" || { echo "the share extension is not sandboxed" >&2; exit 1; }

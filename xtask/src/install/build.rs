@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, bail};
 
-use super::bundle::{APP_ID, AppInfo, Kind};
+use super::bundle::{APP_ID, AppInfo, Kind, missing_doors};
 
 /// What `host/scripts/sign.sh` looks for by default.
 pub(crate) const DEVELOPER_ID: &str = "Developer ID Application";
@@ -85,6 +85,10 @@ pub(crate) fn check_built(app: &Path) -> anyhow::Result<()> {
     if !matches!(info.kind, Kind::Rust { from_source: true }) {
         bail!("{} is not a Rust app built from source ({:?})", app.display(), info.kind);
     }
+    let missing = missing_doors(app);
+    if !missing.is_empty() {
+        bail!("{} lacks {}", app.display(), missing.join(", "));
+    }
     Ok(())
 }
 
@@ -139,11 +143,7 @@ mod tests {
 
     fn bundle(app: &Path, id: &str, framework: &str) {
         fs::create_dir_all(app.join("Contents/Frameworks").join(framework)).expect("bundle");
-        fs::write(
-            app.join("Contents/Info.plist"),
-            format!("<?xml version=\"1.0\"?>\n<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string></dict></plist>\n"),
-        )
-        .expect("plist");
+        super::super::bundle::tests::with_doors(app, id);
     }
 
     #[test]
@@ -156,6 +156,9 @@ mod tests {
         fs::create_dir_all(app.join("Contents/Resources")).expect("resources");
         fs::write(app.join("Contents/Resources/update.json"), "{}").expect("update.json");
         assert!(check_built(&app).is_err(), "a build that updates itself is a release, not a build from source");
+        fs::remove_file(app.join("Contents/Resources/update.json")).expect("update.json");
+        fs::remove_dir_all(app.join("Contents/PlugIns")).expect("plugins");
+        assert!(check_built(&app).is_err(), "a build without the share extension is not the installed app");
 
         let dev = tmp.path().join("Dev.app");
         bundle(&dev, "dev.eos.shell", "Chromium Embedded Framework.framework");

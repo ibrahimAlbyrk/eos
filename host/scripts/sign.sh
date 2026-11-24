@@ -4,17 +4,24 @@
 # helper, the screen saver, the share extension, the app; hardened runtime
 # on the executables, and the CEF entitlements on those that run Chromium.
 #
-# --timestamp=none on purpose: nothing is sent to Apple's timestamp service, nothing is
-# notarized, nothing is uploaded. A release needs the secure timestamp and notarization;
-# that is a separate, deliberate step.
+# --timestamp=none by default: nothing is sent to Apple's timestamp service, nothing is
+# notarized, nothing is uploaded. `release` as the third argument asks Apple's timestamp
+# service for a secure timestamp on every piece instead, as notarization requires; it needs a
+# Developer ID identity. Notarizing and stapling stay a separate, deliberate step
+# (docs/first-rust-release.md §2).
 #
 # `-` as the identity signs ad hoc, the same way: a signature of this build alone, with no
 # identity behind it (what `cargo xtask install` uses when the keychain holds no Developer ID).
 #
-#   usage: sign.sh <path to .app> [identity substring, default "Developer ID Application"; - for ad hoc]
+#   usage: sign.sh <path to .app> [identity substring, default "Developer ID Application"; - for ad hoc] [release]
 set -euo pipefail
 HOST_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$1"; WANT="${2:-Developer ID Application}"
+APP="$1"; WANT="${2:-Developer ID Application}"; MODE="${3:-local}"
+case "$MODE" in
+  local) STAMP=--timestamp=none ;;
+  release) STAMP=--timestamp; [ "$WANT" != "-" ] || { echo "a release is never signed ad hoc" >&2; exit 1; } ;;
+  *) echo "usage: sign.sh <app> [identity] [release]" >&2; exit 2 ;;
+esac
 if [ "$WANT" = "-" ]; then
   ID="-"
 else
@@ -24,7 +31,7 @@ fi
 ENT="$HOST_DIR/bundle/entitlements.plist"
 FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
 # The identity's hash never reaches the output.
-sign() { codesign --force --timestamp=none -s "$ID" "$@" 2>&1 | sed -E 's/[0-9A-F]{40}/<hash>/g'; }
+sign() { codesign --force "$STAMP" -s "$ID" "$@" 2>&1 | sed -E 's/[0-9A-F]{40}/<hash>/g'; }
 for lib in "$FW"/Libraries/*.dylib; do sign "$lib"; done
 sign "$FW"
 for helper in "$APP"/Contents/Frameworks/*.app; do sign --options runtime --entitlements "$ENT" "$helper"; done
@@ -47,4 +54,19 @@ SAVER="$APP/Contents/Resources/Eos.saver"
 SHARE="$APP/Contents/PlugIns/EosShare.appex"
 [ ! -d "$SHARE" ] || sign --options runtime --entitlements "$HOST_DIR/bundle/share.entitlements" "$SHARE"
 sign --options runtime --entitlements "$ENT" "$APP"
-codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"
+codesign --verify --deep --strict "$APP"
+# Every program the bundle starts runs under the hardened runtime, nested ones included.
+for code in "$APP" "$APP"/Contents/Frameworks/*.app "$APP/Contents/MacOS/eos-apply" "$APP/Contents/Helpers/eos" \
+  "$LOCATION" "$APP"/Contents/PlugIns/*.appex; do
+  [ -e "$code" ] || continue
+  # Read whole first: grep -q would stop early, and pipefail counts the writer's broken pipe.
+  shown="$(codesign -dv "$code" 2>&1)"
+  grep -q "flags=.*(runtime)" <<<"$shown" || { echo "not under the hardened runtime: $code" >&2; exit 1; }
+done
+# The share extension, like every extension, runs in the sandbox.
+for appex in "$APP"/Contents/PlugIns/*.appex; do
+  [ -e "$appex" ] || continue
+  shown="$(codesign -d --entitlements - "$appex" 2>/dev/null)"
+  grep -q com.apple.security.app-sandbox <<<"$shown" || { echo "not sandboxed: $appex" >&2; exit 1; }
+done
+echo "signed and verified: $APP"

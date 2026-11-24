@@ -60,6 +60,31 @@ impl fmt::Display for AppInfo {
     }
 }
 
+/// What only the installed identity's bundle carries for the doors on the Mac: the terminal's
+/// command, the share extension and the Info.plist keys of the link scheme, the Services entry
+/// and the Dock's document types. The pieces this bundle lacks, by name.
+pub(crate) fn missing_doors(app: &Path) -> Vec<&'static str> {
+    let plist = app.join("Contents/Info.plist");
+    let key = |path: &str| plist_string(&plist, path);
+    let mut missing = Vec::new();
+    if !app.join("Contents/Helpers/eos").is_file() {
+        missing.push("Contents/Helpers/eos");
+    }
+    if !app.join("Contents/PlugIns/EosShare.appex/Contents/Info.plist").is_file() {
+        missing.push("Contents/PlugIns/EosShare.appex");
+    }
+    if key("CFBundleURLTypes.0.CFBundleURLSchemes.0").as_deref() != Some("eos") {
+        missing.push("the eos link scheme");
+    }
+    if key("NSServices.0.NSMessage").is_none() {
+        missing.push("the Services entry");
+    }
+    if key("CFBundleDocumentTypes.0.LSHandlerRank").is_none() {
+        missing.push("the document types");
+    }
+    missing
+}
+
 /// One string of a property list, XML or binary.
 fn plist_string(plist: &Path, key: &str) -> Option<String> {
     let out = Command::new("/usr/bin/plutil")
@@ -74,7 +99,7 @@ fn plist_string(plist: &Path, key: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::fs;
 
     use super::*;
@@ -85,6 +110,22 @@ mod tests {
             app.join("Contents/Info.plist"),
             format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string><key>CFBundleShortVersionString</key><string>{version}</string></dict></plist>\n"
+            ),
+        )
+        .expect("plist");
+    }
+
+    /// A bundle of `id` with every door the installed identity carries.
+    pub(crate) fn with_doors(app: &Path, id: &str) {
+        fs::create_dir_all(app.join("Contents/Helpers")).expect("helpers");
+        fs::write(app.join("Contents/Helpers/eos"), "").expect("eos");
+        let share = app.join("Contents/PlugIns/EosShare.appex/Contents");
+        fs::create_dir_all(&share).expect("appex");
+        fs::write(share.join("Info.plist"), "").expect("appex plist");
+        fs::write(
+            app.join("Contents/Info.plist"),
+            format!(
+                "<?xml version=\"1.0\"?>\n<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string><key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>eos</string></array></dict></array><key>NSServices</key><array><dict><key>NSMessage</key><string>sendToEos</string></dict></array><key>CFBundleDocumentTypes</key><array><dict><key>LSHandlerRank</key><string>None</string></dict></array></dict></plist>\n"
             ),
         )
         .expect("plist");
@@ -110,5 +151,24 @@ mod tests {
 
         let nothing = AppInfo::read(&tmp.path().join("none.app"));
         assert_eq!((nothing.id.as_deref(), nothing.to_string()), (None, "Eos (version unknown)".to_owned()));
+    }
+
+    #[test]
+    fn the_installed_identitys_doors_are_named_when_missing() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let app = tmp.path().join("Eos.app");
+        plist(&app, APP_ID, "0.2.0");
+        assert_eq!(
+            missing_doors(&app),
+            [
+                "Contents/Helpers/eos",
+                "Contents/PlugIns/EosShare.appex",
+                "the eos link scheme",
+                "the Services entry",
+                "the document types"
+            ]
+        );
+        with_doors(&app, APP_ID);
+        assert!(missing_doors(&app).is_empty(), "{:?}", missing_doors(&app));
     }
 }
