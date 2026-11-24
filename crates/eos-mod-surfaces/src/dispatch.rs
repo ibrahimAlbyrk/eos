@@ -16,7 +16,7 @@ use eos_core::surface::{DirectActions, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_runtime::actions::{ActionCall, ActionDecl, ActionScope, Actions};
 use eos_surface::limits::{ACTIONS_PER_SECOND, CONFIRM_TOKEN_MS};
-use eos_surface::{IssueKind, fill_args, format_problems, validate};
+use eos_surface::{IssueKind, Sources, fill_args, format_problems, pressed_row, validate};
 use serde_json::{Value, json};
 
 use crate::records::{self, answer_of, reason};
@@ -139,7 +139,15 @@ impl Dispatcher {
         let bound = binding["action"].as_str().unwrap_or_default();
         let Some(decl) = self.decl(bound) else { return Ok(Err("That action does not exist".into())) };
         let template = binding["args"].as_object().cloned().unwrap_or_default();
-        let args = fill_args(&template, &body["view"]["data"], &state);
+        let data = &body["view"]["data"];
+        let item = match binding["list"].as_str() {
+            Some(list) => match pressed_row(data, list, req.item_id.as_deref(), req.index) {
+                Some(row) => row,
+                None => return Ok(Err("That button needs the row it was pressed on".into())),
+            },
+            None => &Value::Null,
+        };
+        let args = fill_args(&template, Sources { data, state: &state, item });
         let question = body["place"] == "question";
         let answers = body["itemId"]
             .as_str()

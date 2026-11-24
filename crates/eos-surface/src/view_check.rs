@@ -15,13 +15,18 @@ use crate::problem::{Problem, field_path};
 pub struct Binding {
     pub view_action: String,
     pub action: String,
-    /// String values may hold `{data.path}` or `{state.key}` slots.
+    /// String values may hold `{data.path}` or `{state.key}` slots, and
+    /// `{item.path}` for a button inside the rows of `list`.
     pub args: Map<String, Value>,
+    /// The data path of the list whose rows the button sits in (`data.stories`).
+    pub list: Option<String>,
 }
 
 /// Roots a slot in an argument template may start from: the issue's stored
-/// data, and the View's saved state (what the user typed or chose).
+/// data, and the View's saved state (what the user typed or chose); and the
+/// pressed row, for a button inside a list's rows.
 const SLOT_ROOTS: &[&str] = &["data", "state"];
+const ROW_ROOT: &str = "item";
 
 /// Checks `view`'s actions against `bindings` (`{viewActionId: {action, args}}`)
 /// and answers the bindings, or every problem. `is_action` says whether a
@@ -78,7 +83,7 @@ fn read_binding(
         problems.push(Problem::new(path, "must be {action, args}"));
         return None;
     };
-    for key in spec.keys().filter(|k| !matches!(k.as_str(), "action" | "args")) {
+    for key in spec.keys().filter(|k| !matches!(k.as_str(), "action" | "args" | "list")) {
         problems.push(Problem::new(field_path(path, key), "is not a binding field"));
     }
     let action = spec.get("action").and_then(Value::as_str).unwrap_or_default();
@@ -99,29 +104,48 @@ fn read_binding(
             return None;
         }
     };
+    let list = match spec.get("list") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(list)) if list.starts_with("data.") && !list.split('.').any(str::is_empty) => {
+            Some(list.clone())
+        }
+        Some(_) => {
+            problems
+                .push(Problem::new(field_path(path, "list"), "must name data.<path> of the list the button sits in"));
+            return None;
+        }
+    };
     let before = problems.len();
-    check_slots(&Value::Object(args.clone()), &field_path(path, "args"), problems);
-    (problems.len() == before).then(|| Binding { view_action: id.to_owned(), action: action.to_owned(), args })
+    check_slots(&Value::Object(args.clone()), &field_path(path, "args"), list.is_some(), problems);
+    (problems.len() == before).then(|| Binding { view_action: id.to_owned(), action: action.to_owned(), args, list })
 }
 
-fn check_slots(value: &Value, path: &str, problems: &mut Vec<Problem>) {
+fn check_slots(value: &Value, path: &str, in_rows: bool, problems: &mut Vec<Problem>) {
     match value {
         Value::String(text) => {
             for slot in slots(text) {
                 let root = slot.split('.').next().unwrap_or_default();
-                if !SLOT_ROOTS.contains(&root) || slot.split('.').any(str::is_empty) {
-                    problems.push(Problem::new(path, format!("{{{slot}}} must name data.<path> or state.<key>")));
+                let known = SLOT_ROOTS.contains(&root) || (in_rows && root == ROW_ROOT);
+                if !known || slot.split('.').any(str::is_empty) {
+                    let message = if in_rows {
+                        format!("{{{slot}}} must name data.<path>, state.<key> or item.<path>")
+                    } else if root == ROW_ROOT {
+                        format!("{{{slot}}} names a row: give the binding the list its button sits in")
+                    } else {
+                        format!("{{{slot}}} must name data.<path> or state.<key>")
+                    };
+                    problems.push(Problem::new(path, message));
                 }
             }
         }
         Value::Array(items) => {
             for (i, item) in items.iter().enumerate() {
-                check_slots(item, &format!("{path}[{i}]"), problems);
+                check_slots(item, &format!("{path}[{i}]"), in_rows, problems);
             }
         }
         Value::Object(map) => {
             for (key, item) in map {
-                check_slots(item, &field_path(path, key), problems);
+                check_slots(item, &field_path(path, key), in_rows, problems);
             }
         }
         _ => {}

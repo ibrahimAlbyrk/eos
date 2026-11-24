@@ -3,7 +3,7 @@ import { ViewSurface } from "../../../genui/ViewBlock.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { notify } from "../../../lib/notify.js";
 import { refreshInbox } from "../../../state/eos/inboxStore.js";
-import { loadItemView, pressId, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
+import { loadItemView, pressedRow, pressId, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { EosFrame } from "../surface/EosFrame.jsx";
 
 // A routine's View in Needs you, a choice or a form (05, 08 §4.9): drawn in
@@ -21,10 +21,13 @@ export function SurfaceCard({ card, routineName }) {
   const host = useMemo(() => ({
     directActions: true,
     send: async (text, opts) => {
-      const press = { issueId: issue.id, actionId: opts?.action?.actionId, state: opts?.action?.state, clientId: pressId() };
+      const press = {
+        issueId: issue.id, actionId: opts?.action?.actionId, state: opts?.action?.state, clientId: pressId(),
+        ...pressedRow(body.view?.data, opts?.action?.item),
+      };
       return settle(press, await runSurfaceAction(press), ask);
     },
-  }), [issue.id, ask]);
+  }), [issue.id, body, ask]);
   const confirm = async () => {
     const { press, token, typeToConfirm } = asking;
     ask(null);

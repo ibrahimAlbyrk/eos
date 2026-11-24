@@ -225,6 +225,10 @@ pub struct ActionRunRequest {
     /// The item of a repeat the button sits in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index: Option<u32>,
+    /// The `id` of the row the button sits in, when its rows have ids: it
+    /// picks the row the core holds, never a value of the frame's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<Value>,
     /// Chosen by the caller; a repeated id answers the first record.
