@@ -7,6 +7,8 @@ enum Route: Hashable {
     case conversation(String)   // workerId
     case newSession
     case terminal(String)       // PTY sessionId
+    case runForm(String)        // routine id
+    case run(String)            // run id
 }
 
 // Root shell (contract §B1): SidebarContainer { DrawerView | NavigationStack }. Stack root is the
@@ -75,6 +77,12 @@ struct RootView: View {
                         case .terminal(let id):
                             TerminalSessionView(sessionId: id)
                                 .navigationBarHidden(true)
+                        case .runForm(let routineId):
+                            if let feed = model.eos, let routine = feed.routines.first(where: { $0.id == routineId }) {
+                                RunFormView(feed: feed, routine: routine, onStarted: { replaceWith(.run($0)) })
+                            }
+                        case .run(let runId):
+                            if let feed = model.eos { RunView(feed: feed, runId: runId) }
                         }
                     }
             }
@@ -124,6 +132,14 @@ struct RootView: View {
                          onNewSession: { path.append(Route.newSession) })
         case .terminals:
             TerminalsListView(onOpen: { path.append(Route.terminal($0)) })
+        case .eos:
+            if let feed = model.eos {
+                EosTabView(feed: feed, connected: model.connected,
+                           onOpenItem: { _ in },
+                           onRun: { path.append(Route.runForm($0.id)) },
+                           onOpenRun: { path.append(Route.run($0)) })
+                    .eosTopChrome(title: "Eos") { EmptyView() }
+            }
         case .devices:
             DevicesView(onSwitched: { select(.code) })
                 .eosTopChrome { EmptyView() }
@@ -146,6 +162,12 @@ struct RootView: View {
     private func openWorker(_ id: String) {
         sidebar.section = .code
         path.append(Route.conversation(id))
+    }
+
+    // A screen that led to another (a run form to its run) gives way to it.
+    private func replaceWith(_ route: Route) {
+        if !path.isEmpty { path.removeLast() }
+        path.append(route)
     }
 
     // §C4.3: swap the New-session entry for the fresh conversation (no flash of the list).

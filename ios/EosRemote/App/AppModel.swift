@@ -84,6 +84,9 @@ final class AppModel: ObservableObject {
     private let pathMonitor = NWPathMonitor()
 
     private var active: DeviceConnection? { activeDeviceId.flatMap { connections[$0] } }
+    /// The active Mac's routines, runs and Needs you; shown while it serves them (cap "eos").
+    var eos: EosFeed? { active?.eos }
+    @Published private(set) var eosServes = false
 
     init(deviceStore: DeviceStore = DeviceStore()) {
         self.deviceStore = deviceStore
@@ -143,6 +146,7 @@ final class AppModel: ObservableObject {
             hasOlder = false; loadingOlder = false
             uiConfig = nil; archived = []
             ptySessions = []; ptySessionsLoaded = false
+            eosServes = false
             needsPairing = devices.isEmpty
             return
         }
@@ -160,6 +164,7 @@ final class AppModel: ObservableObject {
         archived = a.archived
         ptySessions = a.ptySessions
         ptySessionsLoaded = a.ptySessionsLoaded
+        eosServes = a.eos.serves
         needsPairing = false
         seedAttention(workers)
     }

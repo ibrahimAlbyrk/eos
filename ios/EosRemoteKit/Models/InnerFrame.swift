@@ -119,7 +119,22 @@ public struct HelloFrame: Codable, Sendable {
     public var lastContentId: Int?
     // What this app understands beyond the base protocol (contracts REMOTE_CAPS).
     public var caps: [String]? = HelloFrame.clientCaps
-    public static let clientCaps = ["focus", "rows", "deflate"]
+    // "eos": routines, runs and Needs you; a Mac that serves them says so in its snapshot.
+    public static let clientCaps = ["focus", "rows", "deflate", "eos"]
+}
+
+// The run this phone has open (Mac cap "eos"): the Mac then also sends that run's `run:activity`.
+// `run` is written as null when none is open.
+public struct WatchFrame: Encodable, Sendable, Equatable {
+    public var run: String?
+    public init(run: String?) { self.run = run }
+
+    private enum Keys: String, CodingKey { case t, run }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode("watch", forKey: .t)
+        try c.encode(run, forKey: .run)
+    }
 }
 
 // What this phone shows for the Mac: `active` false = another Mac is on screen. `afterId` = the newest
