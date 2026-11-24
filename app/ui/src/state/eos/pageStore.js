@@ -170,6 +170,24 @@ export async function shareDocument(surfaceId, issueId) {
   return r.ok && typeof r.body === "string" ? r.body : null;
 }
 
+// Regions that print on Letter; every other prints on A4.
+const LETTER_REGIONS = new Set(["US", "CA", "MX", "PH", "CL", "CO", "VE", "PR"]);
+
+// The paper of the reader's region, from a locale such as "en-US".
+export function paperOf(locale) {
+  const region = /[-_]([A-Za-z]{2})\b/.exec(locale ?? "")?.[1]?.toUpperCase();
+  return region && LETTER_REGIONS.has(region) ? "letter" : "a4";
+}
+
+// The issue printed to a PDF in the data folder: { ok, path } or why not.
+export async function printIssue(surfaceId, issueId, locale) {
+  const r = await transport.send("POST", ROUTES.surfaceIssuePdf(surfaceId, issueId), { paper: paperOf(locale) });
+  return r.ok ? { ok: true, path: r.body.path } : { ok: false, error: refusal(r, "The PDF") };
+}
+
+// Shows a file the core wrote in Finder.
+export const revealFile = (path) => transport.send("POST", ROUTES.fsReveal, { path });
+
 // surfaces:change and surfaces:issue: read a loaded page again, and an
 // issue on screen.
 export function applyPageChange(payload) {
