@@ -326,7 +326,7 @@ mod hook_inbox {
                 hook.id
             )
         );
-        assert_eq!(relay.hooks(), [hook.id.clone()]);
+        assert_eq!(relay.hooks(), std::slice::from_ref(&hook.id));
 
         assert!(relay.deliver(
             &hook.id,
