@@ -427,6 +427,11 @@ impl Shell {
         let _ = self.bridge.set(bridge.clone());
         page_views.attach(bridge.clone());
         quick.attach(&bridge);
+        if options.doors {
+            // "Send to Eos": the service is declared by the installed identity alone.
+            let quick = quick.clone();
+            crate::native::services::provide(move |sent| quick.from_services(sent));
+        }
         let artifacts = self.start_artifacts(&views, &bridge);
         self.start_hosts(&views, &bridge, core, host.clone(), artifacts);
         let early_link = self.early_link.lock().ok().and_then(|mut link| link.take());

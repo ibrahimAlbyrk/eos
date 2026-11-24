@@ -13,6 +13,7 @@
 //! - `dock`: the number on the Dock icon, through `NSApp.dockTile`.
 //! - `login`: the login item, through `SMAppService`.
 //! - `ax`: the front app's selection through Accessibility, and asking for that permission.
+//! - `services`: the provider object of "Send to Eos" in the Services menu.
 //! - `panel`: the quick panel's `NSPanel` floated over every app, placed and shown without
 //!   activating the app.
 //!
@@ -28,3 +29,4 @@ pub(crate) mod launch;
 pub(crate) mod login;
 pub(crate) mod notify;
 pub(crate) mod panel;
+pub(crate) mod services;

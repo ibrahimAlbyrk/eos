@@ -82,13 +82,16 @@ grep -q "<key>MallocLargeCache</key>" "$APP/Contents/Info.plist" \
   || { echo "Info.plist lost MallocLargeCache" >&2; exit 1; }
 [ "$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$APP/Contents/Info.plist")" = "$SCHEME" ] \
   || { echo "Info.plist does not name the $SCHEME scheme" >&2; exit 1; }
-# The doors only the installed identity declares: the Dock's documents.
+# The doors only the installed identity declares: the Dock's documents and Services.
 if [ "$SCHEME" = "eos" ]; then
   /usr/libexec/PlistBuddy -c "Merge bundle/Doors-Info.plist" "$APP/Contents/Info.plist" >/dev/null
   [ "$(/usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes:0:LSHandlerRank" "$APP/Contents/Info.plist")" = "None" ] \
     || { echo "Info.plist lost the Dock's document types" >&2; exit 1; }
-elif /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes" "$APP/Contents/Info.plist" >/dev/null 2>&1; then
-  echo "a build that owns no door declares document types" >&2; exit 1
+  [ "$(/usr/libexec/PlistBuddy -c "Print :NSServices:0:NSMessage" "$APP/Contents/Info.plist")" = "sendToEos" ] \
+    || { echo "Info.plist lost the Services entry" >&2; exit 1; }
+elif /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes" "$APP/Contents/Info.plist" >/dev/null 2>&1 \
+  || /usr/libexec/PlistBuddy -c "Print :NSServices" "$APP/Contents/Info.plist" >/dev/null 2>&1; then
+  echo "a build that owns no door declares document types or Services" >&2; exit 1
 fi
 cp "$BIN/eos" "$APP/Contents/MacOS/$NAME"
 cp "$BIN/eos-apply" "$APP/Contents/MacOS/eos-apply"
