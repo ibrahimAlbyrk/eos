@@ -140,7 +140,7 @@ pub(crate) fn local_date(at: i64, offset: i32) -> String {
 }
 
 /// The reader's first name, as the profile calls them.
-fn reader_name(parts: &SurfacesParts) -> String {
+pub(crate) fn reader_name(parts: &SurfacesParts) -> String {
     let Some(profile) = parts.profile.get() else { return String::new() };
     let identity = &profile.identity;
     let name = if identity.call_name.trim().is_empty() { &identity.full_name } else { &identity.call_name };

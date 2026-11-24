@@ -60,6 +60,18 @@ pub trait SurfaceTools: Send + Sync {
     /// the line the agent reads; every problem is a validation error listing
     /// them all. Null data answers the contract the run fills, and a sample.
     fn fill_page<'a>(&'a self, worker_id: &'a str, data: serde_json::Value) -> BoxFuture<'a, Result<String, Error>>;
+    /// What a design run's designer works from: the page's current version,
+    /// what the user asked and pointed at, and its newest issues' data.
+    fn page_design_read<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<serde_json::Value, Error>>;
+    /// Checks a design the designer proposes and, when the static checks
+    /// pass, makes it the page's candidate once the probe passes it; the
+    /// line the agent reads, or every problem as a validation error.
+    fn page_design_propose<'a>(
+        &'a self,
+        worker_id: &'a str,
+        design: serde_json::Value,
+        note: String,
+    ) -> BoxFuture<'a, Result<String, Error>>;
 }
 
 /// A returned View as Needs you shows it (03 §4.5): a `question` View is a

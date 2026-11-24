@@ -40,6 +40,7 @@ pub(crate) struct Rig {
     pub(crate) trash: Arc<FakeTrash>,
     pub(crate) dir: tempfile::TempDir,
     pub(crate) runs: Arc<eos_testkit::FakeRunStarter>,
+    pub(crate) probe: Arc<eos_testkit::FakePageProbe>,
 }
 
 /// A feature with actions of every class, which records what it is called with.
@@ -130,6 +131,7 @@ impl Rig {
         let profile = Arc::new(FakeUserProfileStore::default());
         let feedback = Arc::new(FakeExperienceFeedback::new());
         let runs = Arc::new(eos_testkit::FakeRunStarter::new());
+        let page_probe = Arc::new(eos_testkit::FakePageProbe::new());
         let dir = tempfile::tempdir().expect("a folder");
         let trash = Arc::new(FakeTrash::new(dir.path().join("trash")));
         let mut me = eos_domain::user_profile::empty_user_profile();
@@ -148,13 +150,32 @@ impl Rig {
             profile,
             feedback: feedback.clone(),
             runs: runs.clone(),
+            probe: page_probe.clone(),
+            root: dir.path().join("surfaces"),
         }));
         let read = Arc::new(Mutex::new(Vec::new()));
-        let probe = Arc::new(ProbeModule(heard.clone(), read.clone()));
-        let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
+        let probe_module = Arc::new(ProbeModule(heard.clone(), read.clone()));
+        let runtime =
+            Runtime::build(kernel, vec![module.clone(), probe_module], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, cards, images, heard, read, feedback, trash, dir, runs }
+        Self {
+            runtime,
+            module,
+            temp,
+            settings,
+            clock,
+            gate,
+            cards,
+            images,
+            heard,
+            read,
+            feedback,
+            trash,
+            dir,
+            runs,
+            probe: page_probe,
+        }
     }
 
     /// The author the routines feature holds, over this rig's store and folders.

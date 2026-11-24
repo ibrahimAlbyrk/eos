@@ -493,6 +493,18 @@ pub struct SurfacesPins {}
 
 impl Validate for SurfacesPins {}
 
+/// `surfaces:design`: a design version moved through its checks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfacesDesign {
+    pub surface_id: String,
+    pub version: i64,
+    /// `checking`, `waiting` (for Eos's window), `candidate` or `failed`.
+    pub phase: String,
+}
+
+impl Validate for SurfacesDesign {}
+
 /// `actions:record`: a press was recorded or finished.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

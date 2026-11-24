@@ -93,6 +93,9 @@ pub struct Options {
     /// The window shell, which draws plugin previews. Until it does, a
     /// preview answers that no window is open.
     pub plugin_previewer: Arc<dyn PluginPreviewer>,
+    /// The window shell's hidden view that lays out a page design to check
+    /// it. Until the shell hands one in, a design waits for the window.
+    pub page_probe: Arc<dyn eos_core::surface::PageProbe>,
     /// What the window shell lends the core. Without it (tests, a run with no
     /// window) the browser is absent, the open panels answer that there is
     /// none, and pages open through the system's own opener.
@@ -197,6 +200,7 @@ impl Options {
             agents: AgentOptions::default(),
             resources: None,
             plugin_previewer: Arc::new(NoPreviewWindow),
+            page_probe: Arc::new(eos_mod_surfaces::NoProbeWindow),
             shell: None,
             sweep_leftovers: false,
             exec_path: std::env::current_exe().ok(),
@@ -295,6 +299,7 @@ impl App {
             agents,
             resources,
             plugin_previewer,
+            page_probe,
             shell,
             exec_path,
             update_applier,
@@ -629,6 +634,7 @@ impl App {
             kernel: kernel.clone(),
             paths: paths.clone(),
             raw_routes: Default::default(),
+            page_probe,
             pdfjs_root,
             embed_model,
             settings: settings.clone(),
