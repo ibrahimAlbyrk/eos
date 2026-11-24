@@ -126,3 +126,29 @@ async fn edit_and_retry_sends_the_edited_result_and_keeps_the_edit() {
     let sent = held.channels.sent();
     assert_eq!(sent.last().map(|req| req.body.clone()), Some(edited));
 }
+
+#[tokio::test]
+async fn that_was_wrong_holds_every_automatic_send_of_the_routine_that_has_not_gone_out() {
+    let sender = Sender::new();
+    sender.sent_alone().await;
+    let now = sender.rig.clock.now_ms();
+    // A second result in its hold, one waiting for its capability, and one the user approved.
+    sender.queue("dl-2", "github", "boss", "holding", "auto", now + 120_000).await;
+    sender.queue("dl-3", "github", "team", "waiting_capability", "auto", now).await;
+    sender.queue("dl-4", "github", "lead", "queued", "approved", now + 120_000).await;
+
+    sender.rig.items.wrong("dl-1").await.expect("noted");
+    assert_eq!(sender.stepped_down(), ["wrong"]);
+    for id in ["dl-2", "dl-3"] {
+        let row = sender.row(id).await;
+        assert_eq!((row.state.as_str(), row.last_error_kind.as_deref()), ("stopped", Some("stepped_down")), "{id}");
+    }
+    assert_eq!(sender.row("dl-4").await.state, "queued", "what the user sent stays on its way");
+    let items = sender.rig.temp.port().read(|tx| tx.inbox_items().waiting(10)).await.expect("reads");
+    assert!(items.iter().any(|item| item.kind.as_str() == "draft"), "the held results wait for the user");
+
+    sender.rig.clock.advance(121_000);
+    sender.pass().await;
+    let keys = sender.sent();
+    assert_eq!(keys.len(), 2, "only the first send and the approved one went out: {keys:?}");
+}
