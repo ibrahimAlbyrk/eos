@@ -27,7 +27,7 @@ describe("⌘K and routines", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     function Probe() { sheet = useRunSheet(); return null; }
     renderToStaticMarkup(<Probe />);
-    expect(sheet.request).toEqual({ routineId: live[0].id, anchor: undefined });
+    expect(sheet.request).toEqual({ routineId: live[0].id, anchor: undefined, door: "palette" });
     unhost();
   });
 
