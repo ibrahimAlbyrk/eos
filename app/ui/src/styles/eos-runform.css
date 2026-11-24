@@ -105,3 +105,28 @@
 /* A Slack draft's room left, quiet until it runs over. */
 .eos-edit__hint { margin: 6px 0 0; color: var(--fg-dim); font-size: var(--text-sm); }
 .eos-edit__hint--over { color: var(--err); }
+
+/* ── A link's dialog (RunOutside: "A link wants to start a run") ──────────── */
+.eos-linkdialog { width: min(400px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 18px; font-size: var(--text-sm); color: var(--fg); }
+.eos-linkdialog__title { font-weight: 600; color: var(--fg-strong); }
+.eos-linkdialog__link { padding: 10px 12px; border-radius: 10px; background: var(--bg); font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg); overflow-wrap: anywhere; }
+.eos-linkdialog__rows { display: flex; flex-direction: column; margin: 0; }
+.eos-linkdialog__rows > div { display: flex; gap: 12px; padding: 6px 0; }
+.eos-linkdialog__rows dt { width: 64px; flex: none; color: var(--fg-dim); }
+.eos-linkdialog__rows dd { margin: 0; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-linkdialog__acts { display: flex; gap: 8px; margin-top: 4px; }
+
+/* ── A routine's run in a chat (RunLinkCard) ──────────────────────────────── */
+.run-link-card {
+  display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%); margin: 6px 0; padding: 12px 14px;
+  border: 0; border-radius: 12px; background: var(--raised); color: var(--fg); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer;
+}
+.run-link-card:hover { background: var(--chip); }
+.run-link-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.run-link-card__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.run-link-card__name { font-weight: 600; color: var(--fg-strong); }
+.run-link-card__headline { color: var(--fg-dim); }
+.run-link-card__review {
+  height: 24px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--solid-btn-bg); color: var(--solid-btn-fg);
+  font: inherit; font-size: var(--text-xs); cursor: pointer;
+}

@@ -44,6 +44,9 @@ function subscribe(cb) {
 
 const snapshot = () => state;
 
+// The store as it is now, for a reader outside React (the ⌘K palette).
+export const inboxNow = () => state;
+
 export function useInbox() {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

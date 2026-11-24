@@ -31,6 +31,7 @@ import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.j
 import { LinkBanner } from "./components/machines/LinkBanner.jsx";
 import { RemotePicker } from "./components/machines/RemotePicker.jsx";
 import { openNativeRoute } from "./lib/nativeRoute.js";
+import { RunSheet } from "./views/eos/runform/RunSheet.jsx";
 
 function Shell() {
   const ui = useUi();
@@ -120,6 +121,7 @@ function Shell() {
       <WindowControls />
       <SideHandle popup={popup} hasAttention={hasAttention} />
       <CommandPalette live={live} />
+      <RunSheet />
       <SettingsModal />
       <ProjectModalHost />
       <ConnectSheetHost />

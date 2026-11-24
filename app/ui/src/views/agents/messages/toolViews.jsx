@@ -32,6 +32,7 @@ import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
 import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
 import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
 import { MEMORY_TOOL_VIEWS } from "./MemoryToolViews.jsx";
+import { RUN_TOOL_VIEWS } from "./RunLinkCard.jsx";
 import { TRANSFER_TOOL_VIEWS } from "./TransferToolViews.jsx";
 import { workflowNameOf } from "../../../lib/workflowRuns.js";
 
@@ -318,7 +319,7 @@ register("current_datetime", {
 });
 
 // Page and memory tools — views in ./PageToolViews.jsx and ./MemoryToolViews.jsx.
-for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) register(tool, view);
+for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS, ...RUN_TOOL_VIEWS })) register(tool, view);
 // Visual answers render as views in the transcript (genui/ViewBlock.jsx); this
 // row is only what a present call looks like where it is listed as a tool.
 const presentView = {

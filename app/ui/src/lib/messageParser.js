@@ -489,6 +489,11 @@ export function buildBlocks(rawEvents) {
       flushTools();
       lastAsst = null;
       const payload = rowPayload(ev);
+      // A routine's run told to the chat it came from: drawn as its card.
+      if (payload.routineNote?.runId) {
+        out.push({ kind: "runCard", card: payload.routineNote, ts: payload.anchorTs ?? payload.sentAt ?? ev.ts, rowId: ev.id });
+        continue;
+      }
       // anchorTs (the consuming transcript entry's creation time) is the true
       // conversation position; sentAt (dispatch time) covers emissions with no
       // sighting (unverified delivery, flush); event receipt ts is last resort.

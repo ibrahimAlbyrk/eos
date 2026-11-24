@@ -78,6 +78,8 @@ import { AccountSwitchLine } from "./AccountSwitchLine.jsx";
 import { AccountsExhaustedRow } from "./AccountsExhaustedRow.jsx";
 import { LocalBoundary, RowCrash } from "../../../components/LocalBoundary.jsx";
 import { shareBlocks } from "../../../lib/shareBlocks.js";
+import { ChatContext } from "./chatContext.js";
+import { RunLinkCard } from "./RunLinkCard.jsx";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
@@ -773,6 +775,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
 
   return (
     <ScrollHoldContext.Provider value={stick.hold}>
+    <ChatContext.Provider value={selectedId ?? null}>
     <GenuiHostContext.Provider value={genuiHost}>
     <NewestArtifactContext.Provider value={artifacts[0]?.slug ?? null}>
     <div className="messages-frame">
@@ -814,6 +817,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     </div>
     </NewestArtifactContext.Provider>
     </GenuiHostContext.Provider>
+    </ChatContext.Provider>
     </ScrollHoldContext.Provider>
   );
 }
@@ -898,6 +902,7 @@ function blockKey(b, i) {
     case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
     case "view":      return "v-" + (b.tool.id ?? b.ts ?? i);
+    case "runCard":   return "rc-" + (b.rowId ?? b.ts ?? i);
     case "workflow":  return "wf-" + (b.tool.id ?? b.ts ?? i);
     case "subagents": return "sa-" + (b.runs[0]?.toolUseId ?? b.ts ?? i);
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
@@ -936,6 +941,7 @@ function renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRe
       return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply} reaction={reactionOf(b, sessionId, reactable)}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} action={b.action} onJumpToView={onJumpToView} /></MessageRow>;
     }
     case "view":      return <ViewBlock key={key} block={b} />;
+    case "runCard":   return <RunLinkCard key={key} card={b.card} />;
     case "workflow":  return <WorkflowCard key={key} block={b} workerId={sessionId} cwd={cwd} workers={workers} />;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;

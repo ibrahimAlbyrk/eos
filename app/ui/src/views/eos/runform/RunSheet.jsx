@@ -63,7 +63,8 @@ function OpenSheet({ request, routine, blueprint }) {
           form={form}
           setForm={setForm}
           layout="sheet"
-          door={place.door}
+          door={request.door ?? place.door}
+          chat={request.chat}
           againOf={request.againOf}
           autoFocus
           onStarted={() => {
@@ -76,8 +77,9 @@ function OpenSheet({ request, routine, blueprint }) {
   );
 }
 
-// The run sheet's host, mounted once in Eos: once it is, every routine's Run
-// button shows, and a request opens the sheet beside it.
+// The run sheet's host, mounted once in the app: every routine's Run button
+// shows, and a request opens the sheet beside it, over any mode (⌘K, a chat's
+// /run).
 export function RunSheet() {
   const { request } = useRunSheet();
   const { list, details } = useRoutines();
