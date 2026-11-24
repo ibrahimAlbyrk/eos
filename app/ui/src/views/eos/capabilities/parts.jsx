@@ -1,6 +1,6 @@
 import { checkCapability, setCapabilityEnabled } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
-import { FIX_LABELS, stateLine, stateTone, stateWord } from "./words.js";
+import { fixLabel, stateLine, stateTone, stateWord } from "./words.js";
 
 export const DEV_RUN_TEXT = "This is a dev run: nothing starts or leaves the Mac.";
 
@@ -29,7 +29,7 @@ const RUN_FIX = {
 export function FixButton({ row, fix, primary = false }) {
   return (
     <button type="button" className={primary ? "eos-btn eos-btn--primary" : "eos-btn"} onClick={() => void RUN_FIX[fix](row.id)}>
-      {FIX_LABELS[fix]}
+      {fixLabel(row, fix)}
     </button>
   );
 }
