@@ -1,5 +1,6 @@
 //! The surface tools of a routine run's sessions: `return_view` hands a View
-//! back for a routine whose result is one, `fill_page` the data of a Page.
+//! back for a routine whose result is one, `fill_page` the data of a Page;
+//! a design run's designer reads its page and proposes a design.
 //! The surfaces feature ([`SurfaceTools`]) checks each and stores it as an
 //! issue; the View, the data and the bindings never reach a log.
 
@@ -10,7 +11,7 @@ use eos_core::{BoxFuture, Error};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::schema::{object, one_of, record};
+use crate::schema::{array, object, one_of, record, string};
 use crate::tool::{Call, Failure, Handler, Outcome, Output, Spec, args};
 
 struct ReturnView(Arc<dyn SurfaceTools>);
@@ -54,6 +55,61 @@ impl Handler for FillPage {
             }
         })
     }
+}
+
+struct DesignRead(Arc<dyn SurfaceTools>);
+
+impl Handler for DesignRead {
+    fn run<'a>(&'a self, call: Call<'a>, _input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let read = self.0.page_design_read(call.self_id).await?;
+            Ok(Output::text(serde_json::to_string_pretty(&read).unwrap_or_default()))
+        })
+    }
+}
+
+struct DesignPropose(Arc<dyn SurfaceTools>);
+
+#[derive(Deserialize)]
+struct ProposeArgs {
+    note: String,
+    #[serde(flatten)]
+    design: serde_json::Map<String, Value>,
+}
+
+impl Handler for DesignPropose {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let ProposeArgs { note, design } = args(input)?;
+            match self.0.page_design_propose(call.self_id, Value::Object(design), note).await {
+                Ok(line) => Ok(Output::text(line)),
+                Err(Error::Validation(problems)) => Err(Failure(problems)),
+                Err(other) => Err(other.into()),
+            }
+        })
+    }
+}
+
+/// The designer's tools: read the page it works on, and propose a design.
+pub(crate) fn designer_specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
+    vec![
+        Spec::new("page_design_read", object(vec![]), DesignRead(tools.clone())).always_load(),
+        Spec::new(
+            "page_design_propose",
+            object(vec![
+                ("template", string().describe("The page markup.")),
+                ("style", string().describe("The page's CSS.")),
+                ("contract", record().describe("The object type each run fills.")),
+                ("sample", record().describe("Data that fits the contract.")),
+                ("tile", record().optional().describe("What the page's tile on Home shows.")),
+                ("uses", array(string()).optional().describe("The direct actions its Buttons run.")),
+                ("queries", array(string()).optional().describe("The named queries its Live parts read.")),
+                ("note", string().min(1).max(200).describe("One line the user reads beside the change.")),
+            ]),
+            DesignPropose(tools.clone()),
+        )
+        .always_load(),
+    ]
 }
 
 pub(crate) fn specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {

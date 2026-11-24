@@ -81,6 +81,7 @@
 
 mod actions;
 mod architect;
+mod design_first;
 mod engine;
 mod intent;
 mod once;

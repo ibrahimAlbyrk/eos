@@ -105,7 +105,17 @@ async fn find_past_items(engine: &Engine, worker_id: &str, limit: usize) -> Resu
 
 async fn start_trial(engine: &Arc<Engine>, worker_id: &str) -> Result<Vec<String>, Error> {
     let (routine_id, _) = routine_of(engine, worker_id).await?;
-    match trial::start(engine, &routine_id).await {
+    let started = match crate::design_first::design_first(engine, &routine_id).await {
+        Ok(Some(design)) => {
+            return Err(Error::Conflict(format!(
+                "No trial run was started: the page is designed first, in run {}. Call start_trial again once                  get_routine shows that run done.",
+                design.run_id
+            )));
+        }
+        Ok(None) => trial::start(engine, &routine_id).await,
+        Err(error) => Err(error),
+    };
+    match started {
         Ok(runs) => Ok(runs.into_iter().map(|run| run.id).collect()),
         Err(StartError::Store(error)) => Err(error),
         Err(StartError::UnknownRoutine(id)) => Err(Error::not_found("routine", id)),

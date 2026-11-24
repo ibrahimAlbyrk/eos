@@ -230,3 +230,32 @@ async fn start_names_the_version_shown_and_the_one_the_trial_ran_on() {
         )
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_trial_of_a_page_waits_for_its_first_design_which_starts_once() {
+    let routes = with_pulls();
+    let bench = &routes.bench;
+    let (routine, architect) = routes.made("A morning paper of my pull requests").await;
+    let mut paper = reviewing();
+    paper["makes"] = json!({"kind": "page", "description": "A morning paper"});
+    routes.propose(&architect, paper).await;
+    let surface = bench.page_surface(&routine);
+
+    let told = bench.module.architect().start_trial(&architect).await.expect_err("waits");
+    assert!(told.to_string().contains("the page is designed first"), "{told}");
+    let id = routine.clone();
+    let runs = bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
+    assert_eq!(runs.len(), 1, "only the design run");
+    assert_eq!((runs[0].kind.as_str(), runs[0].origin.as_str()), ("design", "surface"));
+    let input: RunInput = serde_json::from_str(&runs[0].input).expect("an input");
+    assert_eq!(input.surface.map(|s| s.surface_id), Some(surface.clone()));
+
+    let again = bench.module.architect().start_trial(&architect).await.expect_err("still waits");
+    assert!(again.to_string().contains(&runs[0].id), "{again}");
+    let id = routine.clone();
+    assert_eq!(bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads").len(), 1);
+
+    bench.temp.exec(&format!("UPDATE surface_defs SET candidate_version = 1 WHERE id = '{surface}'"));
+    let trial = bench.module.architect().start_trial(&architect).await.expect("the trial starts");
+    assert_eq!(trial.len(), 3);
+}

@@ -74,6 +74,8 @@ pub const TOOL_NAME_VARS: &[(&str, &str)] = &[
     ("ASK_CHOICE_TOOL", "ask_choice"),
     ("FIND_PAST_ITEMS_TOOL", "find_past_items"),
     ("START_TRIAL_TOOL", "start_trial"),
+    ("PAGE_DESIGN_READ_TOOL", "page_design_read"),
+    ("PAGE_DESIGN_PROPOSE_TOOL", "page_design_propose"),
     ("LB", "{{"),
     ("RB", "}}"),
 ];
