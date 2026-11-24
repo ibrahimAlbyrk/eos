@@ -1,11 +1,13 @@
 //! What a door outside Eos hands a run is never the user's own words (07 §4.3): the
 //! selection under the shortcut, a Services request, a share, a Dock drop, a link, a share
-//! from the phone. Whatever page started the run, the core marks it here.
+//! from the phone, and what another program piped into the `eos` command. Whatever page or
+//! command started the run, the core marks it here.
 
 use eos_contracts::{OnceRequest, StartRunRequest};
 
-/// The doors whose items come from outside Eos.
-const OUTSIDE: [&str; 6] = ["link", "shortcut", "services", "share", "dock", "phone_share"];
+/// The doors whose items come from outside Eos. The terminal's items and piped text come from
+/// whatever program ran the command.
+const OUTSIDE: [&str; 7] = ["link", "shortcut", "services", "share", "dock", "phone_share", "terminal"];
 
 fn is_outside(door: &str) -> bool {
     OUTSIDE.contains(&door)
