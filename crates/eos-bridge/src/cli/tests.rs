@@ -131,7 +131,9 @@ async fn hello_and_routines_answer_and_the_socket_is_the_users_alone_until_the_a
 
 fn started(method: &str, url: &str, _: &Value) -> Option<(u16, Value)> {
     match (method, url) {
-        ("POST", "/api/runs") => Some((200, json!({"runs": [{"id": "rn-82fa1c0d3e9b", "state": "queued"}]}))),
+        // The start route answers 201, as the router does.
+        ("POST", "/api/runs") => Some((201, json!({"runs": [{"id": "rn-82fa1c0d3e9b", "state": "queued"}]}))),
+        ("POST", "/api/runs/once") => Some((201, json!({"run": {"id": "rn-0ce0ce0ce0ce"}, "name": "Tidy downloads"}))),
         ("POST", "/api/runs/estimate") => Some((200, json!({"usd": 1.5, "ms": 60000, "basis": "history", "n": 4}))),
         _ => None,
     }
@@ -159,6 +161,14 @@ async fn a_run_starts_through_the_start_route_as_the_terminal_with_untrusted_ite
     let unknown = rig.ask(json!({"cmd": "dance"})).await;
     assert_eq!(code(&unknown), exit::REFUSED);
     assert_eq!(rig.asked("POST", "/api/runs").len(), 1);
+}
+
+#[tokio::test]
+async fn a_one_off_that_started_ends_with_zero() {
+    let rig = Rig::new(routines_and(started));
+    let frames = rig.ask(json!({"cmd": "once", "what": "Tidy my downloads"})).await;
+    assert_eq!(code(&frames), exit::OK);
+    assert_eq!(texts(&frames), ["Started Tidy downloads. Open it: eos://runs/rn-0ce0ce0ce0ce"]);
 }
 
 #[tokio::test]
