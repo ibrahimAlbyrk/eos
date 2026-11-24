@@ -105,6 +105,9 @@ pub trait SurfaceRepo {
     fn list(&self, routine_id: Option<&str>, place: Option<Place>) -> Result<Vec<StoredSurface>, Error>;
     /// Every surface of a routine, archived ones too, oldest first.
     fn of_routine(&self, routine_id: &str) -> Result<Vec<StoredSurface>, Error>;
+    /// A surface and every row of it: versions, issues, edits, state, its
+    /// pin and the record of its actions.
+    fn remove(&self, id: &str) -> Result<(), Error>;
 }
 
 pub trait SurfaceVersionRepo {
@@ -115,6 +118,8 @@ pub trait SurfaceVersionRepo {
     fn of_surface(&self, surface_id: &str) -> Result<Vec<StoredSurfaceVersion>, Error>;
     /// The number the next version of a surface gets: one past the highest.
     fn next_number(&self, surface_id: &str) -> Result<i64, Error>;
+    /// Removes the versions named.
+    fn delete(&self, surface_id: &str, versions: &[i64]) -> Result<usize, Error>;
 }
 
 pub trait SurfaceIssueRepo {
@@ -128,7 +133,8 @@ pub trait SurfaceIssueRepo {
     fn of_run(&self, run_id: &str) -> Result<Vec<StoredIssue>, Error>;
     /// The number the next real issue of a surface gets: one past the highest.
     fn next_seq(&self, surface_id: &str) -> Result<i64, Error>;
-    /// Removes the issues named; a missing one is not an error.
+    /// Removes the issues named, with their edits and saved state; a missing
+    /// one is not an error.
     fn delete(&self, ids: &[String]) -> Result<usize, Error>;
 }
 

@@ -195,7 +195,9 @@ pub(crate) fn fill_page<'a>(
             srcs.iter().map(|src| IssueImage { src: src.clone(), hash: None, failed: None }).collect();
         let issue = store_fill(parts, &target, *version, &data, &images).await?;
         tracing::info!(surface = %issue.surface_id, issue = %issue.id, rev = issue.rev, images = images.len(), "a run filled its page");
-        if !images.is_empty() {
+        if images.is_empty() {
+            crate::retention::sweep(parts, &issue.surface_id).await;
+        } else {
             let (parts, run_dir, issue_id) = (parts.clone(), target.run.output_dir.clone(), issue.id.clone());
             tokio::spawn(async move { take_images(&parts, &issue_id, &run_dir, images).await });
         }
@@ -298,6 +300,7 @@ async fn take_images(parts: &SurfacesParts, issue_id: &str, run_dir: &Path, mut 
         Ok(()) => tracing::info!(issue = %issue_id, failed, "a page issue's images settled"),
         Err(error) => tracing::warn!(issue = %issue_id, %error, "a page issue's images did not settle"),
     }
+    crate::retention::sweep(parts, &surface_id).await;
 }
 
 /// The run's issue as a fallback View of `data`; the surface is marked for a
@@ -347,6 +350,7 @@ async fn fallback(parts: &SurfacesParts, target: &Target, data: &Value, problems
         })
         .await?;
     tracing::info!(surface = %issue.surface_id, issue = %issue.id, problems = problems.len(), "a page fell back to a view");
+    crate::retention::sweep(parts, &issue.surface_id).await;
     Ok(format!(
         "issue {} is shown as a plain view: the page could not take this data. Hand in the result as it is; the page will be redesigned.",
         issue.id

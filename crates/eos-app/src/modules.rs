@@ -244,7 +244,13 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
         packs: memory.experience_packs(),
         feedback: memory.experience_feedback(),
-        surfaces: Arc::new(eos_mod_surfaces::SurfaceAuthor::new(cx.store.clone(), cx.clock.clone(), cx.ids.clone())),
+        surfaces: Arc::new(eos_mod_surfaces::SurfaceAuthor::new(
+            cx.store.clone(),
+            cx.clock.clone(),
+            cx.ids.clone(),
+            Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
+            cx.paths.join("surfaces"),
+        )),
     }));
     runs.attach(&routines);
     cx.grants.attach(&routines.grants());

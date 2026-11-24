@@ -226,5 +226,7 @@ async fn old_runs_transcripts_and_a_long_deleted_routine_go_and_what_must_stay_s
     assert!(bench.temp.store.read_blocking(|tx| tx.runs().find("rn-gone")).expect("reads").is_none());
     let removed = eos_testkit::FeedbackCall::RoutineRemoved("rt-gone".into());
     bench.eventually(|| bench.feedback.calls().contains(&removed)).await;
+    let gone = eos_testkit::SurfaceCall::Remove("rt-gone".into());
+    bench.eventually(|| bench.surfaces.calls().contains(&gone)).await;
     bench.module.stop().await;
 }

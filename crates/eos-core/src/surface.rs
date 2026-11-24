@@ -22,6 +22,9 @@ pub trait SurfaceAuthoring: Send + Sync {
     fn archive_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The routine came back from the archive or from Recently deleted.
     fn restore_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// The routine left for good: its surfaces' folders go to the trash and
+    /// their rows go.
+    fn remove_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }
 
 /// Runs a surface's direct action the way a press of its button does: the

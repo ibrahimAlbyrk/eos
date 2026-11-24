@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use crate::rig::{Rig, surface, version};
 
 fn author(rig: &Rig) -> SurfaceAuthor {
-    SurfaceAuthor::new(rig.temp.port(), rig.clock.clone(), std::sync::Arc::new(eos_testkit::SeqIds::new()))
+    rig.author()
 }
 
 fn digest(bindings: Value) -> ReturnedView {

@@ -1,12 +1,16 @@
 //! A routine's surface follows the routine (05 G27): made when a routine
 //! whose blueprint makes a view, a page or an app is created, its candidate
 //! kept when the routine starts, archived (and unpinned) and brought back
-//! with it. Each change is one write, announced on `surfaces:change`. Built before the
+//! with it, and removed when it leaves for good: its folder under
+//! `surfaces/` to the trash, then its rows. Each change is one write,
+//! announced on `surfaces:change`. Built before the
 //! routines feature, which holds it.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use eos_contracts::SurfacesChange;
+use eos_core::os::FileSystem;
 use eos_core::store::{Outbox, Store, StoredSurface, Tx};
 use eos_core::surface::SurfaceAuthoring;
 use eos_core::{BoxFuture, Clock, Error, Ids};
@@ -18,6 +22,10 @@ pub struct SurfaceAuthor {
     store: Arc<dyn Store>,
     clock: Arc<dyn Clock>,
     ids: Arc<dyn Ids>,
+    /// The trash, for a removed surface's folder.
+    trash: Arc<dyn FileSystem>,
+    /// `surfaces/`, one folder per surface.
+    root: PathBuf,
 }
 
 impl std::fmt::Debug for SurfaceAuthor {
@@ -43,8 +51,14 @@ fn shape_of(makes: &str) -> Option<(Level, Place, Role)> {
 }
 
 impl SurfaceAuthor {
-    pub fn new(store: Arc<dyn Store>, clock: Arc<dyn Clock>, ids: Arc<dyn Ids>) -> Self {
-        Self { store, clock, ids }
+    pub fn new(
+        store: Arc<dyn Store>,
+        clock: Arc<dyn Clock>,
+        ids: Arc<dyn Ids>,
+        trash: Arc<dyn FileSystem>,
+        root: PathBuf,
+    ) -> Self {
+        Self { store, clock, ids, trash, root }
     }
 
     /// Changes every surface of the routine that `pick` takes, in one write.
@@ -136,5 +150,29 @@ impl SurfaceAuthoring for SurfaceAuthor {
 
     fn restore_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(self.each(routine_id, "restored", |_, _, surface, _| Ok(surface.archived_at.take().is_some())))
+    }
+
+    fn remove_for_routine<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move {
+            let id = routine_id.to_owned();
+            let surfaces = self.store.read(move |tx| tx.surfaces().of_routine(&id)).await?;
+            for surface in surfaces {
+                let dir = self.root.join(&surface.id);
+                if self.trash.exists(&dir).await {
+                    self.trash.trash(&dir).await?;
+                }
+                let gone = surface.clone();
+                self.store
+                    .write(move |tx, out| {
+                        crate::pins::unpin(tx, out, &gone.id)?;
+                        tx.surfaces().remove(&gone.id)?;
+                        changed(out, &gone, "removed");
+                        Ok(())
+                    })
+                    .await?;
+                tracing::info!(surface = %surface.id, "a routine's surface left for good");
+            }
+            Ok(())
+        })
     }
 }
