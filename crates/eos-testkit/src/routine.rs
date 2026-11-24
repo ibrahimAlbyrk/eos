@@ -126,6 +126,12 @@ impl RoutineControl for FakeRoutineControl {
         self.done(ControlCall::StepDown { routine_id: routine_id.to_owned(), reason: reason.to_owned() })
     }
 
+    fn step_down_in(&self, _tx: &dyn Tx, _out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+        locked(&self.calls)
+            .push(ControlCall::StepDown { routine_id: routine_id.to_owned(), reason: reason.to_owned() });
+        Ok(())
+    }
+
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         self.done(ControlCall::Pause { routine_id: routine_id.to_owned(), reason: reason.to_owned() })
     }

@@ -139,7 +139,13 @@ async fn a_step_down_lowers_what_the_gate_reads_and_drops_every_grant_until_the_
     draft_granted["freedom"]["grants"] =
         json!([{"id": "all", "when": {"fact": "draft", "is": false}, "rung": "on_its_own"}]);
     let at_draft = bench.routine(RoutineState::Active, draft_granted);
-    control.step_down(&at_draft, "that was wrong").await.expect("steps down");
+    // Inside the job that records the outcome, as Needs you steps a routine down.
+    let (in_job, id) = (control.clone(), at_draft.clone());
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, out| in_job.step_down_in(tx, out, &id, "that was wrong"))
+        .expect("steps down");
     assert!(control.confirmed(&at_draft).await.expect("confirmed").freedom.grants.is_empty());
 
     // Only the user raises it again.

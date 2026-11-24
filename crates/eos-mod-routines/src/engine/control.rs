@@ -115,55 +115,48 @@ struct NewRung<'a> {
     drop_grants: bool,
 }
 
-impl Control {
-    fn set_rung(&self, routine_id: &str, change: NewRung<'_>) -> BoxFuture<'_, Result<(), Error>> {
-        let (engine, id) = (self.0.clone(), routine_id.to_owned());
-        let note = change.note.map(str::to_owned);
-        let (rung, author, keep, drop_grants) = (change.rung, change.author, change.keep, change.drop_grants);
-        Box::pin(async move {
-            let now = engine.clock.now_ms();
-            let version_id = engine.ids.routine_version_id();
-            let (device, patterns) = (engine.device.clone(), engine.patterns.clone());
-            engine
-                .store
-                .write(move |tx, out| {
-                    let head = tx.routine_versions().head(&id)?.ok_or_else(|| Error::not_found("routine", &id))?;
-                    let mut blueprint = readable(&head)?
-                        .ok_or_else(|| Error::Conflict("the routine was made by a newer Eos".into()))?;
-                    let moves = keep(blueprint.freedom.rung, rung);
-                    let drops = drop_grants && !blueprint.freedom.grants.is_empty();
-                    if !moves && !drops {
-                        return Ok(());
-                    }
-                    if moves {
-                        blueprint.freedom.rung = rung;
-                    }
-                    if drops {
-                        blueprint.freedom.grants.clear();
-                    }
-                    let text = canonical_json(&blueprint);
-                    tx.routine_versions().insert(&StoredVersion {
-                        id: version_id.clone(),
-                        routine_id: id.clone(),
-                        parent_id: Some(head.id.clone()),
-                        status: VersionStatus::Kept,
-                        author,
-                        note,
-                        format: head.format,
-                        hash: hash(&text),
-                        blueprint: text,
-                        no_trial: head.no_trial,
-                        trust: head.trust,
-                        device: Some(device),
-                        created_at: now,
-                    })?;
-                    tx.routines().set_head(&id, &version_id, now)?;
-                    tracing::info!(routine_id = %id, version_id = %version_id, "a routine's freedom changed");
-                    announce(tx, out, &id, RoutineChangeReason::Version, now, &patterns)
-                })
-                .await
-        })
+/// Writes `change` as a new kept head of `id` inside the caller's job.
+fn set_rung_in(engine: &Engine, tx: &dyn Tx, out: &mut Outbox, id: &str, change: &NewRung<'_>) -> Result<(), Error> {
+    let head = tx.routine_versions().head(id)?.ok_or_else(|| Error::not_found("routine", id))?;
+    let mut blueprint =
+        readable(&head)?.ok_or_else(|| Error::Conflict("the routine was made by a newer Eos".into()))?;
+    let moves = (change.keep)(blueprint.freedom.rung, change.rung);
+    let drops = change.drop_grants && !blueprint.freedom.grants.is_empty();
+    if !moves && !drops {
+        return Ok(());
     }
+    if moves {
+        blueprint.freedom.rung = change.rung;
+    }
+    if drops {
+        blueprint.freedom.grants.clear();
+    }
+    let (now, version_id) = (engine.clock.now_ms(), engine.ids.routine_version_id());
+    let text = canonical_json(&blueprint);
+    tx.routine_versions().insert(&StoredVersion {
+        id: version_id.clone(),
+        routine_id: id.to_owned(),
+        parent_id: Some(head.id.clone()),
+        status: VersionStatus::Kept,
+        author: change.author,
+        note: change.note.map(str::to_owned),
+        format: head.format,
+        hash: hash(&text),
+        blueprint: text,
+        no_trial: head.no_trial,
+        trust: head.trust,
+        device: Some(engine.device.clone()),
+        created_at: now,
+    })?;
+    tx.routines().set_head(id, &version_id, now)?;
+    tracing::info!(routine_id = %id, version_id = %version_id, "a routine's freedom changed");
+    announce(tx, out, id, RoutineChangeReason::Version, now, &engine.patterns)
+}
+
+/// What a step-down writes: Draft, by Eos, saying why, every grant dropped.
+fn down_to_draft(reason: &str) -> NewRung<'_> {
+    let lower = |current: Rung, next: Rung| next < current;
+    NewRung { rung: Rung::Draft, author: VersionAuthor::Eos, note: Some(reason), keep: lower, drop_grants: true }
 }
 
 impl RoutineControl for Control {
@@ -177,23 +170,30 @@ impl RoutineControl for Control {
     }
 
     fn raise<'a>(&'a self, routine_id: &'a str, rung: Rung) -> BoxFuture<'a, Result<(), Error>> {
-        let higher = |current: Rung, next: Rung| next > current;
-        let raise = NewRung { rung, author: VersionAuthor::User, note: None, keep: higher, drop_grants: false };
-        self.set_rung(routine_id, raise)
+        let (engine, id) = (self.0.clone(), routine_id.to_owned());
+        Box::pin(async move {
+            let higher = |current: Rung, next: Rung| next > current;
+            let store = engine.store.clone();
+            store
+                .write(move |tx, out| {
+                    let raise =
+                        NewRung { rung, author: VersionAuthor::User, note: None, keep: higher, drop_grants: false };
+                    set_rung_in(&engine, tx, out, &id, &raise)
+                })
+                .await
+        })
     }
 
     fn step_down<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
-        let lower = |current: Rung, next: Rung| next < current;
-        self.set_rung(
-            routine_id,
-            NewRung {
-                rung: Rung::Draft,
-                author: VersionAuthor::Eos,
-                note: Some(reason),
-                keep: lower,
-                drop_grants: true,
-            },
-        )
+        let (engine, id, reason) = (self.0.clone(), routine_id.to_owned(), reason.to_owned());
+        Box::pin(async move {
+            let store = engine.store.clone();
+            store.write(move |tx, out| set_rung_in(&engine, tx, out, &id, &down_to_draft(&reason))).await
+        })
+    }
+
+    fn step_down_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+        set_rung_in(&self.0, tx, out, routine_id, &down_to_draft(reason))
     }
 
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {

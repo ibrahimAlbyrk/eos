@@ -31,6 +31,9 @@ pub(crate) enum Again {
     TooOld,
     /// The user stopped an automatic send in its hold.
     Stopped,
+    /// An earlier automatic send of its routine was taken back or called
+    /// wrong, so the routine holds its results again, this one too (D9).
+    SteppedDown,
 }
 
 impl Again {
@@ -40,6 +43,7 @@ impl Again {
             Again::Stale(_) => STALE,
             Again::TooOld => AUTO_STALE,
             Again::Stopped => STOPPED_BY_USER,
+            Again::SteppedDown => STEPPED_DOWN,
         }
     }
 
@@ -48,6 +52,9 @@ impl Again {
             Again::Stale(_) => "What it is about changed since it was made. Look at it again before you send it.",
             Again::TooOld => "It waited over a day to go out. Look at it again before you send it.",
             Again::Stopped => "You stopped it before it went out.",
+            Again::SteppedDown => {
+                "An earlier result of this routine was taken back or called wrong. Look at this one before you send it."
+            }
         }
     }
 }
@@ -55,8 +62,9 @@ impl Again {
 const STALE: &str = "stale";
 const AUTO_STALE: &str = "auto_stale";
 const STOPPED_BY_USER: &str = "stopped";
+const STEPPED_DOWN: &str = "stepped_down";
 /// The kinds of a stopped row whose run's draft goes out in its place.
-const HELD_AGAIN: [&str; 3] = [STALE, AUTO_STALE, STOPPED_BY_USER];
+const HELD_AGAIN: [&str; 4] = [STALE, AUTO_STALE, STOPPED_BY_USER, STEPPED_DOWN];
 
 /// Waits after the 1st to 5th failed attempt (03 G5); the 6th is the last.
 const RETRY_MS: [i64; 5] = [30_000, 120_000, 600_000, 3_600_000, 14_400_000];

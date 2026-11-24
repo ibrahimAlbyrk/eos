@@ -364,6 +364,8 @@ pub trait RoutineControl: Send + Sync {
     /// Holds its results as drafts again, in a version Eos authored that
     /// says why.
     fn step_down<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// [`step_down`](RoutineControl::step_down) inside the caller's job.
+    fn step_down_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// [`pause`](RoutineControl::pause) inside the caller's job.
     fn pause_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error>;

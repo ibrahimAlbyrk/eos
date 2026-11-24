@@ -3,21 +3,26 @@
 //! a failed one again (Edit and retry with a changed result). An undo calls
 //! its channel off the writer thread and records what it answered in a job
 //! of its own. An undo or "that was wrong" of a send no user approved
-//! drops its routine back to drafts (D9).
+//! drops its routine back to drafts in the job that records it (D9), and
+//! every automatic send of the routine that has not gone out yet goes back
+//! to the user as a draft there too: a gate or a claim after that job reads
+//! the routine held.
 
 use eos_contracts::ResultDoc;
 use eos_core::Error;
 use eos_core::delivery::{Receipt, UndoOutcome};
-use eos_core::store::{ItemAnswer, StoredDelivery};
+use eos_core::routine::RunOutcomes;
+use eos_core::store::{ItemAnswer, Outbox, StoredDelivery, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::numbers::Outcome;
 use serde_json::Value;
 
-use super::{FAILED, SENT, UNDONE, announce, automatic};
+use super::record::{Again, hold_again_in};
+use super::{FAILED, HOLDING, QUEUED, SENT, STOPPED, UNDONE, WAITING_CAPABILITY, announce, automatic};
 use crate::answer::answer_in;
 use crate::outcomes::after_sent_in;
 use crate::problems::requeue_in;
-use crate::{Items, consume_in};
+use crate::{Items, Opening, consume_in};
 
 /// Why a routine whose send was taken back or called wrong holds its
 /// results as drafts again.
@@ -41,15 +46,6 @@ impl Items {
         row.ok_or_else(|| Error::not_found("delivery", id))
     }
 
-    /// A send no user approved drops its routine back to drafts.
-    async fn step_down(&self, row: &StoredDelivery, reason: &str) -> Result<(), Error> {
-        if automatic(&row.mode) {
-            tracing::info!(routine_id = %row.routine_id, reason, "a routine holds its results as drafts again");
-            self.control.step_down(&row.routine_id, reason).await?;
-        }
-        Ok(())
-    }
-
     /// Takes the send `id` back inside its channel's window; whether some of
     /// it stays (a review's text). The run ends `undone`.
     pub async fn undo(&self, id: &str) -> Result<bool, crate::Error> {
@@ -69,6 +65,7 @@ impl Items {
             }
         };
         let (id, now, outcomes) = (row.id.clone(), self.clock.now_ms(), self.outcomes.clone());
+        let (ids, zone, control) = (self.ids.clone(), self.zone.clone(), self.control.clone());
         self.store
             .write(move |tx, out| {
                 let Some(mut row) = tx.inbox_deliveries().find(&id)?.filter(|row| row.state == SENT) else {
@@ -79,11 +76,12 @@ impl Items {
                 row.updated_at = now;
                 tx.inbox_deliveries().update(&row)?;
                 announce(out, &row);
-                after_sent_in(tx, out, outcomes.as_ref(), &row, Outcome::Undone, now)
+                after_sent_in(tx, out, outcomes.as_ref(), &row, Outcome::Undone, now)?;
+                let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+                step_down_in(tx, out, &at, outcomes.as_ref(), &row, STEP_DOWN_UNDO)
             })
             .await?;
         tracing::info!(delivery_id = %row.id, partial, "a send was taken back");
-        self.step_down(&row, STEP_DOWN_UNDO).await?;
         Ok(partial)
     }
 
@@ -91,7 +89,8 @@ impl Items {
     /// stays as it is. Saying it again changes nothing and answers the same.
     pub async fn wrong(&self, id: &str) -> Result<StoredDelivery, crate::Error> {
         let (id, now, outcomes) = (id.to_owned(), self.clock.now_ms(), self.outcomes.clone());
-        let (row, first) = self
+        let (ids, zone, control) = (self.ids.clone(), self.zone.clone(), self.control.clone());
+        let row = self
             .store
             .write(move |tx, out| {
                 let row = tx.inbox_deliveries().find(&id)?.ok_or_else(|| Error::not_found("delivery", &id))?;
@@ -99,15 +98,14 @@ impl Items {
                     return Err(Error::Conflict("Only a send that went out can be wrong.".into()));
                 }
                 if tx.inbox_outcomes().judged(&row.routine_id, &row.id, Outcome::Wrong.as_str())? {
-                    return Ok((row, false));
+                    return Ok(row);
                 }
                 after_sent_in(tx, out, outcomes.as_ref(), &row, Outcome::Wrong, now)?;
-                Ok((row, true))
+                let at = Opening { now, ids: ids.as_ref(), zone: zone.as_ref(), control: control.as_ref() };
+                step_down_in(tx, out, &at, outcomes.as_ref(), &row, STEP_DOWN_WRONG)?;
+                Ok(row)
             })
             .await?;
-        if first {
-            self.step_down(&row, STEP_DOWN_WRONG).await?;
-        }
         Ok(row)
     }
 
@@ -140,4 +138,40 @@ impl Items {
         self.wake.notify_one();
         Ok(row)
     }
+}
+
+/// A send no user approved drops its routine back to drafts, and every
+/// automatic send of the routine that waits to go (in its hold, queued, or
+/// waiting for its capability) goes back to the user as a draft.
+fn step_down_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    at: &Opening<'_>,
+    outcomes: &dyn RunOutcomes,
+    row: &StoredDelivery,
+    reason: &str,
+) -> Result<(), Error> {
+    if !automatic(&row.mode) {
+        return Ok(());
+    }
+    at.control.step_down_in(tx, out, &row.routine_id, reason)?;
+    let again = Again::SteppedDown;
+    let mut held = 0;
+    for state in [QUEUED, HOLDING, WAITING_CAPABILITY] {
+        for mut waiting in tx.inbox_deliveries().in_state(state)? {
+            if waiting.routine_id != row.routine_id || !automatic(&waiting.mode) {
+                continue;
+            }
+            waiting.state = STOPPED.to_owned();
+            waiting.last_error_kind = Some(again.kind().to_owned());
+            waiting.next_attempt_at = None;
+            waiting.updated_at = at.now;
+            tx.inbox_deliveries().update(&waiting)?;
+            announce(out, &waiting);
+            hold_again_in(tx, out, at, outcomes, &waiting, &again)?;
+            held += 1;
+        }
+    }
+    tracing::info!(routine_id = %row.routine_id, reason, held, "a routine holds its results as drafts again");
+    Ok(())
 }
