@@ -1,5 +1,5 @@
-//! Four decisions the app makes at launch: where the data is, whether it reaches the
-//! network, where it logs, and what it shows.
+//! Five decisions the app makes at launch: where the data is, whether it reaches the
+//! network, whether it owns the doors on the Mac, where it logs, and what it shows.
 
 use std::path::{Path, PathBuf};
 
@@ -76,6 +76,31 @@ pub fn reaches_network(home: &Path, user_home: &Path, release: bool) -> bool {
     release && home == user_home.join(".eos")
 }
 
+/// The installed app's bundle identifier: the one identity that owns the doors on the Mac.
+pub const INSTALLED_ID: &str = "com.ibrahimalbyrk.eos";
+
+/// Whether this app owns the doors on the Mac: the `eos` link scheme, the shortcut, Services,
+/// the Dock's documents, the share extension and the login item. Only a release build that is
+/// the installed identity: a test or dev run is another app to the system, and two apps
+/// answering one shortcut or one scheme would take each other's doors.
+pub fn owns_doors(bundle_id: Option<&str>, release: bool) -> bool {
+    release && bundle_id == Some(INSTALLED_ID)
+}
+
+/// The link scheme an app registers: `eos` for the one that owns the doors, `eos-dev` for
+/// every other build, so a link never reaches a dev run by surprise.
+pub fn link_scheme(doors: bool) -> &'static str {
+    if doors { "eos" } else { "eos-dev" }
+}
+
+/// The bundle identifier written in a bundle's `Info.plist`, as `bundle.sh` fills it.
+pub fn bundle_id_of(info_plist: &str) -> Option<&str> {
+    let after = &info_plist[info_plist.find("<key>CFBundleIdentifier</key>")?..];
+    let start = after.find("<string>")? + "<string>".len();
+    let len = after[start..].find("</string>")?;
+    Some(after[start..start + len].trim())
+}
+
 /// Where the app writes its logs (`core.log`, `shell.log`): beside the data of the run.
 ///
 /// - a shell data folder that was named (`EOS_SHELL_DATA`: every test and dev run) holds
@@ -132,6 +157,23 @@ mod tests {
         assert_eq!(LaunchKind::Login.plan(), plan(false, false, false));
         assert_eq!(LaunchKind::Background.plan(), plan(false, false, false));
         assert_eq!(LaunchKind::Files.plan(), plan(false, false, true));
+    }
+
+    #[test]
+    fn only_the_installed_identity_in_a_release_build_owns_the_doors() {
+        assert!(owns_doors(Some(INSTALLED_ID), true));
+        assert!(!owns_doors(Some(INSTALLED_ID), false), "never a dev-run build");
+        assert!(!owns_doors(Some("dev.eos.shell"), true), "never a local build's identity");
+        assert!(!owns_doors(None, true), "never outside a bundle");
+        assert_eq!(link_scheme(true), "eos");
+        assert_eq!(link_scheme(false), "eos-dev");
+    }
+
+    #[test]
+    fn the_bundle_identifier_is_read_from_the_info_plist() {
+        let plist = "<dict>\n\t<key>CFBundleExecutable</key>\n\t<string>Eos</string>\n\t<key>CFBundleIdentifier</key>\n\t<string>com.ibrahimalbyrk.eos</string>\n</dict>";
+        assert_eq!(bundle_id_of(plist), Some(INSTALLED_ID));
+        assert_eq!(bundle_id_of("<dict><key>CFBundleName</key><string>Eos</string></dict>"), None);
     }
 
     #[test]

@@ -395,7 +395,7 @@ impl Shell {
             rt: self.rt.handle().clone(),
             bridge: OnceLock::new(),
             quiet: options.quiet,
-            login_item: options.login_item,
+            doors: options.doors,
         });
         let bridge = Bridge::new(Parts {
             assets: options.ui_dist.clone(),

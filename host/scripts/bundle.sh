@@ -38,6 +38,9 @@ if [ "${EOS_UPDATE_CHANNEL:-}" = "stable" ] && [ "$MODE" != "release" ]; then
   exit 1
 fi
 ID="${EOS_BUNDLE_ID:-dev.eos.shell}"
+# Only the installed identity owns the doors on the Mac (eos_bridge::launch::owns_doors):
+# every other build answers `eos-dev` links, so an `eos://` link never reaches a test copy.
+SCHEME=eos-dev; [ "$ID" = "com.ibrahimalbyrk.eos" ] && SCHEME=eos
 NAME="Eos"
 REPO="$(cd "$HOST_DIR/.." && pwd)"
 DIST="${EOS_UI_DIST:-$REPO/app/ui/dist}"
@@ -64,7 +67,7 @@ FRAMEWORK="$(ls -d "$CEF_PATH"/*/cef_macos_*/"Chromium Embedded Framework.framew
 [ -d "$FRAMEWORK" ] || { echo "no CEF framework under $CEF_PATH" >&2; exit 1; }
 BIN="$CARGO_TARGET_DIR/$PROFILE"
 APP="$EOS_HOST_WORK/bundle/$MODE/$NAME.app"
-fill() { sed -e "s/@NAME@/$NAME/g" -e "s/@ID@/$ID/g" -e "s/@VERSION@/$VERSION/g" -e "s/@HELPER@/${2:-}/g" "$1"; }
+fill() { sed -e "s/@NAME@/$NAME/g" -e "s/@ID@/$ID/g" -e "s/@VERSION@/$VERSION/g" -e "s/@SCHEME@/$SCHEME/g" -e "s/@HELPER@/${2:-}/g" "$1"; }
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
@@ -75,6 +78,8 @@ fill bundle/Info.plist.in > "$APP/Contents/Info.plist"
 # the app with it off and holds the footprint to a ceiling.
 grep -q "<key>MallocLargeCache</key>" "$APP/Contents/Info.plist" \
   || { echo "Info.plist lost MallocLargeCache" >&2; exit 1; }
+[ "$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$APP/Contents/Info.plist")" = "$SCHEME" ] \
+  || { echo "Info.plist does not name the $SCHEME scheme" >&2; exit 1; }
 cp "$BIN/eos" "$APP/Contents/MacOS/$NAME"
 cp "$BIN/eos-apply" "$APP/Contents/MacOS/eos-apply"
 if [ "${EOS_UPDATE_CHANNEL:-}" = "stable" ]; then

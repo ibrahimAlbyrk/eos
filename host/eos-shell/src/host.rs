@@ -27,8 +27,8 @@ pub(crate) struct Host {
     pub(crate) bridge: OnceLock<Weak<Bridge>>,
     /// A quiet run makes no sound.
     pub(crate) quiet: bool,
-    /// Whether this app may be a login item (`Options::login_item`).
-    pub(crate) login_item: bool,
+    /// Whether this app owns the doors, the login item among them (`Options::doors`).
+    pub(crate) doors: bool,
 }
 
 /// `worker:<id>` or `route:<name>`, then `@<host>` when a paired computer raised it (a host
@@ -173,15 +173,15 @@ impl ShellHost for Host {
     }
 
     fn login_item(&self) -> LoginItem {
-        if self.login_item { login::status() } else { LoginItem::Unavailable }
+        if self.doors { login::status() } else { LoginItem::Unavailable }
     }
 
     fn set_login_item(&self, on: bool) -> LoginItem {
-        if self.login_item { login::set(on) } else { LoginItem::Unavailable }
+        if self.doors { login::set(on) } else { LoginItem::Unavailable }
     }
 
     fn open_login_items_settings(&self) {
-        if self.login_item {
+        if self.doors {
             login::open_settings();
         }
     }
