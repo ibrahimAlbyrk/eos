@@ -16,9 +16,10 @@ use eos_core::surface::{DirectActions, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_runtime::actions::{ActionCall, ActionDecl, ActionScope, Actions};
 use eos_surface::limits::{ACTIONS_PER_SECOND, CONFIRM_TOKEN_MS};
-use eos_surface::{IssueKind, Sources, fill_args, format_problems, pressed_row, validate};
+use eos_surface::{IssueKind, PageDesign, Sources, fill_args, format_problems, pressed_row, validate};
 use serde_json::{Value, json};
 
+use crate::page_press;
 use crate::records::{self, answer_of, reason};
 
 /// What the dispatcher is built from.
@@ -118,23 +119,48 @@ impl Dispatcher {
                 answers: None,
             }));
         };
-        if req.button.is_some() {
-            return Ok(Err("That issue has no such button".into()));
-        }
         let lookup = issue_id.clone();
         let found = self
             .parts
             .store
             .read(move |tx| {
                 let Some(issue) = tx.surface_issues().find(&lookup)? else { return Ok(None) };
-                Ok(tx.surfaces().find(&issue.surface_id)?.map(|surface| (issue, surface)))
+                let Some(surface) = tx.surfaces().find(&issue.surface_id)? else { return Ok(None) };
+                let design = match (issue.kind, issue.version) {
+                    (IssueKind::Page, Some(number)) => {
+                        tx.surface_versions().find(&surface.id, number)?.map(|found| found.body_json)
+                    }
+                    _ => None,
+                };
+                Ok(Some((issue, surface, design)))
             })
             .await?;
-        let Some((issue, surface)) = found else { return Ok(Err("That issue is gone".into())) };
-        if issue.kind != IssueKind::View {
+        let Some((issue, surface, design)) = found else { return Ok(Err("That issue is gone".into())) };
+        let body: Value = serde_json::from_str(&issue.body_json).unwrap_or_default();
+        if let (IssueKind::Page, Some(part)) = (issue.kind, req.button.as_deref()) {
+            let design = design
+                .and_then(|body| serde_json::from_str::<Value>(&body).ok())
+                .and_then(|body| PageDesign::from_body(&body).ok());
+            let Some(design) = design else { return Ok(Err("That issue's design is gone".into())) };
+            let pressed =
+                page_press::resolve(&design, &body["data"], &issue.id, part, req.item_id.as_deref(), req.index, &state);
+            let (action, args) = match pressed {
+                Ok(pressed) => pressed,
+                Err(why) => return Ok(Err(why)),
+            };
+            let Some(decl) = self.decl(&action) else { return Ok(Err("That action does not exist".into())) };
+            return Ok(Ok(Resolved {
+                decl,
+                args,
+                surface_id: Some(surface.id),
+                issue_id: Some(issue.id),
+                routine_id: Some(surface.routine_id),
+                answers: None,
+            }));
+        }
+        if issue.kind != IssueKind::View || req.button.is_some() {
             return Ok(Err("That issue has no such button".into()));
         }
-        let body: Value = serde_json::from_str(&issue.body_json).unwrap_or_default();
         let Some(binding) = body["bindings"].get(&action_id) else { return Ok(Err("That button runs nothing".into())) };
         let bound = binding["action"].as_str().unwrap_or_default();
         let Some(decl) = self.decl(bound) else { return Ok(Err("That action does not exist".into())) };

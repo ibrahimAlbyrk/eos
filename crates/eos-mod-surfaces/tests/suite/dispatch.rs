@@ -7,10 +7,10 @@
 use eos_core::inbox::ActionDecision;
 use eos_core::store::StoredIssue;
 use eos_runtime::http::Method;
-use eos_surface::{Level, Place};
+use eos_surface::{IssueKind, Level, Place, VersionStatus};
 use serde_json::{Value, json};
 
-use crate::rig::{Rig, issue, surface};
+use crate::rig::{Rig, issue, surface, version};
 
 /// A View issue of `sf-a` (routine `rt-1`) with bound sends.
 fn view_issue() -> StoredIssue {
@@ -213,4 +213,57 @@ async fn a_button_on_a_list_row_runs_on_the_row_it_was_pressed_on() {
         );
     }
     assert_eq!(rig.heard.lock().expect("heard").len(), 2, "only the two presses on a row ran");
+}
+
+/// A Page issue of `sf-p` (routine `rt-1`) whose version 1 has a Button on
+/// the page, one on each story and an Ask on each story.
+async fn page_rig() -> Rig {
+    let rig = Rig::new().await;
+    let template = concat!(
+        "<section part=\"lead\"><h2>{lead}</h2>",
+        "<Button part=\"open-lead\" action=\"probe.with\" args={{\"item\": \"{lead}\"}} label=\"Open\"/></section>",
+        "<article part=\"story\" each=\"stories\"><h3>{item.url}</h3>",
+        "<Button part=\"open\" action=\"probe.with\" args={{\"item\": \"{item.url}\"}} label=\"Open\"/>",
+        "<Ask part=\"ask\" label=\"Dig deeper\"/></article>"
+    );
+    let body = json!({"template": template, "style": "", "uses": ["probe.with"],
+        "contract": {"type": "object", "fields": {"lead": {"type": "url"},
+            "stories": {"type": "list", "min": 0, "max": 5, "of": {"type": "object", "fields": {
+                "id": {"type": "text", "max": 9}, "url": {"type": "url"}}}}}},
+        "sample": {"lead": "https://example.com/a", "stories": []}});
+    let mut v1 = version("sf-p", 1, VersionStatus::Kept);
+    v1.body_json = body.to_string();
+    let mut page = issue("si-p", "sf-p");
+    page.kind = IssueKind::Page;
+    page.version = Some(1);
+    page.body_json = json!({"data": {"lead": "https://example.com/a",
+        "stories": [{"id": "s-1", "url": "https://example.com/one"}, {"id": "s-2", "url": "https://example.com/two"}]}})
+    .to_string();
+    rig.seed(vec![surface("sf-p", "rt-1", Level::Page, Place::RoutinePage, 1)], vec![v1], vec![page]).await;
+    rig
+}
+
+#[tokio::test]
+async fn a_page_button_runs_what_its_design_names_on_the_row_it_sits_in() {
+    let rig = page_rig().await;
+    let on_page = json!({"issueId": "si-p", "button": "open-lead", "clientId": "p-1",
+                         "args": {"item": "https://evil.example/"}});
+    assert_eq!(press(&rig, on_page).await.1["result"], json!({"echo": {"item": "https://example.com/a"}}));
+    let by_id = json!({"issueId": "si-p", "button": "open", "clientId": "p-2", "itemId": "s-2"});
+    assert_eq!(press(&rig, by_id).await.1["result"], json!({"echo": {"item": "https://example.com/two"}}));
+    let by_index = json!({"issueId": "si-p", "button": "open", "clientId": "p-3", "index": 0});
+    assert_eq!(press(&rig, by_index).await.1["result"], json!({"echo": {"item": "https://example.com/one"}}));
+    for (n, (pressed, why)) in [
+        (json!({"button": "open"}), "That button needs the row it was pressed on"),
+        (json!({"button": "lead"}), "That issue has no such button"),
+        (json!({"actionId": "open"}), "That issue has no such button"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut body = json!({"issueId": "si-p", "clientId": format!("p-bad-{n}")});
+        body.as_object_mut().expect("an object").extend(pressed.as_object().cloned().unwrap_or_default());
+        assert_eq!(press(&rig, body).await.1["reason"], why);
+    }
+    assert_eq!(rig.heard.lock().expect("heard").len(), 3);
 }

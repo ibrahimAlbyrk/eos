@@ -48,6 +48,7 @@ mod fill;
 mod issue_routes;
 mod issues;
 mod page;
+mod page_press;
 mod pins;
 mod queries;
 mod raw;

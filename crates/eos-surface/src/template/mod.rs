@@ -9,6 +9,7 @@
 //! ```
 
 mod check;
+mod press;
 mod rules;
 mod scope;
 mod slots;
@@ -20,6 +21,7 @@ use crate::limits::TEMPLATE_BYTES;
 use crate::problem::Problem;
 use crate::types::Contract;
 
+pub use press::{Pressable, RowOf};
 pub use rules::{COMPONENTS, Component, ELEMENTS, EOS_TARGETS, ISSUE_FIELDS};
 pub use slots::{Format, Seg, Slot};
 pub use tree::{Attr, AttrValue, Element, Node, TextNode, to_markup};
