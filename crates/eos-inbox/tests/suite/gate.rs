@@ -278,8 +278,26 @@ async fn telling_the_user_goes_at_once_while_a_send_to_others_waits_out_its_hold
     }
     let tell = ChannelTraits { undo: Undo::None, ..review_traits(ActionClass::TellUser) };
     let gated = Gated::over(FakeChannels::new().with("github", tell));
-    assert!(matches!(gated.apply(input("on_its_own")).await, GateDecision::Delivering { .. }));
+    let me = recipient(json!({"id": "me", "kind": "me", "channel": "github"}));
+    let input = GateInput { targets: vec![me.clone()], goes_to_confirmed: vec![me], ..input("draft") };
+    assert!(matches!(gated.apply(input).await, GateDecision::Delivering { .. }));
     assert_eq!(gated.rig.temp.count("SELECT COUNT(*) FROM inbox_deliveries WHERE state = 'queued'"), 1, "a banner");
+}
+
+#[tokio::test]
+async fn an_action_that_says_it_tells_the_user_but_reaches_others_is_held() {
+    // The run writes the action; only the target says who a send reaches.
+    let no_undo = ChannelTraits { undo: Undo::None, ..review_traits(ActionClass::TellUser) };
+    let channel: Recipient =
+        serde_json::from_value(json!({"id": "general", "kind": "fixed", "channel": "github", "address": "C123"}))
+            .expect("a recipient");
+    for rung in ["draft", "ask", "on_its_own"] {
+        let gated = Gated::over(FakeChannels::new().with("github", no_undo));
+        let input =
+            GateInput { targets: vec![channel.clone()], goes_to_confirmed: vec![channel.clone()], ..input(rung) };
+        held(&gated.apply(input).await);
+        assert_eq!(gated.rows(), 0, "{rung}");
+    }
 }
 
 #[tokio::test]

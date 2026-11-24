@@ -6,7 +6,7 @@
 use eos_contracts::{ActionClass, Facts, Freedom, ResultDoc, Rung};
 use eos_core::Error;
 use eos_core::Ids;
-use eos_core::delivery::ChannelTraits;
+use eos_core::delivery::{ChannelTraits, Place};
 use eos_core::routine::{GateDecision, GateInput, GateMode, RunOutcomes};
 use eos_core::store::{Outbox, Tx};
 use eos_domain::freedom::{Caps, effective_rung};
@@ -72,7 +72,11 @@ pub(crate) fn apply_in(
         repeat: repeat_in(tx, gate, now, input, &chosen)?,
     };
     let freedom = input.freedom_confirmed.clone().unwrap_or_else(held_freedom);
-    let rung = effective_rung(class, &freedom, &facts, &caps);
+    // Only a send that reaches the user alone tells the user (D67). An action
+    // the run names as telling the user but that goes anywhere else is held
+    // for the user: the run writes its action, the target says who it reaches.
+    let elsewhere = class == ActionClass::TellUser && chosen.iter().any(|target| target.target.place != Place::Me);
+    let rung = if elsewhere { Rung::Draft } else { effective_rung(class, &freedom, &facts, &caps) };
     let doc = with_recipients(&input.doc, &chosen);
     let traits = match traits {
         Some(traits) if input.result_mode == GateMode::AsUsual && rung > Rung::Draft => traits,
@@ -156,7 +160,7 @@ fn context(input: &GateInput, chosen: &[Chosen], traits: Option<&ChannelTraits>)
     }
     context.add_from(&named.to_string());
     for target in chosen {
-        if let eos_core::delivery::Place::Address(address) = &target.target.place {
+        if let Place::Address(address) = &target.target.place {
             context.add_from(address);
         }
     }
