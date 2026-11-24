@@ -192,6 +192,8 @@ pub(super) fn defaults(host: &Host) -> Value {
     );
     put("genui", json!({}));
     put("github", json!({ "clientId": env.text("EOS_GITHUB_CLIENT_ID", DEFAULT_GITHUB_CLIENT_ID) }));
+    // No Slack app is registered yet: a user's own app is named by its id.
+    put("slack", json!({ "clientId": env.text("EOS_SLACK_CLIENT_ID", "") }));
     // D11: quiet at night, a count of what waits twice a day.
     put(
         "attention",

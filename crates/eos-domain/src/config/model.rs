@@ -34,6 +34,7 @@ pub struct Config {
     pub browser: Browser,
     pub genui: GenuiConfig,
     pub github: GitHub,
+    pub slack: Slack,
     /// When Needs you may interrupt (`PUT /api/settings/attention` writes it).
     pub attention: AttentionSettings,
 }
@@ -205,5 +206,13 @@ pub struct Browser {
 pub struct GitHub {
     /// The OAuth App GitHub's sign-in asks for; empty, the sign-in cannot
     /// start (`client_id_missing`).
+    pub client_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Slack {
+    /// The Slack app Slack's sign-in asks for; empty, the sign-in cannot
+    /// start (`client_id_missing`). Anyone may name their own app here.
     pub client_id: String,
 }

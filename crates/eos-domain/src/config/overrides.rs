@@ -73,6 +73,7 @@ partial!(PeerOverride {
     relay_url: String,
 });
 partial!(GitHubOverride { client_id: String });
+partial!(SlackOverride { client_id: String });
 partial!(AttentionOverride {
     quiet_on: bool,
     quiet_from: String,
@@ -158,6 +159,7 @@ partial!(
         browser: BrowserOverride,
         genui: GenuiConfig,
         github: GitHubOverride,
+        slack: SlackOverride,
         attention: AttentionOverride,
     }
 );
