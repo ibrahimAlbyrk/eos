@@ -220,3 +220,70 @@ impl eos_core::surface::SurfaceImages for FakeSurfaceImages {
         Box::pin(std::future::ready(Ok(0)))
     }
 }
+
+/// A probe that finds what the test says at each width, or is away as
+/// Eos's window can be; records every page it loaded.
+#[derive(Debug)]
+pub struct FakePageProbe {
+    available: std::sync::atomic::AtomicBool,
+    findings: Mutex<Vec<eos_core::surface::ProbeFinding>>,
+    loaded: Mutex<Vec<eos_core::surface::ProbeDoc>>,
+}
+
+impl Default for FakePageProbe {
+    fn default() -> Self {
+        Self {
+            available: std::sync::atomic::AtomicBool::new(true),
+            findings: Mutex::default(),
+            loaded: Mutex::default(),
+        }
+    }
+}
+
+impl FakePageProbe {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_available(&self, available: bool) {
+        self.available.store(available, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Every page measured from now on finds `findings` at every width.
+    pub fn finding(&self, findings: Vec<eos_core::surface::ProbeFinding>) {
+        *self.findings.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = findings;
+    }
+
+    pub fn loaded(&self) -> Vec<eos_core::surface::ProbeDoc> {
+        self.loaded.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+}
+
+impl eos_core::surface::PageProbe for FakePageProbe {
+    fn is_available(&self) -> bool {
+        self.available.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn measure<'a>(
+        &'a self,
+        doc: eos_core::surface::ProbeDoc,
+        widths: &'a [u16],
+        shots: &'a std::path::Path,
+    ) -> BoxFuture<'a, Result<Vec<eos_core::surface::ProbeWidth>, Error>> {
+        let answer = if self.is_available() {
+            self.loaded.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(doc);
+            let findings = self.findings.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+            Ok(widths
+                .iter()
+                .map(|width| eos_core::surface::ProbeWidth {
+                    width: *width,
+                    findings: findings.clone(),
+                    screenshot: Some(shots.join(format!("{width}.png"))),
+                })
+                .collect())
+        } else {
+            Err(Error::Unreachable("Eos's window is not open".into()))
+        };
+        Box::pin(std::future::ready(answer))
+    }
+}

@@ -14,6 +14,8 @@ use super::{Mode, RenderInput, render_body};
 
 /// The only script a page runs.
 pub const RUNTIME_JS: &str = include_str!("../../assets/page-runtime.js");
+/// The measuring script the page probe evaluates in a candidate page.
+pub const PROBE_JS: &str = include_str!("../../assets/page-probe.js");
 
 static RUNTIME_HASH: LazyLock<String> =
     LazyLock::new(|| base64::engine::general_purpose::STANDARD.encode(Sha256::digest(RUNTIME_JS.as_bytes())));
