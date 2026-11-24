@@ -69,8 +69,13 @@ export const pressId = () => `dash-${Date.now().toString(36)}-${(presses += 1)}`
 // One press of `actionId` on `issueId`'s View: the core's answer
 // { status: done | confirm | held | refused, … }, or refused with the reason
 // when the core turned the request away.
-export async function runSurfaceAction({ issueId, actionId, state: typed, clientId, confirm }) {
-  const body = { issueId, actionId, clientId, ...(typed && Object.keys(typed).length ? { state: typed } : {}), ...(confirm ? { confirm } : {}) };
+export async function runSurfaceAction({ issueId, actionId, state: input, clientId, confirm, typed }) {
+  const body = {
+    issueId, actionId, clientId,
+    ...(input && Object.keys(input).length ? { state: input } : {}),
+    ...(confirm ? { confirm } : {}),
+    ...(typed ? { typed } : {}),
+  };
   const r = await transport.send("POST", ROUTES.actionsRun, body);
   if (r.ok && r.body?.status) return r.body;
   if (isDevRunRefusal(r)) return { status: "refused", reason: "This is a dev run: nothing runs from here." };

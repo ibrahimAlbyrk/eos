@@ -65,6 +65,7 @@ impl Module for ProbeModule {
             decl("probe.again", ActionClass::WriteLocal, ActionScope::OwnerRoutine, no_args()),
             decl("probe.fails", ActionClass::WriteLocal, ActionScope::OwnerRoutine, no_args()),
             decl("probe.global", ActionClass::Read, ActionScope::Any, no_args()),
+            decl("probe.erase", ActionClass::Irreversible, ActionScope::OwnerRoutine, no_args()),
         ]
     }
 }

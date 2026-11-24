@@ -3,12 +3,13 @@
 //! by the core from the stored issue (never taken from the frame), the
 //! press limit, the gate (run, confirm here, hold in Needs you, refuse), the
 //! handler and the record. "Confirm here" answers a single-use token that
-//! lasts two minutes; Eos's own dialog repeats the press with it.
+//! lasts two minutes; Eos's own dialog repeats the press with it, and for an
+//! action that cannot be taken back, with its name as the user typed it.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use eos_contracts::{ActionAnswer, ActionRunRequest};
+use eos_contracts::{ActionAnswer, ActionClass, ActionRunRequest};
 use eos_core::inbox::{ActionDecision, ActionGate, ActionRequest};
 use eos_core::store::{Store, StoredActionRecord};
 use eos_core::surface::DirectActions;
@@ -59,6 +60,16 @@ struct Resolved {
 
 fn refused(reason: impl Into<String>) -> ActionAnswer {
     ActionAnswer::Refused { record_id: None, reason: reason.into() }
+}
+
+/// The name the user types to confirm `decl`: only one that cannot be taken back asks for it.
+fn type_to_confirm(decl: &ActionDecl) -> Option<String> {
+    (decl.class == ActionClass::Irreversible).then(|| decl.title.to_owned())
+}
+
+/// Whether the user typed `name`, as a person would: case and spaces around aside.
+fn typed_as(typed: Option<&str>, name: &str) -> bool {
+    typed.is_some_and(|typed| typed.trim().to_lowercase() == name.trim().to_lowercase())
 }
 
 impl Dispatcher {
@@ -202,21 +213,27 @@ impl Dispatcher {
         Ok(ActionAnswer::Refused { record_id: Some(id), reason: why.to_owned() })
     }
 
-    /// The repeat of a press Eos asked the user to confirm.
-    async fn confirmed(&self, record: StoredActionRecord, token: Option<&str>) -> Result<ActionAnswer, Error> {
+    /// The repeat of a press Eos asked the user to confirm. A name typed
+    /// wrong leaves the token good, so the user can type it again.
+    async fn confirmed(&self, record: StoredActionRecord, req: &ActionRunRequest) -> Result<ActionAnswer, Error> {
         let now = self.parts.clock.now_ms();
         let prompt = serde_json::from_str::<Value>(record.result_json.as_deref().unwrap_or("{}")).unwrap_or_default();
-        let Some(token) = token else {
-            let token = self.token_for(&record.id, now);
-            let prompt = prompt["prompt"].as_str().unwrap_or_default().to_owned();
-            return Ok(ActionAnswer::Confirm { record_id: record.id, token, prompt });
-        };
-        if !self.take_token(token, &record.id, now) {
-            return self.finish_refused(record, "That confirmation is no longer good").await;
-        }
         let Some(decl) = self.decl(&record.action_id) else {
             return self.finish_refused(record, "That action does not exist").await;
         };
+        let Some(token) = req.confirm.as_deref() else {
+            let token = self.token_for(&record.id, now);
+            let prompt = prompt["prompt"].as_str().unwrap_or_default().to_owned();
+            let type_to_confirm = type_to_confirm(&decl);
+            return Ok(ActionAnswer::Confirm { record_id: record.id, token, prompt, type_to_confirm });
+        };
+        if let Some(name) = type_to_confirm(&decl).filter(|name| !typed_as(req.typed.as_deref(), name)) {
+            let reason = format!("Type {name} to go ahead");
+            return Ok(ActionAnswer::Refused { record_id: Some(record.id), reason });
+        }
+        if !self.take_token(token, &record.id, now) {
+            return self.finish_refused(record, "That confirmation is no longer good").await;
+        }
         let args: Value = serde_json::from_str(&record.args_json).unwrap_or_default();
         let request = Self::gate_request(&decl, record.routine_id.as_deref(), &args, &record.origin);
         match self.parts.gate.decide(&request).await? {
@@ -230,7 +247,7 @@ impl Dispatcher {
         let client = req.client_id.clone();
         if let Some(first) = self.parts.store.read(move |tx| tx.action_log().by_client(&client)).await? {
             if first.status == "confirming" {
-                return self.confirmed(first, req.confirm.as_deref()).await;
+                return self.confirmed(first, &req).await;
             }
             return Ok(answer_of(&first));
         }
@@ -262,7 +279,8 @@ impl Dispatcher {
                 record.result_json = Some(json!({ "prompt": prompt }).to_string());
                 let record = records::insert(store, record).await?;
                 let token = self.token_for(&record.id, self.parts.clock.now_ms());
-                Ok(ActionAnswer::Confirm { record_id: record.id, token, prompt })
+                let type_to_confirm = type_to_confirm(&resolved.decl);
+                Ok(ActionAnswer::Confirm { record_id: record.id, token, prompt, type_to_confirm })
             }
             ActionDecision::Hold { item_id } => {
                 let mut record = self.record(&req, &resolved, origin, "hold", "held");
