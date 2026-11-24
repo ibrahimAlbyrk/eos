@@ -264,3 +264,55 @@ fn a_gateway_that_stops_answering_ends_with_three() {
     );
     assert_eq!(terminal.err, ["Eos stopped answering."]);
 }
+
+#[test]
+fn halt_and_resume_go_to_the_gateway() {
+    let folder = Folder::new();
+    let seen = serve(
+        &folder.0,
+        answers(vec![json!({"t": "out", "text": "Routines stopped."}), json!({"t": "done", "exit": 0})]),
+    );
+    let mut terminal = Fake::default();
+    assert_eq!(run(&line(&["halt"]), Path::new("/w"), &place(&folder), &mut terminal, &no_launch()), exit::OK);
+    assert_eq!(run(&line(&["resume"]), Path::new("/w"), &place(&folder), &mut terminal, &no_launch()), exit::OK);
+    let cmds: Vec<Value> = seen.lock().expect("lock").iter().map(|r| r["cmd"].clone()).collect();
+    assert_eq!(cmds, [json!("halt"), json!("resume")]);
+}
+
+#[test]
+fn a_memory_hook_prints_the_answer_or_nothing_and_never_starts_the_app() {
+    let folder = Folder::new();
+    let answer = json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "Use --release."}});
+    let seen = serve(&folder.0, answers(vec![json!({"t": "json", "value": answer}), json!({"t": "done", "exit": 0})]));
+    let input = br#"{"tool_name":"Bash","tool_input":{"command":"cargo test"}}"#.to_vec();
+    let mut terminal = Fake { piped: Some(Cursor::new(input)), ..Fake::default() };
+    let hook = line(&["memory", "hook", "--event", "PreToolUse"]);
+    assert_eq!(run(&hook, Path::new("/w"), &place(&folder), &mut terminal, &no_launch()), exit::OK);
+    assert_eq!(terminal.out, [answer.to_string()]);
+    let sent = &seen.lock().expect("lock")[0];
+    assert_eq!((sent["cmd"].as_str(), sent["event"].as_str()), (Some("memoryHook"), Some("PreToolUse")));
+    assert_eq!(sent["input"]["tool_name"], "Bash");
+
+    // A gateway that answers too late: nothing is printed, and the tool is held at most 300 ms.
+    let slow = Folder::new();
+    serve(
+        &slow.0,
+        Arc::new(|_: &Value| {
+            std::thread::sleep(Duration::from_millis(800));
+            vec![json!({"t": "json", "value": {"late": true}}), json!({"t": "done", "exit": 0})]
+        }),
+    );
+    let mut terminal = Fake::default();
+    let began = std::time::Instant::now();
+    assert_eq!(run(&hook, Path::new("/w"), &place(&slow), &mut terminal, &no_launch()), exit::OK);
+    assert!(began.elapsed() < Duration::from_millis(600), "{:?}", began.elapsed());
+    assert!(terminal.out.is_empty() && terminal.err.is_empty());
+
+    // No app: nothing, and nothing is started.
+    let none = Folder::new();
+    let launcher = no_launch();
+    let mut terminal = Fake::default();
+    assert_eq!(run(&hook, Path::new("/w"), &place(&none), &mut terminal, &launcher), exit::OK);
+    assert!(terminal.out.is_empty() && terminal.err.is_empty());
+    assert_eq!(launcher.launched.load(Ordering::SeqCst), 0);
+}

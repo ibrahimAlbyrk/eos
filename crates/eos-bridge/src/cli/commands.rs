@@ -71,10 +71,7 @@ pub(super) async fn handle(ctx: &Ctx, request: CliRequest) -> i32 {
         CliRequest::Once(once) => start_once(ctx, once).await,
         CliRequest::Halt => switch(ctx, "/api/eos/halt", "Routines stopped. `eos resume` starts them again.").await,
         CliRequest::Resume => switch(ctx, "/api/eos/resume", "Routines resumed.").await,
-        CliRequest::MemoryHook { .. } => {
-            ctx.err("This Eos does not answer memory hooks.");
-            exit::REFUSED
-        }
+        CliRequest::MemoryHook { event, input } => memory_hook(ctx, event, input).await,
     }
 }
 
@@ -278,5 +275,15 @@ async fn switch(ctx: &Ctx, target: &str, said: &str) -> i32 {
         return ctx.refused(&answer);
     }
     ctx.out(said);
+    exit::OK
+}
+
+/// A Claude Code hook's input to memory (04 G34). Its answer is printed as it is; anything
+/// else prints nothing, so the tool goes on as if Eos were not there.
+async fn memory_hook(ctx: &Ctx, event: String, input: Value) -> i32 {
+    let (status, answer) = ctx.call("POST", "/api/memory/hook", Some(json!({ "event": event, "input": input }))).await;
+    if status == 200 && !answer.is_null() {
+        ctx.send(CliFrame::Json { value: answer });
+    }
     exit::OK
 }

@@ -6,7 +6,7 @@
 //! eos restore [--no-open]                          cargo xtask install --restore
 //! eos start | stop | restart | status | help
 //! eos logs [--path] [-n <lines>]
-//! eos routines | run | once …                     the installed app's own `eos` command
+//! eos routines | run | once | halt | resume | memory …   the installed app's own `eos`
 //! ```
 //!
 //! `stop` asks the app to quit as its Quit menu does, the installer's own
@@ -41,8 +41,8 @@ usage:
                  shell logs
   eos logs --path
                  only the logs' folder
-  eos routines | run | once …
-                 the installed app's own command: start routines from here
+  eos routines | run | once | halt | resume | memory hook …
+                 the installed app's own command: start and stop routines from here
                  (its usage: /Applications/Eos.app/Contents/Helpers/eos help)
   eos help       this text";
 
@@ -67,7 +67,7 @@ enum Command {
 }
 
 /// The commands the installed app's own `eos` takes.
-const APP_COMMANDS: [&str; 3] = ["routines", "run", "once"];
+const APP_COMMANDS: [&str; 6] = ["routines", "run", "once", "halt", "resume", "memory"];
 
 /// Commands of the TypeScript `eos` that are not here, and what to use instead.
 fn retired(name: &str) -> Option<&'static str> {
@@ -391,6 +391,7 @@ mod tests {
         let run = args(&["run", "pr-review", "482", "--wait"]).expect("run");
         assert_eq!(run, Command::App(vec!["run".into(), "pr-review".into(), "482".into(), "--wait".into()]));
         assert_eq!(args(&["routines"]).expect("routines"), Command::App(vec!["routines".into()]));
+        assert_eq!(args(&["halt"]).expect("halt"), Command::App(vec!["halt".into()]));
     }
 
     #[test]

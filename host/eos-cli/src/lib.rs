@@ -55,6 +55,10 @@ pub fn run(args: &[String], cwd: &Path, place: &Place, terminal: &mut dyn Termin
             return exit::OK;
         }
         Ok(Asked::Request { request, stdin }) => (request, stdin),
+        Ok(Asked::MemoryHook { event }) => {
+            memory_hook(&place.shell_data.join(SOCKET), event, terminal);
+            return exit::OK;
+        }
         Err(why) => {
             terminal.err(&why);
             return exit::REFUSED;
@@ -98,6 +102,49 @@ pub fn run(args: &[String], cwd: &Path, place: &Place, terminal: &mut dyn Termin
                 run.yes = true;
             }
         }
+    }
+}
+
+/// How long a Claude Code hook may hold the tool it runs before (04 G34).
+pub const HOOK_WITHIN: Duration = Duration::from_millis(300);
+
+/// A Claude Code hook: its input to the app, the app's answer to standard output. It never
+/// starts the app and never says anything else: past 300 ms, or on any problem, it prints
+/// nothing and the tool goes on as if Eos were not there.
+fn memory_hook(socket: &Path, event: String, terminal: &mut dyn Terminal) {
+    let started = Instant::now();
+    let input = terminal
+        .piped()
+        .and_then(|piped| read_piped(piped).ok().flatten())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(serde_json::Value::Null);
+    let left = || HOOK_WITHIN.checked_sub(started.elapsed()).filter(|d| !d.is_zero());
+    let Ok(mut stream) = UnixStream::connect(socket) else { return };
+    let request = CliRequest::MemoryHook { event, input };
+    let Some(within) = left() else { return };
+    if stream.set_write_timeout(Some(within)).is_err()
+        || writeln!(stream, "{}", serde_json::to_string(&request).unwrap_or_default()).is_err()
+    {
+        return;
+    }
+    let mut reader = BufReader::new(&stream);
+    let mut answer = None;
+    loop {
+        let Some(within) = left() else { return };
+        // Fails once the app closed its side (macOS); the read then ends at once.
+        let _ = stream.set_read_timeout(Some(within));
+        let mut line = String::new();
+        if !matches!(reader.read_line(&mut line), Ok(n) if n > 0) {
+            return;
+        }
+        match serde_json::from_str::<CliFrame>(&line) {
+            Ok(CliFrame::Json { value }) => answer = Some(value),
+            Ok(CliFrame::Done { .. }) => break,
+            _ => {}
+        }
+    }
+    if let Some(answer) = answer {
+        terminal.out(&answer.to_string());
     }
 }
 

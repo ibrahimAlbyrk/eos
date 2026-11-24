@@ -274,3 +274,22 @@ async fn at_most_eight_commands_are_served_at_once() {
     assert_eq!(answer, "", "the ninth is closed at once");
     drop(open);
 }
+
+#[tokio::test]
+async fn a_memory_hook_hands_its_input_on_and_prints_only_the_answer() {
+    let rig = Rig::new(routines_and(|method, url, body| match (method, url) {
+        ("POST", "/api/memory/hook") if body["event"] == "PreToolUse" => {
+            Some((200, json!({"hookSpecificOutput": {"additionalContext": "Run the tests with --release."}})))
+        }
+        _ => None,
+    }));
+    let input = json!({"tool_name": "Bash", "tool_input": {"command": "cargo test"}});
+    let frames = rig.ask(json!({"cmd": "memoryHook", "event": "PreToolUse", "input": input})).await;
+    assert_eq!(code(&frames), exit::OK);
+    assert!(
+        matches!(&frames[0], CliFrame::Json { value } if value["hookSpecificOutput"]["additionalContext"] == "Run the tests with --release.")
+    );
+    assert_eq!(rig.asked("POST", "/api/memory/hook")[0]["input"], input);
+    let nothing = rig.ask(json!({"cmd": "memoryHook", "event": "Stop", "input": {}})).await;
+    assert_eq!(nothing, vec![CliFrame::Done { exit: exit::OK }], "no answer prints nothing");
+}
