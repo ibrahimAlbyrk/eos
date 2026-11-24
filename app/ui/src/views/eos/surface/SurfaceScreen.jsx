@@ -123,9 +123,11 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
             {older && (
               <div className="eos-page__older" role="status">
                 <span>{todayDesign ? todayDesignLine(row, surface.currentVersion) : olderDesignLine(row)}</span>
-                <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setTodayDesign((t) => !t)}>
-                  {todayDesign ? "Show in its own design" : "Show in today's design"}
-                </button>
+                {issues[row.id]?.fitsCurrent === true && (
+                  <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setTodayDesign((t) => !t)}>
+                    {todayDesign ? "Show in its own design" : "Show in today's design"}
+                  </button>
+                )}
               </div>
             )}
             {!row && page.issues && (

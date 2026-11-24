@@ -113,7 +113,7 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
             (edited.at, edited.before, edited.after) = (Some(path), Some(before), Some(after));
             tell(&at, vec![edited]).await;
             let body: Value = serde_json::from_str(&issue.body_json).unwrap_or_default();
-            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body }))
+            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body, fits_current: None }))
         }
     })
     .access(Access::ui_token().phone_user(Tier::Low));

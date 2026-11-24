@@ -62,9 +62,27 @@ pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
     let one = RouteDef::get("/api/surfaces/{id}/issues/{issueId}", move |req: Request| {
         let (at, id, issue_id) = (at.clone(), param(&req, "id"), param(&req, "issueId"));
         async move {
-            let found =
-                at.store.read(move |tx| Ok((tx.surface_issues().find(&issue_id)?, tx.surfaces().find(&id)?))).await?;
-            let (Some(issue), Some(surface)) = found else { return Err(ApiError::NotFound("issue not found".into())) };
+            let found = at
+                .store
+                .read(move |tx| {
+                    let (issue, surface) = (tx.surface_issues().find(&issue_id)?, tx.surfaces().find(&id)?);
+                    let current = match (&issue, &surface) {
+                        (Some(issue), Some(surface))
+                            if issue.kind == IssueKind::Page && issue.version != surface.current_version =>
+                        {
+                            match surface.current_version {
+                                Some(n) => tx.surface_versions().find(&surface.id, n)?.map(|v| v.body_json),
+                                None => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    Ok((issue, surface, current))
+                })
+                .await?;
+            let (Some(issue), Some(surface), current) = found else {
+                return Err(ApiError::NotFound("issue not found".into()));
+            };
             if issue.surface_id != surface.id {
                 return Err(ApiError::NotFound("issue not found".into()));
             }
@@ -73,7 +91,8 @@ pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
             if issue.kind == IssueKind::Page && crate::settings::reading(&at).await?.plain {
                 body["plain"] = fallback_view(&surface.title, None, &body["data"]);
             }
-            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body }))
+            let fits_current = current.map(|design| crate::page::fits(&design, &body["data"]));
+            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body, fits_current }))
         }
     })
     .access(Access::ui_token().phone_user(Tier::Read));

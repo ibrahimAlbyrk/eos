@@ -133,6 +133,10 @@ pub struct SurfaceIssue {
     /// A View: `{view, actions}`, the View as `present` takes it and the ids of
     /// its bound actions. A Page: its data.
     pub body: Value,
+    /// A Page made with an older version: whether its data fits the
+    /// surface's current version, so it can show in today's design.
+    #[serde(rename = "fitsCurrent", default, skip_serializing_if = "Option::is_none")]
+    pub fits_current: Option<bool>,
 }
 
 impl Validate for SurfaceIssue {}

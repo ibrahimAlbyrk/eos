@@ -172,7 +172,15 @@ async fn a_filled_issue_is_drawn_in_its_frame_with_its_policy_and_images_only_fr
     assert!(page.contains("No. 1"));
     assert!(page.contains(&format!("src=\"http://raw.eos.localhost/surfaces/sf-paper/img/{}\"", "a".repeat(64))));
     let (status, _, _) = rig.fetch(&raw, &format!("/surfaces/sf-paper/issues/{id}/page.html?version=2")).await;
-    assert_eq!(status, 200, "an issue drawn in another version");
+    assert_eq!(status, 409, "version 2 takes a title of 5 characters at most: the issue's does not fit it");
+    rig.seed(vec![], vec![page_version(4, VersionStatus::Kept, Some(3000), &design_body())], vec![]).await;
+    let (status, _, _) = rig.fetch(&raw, &format!("/surfaces/sf-paper/issues/{id}/page.html?version=4")).await;
+    assert_eq!(status, 200, "an issue drawn in another version its data fits");
+    for (current, fits) in [(2, json!(false)), (4, json!(true)), (1, Value::Null)] {
+        rig.temp.exec(&format!("UPDATE surface_defs SET current_version = {current} WHERE id = 'sf-paper'"));
+        let (_, shown) = rig.ask(Method::Get, &format!("/api/surfaces/sf-paper/issues/{id}"), None).await;
+        assert_eq!(shown["fitsCurrent"], fits, "today's design is offered only when the data fits it");
+    }
     let (status, headers, body) = rig.fetch(&raw, &format!("/surfaces/sf-paper/img/{}", "a".repeat(64))).await;
     assert_eq!((status, body.as_str()), (200, "JPEG"));
     assert!(headers.iter().any(|(k, v)| k == "content-type" && v == "image/jpeg"));

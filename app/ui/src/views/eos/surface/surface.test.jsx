@@ -103,6 +103,14 @@ describe("the page screen", () => {
     expect(html).toContain(">Show in today&#x27;s design</button>");
   });
 
+  it("does not offer today's design for an earlier issue whose data does not fit it", async () => {
+    const path = ROUTES.surfaceIssue(SF, "si-7b3m1c000001");
+    const misfit = { ...reads, [path]: { ...reads[path], fitsCurrent: false } };
+    const html = await screen(`eos:/surfaces/${SF}?issue=1`, fixtureTransport(misfit));
+    expect(html).toContain("Issue 1, layout version 1");
+    expect(html).not.toContain("Show in today&#x27;s design");
+  });
+
   it("says when the page needs a new design", async () => {
     const tired = { ...reads, [ROUTES.surface(SF)]: { ...paper.surface, needsRedesign: { at: 1 } } };
     const html = await screen(`eos:/surfaces/${SF}`, fixtureTransport(tired));

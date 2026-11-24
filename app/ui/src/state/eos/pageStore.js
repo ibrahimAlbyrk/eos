@@ -73,7 +73,7 @@ export async function loadEarlierIssues(surfaceId) {
 
 export async function loadIssue(surfaceId, issueId) {
   const r = await transport.get(ROUTES.surfaceIssue(surfaceId, issueId));
-  const value = r.ok ? { issue: r.body.issue, body: r.body.body } : { failed: true };
+  const value = r.ok ? { issue: r.body.issue, body: r.body.body, fitsCurrent: r.body.fitsCurrent === true } : { failed: true };
   set({ issues: putBounded(state.issues, issueId, value, ISSUES_KEPT) });
 }
 
