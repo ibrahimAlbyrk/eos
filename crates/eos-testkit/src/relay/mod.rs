@@ -17,7 +17,9 @@ mod store;
 
 pub use hooks::{FakeHookInbox, FakeHookRelay};
 pub use notify::FakePhoneNotify;
-pub use phone::{ControlAnswer, FakePhone, JoinFailure, PHONE_CAPS, Pairing, QrFailure, inner_json, read_qr};
+pub use phone::{
+    ControlAnswer, FakePhone, JoinFailure, PHONE_CAPS, Pairing, QrFailure, inner_json, read_qr, with_eos_cap,
+};
 pub use push::{PushVia, Pushed};
 pub use room::{FakeRelayPort, FakeRoom};
 pub use server::{FakeRelay, FakeRelayOptions, Registration, free_port};

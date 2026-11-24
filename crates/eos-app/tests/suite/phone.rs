@@ -186,7 +186,7 @@ async fn a_phone_pairs_reads_chats_follows_one_talks_to_an_agent_and_drives_a_te
     assert_eq!(code["exp"].as_i64(), Some(mac.clock.now_ms() / 1000 + 120), "shown for two minutes");
     let mut phone = mac.pair().await;
     let snapshot = phone.next_of("snapshot").await;
-    assert_eq!(snapshot["caps"], json!(["focus", "rows", "deflate"]));
+    assert_eq!(snapshot["caps"], json!(["focus", "rows", "deflate", "eos"]), "the Mac serves routines");
     assert!(ids_of(&snapshot["workers"]).contains(&"w-CHAT"), "seeded with the chat list");
     assert_eq!(snapshot["ptys"], json!([]), "and the terminal list, which the app would fetch next");
     assert_eq!(mac.remote.devices(), 1);

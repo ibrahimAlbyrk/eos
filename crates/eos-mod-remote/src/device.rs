@@ -1,5 +1,9 @@
 //! One connected phone: what it listed, what it shows, where its transcript
 //! push stands.
+//!
+//! Routines, runs and Needs you reach only a phone that listed cap `eos`
+//! ([`EOS_PHONE_TOPICS`]), and a run's activity only while that phone
+//! watches the run: the released app never sees them.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -8,6 +12,11 @@ use eos_contracts::{ControlFrame, FocusFrame};
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::{Semaphore, mpsc};
+
+/// The topics a phone with cap `eos` gets as events, and no other phone.
+pub(crate) const EOS_PHONE_TOPICS: [&str; 4] = ["routine:change", "run:change", "inbox:change", "runs:active"];
+/// A run's activity lines: only to the phones watching that run.
+const RUN_ACTIVITY: &str = "run:activity";
 
 /// The fields of a bus payload the focus rules look at. A field that is
 /// absent and one that is `null` are different things to today's rules
@@ -18,6 +27,8 @@ pub(crate) struct PayloadKeys {
     pub(crate) worker_id: Option<Value>,
     #[serde(default, rename = "sessionId", deserialize_with = "present")]
     pub(crate) session_id: Option<Value>,
+    #[serde(default, rename = "runId", deserialize_with = "present")]
+    pub(crate) run_id: Option<Value>,
 }
 
 fn present<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Value>, D::Error> {
@@ -76,6 +87,8 @@ pub(crate) struct Device {
     pub(crate) caps: HashSet<String>,
     /// What the phone shows; `None` until it says (an older app gets every event).
     pub(crate) focus: Option<FocusFrame>,
+    /// The run a phone with cap `eos` has open.
+    pub(crate) watch: Option<String>,
     /// The terminals whose raw output this phone shows.
     pub(crate) pty_subs: HashSet<String>,
     /// The snapshot sent on join answers the phone's first hello.
@@ -110,6 +123,14 @@ impl Device {
 
     /// Whether this phone wants the bus event at all.
     pub(crate) fn wants(&self, topic: &str, keys: &PayloadKeys) -> bool {
+        let shown = self.focus.as_ref().is_none_or(|focus| focus.active);
+        if EOS_PHONE_TOPICS.contains(&topic) {
+            return self.has("eos") && shown;
+        }
+        if topic == RUN_ACTIVITY {
+            let run = keys.run_id.as_ref().and_then(Value::as_str);
+            return self.has("eos") && shown && run.is_some() && run == self.watch.as_deref();
+        }
         match &self.focus {
             None => true,
             Some(focus) if !focus.active => false,
@@ -168,5 +189,51 @@ mod tests {
         assert!(!on_screen("agent:delta", &null, &keys(json!({})), true, &none));
         assert!(!on_screen("agent:delta", &null, &keys(json!({ "workerId": 7 })), true, &none));
         assert_eq!(keys(json!([1, 2])).worker(), None, "a payload that is not an object has no keys");
+    }
+
+    fn device(caps: &[&str], shows: Option<Value>, watch: Option<&str>) -> Device {
+        let (input, _) = mpsc::channel(1);
+        Device {
+            generation: 1,
+            hex: "00".into(),
+            caps: caps.iter().map(|cap| (*cap).to_owned()).collect(),
+            focus: shows.map(focus),
+            watch: watch.map(str::to_owned),
+            pty_subs: HashSet::new(),
+            boot_snapshot: true,
+            hello_seen: true,
+            rows_worker: None,
+            rows_cursor: None,
+            pulling: false,
+            pull_again: false,
+            last_activity: 0,
+            lagged: false,
+            recovering: false,
+            controls: Arc::new(Semaphore::new(1)),
+            input,
+        }
+    }
+
+    #[test]
+    fn routines_reach_only_a_phone_with_cap_eos_and_a_runs_activity_only_while_it_is_watched() {
+        let released = device(&["focus", "rows", "deflate"], None, None);
+        let eos = device(&["focus", "rows", "deflate", "eos"], Some(json!({ "active": true, "worker": "w1" })), None);
+        let away = device(&["eos"], Some(json!({ "active": false })), Some("rn-1"));
+        let watching = device(&["eos"], None, Some("rn-1"));
+        for topic in EOS_PHONE_TOPICS {
+            assert!(
+                !released.wants(topic, &keys(json!({}))),
+                "{topic}: an unfocused released phone gets every other event"
+            );
+            assert!(eos.wants(topic, &keys(json!({}))), "{topic}: whatever it shows");
+            assert!(!away.wants(topic, &keys(json!({}))), "{topic}: not while the app is away");
+        }
+        let activity = keys(json!({ "runId": "rn-1", "workerId": "w1" }));
+        assert!(watching.wants("run:activity", &activity));
+        assert!(!watching.wants("run:activity", &keys(json!({ "runId": "rn-2" }))));
+        assert!(!eos.wants("run:activity", &activity), "a run nobody watches");
+        assert!(!released.wants("run:activity", &activity));
+        assert!(!away.wants("run:activity", &activity));
+        assert!(released.wants("worker:change", &keys(json!({ "workerId": "w1" }))), "today's rules stand");
     }
 }

@@ -243,6 +243,7 @@ impl Inner {
             hex: hex(client),
             caps: HashSet::new(),
             focus: None,
+            watch: None,
             pty_subs: HashSet::new(),
             // Seeded at once instead of waiting a round trip for its hello.
             boot_snapshot: true,
@@ -572,6 +573,14 @@ impl Inner {
                     let seq = state.seq;
                     if let Some(device) = state.device(client, generation) {
                         inner.on_focus(seq, client, device, focus);
+                    }
+                })
+                .await;
+            }
+            ClientFrame::Watch(watch) => {
+                self.on_lane(move |_, state| {
+                    if let Some(device) = state.device(client, generation) {
+                        device.watch = watch.run;
                     }
                 })
                 .await;

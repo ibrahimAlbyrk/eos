@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use common::Harness;
 use eos_core::net::relay::{RelayClientId, RoomEvent};
 use eos_core::store::RemoteAuditEntry;
-use eos_testkit::relay::inner_json;
+use eos_testkit::relay::{inner_json, with_eos_cap};
 use serde_json::{Value, json};
 
 fn corpus() -> Value {
@@ -78,7 +78,7 @@ async fn replay(corpus: &Value, scenario: &Value) {
                     epoch =
                         serde_json::from_str::<Value>(&text).ok().and_then(|f| Some(f["epoch"].as_str()?.to_owned()));
                 }
-                let json = json.replace("<epoch>", epoch.as_deref().unwrap_or("<epoch>"));
+                let json = with_eos_cap(&json.replace("<epoch>", epoch.as_deref().unwrap_or("<epoch>")));
                 assert_eq!(text, json, "{at}: frame {n} for {device}");
                 assert_eq!(packed, *deflated, "{at}: frame {n} for {device} travels packed or plain as today");
             }
@@ -156,4 +156,60 @@ async fn terminal_input_keeps_its_order() {
 #[test]
 fn every_recorded_session_is_replayed() {
     assert_eq!(corpus()["scenarios"].as_array().expect("scenarios").len(), 5);
+}
+
+/// The `event` frames a phone was sent, as `(reason, runId)`.
+fn events(sent: &[bytes::Bytes]) -> Vec<(String, Option<String>)> {
+    sent.iter()
+        .filter_map(|payload| serde_json::from_str::<Value>(&inner_json(payload).0).ok())
+        .filter(|frame| frame["t"] == "event")
+        .map(|frame| {
+            let run = frame["payload"]["runId"].as_str().map(str::to_owned);
+            (frame["reason"].as_str().unwrap_or_default().to_owned(), run)
+        })
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn routines_reach_only_phones_with_cap_eos_and_a_runs_activity_only_the_phone_watching_it() {
+    let s = Harness::armed(&json!({}));
+    let room = s.room();
+    let bus = &s.runtime.kernel.bus;
+    let (released, eos) = ([1u8; 16], [2u8; 16]);
+    room.push(RoomEvent::Joined(released));
+    room.push(RoomEvent::Joined(eos));
+    room.data(released, r#"{"t":"hello","caps":["focus","rows","deflate"]}"#);
+    room.data(eos, r#"{"t":"hello","caps":["focus","rows","deflate","eos"]}"#);
+    room.data(eos, r#"{"t":"watch","run":"rn-1"}"#);
+    s.settle().await;
+    let before = (room.sent(released).len(), room.sent(eos).len());
+    for (topic, payload) in [
+        ("run:change", json!({ "runId": "rn-1", "state": "running" })),
+        ("run:activity", json!({ "runId": "rn-1", "workerId": "w1", "line": "reads" })),
+        ("run:activity", json!({ "runId": "rn-2", "workerId": "w2", "line": "reads" })),
+        ("inbox:change", json!({ "id": "in-1" })),
+        ("worker:change", json!({ "workerId": "w9" })),
+    ] {
+        bus.publish_raw(topic, None, payload.to_string().into());
+    }
+    s.settle().await;
+    let got = |client| room.sent(client);
+    assert_eq!(
+        events(&got(eos)[before.1..]),
+        [
+            ("run:change".to_owned(), Some("rn-1".to_owned())),
+            ("run:activity".to_owned(), Some("rn-1".to_owned())),
+            ("inbox:change".to_owned(), None),
+            ("worker:change".to_owned(), None),
+        ]
+    );
+    assert_eq!(events(&got(released)[before.0..]), [("worker:change".to_owned(), None)], "as the released app sees it");
+
+    // A watch of no run ends the activity.
+    room.data(eos, r#"{"t":"watch","run":null}"#);
+    s.settle().await;
+    let seen = got(eos).len();
+    bus.publish_raw("run:activity", None, json!({ "runId": "rn-1", "workerId": "w1", "line": "x" }).to_string().into());
+    s.settle().await;
+    assert!(events(&got(eos)[seen..]).is_empty());
 }

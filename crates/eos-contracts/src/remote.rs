@@ -100,7 +100,10 @@ impl Validate for RemoteConfigRateLimit {
     }
 }
 
-pub const REMOTE_CAPS: &[&str] = &["focus", "rows", "deflate"];
+/// What this app serves beyond the base protocol. `eos` (routines, runs and
+/// Needs you) is not in the released app's list: older phones ignore caps
+/// they do not know (`fixtures/wire/rust-differences.toml`).
+pub const REMOTE_CAPS: &[&str] = &["focus", "rows", "deflate", "eos"];
 
 pub const DEFLATE_MARK: i64 = 1;
 
@@ -195,6 +198,25 @@ impl Validate for SubFrame {
     }
 }
 
+/// The run a phone with cap `eos` has open (`None`: none): it then also
+/// gets that run's `run:activity` events. Added: the released app never
+/// sends it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct WatchFrame {
+    #[serde(default)]
+    pub run: Option<String>,
+}
+
+impl Validate for WatchFrame {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("run", |cx| {
+            if let Some(run) = &self.run {
+                cx.str_max(run, 64);
+            }
+        });
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum ClientFrame {
@@ -203,6 +225,7 @@ pub enum ClientFrame {
     Ka(KaFrame),
     Sub(SubFrame),
     Focus(FocusFrame),
+    Watch(WatchFrame),
 }
 
 impl Validate for ClientFrame {
@@ -212,6 +235,7 @@ impl Validate for ClientFrame {
             Self::Control(v) => v.validate(cx),
             Self::Sub(v) => v.validate(cx),
             Self::Focus(v) => v.validate(cx),
+            Self::Watch(v) => v.validate(cx),
             _ => {}
         }
     }
