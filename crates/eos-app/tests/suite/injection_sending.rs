@@ -1,7 +1,8 @@
 //! The injection suite (03 §10, NY-23) where results go out on their own: a repeat run of an
 //! item the user confirmed beside a live run of it sends once to a fixed recipient (D55); a
-//! hostile mail adds no recipient and makes Eos send to no one outside Goes to; and an undo of
-//! an automatic send steps the routine down, so the next clean result waits for the user.
+//! hostile mail adds no recipient and makes Eos send to no one outside Goes to; a grant or bound
+//! that rests on what a mail's sender writes is refused (D63); and an undo of an automatic send
+//! steps the routine down, so the next clean result waits for the user.
 
 use std::time::Duration;
 
@@ -133,12 +134,9 @@ async fn a_hostile_mail_adds_no_recipient_and_reaches_no_one_outside_goes_to() {
         let refused = call_tool(&app, &agents, &lead_id, "call_capability", direct).await;
         assert!(refused.is_error, "Mail's send is no tool of a run: {}", refused.text);
         hand_in(&app, &agents, &lead_id, obeyed(names_recipient), n - 1).await;
-        // A mail whose `to:` parts name no recipient of Goes to goes nowhere: it is only shown.
-        eventually("the run is done, its reply sent, held or only shown", || async {
-            crate::routines_rig::run(&app, &run_id).await.state == eos_domain::routine::run::RunState::Done
-                || !items_of(&app, &run_id).await.is_empty()
-        })
-        .await;
+        // A `to:` part that names no one in Goes to is ignored (D66): the reply waits for the
+        // user, flagged by the address its text names.
+        eventually("the reply is held", || async { !items_of(&app, &run_id).await.is_empty() }).await;
         // Held or not, the user's Send reaches only Goes to.
         if let Some(item) = items_of(&app, &run_id).await.into_iter().find(|i| i["kind"] == "draft") {
             let target = format!("/api/inbox/{}/send", item["id"].as_str().expect("an id"));
@@ -146,9 +144,9 @@ async fn a_hostile_mail_adds_no_recipient_and_reaches_no_one_outside_goes_to() {
             assert_eq!(status, 200, "{sent}");
         }
     }
-    eventually("the reply that names no one goes to the boss", || async { fakes.channels.sent().len() == 1 }).await;
+    eventually("each reply the user sent goes to the boss", || async { fakes.channels.sent().len() == 2 }).await;
     tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(fakes.channels.sent().len(), 1, "one reply, to Goes to only");
+    assert_eq!(fakes.channels.sent().len(), 2, "one reply each, to Goes to only");
     only_to_boss(&fakes);
     let (_, detail) = rig::call(&app, Method::Get, &format!("/api/routines/{routine}"), None).await;
     assert_eq!(detail["head"]["blueprint"]["goesTo"], mail_blueprint()["goesTo"], "Goes to is as the user made it");
@@ -198,5 +196,58 @@ async fn an_undone_automatic_send_steps_the_routine_down_and_the_next_clean_resu
     eventually("the clean result waits for the user", || async { !items_of(&app, &next).await.is_empty() }).await;
     assert_eq!(items_of(&app, &next).await[0]["kind"], "draft");
     assert_eq!(fakes.channels.sent().len(), 1, "nothing more went out on its own");
+    app.shutdown(Duration::from_secs(5)).await;
+}
+
+/// Mail whose sender, key and title its source marks as written by whoever sent it.
+const INBOX: &str = r#"
+id = "inbox"
+name = "Inbox"
+version = "1"
+summary = "Reads mail."
+form = "builtin"
+works = "any_mac"
+
+[[actions]]
+name = "poll"
+summary = "Mail since the cursor."
+class = "read"
+output = { type = "object", properties = { items = { type = "array", items = { type = "object", properties = { key = { type = "string", untrusted = true }, facts = { type = "object", properties = { from = { type = "string", untrusted = true } } } } } } } }
+
+[[sources]]
+name = "received"
+item = "mail.message"
+action = "poll"
+facts = { from = "string" }
+"#;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_planted_sender_can_never_earn_a_routine_freedom() {
+    let (home, agents) = (TempHome::new(), working_agents());
+    let capabilities = eos_app::CapabilityOptions {
+        builtins: vec![std::sync::Arc::new(eos_testkit::FakeBuiltin::new(INBOX))],
+        ..eos_app::CapabilityOptions::default()
+    };
+    let app = App::build(rig::options(home.path(), &agents, capabilities)).expect("builds");
+    app.start().await.expect("starts");
+    let mut blueprint = mail_blueprint();
+    blueprint["takes"]["source"] = json!("inbox.received");
+    blueprint["freedom"] = json!({"rung": "draft", "grants": [
+        {"id": "boss", "when": {"fact": "from", "is": BOSS}, "rung": "on_its_own"}]});
+    blueprint["goesTo"] = json!([{"id": "sender", "kind": "item_place", "channel": "mail",
+                                  "bound": {"fact": "from", "glob": "*@acme.dev"}}]);
+    let (status, refused) = rig::call(&app, Method::Post, "/api/routines", Some(json!({"blueprint": blueprint}))).await;
+    assert_eq!(status, 400, "{refused}");
+    let paths: Vec<String> = refused["issues"]
+        .as_array()
+        .expect("issues")
+        .iter()
+        .map(|issue| {
+            issue["path"].as_array().expect("a path").iter().filter_map(Value::as_str).collect::<Vec<_>>().join(".")
+        })
+        .collect();
+    assert_eq!(paths, ["freedom.grants.0.when", "goesTo.0.bound"]);
+    let (_, listed) = rig::call(&app, Method::Get, "/api/routines", None).await;
+    assert!(!listed.to_string().contains("Mail replies"), "nothing was made: {listed}");
     app.shutdown(Duration::from_secs(5)).await;
 }
