@@ -418,6 +418,9 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     // Surfaces: a surface's saved state and how surfaces read are data in the data folder.
     ("PUT", "/api/surfaces/{id}/state"),
     ("PUT", "/api/settings/surfaces"),
+    // Edits in place and what the reader opened are data in the data folder.
+    ("PUT", "/api/surfaces/{id}/issues/{issueId}/fields"),
+    ("POST", "/api/surfaces/{id}/issues/{issueId}/read"),
     // Pins are this Mac's Home layout, in the data folder.
     ("PUT", "/api/surfaces/pins"),
 ];

@@ -41,7 +41,7 @@ struct Target {
     version: Option<(i64, PageDesign)>,
 }
 
-fn announce(out: &mut Outbox, issue: &StoredIssue) {
+pub(crate) fn announce(out: &mut Outbox, issue: &StoredIssue) {
     let change = SurfacesIssue {
         surface_id: issue.surface_id.clone(),
         issue_id: issue.id.clone(),

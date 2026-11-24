@@ -49,7 +49,7 @@ use eos_core::accounts::PlanAccess;
 use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
 use eos_core::experience::{
     CheckVerdict, Embedder, ExperienceFeedback, ExperiencePacks, ExperienceSearch, FoundNote, RunOutcome, RunPack,
-    RunPackRequest,
+    RunPackRequest, SurfaceSignal,
 };
 use eos_core::git::ProjectKeys;
 use eos_core::inbox::ResultEdits;
@@ -403,6 +403,13 @@ impl ExperienceFeedback for RunMemory {
             }
             Ok(())
         })
+    }
+
+    fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>> {
+        // Heard and counted; taste notes from surface signals come with the
+        // design runs that read them.
+        tracing::debug!(surface_id = %signal.surface_id, kind = signal.kind.as_str(), "memory: a surface signal");
+        Box::pin(std::future::ready(Ok(())))
     }
 
     fn routine_removed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {

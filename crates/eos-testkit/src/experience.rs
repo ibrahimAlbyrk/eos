@@ -3,7 +3,9 @@
 
 use std::sync::Mutex;
 
-use eos_core::experience::{CheckVerdict, ExperienceFeedback, ExperiencePacks, RunOutcome, RunPack, RunPackRequest};
+use eos_core::experience::{
+    CheckVerdict, ExperienceFeedback, ExperiencePacks, RunOutcome, RunPack, RunPackRequest, SurfaceSignal,
+};
 use eos_core::{BoxFuture, Error};
 
 fn locked<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -46,10 +48,11 @@ impl ExperiencePacks for FakeExperiencePacks {
 }
 
 /// What routines told memory, in order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FeedbackCall {
     RunEnded(RunOutcome),
     CheckFailed(CheckVerdict),
+    Surface(SurfaceSignal),
     RoutineRemoved(String),
 }
 
@@ -80,6 +83,10 @@ impl ExperienceFeedback for FakeExperienceFeedback {
 
     fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>> {
         self.record(FeedbackCall::CheckFailed(verdict))
+    }
+
+    fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>> {
+        self.record(FeedbackCall::Surface(signal))
     }
 
     fn routine_removed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), Error>> {

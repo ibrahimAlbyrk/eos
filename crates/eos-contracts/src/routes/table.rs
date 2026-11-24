@@ -407,6 +407,10 @@ pub const SURFACE_ISSUE_DOCUMENT: Route =
     Route::new("surfaceIssueDocument", "/api/surfaces/:id/issues/:issueId/document", &[Get]).added();
 pub const SURFACE_ISSUE_MAIL: Route =
     Route::new("surfaceIssueMail", "/api/surfaces/:id/issues/:issueId/mail", &[Get]).added();
+pub const SURFACE_ISSUE_FIELDS: Route =
+    Route::new("surfaceIssueFields", "/api/surfaces/:id/issues/:issueId/fields", &[Put]).added();
+pub const SURFACE_ISSUE_READ: Route =
+    Route::new("surfaceIssueRead", "/api/surfaces/:id/issues/:issueId/read", &[Post]).added();
 pub const SURFACE_ISSUE_PART: Route =
     Route::new("surfaceIssuePart", "/api/surfaces/:id/issues/:issueId/parts/:part", &[Get]).added();
 pub const SURFACE_QUERY: Route = Route::new("surfaceQuery", "/api/surfaces/:id/queries/:queryId", &[Get]).added();
@@ -788,6 +792,8 @@ pub const ROUTES: &[Route] = &[
     SURFACE_ISSUE,
     SURFACE_ISSUE_DOCUMENT,
     SURFACE_ISSUE_MAIL,
+    SURFACE_ISSUE_FIELDS,
+    SURFACE_ISSUE_READ,
     SURFACE_ISSUE_PART,
     SURFACE_QUERY,
     SURFACE_STATE,
