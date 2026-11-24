@@ -12,6 +12,11 @@ eos: start Eos routines from a terminal.
   eos run <routine> [item…] [--file <path>]… [--note <text>] [--option <name=value>]…
           [--show-only] [--at <when>] [--wait] [--yes] [--json]
   eos once \"<what to do>\" [--file <path>]… [--show-only] [--wait] [--json]
+  eos halt       stop every routine from starting and sending
+  eos resume     let them go on
+  eos memory hook --event <name>
+                 for Claude Code's hooks: the hook's input on standard input, what Eos
+                 remembers about it on standard output; nothing after 300 ms
   eos help
 
 Text piped in becomes one more item. --wait shows the run's progress and prints its
@@ -27,6 +32,10 @@ pub enum Asked {
         request: CliRequest,
         stdin: bool,
     },
+    /// `eos memory hook --event <name>`: answered within 300 ms or not at all.
+    MemoryHook {
+        event: String,
+    },
 }
 
 /// Reads the arguments (without the program name). Relative paths are taken from `cwd`.
@@ -36,6 +45,19 @@ pub fn parse(args: &[String], cwd: &Path) -> Result<Asked, String> {
     let mut flags = Flags::read(rest, cwd)?;
     let asked = match command.as_str() {
         "help" | "--help" | "-h" => return Ok(Asked::Help),
+        "halt" | "resume" => {
+            flags.done(0)?;
+            if command == "halt" { CliRequest::Halt } else { CliRequest::Resume }
+        }
+        "memory" => {
+            let event = flags.take_value("--event").ok_or("eos memory hook needs --event <name>")?;
+            if flags.words.first().map(String::as_str) != Some("hook") {
+                return Err("eos memory takes one command: eos memory hook --event <name>".into());
+            }
+            flags.words.remove(0);
+            flags.done(0)?;
+            return Ok(Asked::MemoryHook { event });
+        }
         "routines" => {
             let json = flags.take_switch("--json");
             flags.done(0)?;
@@ -93,7 +115,7 @@ struct Flags {
 }
 
 const SWITCHES: [&str; 4] = ["--json", "--show-only", "--wait", "--yes"];
-const VALUES: [&str; 2] = ["--note", "--at"];
+const VALUES: [&str; 3] = ["--note", "--at", "--event"];
 
 impl Flags {
     fn read(args: &[String], cwd: &Path) -> Result<Self, String> {
@@ -199,6 +221,14 @@ mod tests {
         let CliRequest::Once(once) = request(&["once", "Tidy", "my downloads", "--wait"]) else { panic!("once") };
         assert_eq!((once.what.as_str(), once.wait), ("Tidy my downloads", true));
         assert_eq!(request(&["routines", "--json"]), CliRequest::Routines { json: true });
+        assert_eq!(request(&["halt"]), CliRequest::Halt);
+        assert_eq!(request(&["resume"]), CliRequest::Resume);
+        assert_eq!(
+            read(&["memory", "hook", "--event", "PreToolUse"]),
+            Ok(Asked::MemoryHook { event: "PreToolUse".into() })
+        );
+        assert!(read(&["memory", "--event", "x"]).is_err());
+        assert!(read(&["memory", "hook"]).is_err());
         assert_eq!(read(&[]), Ok(Asked::Help));
         assert_eq!(read(&["help"]), Ok(Asked::Help));
     }
