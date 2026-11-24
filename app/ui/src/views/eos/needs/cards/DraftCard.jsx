@@ -5,6 +5,7 @@ import { carriedEdits, carryEdits, readEdit, writeEdit } from "../editDrafts.js"
 import { docChanged } from "../editors/editDoc.js";
 import { MailEditor } from "../editors/MailEditor.jsx";
 import { ReviewEditor } from "../editors/ReviewEditor.jsx";
+import { SlackEditor } from "../editors/SlackEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
 import { DocView, ResultView } from "../results/ResultView.jsx";
 import { SendState } from "../SendState.jsx";
@@ -15,7 +16,7 @@ const SAVE_AFTER_MS = 1500;
 
 const WAITING = new Set(["open", "later"]);
 
-const EDITORS = { "github.review": ReviewEditor, mail: MailEditor };
+const EDITORS = { "github.review": ReviewEditor, mail: MailEditor, "slack.message": SlackEditor, "slack.reply": SlackEditor };
 
 // The editor for a result of `kind`.
 export const editorOf = (kind) => EDITORS[kind] ?? TextEditor;

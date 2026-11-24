@@ -3,13 +3,14 @@
 // one, by hand, in Eos's own dialog; one the user added by hand (a fixed
 // address) is the user's to remove.
 
-const CHANNELS = { mail: "mail", github: "GitHub", notify: "a notification", inbox: "Needs you" };
+const CHANNELS = { mail: "mail", github: "GitHub", notify: "a notification", inbox: "Needs you", slack: "Slack" };
 
 const channelWord = (channel) => CHANNELS[channel] ?? channel;
 
 export function recipientText(r) {
   if (r.kind === "me") return `You, by ${channelWord(r.channel)}`;
-  if (r.kind === "fixed") return `${r.address}, by ${channelWord(r.channel)}`;
+  if (r.kind === "fixed") return `${r.label ?? r.address}, by ${channelWord(r.channel)}`;
+  if (r.kind === "item_place" && r.channel === "slack") return "In the thread of the run's Slack message";
   if (r.kind === "item_place") return `Where the item came from, on ${channelWord(r.channel)}`;
   return "A place this version cannot read";
 }
@@ -21,14 +22,30 @@ function freeId(list) {
   return `to-${n}`;
 }
 
-export function goesToParts(goesTo) {
+// A routine that makes a Slack message adds a conversation or a person
+// picked from Slack, never a name typed by hand: Slack's id is kept, its name
+// only shown.
+function slackAdd(list) {
+  return {
+    key: "to.add.slack",
+    label: "Add a Slack channel or person",
+    editor: "slack",
+    text: "Add a Slack channel or person",
+    optional: true,
+    value: { channel: "slack" },
+    apply: ({ address, label }) => [...list, { id: freeId(list), kind: "fixed", channel: "slack", address, label }],
+  };
+}
+
+export function goesToParts(goesTo, makes) {
   const list = goesTo ?? [];
   const parts = list.flatMap((r, n) => [
     { key: `to.${r.id}`, label: "Recipient", locked: true, text: recipientText(r) },
-    ...(r.kind === "fixed" ? [{ key: `to.${r.id}.remove`, label: `Remove ${r.address}`, editor: "act", text: "×", apply: () => list.filter((_, i) => i !== n) }] : []),
+    ...(r.kind === "fixed" ? [{ key: `to.${r.id}.remove`, label: `Remove ${r.label ?? r.address}`, editor: "act", text: "×", apply: () => list.filter((_, i) => i !== n) }] : []),
     { break: true },
   ]);
   if (list.length === 0) parts.push("Stays in Eos", { break: true });
+  if (makes?.kind?.startsWith("slack.")) return [...parts, slackAdd(list)];
   parts.push({ key: "to.add", label: "Add a recipient", editor: "recipient", text: "Add a recipient", optional: true, value: { channel: "mail", address: "" }, apply: ({ channel, address }) => [...list, { id: freeId(list), kind: "fixed", channel, address }] });
   return parts;
 }
