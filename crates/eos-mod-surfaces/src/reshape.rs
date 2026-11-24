@@ -89,6 +89,7 @@ fn version_doc(row: &StoredSurfaceVersion) -> SurfaceVersion {
         meta: version_meta(row),
         body: serde_json::from_str(&row.body_json).unwrap_or_default(),
         checks: serde_json::from_str(&row.checks_json).unwrap_or_default(),
+        access_line: None,
     }
 }
 

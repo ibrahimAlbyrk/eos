@@ -17,9 +17,10 @@ const VERSIONS_KEPT = 20;
 // versions: `${surfaceId}:${n}` → { meta, body, checks }.
 // design: surface id → the newest surfaces:design { version, phase }.
 // byRoutine: routine id → its Page's surface id, or null when it makes none.
+// appByRoutine: routine id → its App's surface id once one is in use, or null.
 // working: surface id → the run of its designer started from this window,
 // until a version it made is checked or the user stops it.
-const EMPTY = { pages: {}, issues: {}, versions: {}, design: {}, byRoutine: {}, working: {} };
+const EMPTY = { pages: {}, issues: {}, versions: {}, design: {}, byRoutine: {}, appByRoutine: {}, working: {} };
 let state = EMPTY;
 const subs = new Set();
 
@@ -92,6 +93,15 @@ export async function loadRoutinePage(routineId) {
   const page = (r.body?.surfaces ?? []).find((s) => s.level === "page" && !s.archivedAt) ?? null;
   set({ byRoutine: { ...state.byRoutine, [routineId]: page?.id ?? null } });
   if (page) await loadPage(page.id);
+}
+
+// The routine's App, for its project page's side panel: its surface id once
+// it has a version in use.
+export async function loadRoutineApp(routineId) {
+  const r = await transport.get(`${ROUTES.surfaces}?routine=${encodeURIComponent(routineId)}`);
+  if (!r.ok) return;
+  const app = (r.body?.surfaces ?? []).find((s) => s.level === "app" && !s.archivedAt && s.currentVersion != null) ?? null;
+  set({ appByRoutine: { ...state.appByRoutine, [routineId]: app?.id ?? null } });
 }
 
 // The issue a location names (its number), else the newest ready issue that
@@ -195,6 +205,9 @@ export function applyPageChange(payload) {
   if (id && state.pages[id]) void loadPage(id);
   const issueId = payload?.issueId;
   if (issueId && state.issues[issueId]) void loadIssue(id, issueId);
+  // A kept App shows in its routine's side panel.
+  const routineId = payload?.routineId;
+  if (routineId && routineId in state.appByRoutine) void loadRoutineApp(routineId);
 }
 
 // surfaces:design: where the designer's newest version stands.

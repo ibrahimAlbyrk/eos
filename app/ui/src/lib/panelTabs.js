@@ -47,6 +47,15 @@ export function viewIdOf(id) {
   return id && tabType(id) === "view" ? id.slice("view:".length) : null;
 }
 
+// A routine's App, keyed by its surface id (one tab per App).
+export function surfaceAppTabId(surfaceId) {
+  return `surface-app:${surfaceId}`;
+}
+
+export function surfaceAppIdOf(id) {
+  return id && tabType(id) === "surface-app" ? id.slice("surface-app:".length) : null;
+}
+
 // A claude.ai Artifact, keyed by its uuid (one tab per artifact).
 export function artifactTabId(slug) {
   return `artifact:${slug}`;

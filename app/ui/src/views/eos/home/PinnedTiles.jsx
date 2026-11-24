@@ -3,15 +3,16 @@ import { ensurePinsLoaded, PIN_SLOTS, unpin, usePins } from "../../../state/eos/
 import { notify } from "../../../lib/notify.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 
-// Where a tile opens: a Page's issue on its screen; a View's routine.
+// Where a tile opens: a Page's issue or an App on its screen; a View's routine.
 export function tileLocation(tile) {
-  if (tile.level === "page") return buildLocation({ screen: "surface", surfaceId: tile.surfaceId });
+  if (tile.level === "page" || tile.level === "app") return buildLocation({ screen: "surface", surfaceId: tile.surfaceId });
   return buildLocation({ screen: "routine", routineId: tile.routineId });
 }
 
 // A tile's link in words: the design's own, or Eos's.
 export function tileAction(tile) {
   if (tile.action) return tile.action;
+  if (tile.level === "app") return "Open the App";
   return tile.level === "page" ? "Read the issue" : "Open it";
 }
 

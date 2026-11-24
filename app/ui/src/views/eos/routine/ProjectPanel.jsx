@@ -1,5 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { surfaceAppTabId } from "../../../lib/panelTabs.js";
+import { loadRoutineApp, usePages } from "../../../state/eos/pageStore.js";
 import { useUi } from "../../../state/ui.jsx";
+import "../surface/registerSurfacePanel.js";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 import { PanelHostContext } from "../../../state/panelHost.js";
 import { SidePanel } from "../../agents/panes/SidePanel.jsx";
@@ -13,6 +16,22 @@ function Toggle() {
   );
 }
 
+// The routine's App opens in its own tab once it is in use: only after its
+// review and its tests passed and the user kept it.
+function OpenApp({ routineId }) {
+  const ui = useUi();
+  const { appByRoutine } = usePages();
+  const opened = useRef(null);
+  const appId = appByRoutine[routineId];
+  useEffect(() => { void loadRoutineApp(routineId); }, [routineId]);
+  useEffect(() => {
+    if (!appId || opened.current === appId) return;
+    opened.current = appId;
+    ui.openPanel(surfaceAppTabId(appId));
+  }, [appId, ui]);
+  return null;
+}
+
 // A project's side panel (08 §5, SurfaceApp): the Agents side panel with the
 // "eos" launcher, its own pane scope `eos:<routineId>`, working in the
 // project's folder when that is a path here.
@@ -22,6 +41,7 @@ export function ProjectPanel({ routineId, repo }) {
     <PaneScopeContext.Provider value={host.key}>
       <PanelHostContext.Provider value={host}>
         <Toggle />
+        <OpenApp routineId={routineId} />
         <div className="eos-project__panel sp-host is-panel-open">
           <SidePanel surface="eos" />
         </div>

@@ -204,3 +204,15 @@ async fn only_an_app_in_use_is_handed_to_the_forge() {
     rig.settings.0.lock().expect("settings").insert("genui.apps".into(), SettingValue::Flag(false));
     assert!(hand_off.promoted("sf-app").await.is_err(), "Apps are off");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn eos_writes_the_line_of_access_under_an_app() {
+    let (rig, _) = in_use().await;
+    let (status, version) = rig.ask(Method::Get, "/api/surfaces/sf-app/versions/1", None).await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        version["accessLine"],
+        "This App can probe, probe; reads how many; can read levels/*.json in this project; can write levels/*.json in \
+         this project."
+    );
+}

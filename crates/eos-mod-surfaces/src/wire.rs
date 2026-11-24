@@ -39,8 +39,9 @@ pub(crate) fn version_meta(v: &StoredSurfaceVersion) -> SurfaceVersionMeta {
     }
 }
 
-pub(crate) fn version(v: &StoredSurfaceVersion) -> SurfaceVersion {
-    SurfaceVersion { meta: version_meta(v), body: json(&v.body_json), checks: json(&v.checks_json) }
+/// `access_line` is an App's, which Eos writes from its manifest.
+pub(crate) fn version(v: &StoredSurfaceVersion, access_line: Option<String>) -> SurfaceVersion {
+    SurfaceVersion { meta: version_meta(v), body: json(&v.body_json), checks: json(&v.checks_json), access_line }
 }
 
 pub(crate) fn issue_row(i: &StoredIssue) -> SurfaceIssueRow {

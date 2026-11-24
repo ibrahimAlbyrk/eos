@@ -14,6 +14,7 @@ import { PinButton } from "./PinButton.jsx";
 import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
 import { TellBar } from "./TellBar.jsx";
+import { AppSurface } from "./AppSurface.jsx";
 import { issueLine, olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
 
 // "Good issue" and "Not today": said once per issue.
@@ -77,6 +78,19 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
   };
   const reshaping = mode === "reshape" && surface?.currentVersion != null;
   const current = surface?.currentVersion != null ? versions[`${surfaceId}:${surface.currentVersion}`] : null;
+
+  // An App opened as a tool: the whole window is the App.
+  if (surface?.level === "app") {
+    return (
+      <main className="eos-screen">
+        <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} />
+        <div className="eos-body eos-page">
+          {devRun && <DevRunNote />}
+          <AppSurface surfaceId={surfaceId} />
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="eos-screen">
