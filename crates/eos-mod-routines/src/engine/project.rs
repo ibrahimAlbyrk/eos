@@ -101,7 +101,7 @@ pub(crate) fn advance_in(
     let work = RunMove { state: RunState::Running, station: Some(Station::Work), reason: None, at: now };
     move_run(tx, out, run, work)?;
     let text = next_text(&finished.title, outcome, &next, switched.is_some());
-    tell_lead_after(engine, run, text);
+    tell_lead_after(engine, run, text, next.system.is_some());
     Ok(true)
 }
 
@@ -112,19 +112,27 @@ fn next_text(finished: &str, outcome: Outcome, next: &Milestone, switched: bool)
         Outcome::Expired | Outcome::Replaced => "it waited for the user and was not taken up",
         _ => "it went through",
     };
-    let mut text = format!(
-        "Milestone \"{finished}\" is done: {ended}. Now work on the next milestone, `{}`: {}. It is done when: {}. \
-         Hand it in with complete_milestone.",
-        next.key, next.title, next.done_when
-    );
+    let mut text = match next.system {
+        Some(_) => format!(
+            "Milestone \"{finished}\" is done: {ended}. Eos runs the next milestone, `{}` ({}), itself: wait until \
+             it tells you how it went.",
+            next.key, next.title
+        ),
+        None => format!(
+            "Milestone \"{finished}\" is done: {ended}. Now work on the next milestone, `{}`: {}. It is done when: \
+             {}. Hand it in with complete_milestone.",
+            next.key, next.title, next.done_when
+        ),
+    };
     if switched {
         text.push_str(" The routine was changed since the last milestone: from now on its latest version holds.");
     }
     text
 }
 
-/// Tells the run's lead `text` once the job it was written in has committed.
-fn tell_lead_after(engine: &Arc<Engine>, run: &StoredRun, text: String) {
+/// Tells the run's lead `text` once the job it was written in has committed,
+/// then runs the milestone's system step when it is one.
+fn tell_lead_after(engine: &Arc<Engine>, run: &StoredRun, text: String, system: bool) {
     let (engine, run_id, lead) = (engine.clone(), run.id.clone(), run.lead_id.clone());
     let Some(tasks) = engine.tasks.clone() else {
         tracing::warn!(run_id, "a project run's lead could not be told of its next milestone: no runtime");
@@ -134,6 +142,9 @@ fn tell_lead_after(engine: &Arc<Engine>, run: &StoredRun, text: String) {
         // The next write job runs after the one that moved the run.
         if engine.store.write(|_, _| Ok(())).await.is_err() {
             return;
+        }
+        if system {
+            super::system::begin(&engine, &run_id);
         }
         let Some(lead) = lead else { return };
         Engine::locked(&engine.held).remove(&lead);
@@ -149,7 +160,12 @@ pub(crate) fn brief_text(blueprint: &Blueprint) -> Option<String> {
     let milestones: Vec<String> = project
         .milestones
         .iter()
-        .map(|milestone| format!("- `{}`: {}. Done when: {}", milestone.key, milestone.title, milestone.done_when))
+        .map(|milestone| match milestone.system {
+            Some(_) => {
+                format!("- `{}`: {}. Eos runs this one itself; wait while it does.", milestone.key, milestone.title)
+            }
+            None => format!("- `{}`: {}. Done when: {}", milestone.key, milestone.title, milestone.done_when),
+        })
         .collect();
     Some(format!(
         "The project: {}\nRepository: {} (base branch {})\n\nMilestones, in order. Work on one at a time and hand \

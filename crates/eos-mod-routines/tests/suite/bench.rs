@@ -73,6 +73,38 @@ pub(crate) struct Bench {
     pub(crate) feedback: Arc<FakeExperienceFeedback>,
     /// What routines asked of their surfaces.
     pub(crate) surfaces: Arc<FakeSurfaceAuthoring>,
+    /// The system steps of built-in routines.
+    pub(crate) steps: Arc<FakeSteps>,
+}
+
+/// System steps a test scripts: each call answers the next result, or
+/// fails its run when none is left.
+#[derive(Default)]
+pub(crate) struct FakeSteps {
+    results: std::sync::Mutex<std::collections::VecDeque<eos_core::routine::StepResult>>,
+    calls: std::sync::Mutex<Vec<eos_core::routine::SystemStepCall>>,
+}
+
+impl FakeSteps {
+    pub(crate) fn answer(&self, result: eos_core::routine::StepResult) {
+        self.results.lock().expect("results").push_back(result);
+    }
+
+    pub(crate) fn calls(&self) -> Vec<eos_core::routine::SystemStepCall> {
+        self.calls.lock().expect("calls").clone()
+    }
+}
+
+impl eos_core::routine::SystemSteps for FakeSteps {
+    fn run(
+        &self,
+        call: eos_core::routine::SystemStepCall,
+    ) -> eos_core::BoxFuture<'_, Result<eos_core::routine::StepResult, eos_core::Error>> {
+        self.calls.lock().expect("calls").push(call);
+        let next = self.results.lock().expect("results").pop_front();
+        let result = next.unwrap_or(eos_core::routine::StepResult::Failed { reason: "no step scripted".into() });
+        Box::pin(std::future::ready(Ok(result)))
+    }
 }
 
 /// A plan whose five-hour window a test fills.
@@ -208,6 +240,7 @@ impl Bench {
             (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
         let (model, power) = (Arc::new(ScriptedOneShot::default()), Arc::new(FakePower::default()));
         let trash = Arc::new(FakeTrash::new(temp.home.path().join("trash")));
+        let steps = Arc::new(FakeSteps::default());
         let (packs, feedback, surfaces) = (
             Arc::new(FakeExperiencePacks::new()),
             Arc::new(FakeExperienceFeedback::new()),
@@ -226,6 +259,7 @@ impl Bench {
             packs: &packs,
             feedback: &feedback,
             surfaces: &surfaces,
+            steps: &steps,
         };
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
@@ -256,6 +290,7 @@ impl Bench {
             packs,
             feedback,
             surfaces,
+            steps,
         }
     }
 
@@ -277,6 +312,7 @@ impl Bench {
             packs: &self.packs,
             feedback: &self.feedback,
             surfaces: &self.surfaces,
+            steps: &self.steps,
         };
         module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
@@ -403,6 +439,7 @@ struct Shared<'a> {
     packs: &'a Arc<FakeExperiencePacks>,
     feedback: &'a Arc<FakeExperienceFeedback>,
     surfaces: &'a Arc<FakeSurfaceAuthoring>,
+    steps: &'a Arc<FakeSteps>,
 }
 
 // The bench's parts, each shared with the module a restart builds again.
@@ -415,7 +452,7 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared { gate, keys, bus, settings, ids, plan, model, power, trash, packs, feedback, surfaces } = shared;
+    let Shared { gate, keys, bus, settings, ids, plan, model, power, trash, packs, feedback, surfaces, steps } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -451,6 +488,7 @@ fn module(
         packs: packs.clone(),
         feedback: feedback.clone(),
         surfaces: surfaces.clone(),
+        system_steps: steps.clone(),
     }))
 }
 

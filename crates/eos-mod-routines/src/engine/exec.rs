@@ -48,50 +48,9 @@ impl Tools {
         Ok(run_ref)
     }
 
-    /// Keeps a copy of the result the run's lead handed in, then moves the
-    /// run to its check.
     async fn hand_in(&self, worker_id: &str, run: RunRef, result: SubmittedResult) -> Result<(), Error> {
-        let engine = &self.0;
-        let body = result.body.to_string();
-        if body.len() > RESULT_BODY_MAX_BYTES {
-            return Err(Error::Validation(format!("body: at most {RESULT_BODY_MAX_BYTES} bytes")));
-        }
-        shape::refuse_misfit(engine, &run.run_id, &result.kind, &result.body).await?;
-        let kept = engine.folders.keep_files(&run.routine_id, &run.run_id, &result.files).await?;
-        let files: Vec<_> = kept.iter().map(|file| json!({"name": file.name, "bytes": file.bytes})).collect();
-        let (id, now) = (run.run_id.clone(), engine.clock.now_ms());
-        let (kind, headline) = (result.kind, result.headline);
-        let size = body.len();
-        engine
-            .store
-            .write(move |tx, out| {
-                let run = tx.runs().find(&id)?.ok_or_else(|| Error::not_found("run", id.clone()))?;
-                if (run.state, run.station) != (RunState::Running, Some(Station::Work)) {
-                    return Err(Error::Conflict("the run is not at work".into()));
-                }
-                tx.run_results().insert(&StoredRunResult {
-                    run_id: id.clone(),
-                    attempt: run.attempt,
-                    kind,
-                    headline: headline.clone(),
-                    body,
-                    files: (!files.is_empty()).then(|| json!(files).to_string()),
-                    verdict: None,
-                    created_at: now,
-                })?;
-                tx.runs().set_headline(&id, &headline)?;
-                let check = RunMove { state: RunState::Checking, station: Some(Station::Check), reason: None, at: now };
-                move_run(tx, out, &run, check).map(drop)
-            })
-            .await?;
-        Engine::locked(&engine.progress).remove(&run.run_id);
-        // Held until the check lets it go: what the user says meanwhile waits.
-        Engine::locked(&engine.held).insert(worker_id.to_owned());
-        check::begin(engine, &run.run_id);
-        tracing::info!(run_id = %run.run_id, worker_id, bytes = size, files = kept.len(), "a run's result was handed in");
-        Ok(())
+        hand_in(&self.0, Some(worker_id), &run.run_id, &run.routine_id, result).await
     }
-
     /// What a project run makes and the milestone it works on; none for a
     /// run that is no project's.
     async fn milestone(&self, run_id: &str) -> Result<Option<(String, Milestone)>, Error> {
@@ -142,6 +101,11 @@ impl RoutineTools for Tools {
                     "This run is no project's: hand in its result with submit_result.".into(),
                 ));
             };
+            if milestone.system.is_some() {
+                return Err(Error::Validation(
+                    "Eos runs this milestone itself: wait until it tells you how it went.".into(),
+                ));
+            }
             if milestone.key != done.key {
                 return Err(Error::Validation(format!(
                     "key: the milestone at work is `{}` ({}); hand that one in first.",
@@ -199,4 +163,55 @@ impl RoutineTools for Tools {
     fn list_specialists<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<Specialist>, Error>> {
         Box::pin(team::list(&self.0, worker_id))
     }
+}
+
+/// Keeps a copy of the result handed in for `run_id` (by its lead, or by a
+/// system step without one), then moves the run to its check.
+pub(crate) async fn hand_in(
+    engine: &Arc<Engine>,
+    lead: Option<&str>,
+    run_id: &str,
+    routine_id: &str,
+    result: SubmittedResult,
+) -> Result<(), Error> {
+    let body = result.body.to_string();
+    if body.len() > RESULT_BODY_MAX_BYTES {
+        return Err(Error::Validation(format!("body: at most {RESULT_BODY_MAX_BYTES} bytes")));
+    }
+    shape::refuse_misfit(engine, run_id, &result.kind, &result.body).await?;
+    let kept = engine.folders.keep_files(routine_id, run_id, &result.files).await?;
+    let files: Vec<_> = kept.iter().map(|file| json!({"name": file.name, "bytes": file.bytes})).collect();
+    let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+    let (kind, headline) = (result.kind, result.headline);
+    let size = body.len();
+    engine
+        .store
+        .write(move |tx, out| {
+            let run = tx.runs().find(&id)?.ok_or_else(|| Error::not_found("run", id.clone()))?;
+            if (run.state, run.station) != (RunState::Running, Some(Station::Work)) {
+                return Err(Error::Conflict("the run is not at work".into()));
+            }
+            tx.run_results().insert(&StoredRunResult {
+                run_id: id.clone(),
+                attempt: run.attempt,
+                kind,
+                headline: headline.clone(),
+                body,
+                files: (!files.is_empty()).then(|| json!(files).to_string()),
+                verdict: None,
+                created_at: now,
+            })?;
+            tx.runs().set_headline(&id, &headline)?;
+            let check = RunMove { state: RunState::Checking, station: Some(Station::Check), reason: None, at: now };
+            move_run(tx, out, &run, check).map(drop)
+        })
+        .await?;
+    Engine::locked(&engine.progress).remove(run_id);
+    if let Some(lead) = lead {
+        // Held until the check lets it go: what the user says meanwhile waits.
+        Engine::locked(&engine.held).insert(lead.to_owned());
+    }
+    check::begin(engine, run_id);
+    tracing::info!(run_id, worker_id = ?lead, bytes = size, files = kept.len(), "a run's result was handed in");
+    Ok(())
 }

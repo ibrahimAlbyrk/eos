@@ -399,6 +399,51 @@ pub struct SubmittedResult {
     pub files: Vec<String>,
 }
 
+/// A project milestone that a feature runs instead of the lead (01 G49):
+/// `forge.test` names the step the Forge owns.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SystemStepCall {
+    pub step: String,
+    pub run_id: String,
+    pub routine_id: String,
+    /// The milestone's key.
+    pub milestone: String,
+    /// What the run was started with.
+    pub input: RunInput,
+}
+
+/// What a system step came to: a result that goes through the check and the
+/// gate as a lead's does, or why the run fails.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StepResult {
+    Done(SubmittedResult),
+    Failed { reason: String },
+}
+
+/// The steps the features that own built-in routines run (01 G49).
+pub trait SystemSteps: Send + Sync {
+    fn run(&self, call: SystemStepCall) -> BoxFuture<'_, Result<StepResult, Error>>;
+}
+
+/// No feature here owns a system step: each fails its run.
+#[derive(Debug, Default)]
+pub struct NoSystemSteps;
+
+impl SystemSteps for NoSystemSteps {
+    fn run(&self, call: SystemStepCall) -> BoxFuture<'_, Result<StepResult, Error>> {
+        let reason = format!("No part of this Eos runs the step `{}`.", call.step);
+        Box::pin(std::future::ready(Ok(StepResult::Failed { reason })))
+    }
+}
+
+/// The routines Eos keeps for its own features (origin `builtin`): hidden
+/// from the user's lists, never theirs to change (01 G49).
+pub trait BuiltinRoutines: Send + Sync {
+    /// Makes the built-in routine `slug` from `blueprint`, or keeps
+    /// `blueprint` as its head when it changed; answers the routine's id.
+    fn ensure<'a>(&'a self, slug: &'a str, blueprint: serde_json::Value) -> BoxFuture<'a, Result<String, Error>>;
+}
+
 /// A project's milestone a lead hands in (`complete_milestone`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MilestoneDone {

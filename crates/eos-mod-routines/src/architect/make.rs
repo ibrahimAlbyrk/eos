@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use super::{draft, room, say, spawn, young};
 use crate::engine::{
-    Engine, NEWER_FORMAT, NewVersion, Prepared, announce_routine, free_slug, insert_version, live, row,
+    Engine, NEWER_FORMAT, NewVersion, Prepared, announce_routine, editable, free_slug, insert_version, row,
 };
 use crate::routes::{BUILTIN, readable};
 
@@ -190,7 +190,7 @@ pub(crate) async fn change(engine: &Arc<Engine>, routine_id: &str, text: &str) -
     let taker = engine
         .store
         .write(move |tx, out| {
-            let routine = live(tx, &id)?;
+            let routine = editable(tx, &id)?;
             let head = tx.routine_versions().head(&id)?;
             let head = head.ok_or_else(|| Error::Conflict("a routine is changed once it has started".into()))?;
             let blueprint = readable(&head)?.ok_or_else(|| Error::Conflict(NEWER_FORMAT.into()))?;
