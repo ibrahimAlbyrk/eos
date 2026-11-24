@@ -68,6 +68,11 @@ name = "api_key"
 label = "Notes API key"
 env = "NOTES_KEY"
 
+[[settings]]
+name = "folder"
+label = "Your notes folder"
+kind = "text"
+
 [[actions]]
 name = "check"
 summary = "See that it works."

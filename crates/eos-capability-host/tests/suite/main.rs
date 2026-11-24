@@ -2,3 +2,4 @@
 
 mod mcp;
 mod script;
+mod sms;

@@ -180,6 +180,23 @@ async fn a_capability_installed_while_a_call_runs_is_callable_on_the_next_call()
 }
 
 #[tokio::test]
+async fn a_package_finds_each_setting_the_user_gave_in_its_own_variable() {
+    let rig = rig(Setup {
+        secrets: eos_testkit::FakeCapabilitySecrets::new().with("notes-db", "api_key", SECRET),
+        runner: FakeActionRunner::new().answering("notes-db", "list_notes", Ok(json!({ "notes": 3 }))),
+        ..Setup::default()
+    })
+    .await;
+    rig.install(&notes("1.0.0"), "h-1").await;
+    rig.service.call(agent_call("notes-db", "list_notes", json!({}))).await.expect("callable");
+    rig.service.set_settings("notes-db", vec![("folder".into(), "/Users/me/Notes".into())]).await.expect("set");
+    rig.service.call(agent_call("notes-db", "list_notes", json!({}))).await.expect("callable");
+    let runs = rig.runner.runs();
+    assert_eq!(runs[0].env, ["NOTES_KEY".to_owned()], "a setting not given is not set");
+    assert_eq!(runs[1].env, ["NOTES_KEY".to_owned(), "EOS_SETTING_FOLDER".to_owned()]);
+}
+
+#[tokio::test]
 async fn a_store_that_cannot_be_read_fails_the_call_and_logs_no_name_the_model_wrote() {
     let rig = rig(Setup::default()).await;
     rig.temp.exec("DROP TABLE capability_installs");
