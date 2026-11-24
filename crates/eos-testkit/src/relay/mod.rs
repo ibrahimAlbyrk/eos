@@ -3,8 +3,10 @@
 //! that speaks what the released iOS app speaks ([`FakePhone`]), and a room
 //! held in memory for code that only needs the port ([`FakeRoom`],
 //! [`FakeRelayPort`]). [`FakeRemoteStore`] and [`FakeKeepAwake`] stand in for
-//! the link's files and for keeping the computer awake.
+//! the link's files and for keeping the computer awake. [`FakeHookRelay`]
+//! and [`FakeHookInbox`] stand in for the relay's hook inbox.
 
+mod hooks;
 mod notify;
 mod phone;
 mod push;
@@ -13,9 +15,10 @@ mod room;
 mod server;
 mod store;
 
+pub use hooks::{FakeHookInbox, FakeHookRelay};
 pub use notify::FakePhoneNotify;
 pub use phone::{ControlAnswer, FakePhone, JoinFailure, PHONE_CAPS, Pairing, QrFailure, inner_json, read_qr};
 pub use push::{PushVia, Pushed};
 pub use room::{FakeRelayPort, FakeRoom};
 pub use server::{FakeRelay, FakeRelayOptions, Registration, free_port};
-pub use store::{FakeKeepAwake, FakeRemoteStore};
+pub use store::{FakeKeepAwake, FakeRemoteStore, fake_hook_identity};

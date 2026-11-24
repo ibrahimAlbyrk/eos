@@ -105,7 +105,7 @@ outside service posts to.
 | `PUT /hooks/v1/:inbox/hooks/:hook` | the Mac: adds a hook → `200` · `409` the id is another inbox's · `507` past 64 hooks |
 | `DELETE /hooks/v1/:inbox/hooks/:hook` | the Mac: removes it → `200` |
 | `POST /hooks/v1/:inbox/:hook` | the outside service, no auth (the URL is the capability) → `202` · `404` unknown hook · `413` body > 1 MiB · `429` > 120 a minute per hook · `507` inbox full |
-| `GET /hooks/v1/:inbox/events?since=N&wait=S` | the Mac → `200 {head, entries:[{seq, sealed}], dropped}`, at most 100 entries; when empty, held up to `S` s (max 25) |
+| `GET /hooks/v1/:inbox/events?since=N&wait=S` | the Mac → `200 {head, entries:[{seq, sealed}], dropped}`, at most 100 entries and 16 MiB (never fewer than one); when empty, held up to `S` s (max 25) |
 | `POST /hooks/v1/:inbox/ack` `{through}` | the Mac: deletes the events with `seq ≤ through` → `200` |
 
 `:inbox` and `:hook` are 32 hex chars. The Mac's calls carry `Authorization: Bearer <16–128

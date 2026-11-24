@@ -7,6 +7,7 @@
 //! relay-owner.secret   the same shape                        (user only)
 //! remote-audit.log     one JSON object per line, appended
 //! remote-audit.log.1   the log before, once the log reached its size
+//! hooks.json           {inbox, bearer, secretKey}: the hook inbox  (user only)
 //! ```
 
 use std::fs::{self, File, OpenOptions};
@@ -17,8 +18,9 @@ use std::sync::{Mutex, MutexGuard};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use eos_core::Error;
-use eos_core::store::{RemoteAuditEntry, RemoteStore, RoomSecrets};
+use eos_core::store::{HookIdentity, RemoteAuditEntry, RemoteStore, RoomSecrets};
 use eos_kit_fs::{WriteOptions, atomic_write};
+use serde::{Deserialize, Serialize};
 
 /// How big the audit log grows (about 40,000 phone requests) before it
 /// becomes `remote-audit.log.1`, replacing the one there.
@@ -57,10 +59,43 @@ impl RemoteFiles {
     }
 }
 
-fn mint() -> Result<String, Error> {
-    let mut bytes = [0u8; 32];
+fn random<const N: usize>() -> Result<[u8; N], Error> {
+    let mut bytes = [0u8; N];
     getrandom::fill(&mut bytes).map_err(Error::storage)?;
-    Ok(URL_SAFE_NO_PAD.encode(bytes))
+    Ok(bytes)
+}
+
+fn mint() -> Result<String, Error> {
+    Ok(URL_SAFE_NO_PAD.encode(random::<32>()?))
+}
+
+/// `hooks.json` as written.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HookFile {
+    inbox: String,
+    bearer: String,
+    /// Standard base64 of the 32 bytes.
+    secret_key: String,
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn read_hook_file(path: &Path) -> Result<Option<HookIdentity>, Error> {
+    let text = match fs::read(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(Error::storage(format!("{}: {e}", path.display()))),
+    };
+    // A file that does not read is never replaced: the hooks the services
+    // hold name its inbox.
+    let bad = || Error::storage(format!("{}: not a hook inbox identity", path.display()));
+    let file: HookFile = serde_json::from_slice(&text).map_err(|_| bad())?;
+    let secret_key = base64::engine::general_purpose::STANDARD.decode(&file.secret_key).map_err(|_| bad())?;
+    let secret_key: [u8; 32] = secret_key.try_into().map_err(|_| bad())?;
+    Ok(Some(HookIdentity { inbox: file.inbox, bearer: file.bearer, secret_key }))
 }
 
 /// The secret in `path`, or a fresh one written there.
@@ -103,6 +138,24 @@ impl RemoteStore for RemoteFiles {
             return Ok(None);
         };
         Ok(Some(RoomSecrets { room, bearer, owner }))
+    }
+
+    fn hook_identity(&self) -> Result<HookIdentity, Error> {
+        let path = self.dir.join("hooks.json");
+        if let Some(identity) = read_hook_file(&path)? {
+            return Ok(identity);
+        }
+        fs::create_dir_all(&self.dir).map_err(|e| Error::storage(format!("{}: {e}", self.dir.display())))?;
+        let identity = HookIdentity { inbox: hex(&random::<16>()?), bearer: mint()?, secret_key: random::<32>()? };
+        let file = HookFile {
+            inbox: identity.inbox.clone(),
+            bearer: identity.bearer.clone(),
+            secret_key: base64::engine::general_purpose::STANDARD.encode(identity.secret_key),
+        };
+        let text = serde_json::to_vec(&file).map_err(Error::storage)?;
+        let options = WriteOptions::with_permissions(eos_platform::host().private_file_permissions());
+        atomic_write(&path, &text, &options).map_err(Error::storage)?;
+        Ok(identity)
     }
 
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error> {
@@ -170,6 +223,32 @@ mod tests {
         fs::remove_file(dir.join("bearer.secret")).expect("removed");
         assert_eq!(files.saved_secrets().expect("read"), None, "one missing is none");
         assert!(!dir.join("bearer.secret").exists());
+    }
+
+    #[test]
+    fn the_hook_identity_is_minted_once_private_and_never_replaced_when_unreadable() {
+        let home = tempfile::tempdir().expect("a folder");
+        let dir = home.path().join("remote");
+        let files = RemoteFiles::new(&dir);
+        let first = files.hook_identity().expect("minted");
+        assert_eq!(first.inbox.len(), 32);
+        assert!(first.inbox.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+        assert_eq!(first.bearer.len(), 43);
+        assert_eq!(RemoteFiles::new(&dir).hook_identity().expect("loaded"), first, "a restart keeps the inbox");
+        let written: serde_json::Value =
+            serde_json::from_slice(&fs::read(dir.join("hooks.json")).expect("written")).expect("json");
+        let keys: Vec<&str> = written.as_object().expect("an object").keys().map(String::as_str).collect();
+        assert_eq!(keys, ["inbox", "bearer", "secretKey"]);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(dir.join("hooks.json")).expect("there").permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+
+        fs::write(dir.join("hooks.json"), "{broken").expect("written");
+        assert!(files.hook_identity().is_err());
+        assert_eq!(fs::read_to_string(dir.join("hooks.json")).expect("kept"), "{broken");
     }
 
     #[test]

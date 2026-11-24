@@ -10,6 +10,9 @@ export const MAX_EVENTS = 2000;
 export const MAX_INBOX_BYTES = 64 * 1024 * 1024;
 export const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
+// A page stops early past this many sealed bytes (always at least one entry).
+const PAGE_BYTES = 16 * 1024 * 1024;
+
 export type HookEntry = { seq: number; sealed: Buffer };
 export type HookEvents = { head: number; entries: HookEntry[]; dropped: number };
 export type Verdict = "ok" | "unknown" | "forbidden";
@@ -127,10 +130,15 @@ export class HookStore {
   events(inbox: string, since: number, limit: number): HookEvents {
     this.sweep();
     const row = this.db.prepare("SELECT head_seq, dropped FROM hook_inboxes WHERE inbox = ?").get(inbox)!;
-    const entries = this.db
-      .prepare("SELECT seq, sealed FROM hook_events WHERE inbox = ? AND seq > ? ORDER BY seq LIMIT ?")
-      .all(inbox, since, limit)
-      .map((r) => ({ seq: Number(r.seq), sealed: toBuffer(r.sealed) }));
+    const entries: HookEntry[] = [];
+    let bytes = 0;
+    const rows = this.db.prepare("SELECT seq, sealed FROM hook_events WHERE inbox = ? AND seq > ? ORDER BY seq LIMIT ?").iterate(inbox, since, limit);
+    for (const r of rows) {
+      const sealed = toBuffer(r.sealed);
+      if (entries.length > 0 && bytes + sealed.length > PAGE_BYTES) break;
+      bytes += sealed.length;
+      entries.push({ seq: Number(r.seq), sealed });
+    }
     return { head: Number(row.head_seq), entries, dropped: Number(row.dropped) };
   }
 

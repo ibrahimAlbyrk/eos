@@ -18,9 +18,8 @@ struct Body {
     count: u32,
 }
 
-/// The push route on the relay the room's URL names: same host, `http(s)`
-/// for `ws(s)`.
-pub(crate) fn push_url(relay: &str, room: &str) -> Option<String> {
+/// The relay's HTTP origin for the room's URL: same host, `http(s)` for `ws(s)`.
+pub(crate) fn http_origin(relay: &str) -> Option<String> {
     let (scheme, rest) = relay.split_once("://")?;
     let scheme = match scheme {
         "wss" | "https" => "https",
@@ -28,7 +27,12 @@ pub(crate) fn push_url(relay: &str, room: &str) -> Option<String> {
         _ => return None,
     };
     let host = rest.split(['/', '?', '#']).next().filter(|host| !host.is_empty())?;
-    Some(format!("{scheme}://{host}/push/v1/{room}"))
+    Some(format!("{scheme}://{host}"))
+}
+
+/// The push route on the relay the room's URL names.
+pub(crate) fn push_url(relay: &str, room: &str) -> Option<String> {
+    Some(format!("{}/push/v1/{room}", http_origin(relay)?))
 }
 
 pub(crate) async fn push(http: &reqwest::Client, target: PushTarget, push: PhonePush) -> Result<PushResult, Error> {

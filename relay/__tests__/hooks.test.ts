@@ -107,6 +107,15 @@ test("an inbox at 2,000 events or 64 MiB refuses the next one", () => {
   s.close();
 });
 
+test("a page stops at 16 MiB of sealed bytes, never before its first entry", () => {
+  const s = store();
+  s.ensure(INBOX, BEARER, PUBLIC);
+  for (let i = 0; i < 4; i++) s.append(INBOX, Buffer.alloc(6 * 1024 * 1024));
+  assert.deepEqual(s.events(INBOX, 0, 100).entries.map((e) => e.seq), [1, 2]);
+  assert.deepEqual(s.events(INBOX, 3, 100).entries.map((e) => e.seq), [4]);
+  s.close();
+});
+
 test("the sweep drops events older than seven days and counts them per inbox", () => {
   let now = 1_000_000;
   const s = store(() => now);

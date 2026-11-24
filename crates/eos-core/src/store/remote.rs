@@ -23,6 +23,24 @@ impl std::fmt::Debug for RoomSecrets {
     }
 }
 
+/// This computer's hook inbox on the relay (`hooks.json`): minted once and
+/// kept, so the hooks outside services hold keep reaching it.
+#[derive(Clone, PartialEq, Eq)]
+pub struct HookIdentity {
+    /// 32 hex characters: the inbox's id on the relay.
+    pub inbox: String,
+    /// What proves the inbox is this computer's. The relay keeps its hash.
+    pub bearer: String,
+    /// The X25519 secret the relay's sealed events open with.
+    pub secret_key: [u8; 32],
+}
+
+impl std::fmt::Debug for HookIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HookIdentity")
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RemoteAuditResult {
@@ -52,6 +70,9 @@ pub trait RemoteStore: Send + Sync + 'static {
     /// The room's secrets as written, `None` while any is missing: nothing is
     /// minted, so asking leaves no trace of a link that was never set up.
     fn saved_secrets(&self) -> Result<Option<RoomSecrets>, Error>;
+    /// The hook inbox's identity; minted and written, readable by the user
+    /// only, the first time it is asked for.
+    fn hook_identity(&self) -> Result<HookIdentity, Error>;
     /// Appends to `remote-audit.log`. The log is only ever appended to.
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error>;
 }

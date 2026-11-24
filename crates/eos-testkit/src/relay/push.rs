@@ -129,7 +129,7 @@ fn route(head: &str, body: &[u8], desk: &PushDesk, owner_hash: impl Fn(&str) -> 
 }
 
 /// The request's head and its body, read as far as `content-length` says.
-async fn read_request(tcp: &mut TcpStream) -> Option<(String, Vec<u8>)> {
+pub(super) async fn read_request(tcp: &mut TcpStream) -> Option<(String, Vec<u8>)> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 4096];
     let split = loop {
