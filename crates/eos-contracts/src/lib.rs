@@ -15,6 +15,7 @@ pub mod builtin_plugins;
 pub mod builtin_tools;
 pub mod canonical;
 pub mod capability;
+pub mod cli;
 pub mod dream;
 pub mod events;
 pub mod experience;

@@ -142,6 +142,8 @@ bundle![
     ClaimResponse,
     ClaudeMdImportResponse,
     ClientFrame,
+    cli::CliFrame,
+    cli::CliRequest,
     CommandItem,
     CommandsQuery,
     CommandsResponse,
