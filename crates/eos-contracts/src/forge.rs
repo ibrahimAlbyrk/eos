@@ -81,6 +81,74 @@ pub struct ForgeOption {
     pub reach: Vec<String>,
     /// `builtin`, `official`, `community` or `build`.
     pub source: String,
+    /// The published package an `official` or `community` way runs,
+    /// pinned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<ForgePackage>,
+}
+
+/// A published package pinned to one version and its integrity hash (06
+/// G12).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ForgePackage {
+    /// `npm` or `pypi`.
+    pub registry: String,
+    pub name: String,
+    /// One exact version, never a range.
+    pub version: String,
+    /// npm's `integrity` (`sha512-…`) or PyPI's `sha256:<hex>`.
+    pub integrity: String,
+    /// The server's name in the MCP Registry (`io.github.owner/name`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<String>,
+}
+
+impl ForgePackage {
+    /// How a version's source names it: `npm:pkg@1.2.3#sha512-…`.
+    pub fn pin(&self) -> String {
+        format!("{}:{}@{}#{}", self.registry, self.name, self.version, self.integrity)
+    }
+}
+
+/// `1.2.3`, with an optional pre-release or build tail; no range.
+fn exact_version(version: &str) -> bool {
+    let core = version.split(['-', '+']).next().unwrap_or_default();
+    let parts: Vec<&str> = core.split('.').collect();
+    let tail_ok = version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
+    parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit())) && tail_ok
+}
+
+fn integrity_ok(registry: &str, integrity: &str) -> bool {
+    match registry {
+        "npm" => integrity.strip_prefix("sha512-").is_some_and(|b64| {
+            b64.len() == 88 && b64.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+        }),
+        "pypi" => integrity.strip_prefix("sha256:").is_some_and(|hex| {
+            hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        }),
+        _ => false,
+    }
+}
+
+impl Validate for ForgePackage {
+    fn validate(&self, cx: &mut Issues) {
+        if !matches!(self.registry.as_str(), "npm" | "pypi") {
+            cx.push_at("registry", "npm or pypi");
+        }
+        let name_ok = !self.name.is_empty()
+            && self.name.len() <= 214
+            && self.name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '@' | '/' | '.' | '_' | '-'))
+            && self.name.split('/').all(|part| !matches!(part, "" | "." | ".."));
+        if !name_ok {
+            cx.push_at("name", "the package's name as its registry spells it");
+        }
+        if !exact_version(&self.version) {
+            cx.push_at("version", "one exact version, such as 1.2.3: no range");
+        }
+        if !integrity_ok(&self.registry, &self.integrity) {
+            cx.push_at("integrity", "npm's sha512-<base64> integrity, or PyPI's sha256:<hex>");
+        }
+    }
 }
 
 impl Validate for ForgeOption {
@@ -93,6 +161,15 @@ impl Validate for ForgeOption {
         }
         if !matches!(self.source.as_str(), "builtin" | "official" | "community" | "build") {
             cx.push_at("source", "builtin, official, community or build");
+        }
+        let published = matches!(self.source.as_str(), "official" | "community");
+        match &self.package {
+            Some(package) => cx.at("package", |cx| package.validate(cx)),
+            None if published => cx.push_at("package", "an official or community way names its package, pinned"),
+            None => {}
+        }
+        if self.package.is_some() && !published {
+            cx.push_at("package", "only an official or community way runs a published package");
         }
     }
 }
@@ -203,6 +280,22 @@ pub struct CapabilityProposal {
     pub routines: Vec<ProposedRoutine>,
     /// What Eos's checks cannot promise, in plain words.
     pub limits: Vec<String>,
+    /// The published package it runs, when it is code from elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<ProposedSource>,
+}
+
+/// The published package a proposed capability runs, as Eos checked it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposedSource {
+    pub package: ForgePackage,
+    /// The researcher found no official server: someone else published it.
+    pub community: bool,
+    /// Every package it installed, `name@version`.
+    pub dependencies: Vec<String>,
+    /// The packages that declare install scripts, which were kept off.
+    pub install_scripts: Vec<String>,
 }
 
 impl Validate for CapabilityProposal {}
@@ -335,11 +428,53 @@ mod tests {
             works: "this_mac".into(),
             reach: vec!["com.apple.MobileSMS".into()],
             source: "build".into(),
+            package: None,
         };
         assert_eq!(issues(&ForgeResearch { options: vec![option.clone()] }), 0);
         assert_eq!(issues(&ForgeResearch { options: vec![] }), 1);
         assert_eq!(issues(&ForgeResearch { options: vec![option.clone(); 4] }), 1);
         let odd = ForgeOption { works: "phone".into(), source: "maybe".into(), ..option };
         assert_eq!(issues(&ForgeResearch { options: vec![odd] }), 2);
+    }
+
+    #[test]
+    fn a_published_way_names_its_package_pinned_to_one_version_and_its_hash() {
+        let package = ForgePackage {
+            registry: "npm".into(),
+            name: "@acme/sms-mcp".into(),
+            version: "1.4.2".into(),
+            integrity: format!("sha512-{}==", "A".repeat(86)),
+            server: Some("io.github.acme/sms".into()),
+        };
+        assert_eq!(issues(&package), 0);
+        assert_eq!(package.pin(), format!("npm:@acme/sms-mcp@1.4.2#{}", package.integrity));
+        for range in ["^1.4.2", "1.4", "1.x.0", "latest", ">=1.0.0", "1.4.2 || 2.0.0"] {
+            assert_eq!(issues(&ForgePackage { version: range.into(), ..package.clone() }), 1, "{range}");
+        }
+        assert_eq!(issues(&ForgePackage { integrity: "sha1-abc".into(), ..package.clone() }), 1);
+        assert_eq!(issues(&ForgePackage { name: "../x".into(), ..package.clone() }), 1);
+        let pypi = ForgePackage {
+            registry: "pypi".into(),
+            name: "acme-sms".into(),
+            integrity: format!("sha256:{}", "0f".repeat(32)),
+            server: None,
+            ..package.clone()
+        };
+        assert_eq!(issues(&pypi), 0);
+
+        let way = |source: &str, package: Option<ForgePackage>| ForgeOption {
+            key: "acme".into(),
+            title: "Acme's server".into(),
+            how: "Acme's own MCP server.".into(),
+            cost: "free".into(),
+            setup: "An Acme account".into(),
+            works: "any_mac".into(),
+            reach: vec!["api.acme.com".into()],
+            source: source.into(),
+            package,
+        };
+        assert_eq!(issues(&way("official", Some(package.clone()))), 0);
+        assert_eq!(issues(&way("community", None)), 1, "a published way is pinned");
+        assert_eq!(issues(&way("build", Some(package))), 1, "a way the Forge builds runs no published package");
     }
 }
