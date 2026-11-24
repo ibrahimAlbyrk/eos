@@ -1,0 +1,34 @@
+<header part="masthead">
+  <div class="dateline"><span>{issue.date|weekday} {issue.date|date}</span><span>No. {issue.seq}</span><span>Printed for {issue.reader}</span></div>
+  <h1 class="name">{title}</h1>
+  <p class="summary">{summary}</p>
+</header>
+<main part="front" class="front">
+  <section part="lead" class="lead">
+    <p class="kicker">{lead.section}</p>
+    <h2><a href="{lead.url}">{lead.title}</a></h2>
+    <p class="dek">{lead.dek}</p>
+    <figure part="lead-image" if="lead.image"><img src="{lead.image}" alt="{lead.image.alt}"/>
+      <figcaption if="lead.image.credit">{lead.image.credit}</figcaption></figure>
+    <p class="body">{lead.body}</p>
+  </section>
+  <aside part="rail" class="rail">
+    <div part="desk" if="desk"><p class="kicker">On your desk today</p><p>{desk}</p><a href="eos:needs-you">Open Needs you</a></div>
+    <ul part="starred" class="starred" each="starred"><li><a href="{item.url}">{item.title}</a></li></ul>
+    <div part="left-out" if="left_out"><p class="kicker quiet">Left out today</p><p class="note">{left_out}</p></div>
+  </aside>
+</main>
+<Filters part="filters" of="stories" by="section"/>
+<section part="stories" class="stories">
+  <article part="story" each="stories" class="story">
+    <p class="kicker">{item.section}</p>
+    <h3><a href="{item.url}">{item.title}</a></h3>
+    <p>{item.dek}</p>
+    <time if="item.published" datetime="{item.published}">{item.published|time}</time>
+    <Ask part="ask" label="Dig deeper"/>
+  </article>
+</section>
+<footer part="feedback" class="feedback">
+  <Button part="good" action="surface.feedback" args={{"verdict": "good"}} label="Good issue"/>
+  <Button part="not-today" action="surface.feedback" args={{"verdict": "not_today"}} label="Not today"/>
+</footer>

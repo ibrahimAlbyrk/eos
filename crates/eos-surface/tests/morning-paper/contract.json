@@ -1,0 +1,21 @@
+{"type": "object", "fields": {
+  "title": {"type": "text", "max": 60},
+  "summary": {"type": "text", "max": 120, "edit": true},
+  "lead": {"type": "object", "fields": {
+    "section": {"type": "enum", "values": ["engineering", "engine", "tools", "live-ops", "design"]},
+    "title": {"type": "text", "max": 120, "edit": true},
+    "dek": {"type": "text", "max": 280},
+    "body": {"type": "longtext", "max": 2000},
+    "url": {"type": "url"},
+    "image": {"type": "image", "required": false}}},
+  "desk": {"type": "text", "max": 200, "required": false},
+  "starred": {"type": "list", "min": 0, "max": 4, "of": {"type": "object", "fields": {
+    "title": {"type": "text", "max": 140},
+    "url": {"type": "url"}}}},
+  "left_out": {"type": "text", "max": 200, "required": false},
+  "stories": {"type": "list", "min": 1, "max": 12, "edit": true, "of": {"type": "object", "fields": {
+    "section": {"type": "enum", "values": ["engineering", "engine", "tools", "live-ops", "design"]},
+    "title": {"type": "text", "max": 120},
+    "dek": {"type": "text", "max": 280},
+    "url": {"type": "url"},
+    "published": {"type": "datetime", "required": false}}}}}}

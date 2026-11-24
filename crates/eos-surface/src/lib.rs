@@ -3,11 +3,12 @@
 //! language data, action arguments and query arguments are written in, the
 //! check of data against a contract, the least data a contract accepts, and
 //! how versions, issues and pins move and age, and what a View outside a
-//! chat must bind.
+//! chat must bind, and what a Page's template may be made of.
 //! Nothing here is async, reads a clock or touches a file; the feature
 //! `eos-mod-surfaces` stores and serves what these rules decide.
 
 pub mod limits;
+pub mod template;
 
 mod args;
 mod lifecycle;
