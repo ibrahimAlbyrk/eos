@@ -177,8 +177,8 @@ fn a_model_is_priced_by_name_then_by_family() {
 }
 
 #[test]
-fn slack_has_no_client_id_until_the_environment_or_the_file_names_one() {
-    assert_eq!(resolve(&host(&[]), None).0.slack.client_id, "");
+fn slack_signs_in_with_the_built_in_client_id_unless_the_environment_or_the_file_names_another() {
+    assert_eq!(resolve(&host(&[]), None).0.slack.client_id, "1516953649809.12667444474420");
     let env = [("EOS_SLACK_CLIENT_ID", "1234.5678")];
     assert_eq!(resolve(&host(&env), None).0.slack.client_id, "1234.5678");
     let (config, rejected) = resolve(&host(&env), Some(json!({ "slack": { "clientId": "9.9" } })));
