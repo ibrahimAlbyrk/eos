@@ -4,7 +4,9 @@
 
 Eos is a macOS app that runs swarms of Claude Code agents. The user talks to an orchestrator. The orchestrator spawns workers, each in its own git worktree. Every tool call an agent makes passes a permission gateway.
 
-The app is one Rust process: the window shell, the core and the agent engine. There is no daemon and no local HTTP server. The React dashboard reaches the core through in-process requests. The iPhone app and paired Macs reach it through gateways. Everything the app knows lives in SQLite and files under `~/.eos`.
+Eos also runs routines: work the user describes once (review my pull requests, write the morning paper) that runs when its trigger fires or when the user starts it. A run's results that reach other people wait in Needs you until the routine's Freedom lets them go by themselves. A run starts from a door: the dashboard, the quick panel, a link, the Share menu, the phone, or the terminal's `eos` command. Every door asks the same core and passes the same gate; text that comes in through one is marked as outside text.
+
+The app is one Rust process: the window shell, the core and the agent engine. There is no daemon and no local HTTP server. The React dashboard reaches the core through in-process requests. The iPhone app, paired Macs and the terminal's `eos` command reach it through gateways. Everything the app knows lives in SQLite and files under `~/.eos`.
 
 The agent engine is `eos-agent-sdk`, a private set of crates pinned to one git commit in `Cargo.toml`. Its code is not in this tree.
 
