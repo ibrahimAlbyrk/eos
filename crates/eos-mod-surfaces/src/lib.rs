@@ -28,7 +28,7 @@
 //!   the direct actions, a press of a button through the dispatcher (also
 //!   the [`DirectActions`](eos_core::surface::DirectActions) port), and its
 //!   record, announced on `actions:record`. Surfaces offer
-//!   `surface.keep_issue` themselves.
+//!   `surface.keep_issue`, `surface.ask` and `surface.feedback` themselves.
 //!
 //! A routine's surface is made, kept, archived and restored with it by the
 //! [`SurfaceAuthor`] the routines feature holds.
@@ -233,7 +233,7 @@ impl Module for SurfacesModule {
     }
 
     fn direct_actions(&self) -> Vec<ActionDecl> {
-        builtins::declared(&self.parts.store, &self.parts.runs)
+        builtins::declared(&self.parts.store, &self.parts.runs, &self.parts.feedback)
     }
 
     fn topics(&self) -> Vec<TopicDecl> {

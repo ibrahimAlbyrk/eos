@@ -1,11 +1,14 @@
 //! The direct actions surfaces offer themselves: keeping an issue past the
-//! retention of old issues (`surface.keep_issue`), and handing a row of a
-//! page to the routine's agent (`surface.ask`, a page's Ask).
+//! retention of old issues (`surface.keep_issue`), handing a row of a
+//! page to the routine's agent (`surface.ask`, a page's Ask), and the
+//! reader's verdict on an issue, told to memory (`surface.feedback`, "Good
+//! issue" and "Not today" under a page).
 
 use std::sync::Arc;
 
 use eos_contracts::ActionClass;
 use eos_contracts::{ResultMode, RunInput, SurfaceRunInput, SurfaceRunKind};
+use eos_core::experience::{ExperienceFeedback, SurfaceSignal, SurfaceSignalKind};
 use eos_core::routine::{NewRun, RunOrigin, RunStarter, StartError};
 use eos_core::store::Store;
 use eos_runtime::actions::{ActionCall, ActionDecl, ActionFailure, ActionHandler, ActionScope};
@@ -16,7 +19,14 @@ use serde_json::{Value, json};
 /// The longest row an Ask hands on, as JSON text.
 const ASK_ITEM_MAX: usize = 16 * 1024;
 
-pub(crate) fn declared(store: &Arc<dyn Store>, runs: &Arc<dyn RunStarter>) -> Vec<ActionDecl> {
+/// The verdicts "Good issue" and "Not today" send.
+const VERDICTS: [&str; 2] = ["good", "not_today"];
+
+pub(crate) fn declared(
+    store: &Arc<dyn Store>,
+    runs: &Arc<dyn RunStarter>,
+    feedback: &Arc<dyn ExperienceFeedback>,
+) -> Vec<ActionDecl> {
     vec![
         ActionDecl {
             id: "surface.keep_issue",
@@ -40,7 +50,61 @@ pub(crate) fn declared(store: &Arc<dyn Store>, runs: &Arc<dyn RunStarter>) -> Ve
             scope: ActionScope::OwnerRoutine,
             handler: Arc::new(Ask { store: store.clone(), runs: runs.clone() }),
         },
+        ActionDecl {
+            id: "surface.feedback",
+            title: "Say how this issue was",
+            args: Type::Object {
+                fields: vec![
+                    Field::required("issue", Type::Text { max: 64 }),
+                    Field::required("verdict", Type::Enum { values: VERDICTS.map(String::from).to_vec() }),
+                ],
+            },
+            class: ActionClass::WriteLocal,
+            // Eos's own buttons under the page send it, not the page.
+            scope: ActionScope::Any,
+            handler: Arc::new(Verdict { store: store.clone(), feedback: feedback.clone() }),
+        },
     ]
+}
+
+/// Tells memory the reader's verdict on an issue.
+struct Verdict {
+    store: Arc<dyn Store>,
+    feedback: Arc<dyn ExperienceFeedback>,
+}
+
+impl ActionHandler for Verdict {
+    fn run(&self, call: ActionCall) -> BoxFuture<'_, Result<Value, ActionFailure>> {
+        Box::pin(async move {
+            let id = call.args["issue"].as_str().unwrap_or_default().to_owned();
+            let verdict = call.args["verdict"].clone();
+            let lookup = id.clone();
+            let found = self
+                .store
+                .read(move |tx| {
+                    let Some(issue) = tx.surface_issues().find(&lookup)? else { return Ok(None) };
+                    Ok(tx.surfaces().find(&issue.surface_id)?.map(|surface| (issue, surface)))
+                })
+                .await
+                .map_err(|e| ActionFailure::new("internal", e.to_string()))?;
+            let Some((issue, surface)) = found else {
+                return Err(ActionFailure::new("not_found", "That issue is gone"));
+            };
+            let signal = SurfaceSignal {
+                surface_id: surface.id,
+                routine_id: surface.routine_id,
+                run_id: issue.run_id,
+                issue_id: Some(issue.id),
+                kind: SurfaceSignalKind::Feedback,
+                at: None,
+                index: None,
+                before: None,
+                after: Some(verdict.clone()),
+            };
+            self.feedback.surface_signal(signal).await.map_err(|e| ActionFailure::new("internal", e.to_string()))?;
+            Ok(json!({ "issueId": id, "verdict": verdict }))
+        })
+    }
 }
 
 /// Starts an `ask` run of the issue's routine on the row it was pressed on.

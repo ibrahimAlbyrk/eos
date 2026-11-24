@@ -285,3 +285,28 @@ async fn an_ask_starts_an_ask_run_of_the_routine_on_the_row_it_sits_in() {
     assert_eq!(asked.item, Some(json!({"id": "s-2", "url": "https://example.com/two"})), "the row the core holds");
     assert_eq!(started[0].input.result, eos_contracts::ResultMode::ShowOnly);
 }
+
+#[tokio::test]
+async fn good_issue_and_not_today_reach_memory_as_the_readers_verdict() {
+    let rig = rig().await;
+    let good =
+        json!({"actionId": "surface.feedback", "clientId": "f-1", "state": {"issue": "si-1", "verdict": "good"}});
+    let (status, answer) = press(&rig, good).await;
+    assert_eq!((status, answer["status"].as_str()), (200, Some("done")), "{answer}");
+    let told: Vec<_> = rig
+        .feedback
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            eos_testkit::FeedbackCall::Surface(signal) => Some(signal),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(told.len(), 1);
+    assert_eq!(
+        (told[0].kind, told[0].issue_id.as_deref(), told[0].after.clone()),
+        (eos_core::experience::SurfaceSignalKind::Feedback, Some("si-1"), Some(json!("good")))
+    );
+    let odd = json!({"actionId": "surface.feedback", "clientId": "f-2", "state": {"issue": "si-1", "verdict": "meh"}});
+    assert_eq!(press(&rig, odd).await.1["status"], "refused");
+}

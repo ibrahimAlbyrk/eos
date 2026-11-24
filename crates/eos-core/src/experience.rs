@@ -132,6 +132,8 @@ pub enum SurfaceSignalKind {
     KeptDesign,
     /// The user went back to the design they had.
     Reverted,
+    /// The reader's verdict on an issue: `after` is `good` or `not_today`.
+    Feedback,
 }
 
 impl SurfaceSignalKind {
@@ -143,6 +145,7 @@ impl SurfaceSignalKind {
             SurfaceSignalKind::Reshaped => "reshaped",
             SurfaceSignalKind::KeptDesign => "kept_design",
             SurfaceSignalKind::Reverted => "reverted",
+            SurfaceSignalKind::Feedback => "feedback",
         }
     }
 }
