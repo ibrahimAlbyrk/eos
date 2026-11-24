@@ -182,11 +182,11 @@ impl Push {
             tracing::warn!(refused, unreadable = batch.unreadable, missed, "hook events were not taken");
         }
         tracing::info!(through = next.seq, hints = hinted.len(), signals, "hook events were routed");
-        if next.seq > cursor.seq {
-            if let Err(error) = self.inbox.ack(next.seq).await {
-                // The next ack covers these too.
-                tracing::warn!(error = error_kind(&error), "the hook inbox was not acked");
-            }
+        // A failed ack is covered by the next one.
+        if next.seq > cursor.seq
+            && let Err(error) = self.inbox.ack(next.seq).await
+        {
+            tracing::warn!(error = error_kind(&error), "the hook inbox was not acked");
         }
         let hinted_ids: HashSet<String> = hinted.iter().map(|(id, _)| id.clone()).collect();
         hinted.extend(gapped.into_iter().filter(|id| !hinted_ids.contains(id)).map(|id| (id, None)));
