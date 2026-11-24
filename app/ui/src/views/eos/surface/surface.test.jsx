@@ -7,7 +7,7 @@ import { _resetPins, pin, refreshPins, replacePin, usePins } from "../../../stat
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
-import { openableLink, pageMessage } from "./PageRenderer.jsx";
+import { eosTargetLocation, openableLink, pageMessage } from "./PageRenderer.jsx";
 import { shareName } from "./ShareMenu.jsx";
 import { followLiveParts } from "./useLiveParts.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
@@ -155,6 +155,16 @@ describe("the page frame", () => {
     applyEosEvent("inbox:change", {});
     await Promise.resolve();
     expect(transport.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens Eos's own targets in Eos, for the issue the page shows, and nothing else", () => {
+    const at = { surfaceId: SF, issue: { id: "si-1", seq: 3, runId: "rn-7" } };
+    expect(eosTargetLocation("eos:needs-you", at)).toBe("eos:/needs");
+    expect(eosTargetLocation("eos:run", at)).toBe("eos:/runs/rn-7");
+    expect(eosTargetLocation("eos:issue", at)).toBe(`eos:/surfaces/${SF}?issue=3`);
+    expect(eosTargetLocation("eos:run", { surfaceId: SF, issue: { id: "si-1" } })).toBeNull();
+    expect(eosTargetLocation("eos:settings", at)).toBeNull();
+    expect(eosTargetLocation("javascript:alert(1)", at)).toBeNull();
   });
 
   it("names the share file after the page and the issue", () => {

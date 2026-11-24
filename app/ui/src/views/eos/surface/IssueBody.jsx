@@ -72,6 +72,7 @@ export function IssueBody({ surface, row, shown, maker, version }) {
       <PageRenderer
         src={api.surfacePageUrl(surface.id, row.id, version)}
         title={surface.title}
+        target={{ surfaceId: surface.id, issue: row }}
         swaps={swaps}
         onLive={onLive}
         onAct={(m) => void act(m)}
