@@ -428,6 +428,7 @@ impl App {
         let scripts = Arc::new(crate::scripts::LateScripts::default());
         let (given_sources, given_channels) = (capability_options.sources.clone(), capability_options.channels.clone());
         let notifiers = Arc::new(crate::capabilities::LateNotifiers::default());
+        let confinement = Arc::new(crate::capabilities::LateConfinement::default());
         let capabilities = crate::capabilities::service(crate::capabilities::Parts {
             reach,
             paths: &paths,
@@ -443,6 +444,7 @@ impl App {
             mail,
             grants: grants.clone(),
             notifiers: notifiers.clone(),
+            confinement: confinement.clone(),
             views: shell.is_some(),
             options: capability_options,
         })?;
@@ -538,6 +540,7 @@ impl App {
                 config: config.clone(),
             },
         );
+        confinement.attach(engine.clone());
         // "Resume at" and "Use API key" reach the live session through the engine.
         let runtime: Arc<dyn eos_core::agent::AgentRuntime> = match &agents.runtime {
             Some(runtime) => {
