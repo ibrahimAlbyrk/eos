@@ -602,6 +602,7 @@ bundle![
     SchedulePreviewRequest,
     SchedulePreviewResponse,
     ScheduleStatus,
+    SecretStored,
     SendAnswer,
     SendRequest,
     SessionFacts,

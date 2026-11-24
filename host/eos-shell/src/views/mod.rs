@@ -1,5 +1,5 @@
 //! The shell's views: the dashboard and the child Chromium views the core asks for.
-//! Implements the core's view ports (`BrowserViews`, `Capture`, `FilePicker`).
+//! Implements the core's view ports (`BrowserViews`, `Capture`, `FilePicker`, `SecretPrompt`).
 
 mod artifacts;
 mod cdp;
@@ -21,8 +21,8 @@ use base64::Engine;
 use eos_bridge::lan_guard::{self, LocalPage, SystemProxy};
 use eos_core::BoxFuture;
 use eos_core::shell::{
-    BrowserViews, Capture, CaptureTarget, FilePicker, Image, ImageFormat, Rect, ViewError, ViewEvent, ViewId,
-    ViewListener, ViewSpec,
+    BrowserViews, Capture, CaptureTarget, FilePicker, Image, ImageFormat, Rect, SecretAsk, SecretPrompt, ViewError,
+    ViewEvent, ViewId, ViewListener, ViewSpec,
 };
 use serde_json::{Value, json};
 use tauri::webview::DownloadEvent;
@@ -389,6 +389,15 @@ impl Views {
         self.app.run_on_main_thread(move || drop(tx.send(appkit::open_panel(directories, multiple)))).ok()?;
         rx.await.ok().flatten()
     }
+
+    /// Runs the secret prompt on the main thread and waits for the user.
+    async fn ask_secret(&self, ask: SecretAsk) -> Option<zeroize::Zeroizing<String>> {
+        let title = format!("{}: {}", ask.capability, ask.label);
+        let detail = ask.help.unwrap_or_else(|| "Eos keeps it in its own Keychain item on this Mac.".to_owned());
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.app.run_on_main_thread(move || drop(tx.send(crate::native::secret::ask(&title, &detail)))).ok()?;
+        rx.await.ok().flatten()
+    }
 }
 
 /// The ports are implemented on the shared handle, so a call can hop to a blocking thread.
@@ -490,5 +499,11 @@ impl FilePicker for ViewPorts {
 
     fn pick_files(&self) -> BoxFuture<'_, Option<Vec<String>>> {
         Box::pin(async move { self.0.pick(false, true).await })
+    }
+}
+
+impl SecretPrompt for ViewPorts {
+    fn ask(&self, ask: SecretAsk) -> BoxFuture<'_, Option<zeroize::Zeroizing<String>>> {
+        Box::pin(self.0.ask_secret(ask))
     }
 }

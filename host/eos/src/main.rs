@@ -301,6 +301,7 @@ fn start_core(
             views: ports.views.clone(),
             panel: ports.panel.clone(),
             picker: ports.picker.clone(),
+            secret_prompt: ports.secret_prompt.clone(),
             opener: ports.opener.clone(),
             work_hold: ports.work_hold.clone(),
             dock_badge: ports.dock_badge.clone(),

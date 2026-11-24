@@ -218,6 +218,15 @@ pub struct CapabilitySettings {
 
 impl Validate for CapabilitySettings {}
 
+/// `POST /api/capabilities/{id}/secrets/{name}`: whether the value the
+/// user typed in the native prompt was kept (`false` when they cancelled).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SecretStored {
+    pub stored: bool,
+}
+
+impl Validate for SecretStored {}
+
 /// `POST /api/capabilities/{id}/rollback`: make an earlier version the
 /// active one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

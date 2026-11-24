@@ -17,7 +17,7 @@
 //! | [`plugin`] | plugin folders, their builder, their data, where installs come from |
 //! | [`policy`] | permission decisions and tool scope |
 //! | [`prompt`] | prompt sources and rendering |
-//! | [`shell`] | the window shell: embedded views, screenshots, the open panel, this computer's position |
+//! | [`shell`] | the window shell: embedded views, screenshots, the open panel, the secret prompt, this computer's position |
 //! | [`signals`] | where a routine's signals come from, and which of the user's computers acts on them |
 //! | [`store`] | the data folder: `state.db` repositories and file stores |
 //! | [`terminal`] | shells in a PTY, their screen mirror, one-shot command lines |

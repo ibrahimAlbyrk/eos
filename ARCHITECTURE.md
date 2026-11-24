@@ -264,10 +264,14 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   every extension must be, with no UI. It opens shared files with its containing app by the
   app's location, and text or a web address as that app's `send` link, so it hands nothing
   to another build and adds no way in that the Dock and links do not already have.
+- **The secret prompt** (`native/secret.rs`, the `SecretPrompt` port on `ViewPorts`) is an
+  app-modal `NSAlert` with a secure text field: the one place a capability's secret is typed.
+  The value goes from it to the app's Keychain item inside the process; the route that opens
+  it answers only whether one was kept, and a dev run refuses that route.
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
   notifications, the work hold's App Nap activity, the launch's Apple Event, the Dock's
   number, the login item, the quick panel's window, the selection through Accessibility, the
-  Services provider), each use with its reason. Also checked
+  Services provider, the capability secret prompt), each use with its reason. Also checked
   by `cargo xtask shell`. The one exception in the main workspace is
   `eos-platform/src/darwin/qos.rs`: two pthread calls that set and read the calling thread's
   scheduling class, behind a safe function.

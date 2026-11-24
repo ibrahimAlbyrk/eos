@@ -172,6 +172,7 @@ fn shell(work_hold: Arc<dyn WorkHold>, dock_badge: Arc<dyn DockBadge>) -> eos_ap
         views: FakeBrowserViews::new(),
         panel: FakeBrowserPanel::new(),
         picker: Arc::new(NoPicker),
+        secret_prompt: Arc::new(eos_testkit::FakeSecretPrompt::new()),
         opener: Arc::new(FakeBrowser::default()),
         work_hold,
         dock_badge,

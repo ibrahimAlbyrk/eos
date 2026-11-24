@@ -20,7 +20,7 @@ use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
 use eos_core::os::{DockBadge, KeepAwake, WorkHold};
 use eos_core::plugin::{PluginPreviewer, Plugins};
-use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker};
+use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker, SecretPrompt};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, Sleeper, SystemClock};
 use eos_domain::config::Env;
@@ -180,6 +180,8 @@ pub struct Shell {
     pub panel: Arc<dyn BrowserPanel>,
     /// The native open panel.
     pub picker: Arc<dyn FilePicker>,
+    /// The native prompt a capability's secret is typed in.
+    pub secret_prompt: Arc<dyn SecretPrompt>,
     /// Opens a page outside the app (a sign-in page) the way the shell opens
     /// every external link.
     pub opener: Arc<dyn Browser>,
@@ -651,6 +653,7 @@ impl App {
             artifacts: Arc::new(FrameApiArtifacts::new(accounts.clone())),
             browser: browser.clone(),
             picker: shell.as_ref().map(|s| s.picker.clone()),
+            secret_prompt: shell.as_ref().map(|s| s.secret_prompt.clone()),
             plugins: plugins.clone(),
             kernel: kernel.clone(),
             paths: paths.clone(),

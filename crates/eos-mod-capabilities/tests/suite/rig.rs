@@ -12,7 +12,8 @@ use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_testkit::{
-    FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeSleeper, FakeTrash, SeqIds, TempStore,
+    FakeActionRunner, FakeCapabilityFiles, FakeCapabilitySecrets, FakeClock, FakeSecretPrompt, FakeSleeper, FakeTrash,
+    SeqIds, TempStore,
 };
 use serde_json::Value;
 
@@ -114,6 +115,9 @@ pub(crate) struct Rig {
     pub(crate) service: Arc<CapabilityService>,
     /// Where a sign-in's link back goes.
     pub(crate) links: eos_mod_capabilities::SignInLinks,
+    /// The native secret prompt, as the test answers it.
+    pub(crate) prompt: Arc<FakeSecretPrompt>,
+    pub(crate) runner: Arc<FakeActionRunner>,
 }
 
 /// The module over these built-ins, with GitHub signed in when `signed_in`,
@@ -134,26 +138,30 @@ pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets:
     let clock = Arc::new(FakeClock::new());
     let sleeper = Arc::new(FakeSleeper::default());
     let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
+    let (prompt, runner) = (Arc::new(FakeSecretPrompt::new()), Arc::new(FakeActionRunner::new()));
     let service = Arc::new(CapabilityService::new(
         CapabilityPorts {
             store: temp.port(),
             files: Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash)),
             secrets,
             grants: Arc::new(AllInstalled),
-            runner: Some(Arc::new(FakeActionRunner::new())),
+            runner: Some(runner.clone()),
             clock: clock.clone(),
             ids: Arc::new(SeqIds::new()),
         },
         builtins,
     ));
-    let module = Arc::new(CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone()));
+    let module = Arc::new(
+        CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone())
+            .with_secret_prompt(Some(prompt.clone())),
+    );
     let links = module.sign_in_links();
     let runtime =
         Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
     assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
     runtime.lifecycle.start().await.expect("starts");
     runtime.lifecycle.ready().await.expect("ready");
-    Rig { runtime, temp, clock, sleeper, service, links }
+    Rig { runtime, temp, clock, sleeper, service, links, prompt, runner }
 }
 
 impl Rig {

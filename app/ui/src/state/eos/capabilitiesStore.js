@@ -134,6 +134,17 @@ export async function rollbackCapability(id, version) {
   if (row) putRow(row);
 }
 
+// Opens the app's own secret prompt: the value is typed there, never on this page.
+// The core answers only whether it kept one.
+export async function enterSecret(id, name) {
+  const answer = await write("POST", ROUTES.capabilitySecret(id, name), {});
+  if (answer?.stored) await loadCapability(id);
+}
+
+export async function forgetSecret(id, name) {
+  if (await write("DELETE", ROUTES.capabilitySecret(id, name))) await loadCapability(id);
+}
+
 // Moves the capability to the trash → true once the core has.
 export async function removeCapability(id) {
   if (!(await write("DELETE", ROUTES.capability(id)))) return false;

@@ -16,6 +16,7 @@
 //! - `services`: the provider object of "Send to Eos" in the Services menu.
 //! - `panel`: the quick panel's `NSPanel` floated over every app, placed and shown without
 //!   activating the app.
+//! - `secret`: the capability secret prompt, an `NSAlert` with a secure text field.
 //!
 //! Each function states what the caller must hold (usually: the main thread).
 #![allow(unsafe_code)]
@@ -29,4 +30,5 @@ pub(crate) mod launch;
 pub(crate) mod login;
 pub(crate) mod notify;
 pub(crate) mod panel;
+pub(crate) mod secret;
 pub(crate) mod services;

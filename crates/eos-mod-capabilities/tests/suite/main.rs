@@ -6,6 +6,7 @@ mod github;
 mod reads;
 mod rig;
 mod routes;
+mod secrets;
 mod sign_in;
 mod slack_sign_in;
 mod sources;

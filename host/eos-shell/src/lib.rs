@@ -30,7 +30,7 @@ use eos_bridge::{Bridge, Core};
 use eos_core::accounts::Browser;
 use eos_core::os::{DockBadge, WorkHold};
 use eos_core::plugin::PluginPreviewer;
-use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
+use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker, SecretPrompt};
 
 pub use crate::app::SignInWindows;
 pub use crate::probe::Probe;
@@ -94,6 +94,8 @@ pub struct Ports {
     pub panel: Arc<dyn BrowserPanel>,
     pub capture: Arc<dyn Capture>,
     pub picker: Arc<dyn FilePicker>,
+    /// The native prompt a capability's secret is typed in.
+    pub secret_prompt: Arc<dyn SecretPrompt>,
     /// Draws a plugin's surface in a hidden view of the dashboard's bundle.
     pub previewer: Arc<dyn PluginPreviewer>,
     /// Lays a page design out in a hidden view to check it (05 Q3).

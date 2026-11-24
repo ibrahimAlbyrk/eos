@@ -3421,6 +3421,7 @@ dependencies = [
  "tauri-build",
  "tauri-runtime-cef",
  "tokio",
+ "zeroize",
 ]
 
 [[package]]
