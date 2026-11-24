@@ -86,6 +86,7 @@ eos-pty = { path = "crates/eos-pty" }
 eos-relay = { path = "crates/eos-relay" }
 eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
+eos-slack = { path = "crates/eos-slack" }
 eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
 eos-surface = { path = "crates/eos-surface" }

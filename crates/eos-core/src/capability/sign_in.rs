@@ -57,3 +57,54 @@ pub trait DeviceSignIn: Send + Sync {
     /// never logged). Dropped, it stops polling.
     fn finish<'a>(&'a self, code: &'a DeviceCode) -> BoxFuture<'a, Result<String, SignInError>>;
 }
+
+/// A sign-in under way in the browser (OAuth with PKCE): the page the user
+/// opens, and what only Eos holds until the service calls back. The state
+/// and the verifier never reach a log, an error or a frame.
+pub struct BrowserCode {
+    /// The service's page where the user allows Eos.
+    pub authorize_uri: String,
+    /// Ties the callback to this attempt.
+    pub state: Zeroizing<String>,
+    /// The PKCE code verifier, sent only with the exchange.
+    pub verifier: Zeroizing<String>,
+    /// When the attempt stops waiting, in ms.
+    pub expires_at: i64,
+}
+
+impl fmt::Debug for BrowserCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BrowserCode").field("expires_at", &self.expires_at).finish_non_exhaustive()
+    }
+}
+
+/// What the service's callback link carried.
+pub enum BrowserCallback {
+    /// The code to exchange.
+    Code(Zeroizing<String>),
+    /// The user refused, or the service failed (`access_denied`).
+    Refused(String),
+}
+
+impl fmt::Debug for BrowserCallback {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BrowserCallback::Code(_) => f.write_str("Code(..)"),
+            BrowserCallback::Refused(error) => f.debug_tuple("Refused").field(error).finish(),
+        }
+    }
+}
+
+/// A capability the user signs in to in the browser and that calls back
+/// through an `eos://sign-in/<id>` link (Slack).
+pub trait BrowserSignIn: Send + Sync {
+    /// Makes the attempt's state, verifier and page.
+    fn start(&self) -> BoxFuture<'_, Result<BrowserCode, SignInError>>;
+    /// Exchanges the callback's code, keeps the token with the capability's
+    /// secrets and answers the account's label (never logged).
+    fn finish<'a>(
+        &'a self,
+        code: &'a BrowserCode,
+        callback: BrowserCallback,
+    ) -> BoxFuture<'a, Result<String, SignInError>>;
+}

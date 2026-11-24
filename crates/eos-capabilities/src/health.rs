@@ -25,6 +25,7 @@ pub(crate) fn event_of(error: &ActionError) -> Option<Event> {
         ActionError::Failed { kind: FailureKind::Output } => Some(Event::BadOutput),
         ActionError::NotReady(code) => match StateCode::parse(code)? {
             StateCode::Http401 => Some(Event::Unauthorized),
+            StateCode::ScopeMissing => Some(Event::ScopeMissing),
             StateCode::HashMismatch => Some(Event::HashMismatch),
             StateCode::SandboxUnavailable => Some(Event::SandboxUnavailable),
             code @ (StateCode::SecretMissing(_)

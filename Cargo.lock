@@ -2820,6 +2820,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-slack"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-net",
+ "eos-testkit",
+ "reqwest",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "zeroize",
+]
+
+[[package]]
 name = "eos-store-files"
 version = "0.0.1"
 dependencies = [
@@ -2938,6 +2958,7 @@ dependencies = [
  "eos-platform",
  "eos-relay",
  "eos-runtime",
+ "eos-slack",
  "eos-store-files",
  "eos-store-sqlite",
  "eos-surface",

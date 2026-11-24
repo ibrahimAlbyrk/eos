@@ -100,6 +100,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-relay", Layer::Adapter),
     ("eos-runtime", Layer::Runtime),
     ("eos-sessions", Layer::Service),
+    ("eos-slack", Layer::Adapter),
     ("eos-shell", Layer::Shell),
     ("eos-store-files", Layer::Adapter),
     ("eos-store-sqlite", Layer::Adapter),
