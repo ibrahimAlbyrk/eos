@@ -50,6 +50,8 @@ async fn a_builtin_routine_is_kept_by_its_feature_hidden_and_never_the_users_to_
     builtins.ensure("forge", changed).await.expect("changed");
     assert_eq!(versions(&id).len(), 2);
 
+    let triggers = routes.bench.module.directory().triggers().await.expect("reads");
+    assert!(triggers.iter().all(|routine| routine.id != id), "no Mac holds it");
     let (_, list) = routes.get("/api/routines").await;
     assert!(list.as_array().expect("rows").iter().all(|row| row["id"] != json!(id)), "hidden from the list");
     let calls = [
