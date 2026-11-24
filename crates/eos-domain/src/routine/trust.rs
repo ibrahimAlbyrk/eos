@@ -2,12 +2,15 @@
 //! trust is computed when it is kept and stored with it; a run's on read
 //! from what it runs from, never stored.
 
-use eos_contracts::{ActionClass, Blueprint, RunInput, Trigger};
+use std::collections::BTreeSet;
+
+use eos_contracts::{ActionClass, Blueprint, Rule, RunInput, Trigger};
 use serde_json::Value;
 
 use crate::capability::manifest::Manifest;
-use crate::capability::schema::compile;
+use crate::capability::schema::{Kind, Schema, compile};
 use crate::run_scope::Trust;
+use crate::signals::which::facts_tested;
 
 /// A version is untrusted when a When trigger is a capability's source,
 /// its Takes come from one, or a capability it needs has a read action whose
@@ -42,6 +45,50 @@ pub fn reads_outside(manifest: &Manifest) -> bool {
 pub fn of_run(version: Option<Trust>, input: &RunInput) -> Trust {
     let outside = input.item.iter().chain(input.items.iter().flatten()).any(|item| item.untrusted);
     if outside || version != Some(Trust::Trusted) { Trust::Untrusted } else { Trust::Trusted }
+}
+
+/// The sources a blueprint's items and signals come from: its Takes and
+/// its source triggers (`github.pulls`).
+pub fn sources_of(blueprint: &Blueprint) -> BTreeSet<&str> {
+    let triggers = blueprint.when.on.iter().filter_map(|trigger| match trigger {
+        Trigger::Source { source, .. } => Some(source.as_str()),
+        _ => None,
+    });
+    blueprint.takes.source.as_deref().into_iter().chain(triggers).collect()
+}
+
+/// The facts of `source` (a source name of `manifest`, `pulls`) whose
+/// writer is the item's sender (D63): an item field or a fact the poll
+/// action's output marks untrusted (a mail's `from`, its key and title).
+pub fn untrusted_facts(manifest: &Manifest, source: &str) -> BTreeSet<String> {
+    let Some(decl) = manifest.sources.iter().find(|decl| decl.name == source) else { return BTreeSet::new() };
+    let output = manifest.action(&decl.action).and_then(|action| action.output.as_ref());
+    let Some(schema) = output.and_then(|output| compile(output).ok()) else { return BTreeSet::new() };
+    let item = property(&schema, "items").and_then(|items| match &items.kind {
+        Kind::Array { items, .. } => Some(items.as_ref()),
+        _ => None,
+    });
+    let marked = |schema: Option<&Schema>| -> Vec<String> {
+        let Some(Kind::Object { properties, .. }) = schema.map(|schema| &schema.kind) else { return Vec::new() };
+        properties.iter().filter(|(_, field)| field.marks_untrusted()).map(|(name, _)| name.clone()).collect()
+    };
+    let mut names: BTreeSet<String> = marked(item).into_iter().collect();
+    names.remove("facts");
+    names.extend(marked(item.and_then(|item| property(item, "facts"))));
+    names
+}
+
+fn property<'a>(schema: &'a Schema, name: &str) -> Option<&'a Schema> {
+    match &schema.kind {
+        Kind::Object { properties, .. } => properties.get(name),
+        _ => None,
+    }
+}
+
+/// The first fact `rule` tests that is one of `untrusted`: a grant or bound
+/// resting on it would let the item's sender widen Freedom (D63).
+pub fn rests_on_untrusted<'a>(rule: &'a Rule, untrusted: &BTreeSet<String>) -> Option<&'a str> {
+    facts_tested(rule).into_iter().find(|fact| untrusted.contains(*fact))
 }
 
 #[cfg(test)]
@@ -120,5 +167,32 @@ mod tests {
         assert_eq!(of_run(Some(Trust::Trusted), &batch), Trust::Untrusted);
         let inside = input(json!({"items": [item(false)]}));
         assert_eq!(of_run(Some(Trust::Trusted), &inside), Trust::Trusted);
+    }
+
+    #[test]
+    fn the_facts_a_source_marks_untrusted_are_those_its_sender_writes() {
+        let outside = json!({"type": "string", "untrusted": true});
+        let item = json!({"type": "object", "properties": {
+            "key": outside, "version": {"type": "string"}, "title": outside,
+            "facts": {"type": "object", "properties": {"from": outside, "repo": {"type": "string"},
+                      "labels": {"type": "array", "items": outside}}},
+        }});
+        let manifest: Manifest = serde_json::from_value(json!({
+            "id": "c", "name": "C", "version": "1", "summary": "s", "form": "builtin", "works": "this_mac",
+            "actions": [{"name": "poll", "summary": "p", "class": "read", "output": {"type": "object", "properties": {
+                "items": {"type": "array", "items": item}}}}],
+            "sources": [{"name": "inbox", "item": "c.item", "action": "poll", "facts": {"from": "string"}}],
+        }))
+        .expect("a manifest");
+        let untrusted = untrusted_facts(&manifest, "inbox");
+        assert_eq!(untrusted.iter().map(String::as_str).collect::<Vec<_>>(), ["from", "key", "labels", "title"]);
+        assert!(untrusted_facts(&manifest, "other").is_empty());
+        let rule: Rule = serde_json::from_value(
+            json!({"all": [{"fact": "repo", "is": "a/b"}, {"not": {"fact": "from", "glob": "*@me.com"}}]}),
+        )
+        .expect("a rule");
+        assert_eq!(rests_on_untrusted(&rule, &untrusted), Some("from"));
+        let trusted: Rule = serde_json::from_value(json!({"fact": "repo", "is": "a/b"})).expect("a rule");
+        assert_eq!(rests_on_untrusted(&trusted, &untrusted), None);
     }
 }

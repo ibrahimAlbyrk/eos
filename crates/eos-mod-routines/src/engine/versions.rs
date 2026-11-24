@@ -5,7 +5,7 @@
 //! is written. A version row never changes, so each write adds one, and
 //! announces `routine:change` with the row from its own job.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -86,7 +86,51 @@ pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<
     }
     let outside = outside(engine).await?;
     let trust = trust::of_version(&blueprint, |id| outside.contains(id));
+    let resting = resting_on_untrusted(&blueprint, &untrusted_for(&untrusted_facts(engine).await?, &blueprint));
+    if !resting.is_empty() {
+        return Ok(Err(resting));
+    }
     Ok(Ok(Prepared { blueprint, trust }))
+}
+
+/// The facts each source here marks untrusted, by its id (`mail.inbox`).
+pub(crate) type SourceFacts = HashMap<String, BTreeSet<String>>;
+
+pub(crate) async fn untrusted_facts(engine: &Engine) -> Result<SourceFacts, Error> {
+    let mut found = SourceFacts::new();
+    for capability in engine.reads.list().await? {
+        for source in &capability.manifest.sources {
+            let names = trust::untrusted_facts(&capability.manifest, &source.name);
+            found.insert(format!("{}.{}", capability.id, source.name), names);
+        }
+    }
+    Ok(found)
+}
+
+/// The untrusted facts of the sources `blueprint` takes from or is
+/// triggered by.
+pub(crate) fn untrusted_for(facts: &SourceFacts, blueprint: &Blueprint) -> BTreeSet<String> {
+    trust::sources_of(blueprint).into_iter().filter_map(|source| facts.get(source)).flatten().cloned().collect()
+}
+
+/// A grant or an item place's bound that tests a fact the item's sender
+/// writes would let that sender widen the routine's Freedom (D63).
+fn resting_on_untrusted(blueprint: &Blueprint, untrusted: &BTreeSet<String>) -> Vec<BlueprintIssue> {
+    let message = |fact: &str| format!("Rests on {fact}, which whoever sends the item writes");
+    let mut issues = Vec::new();
+    for (i, grant) in blueprint.freedom.grants.iter().enumerate() {
+        if let Some(fact) = trust::rests_on_untrusted(&grant.when, untrusted) {
+            issues.push(issue(&["freedom", "grants", &i.to_string(), "when"], &message(fact)));
+        }
+    }
+    for (i, recipient) in blueprint.goes_to.iter().enumerate() {
+        if let eos_contracts::RecipientKind::ItemPlace { bound: Some(bound), .. } = &recipient.kind
+            && let Some(fact) = trust::rests_on_untrusted(bound, untrusted)
+        {
+            issues.push(issue(&["goesTo", &i.to_string(), "bound"], &message(fact)));
+        }
+    }
+    issues
 }
 
 /// The capabilities whose reads bring outside text.

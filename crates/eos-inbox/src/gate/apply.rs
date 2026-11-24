@@ -43,9 +43,7 @@ pub(crate) fn apply_in(
     }
     let control = gate.control()?;
     let at = Opening { now, ids, zone: gate.zone.as_ref(), control: control.as_ref() };
-    // What the source read wins over the item's own fields of the same name.
-    let mut facts = facts_of(&input.item_facts);
-    facts.extend(input.signal_facts.clone());
+    let facts = trusted_facts(input);
     let chosen = match choose(input, &facts) {
         Targets::Go(chosen) => chosen,
         Targets::Nowhere => return Ok(GateDecision::Shown),
@@ -118,6 +116,22 @@ fn held_freedom() -> Freedom {
 fn facts_of(item: &Value) -> Facts {
     let fields = item.as_object().into_iter().flatten();
     fields.filter_map(|(name, value)| Some((name.clone(), serde_json::from_value(value.clone()).ok()?))).collect()
+}
+
+/// The facts grants and the bounds of item places read: what the source
+/// read wins over the item's own fields of the same name, and a fact the
+/// item's sender writes is left out, so a rule resting on it never passes
+/// (D63). An item from outside writes its own title, text and key.
+fn trusted_facts(input: &GateInput) -> Facts {
+    let mut facts = facts_of(&input.item_facts);
+    facts.extend(input.signal_facts.clone());
+    if input.item_facts.get("untrusted") != Some(&Value::Bool(false)) {
+        for field in ["title", "text", "key"] {
+            facts.shift_remove(field);
+        }
+    }
+    facts.retain(|name, _| !input.untrusted_facts.contains(name));
+    facts
 }
 
 /// What the result may name without a flag: what its item names, and the

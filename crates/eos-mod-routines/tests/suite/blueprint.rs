@@ -32,6 +32,18 @@ name = "inbox"
 summary = "The newest mail."
 class = "read"
 output = { type = "array", items = { type = "object", properties = { body = { type = "string", untrusted = true } } } }
+
+[[actions]]
+name = "poll"
+summary = "Mail since the cursor."
+class = "read"
+output = { type = "object", properties = { items = { type = "array", items = { type = "object", properties = { key = { type = "string", untrusted = true }, facts = { type = "object", properties = { from = { type = "string", untrusted = true }, account = { type = "string" } } } } } } } }
+
+[[sources]]
+name = "received"
+item = "mail.message"
+action = "poll"
+facts = { from = "string", account = "string" }
 "#;
 
 fn mail() -> Capability {
@@ -188,6 +200,34 @@ async fn a_version_reads_outside_text_through_a_trigger_its_takes_or_a_needed_re
     assert_eq!(trust(&needs), Trust::Untrusted, "the mail it needs reads outside text");
     assert_eq!(trust(&takes), Trust::Untrusted);
     assert_eq!(trust(&pulls), Trust::Untrusted, "PR Review");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_grant_or_bound_on_a_fact_the_sender_writes_is_refused_when_saved() {
+    let routes = Routes::with_mail();
+    let mut mailed = folder("Answer the boss");
+    mailed["takes"]["source"] = json!("mail.received");
+    mailed["freedom"] = json!({"rung": "draft", "grants": [
+        {"id": "g1", "when": {"fact": "account", "is": "work"}, "rung": "on_its_own"},
+        {"id": "g2", "when": {"not": {"fact": "from", "glob": "*@acme.dev"}}, "rung": "on_its_own"}]});
+    mailed["goesTo"] = json!([{"id": "sender", "kind": "item_place", "channel": "mail",
+                               "bound": {"fact": "key", "contains": "acme"}}]);
+    let (status, refused) = routes.create(mailed.clone()).await;
+    assert_eq!(status, 400, "{refused}");
+    let paths: Vec<String> = refused["issues"]
+        .as_array()
+        .expect("issues")
+        .iter()
+        .map(|issue| {
+            issue["path"].as_array().expect("a path").iter().filter_map(Value::as_str).collect::<Vec<_>>().join(".")
+        })
+        .collect();
+    assert_eq!(paths, ["freedom.grants.1.when", "goesTo.0.bound"], "only the grant on a trusted fact stays");
+
+    mailed["freedom"]["grants"].as_array_mut().expect("grants").truncate(1);
+    mailed["goesTo"][0]["bound"] = json!({"fact": "account", "is": "work"});
+    let (status, saved) = routes.create(mailed).await;
+    assert_eq!(status, 201, "{saved}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
