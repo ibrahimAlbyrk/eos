@@ -99,7 +99,8 @@ impl RoutineDirectory for Directory {
         Box::pin(self.0.store.read(|tx| {
             let mut triggers = Vec::new();
             for routine in tx.routines().list()? {
-                if routine.state == RoutineState::Deleted {
+                // A built-in routine has no trigger and is no Mac's to hold (01 G49).
+                if routine.state == RoutineState::Deleted || routine.origin == crate::routes::BUILTIN {
                     continue;
                 }
                 let Some(head) = tx.routine_versions().head(&routine.id)? else { continue };
