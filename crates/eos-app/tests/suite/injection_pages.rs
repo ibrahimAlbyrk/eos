@@ -8,13 +8,14 @@ use std::sync::Arc;
 
 use eos_app::{App, CapabilityOptions, Options};
 use eos_core::store::StoredSurfaceVersion;
+use eos_domain::routine::numbers::Outcome;
 use eos_runtime::http::Method;
 use eos_surface::{Level, MadeBy, VersionStatus};
 use eos_testkit::{FakeMail, ScriptedRuntime, TempHome};
 use serde_json::{Value, json};
 
 use crate::rig;
-use crate::routines_rig::{Fakes, call_tool, eventually, inbox, lead, make, runs, working_agents};
+use crate::routines_rig::{Fakes, call_tool, eventually, inbox, lead, make, run, runs, working_agents};
 
 const BOSS: &str = "boss@acme.dev";
 const PAPER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../eos-surface/tests/morning-paper");
@@ -126,6 +127,16 @@ async fn a_mailed_page_is_held_first_adds_no_recipient_and_goes_as_its_issue_to_
     assert_eq!((to[0]["key"].as_str(), to[0]["text"].as_str()), (Some("to:boss"), Some(BOSS)));
     assert!(mail.sends().is_empty(), "nothing went out before the user sent it");
 
+    // The page is edited on the page itself: its send counts as edited for the streak.
+    let surface = parts.iter().find(|p| p["key"] == "@issue").and_then(|p| p["meta"]["surface"].as_str());
+    let surface = surface.expect("the page").to_owned();
+    let found = issue.clone();
+    let stored = app.store().read(move |tx| tx.surface_issues().find(&found)).await.expect("reads");
+    let edit = json!({"baseRev": stored.expect("the issue").rev, "op": "set", "path": "summary", "value": "Edited."});
+    let fields = format!("/api/surfaces/{surface}/issues/{issue}/fields");
+    let (status, edited) = rig::call(&app, Method::Put, &fields, Some(edit)).await;
+    assert_eq!(status, 200, "{edited}");
+
     let (status, sent) =
         rig::call(&app, Method::Post, &format!("/api/inbox/{id}/send"), Some(json!({"rev": item["rev"]}))).await;
     assert!(status < 300, "{status} {sent}");
@@ -144,5 +155,7 @@ async fn a_mailed_page_is_held_first_adds_no_recipient_and_goes_as_its_issue_to_
     let keys: Vec<&String> = sends[0].as_object().expect("an object").keys().collect();
     assert_eq!(keys, ["to", "subject", "body", "html", "images"], "no cc, bcc or second address");
     assert!(!runs(&app, &routine).await.is_empty());
+    eventually("the run ends", || async { run(&app, &run_id).await.outcome.is_some() }).await;
+    assert_eq!(run(&app, &run_id).await.outcome, Some(Outcome::SentEdited));
     app.shutdown(std::time::Duration::from_secs(5)).await;
 }

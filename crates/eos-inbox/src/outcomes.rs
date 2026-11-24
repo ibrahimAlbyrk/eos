@@ -9,7 +9,7 @@ use eos_core::Error;
 use eos_core::routine::RunOutcomes;
 use eos_core::store::{NewOutcome, Outbox, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::result_doc::equal;
+use eos_domain::result_doc::{PAGE_ISSUE, equal, issue_of, page_issue_doc};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
@@ -33,14 +33,30 @@ pub(crate) fn held_doc(payload: &Value) -> Option<ResultDoc> {
 
 /// Whether `sent` went out as `item` held it. A draft whose held result
 /// cannot be read counts as edited.
-pub(crate) fn sent_outcome(item: &StoredItem, sent: &ResultDoc) -> Outcome {
+pub(crate) fn sent_outcome(tx: &dyn Tx, item: &StoredItem, sent: &ResultDoc) -> Result<Outcome, Error> {
     let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
     // A draft held again after an edited send stays edited.
     let edited_before = payload["edited"].as_bool().unwrap_or(false);
-    match held_doc(&payload) {
-        Some(held) if !edited_before && equal(&held, sent) => Outcome::SentUnedited,
-        _ => Outcome::SentEdited,
-    }
+    let unedited = match held_doc(&payload) {
+        Some(held) if held.kind == PAGE_ISSUE => !edited_before && equal(&held, sent) && page_as_held(tx, &held)?,
+        Some(held) => !edited_before && equal(&held, sent),
+        None => false,
+    };
+    Ok(if unedited { Outcome::SentUnedited } else { Outcome::SentEdited })
+}
+
+/// A page draft is edited on its page, never in its parts: it went as held
+/// only when the stored issue's fields are still those the gate held.
+fn page_as_held(tx: &dyn Tx, held: &ResultDoc) -> Result<bool, Error> {
+    let Some((issue_id, pdf)) = issue_of(held) else { return Ok(false) };
+    let Some(issue) = tx.surface_issues().find(issue_id)? else { return Ok(false) };
+    let body: Value = serde_json::from_str(&issue.body_json).unwrap_or(Value::Null);
+    let now = page_issue_doc((&issue.surface_id, &issue.id), &body["data"], pdf, &held.channel, &held.action);
+    Ok(equal(&fields_of(held), &fields_of(&now)))
+}
+
+fn fields_of(doc: &ResultDoc) -> ResultDoc {
+    ResultDoc { parts: doc.parts.iter().filter(|part| part.role == "field").cloned().collect(), ..doc.clone() }
 }
 
 /// Records the end and tells the run, if the run still waits on its result.
