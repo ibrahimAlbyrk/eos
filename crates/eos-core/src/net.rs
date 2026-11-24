@@ -1,8 +1,10 @@
 //! Ports over other computers: the sync vault, the update feed, transfer
-//! endpoints, the Artifact catalog, media fetching, geocoding, the relay.
+//! endpoints, the Artifact catalog, media fetching, geocoding, the relay and
+//! its hook inbox.
 
 mod artifacts;
 mod geo;
+pub mod hooks;
 pub mod machines;
 mod media;
 pub mod peer;

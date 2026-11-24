@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_core::Error;
 use eos_core::os::{AwakeHold, KeepAwake};
-use eos_core::store::{RemoteAuditEntry, RemoteStore, RoomSecrets};
+use eos_core::store::{HookIdentity, RemoteAuditEntry, RemoteStore, RoomSecrets};
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|p| p.into_inner())
@@ -64,9 +64,22 @@ impl RemoteStore for FakeRemoteStore {
         Ok(Some(self.secrets.clone()))
     }
 
+    fn hook_identity(&self) -> Result<HookIdentity, Error> {
+        Ok(fake_hook_identity())
+    }
+
     fn audit(&self, entry: &RemoteAuditEntry) -> Result<(), Error> {
         lock(&self.audit).push(entry.clone());
         Ok(())
+    }
+}
+
+/// The hook inbox identity [`FakeRemoteStore`] hands out.
+pub fn fake_hook_identity() -> HookIdentity {
+    HookIdentity {
+        inbox: "0f".repeat(16),
+        bearer: "aG9vay1iZWFyZXItaG9vay1iZWFyZXItaG9vay1iZWFyZXI".to_owned(),
+        secret_key: [7; 32],
     }
 }
 

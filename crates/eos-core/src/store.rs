@@ -92,7 +92,7 @@ pub use pages::PageStore;
 pub use pending::{NewPending, PendingRepo, UserDenial};
 pub use profile::{AvatarThumbnails, UserAvatar, UserAvatarStore, UserProfileStore};
 pub use reactions::{ReactionRepo, StoredReaction};
-pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
+pub use remote::{HookIdentity, RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
 pub use retention::{EndedRun, Leaving, LeavingRoutine, RoutineRetentionRepo};
 pub use routines::{
     RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo, StoredDraft,

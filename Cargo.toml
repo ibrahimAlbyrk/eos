@@ -180,6 +180,8 @@ tracing = "0.1"
 # The log pipeline (eos-kit-log): the same release and features as the host workspace.
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 unicode-normalization = "0.1"
+# The hook inbox's sealing key (eos-relay): events are sealed to it on the relay.
+x25519-dalek = { version = "3", features = ["static_secrets"] }
 url = "2"
 # Secret values wiped from memory when dropped.
 zeroize = "1.9"

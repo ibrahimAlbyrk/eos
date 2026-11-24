@@ -291,3 +291,99 @@ async fn joining_fails_with_the_relays_reason_or_a_timeout() {
     let unreachable = client.dial(RoomJoin { url: format!("ws://{down}/"), ..join }).await.err().expect("down");
     assert_eq!(unreachable.code, "UNREACHABLE");
 }
+
+mod hook_inbox {
+    use std::sync::Arc;
+
+    use eos_core::Error;
+    use eos_core::net::hooks::HookInbox;
+    use eos_core::store::RemoteStore;
+    use eos_relay::RelayHookInbox;
+    use eos_testkit::relay::{FakeHookRelay, FakeRemoteStore, fake_hook_identity};
+
+    fn inbox(relay: &FakeHookRelay) -> RelayHookInbox {
+        let url = relay.url();
+        let store: Arc<dyn RemoteStore> = Arc::new(FakeRemoteStore::default());
+        RelayHookInbox::new(reqwest::Client::new(), Arc::new(move || Some(url.clone())), store)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ensure_hooks_events_and_acks_reach_the_relay_and_events_open() {
+        let relay = FakeHookRelay::start().await;
+        let hooks = inbox(&relay);
+        let identity = fake_hook_identity();
+        hooks.ensure().await.expect("ensured");
+        assert_eq!(relay.public_key(&identity.inbox), Some(eos_relay::seal::public_key(&identity.secret_key)));
+
+        let hook = hooks.create_hook().await.expect("a hook");
+        assert_eq!(hook.id.len(), 32);
+        assert_eq!(
+            hook.url,
+            format!(
+                "http://127.0.0.1:{}/hooks/v1/{}/{}",
+                relay.url().rsplit(':').next().expect("port"),
+                identity.inbox,
+                hook.id
+            )
+        );
+        assert_eq!(relay.hooks(), [hook.id.clone()]);
+
+        assert!(relay.deliver(
+            &hook.id,
+            1_764_000_000_000,
+            &[("x-github-delivery", "d-1"), ("x-github-event", "ping")],
+            b"{\"zen\":1}"
+        ));
+        relay.plant_unreadable(&identity.inbox);
+        relay.drop_events(&identity.inbox, 3);
+        let batch = hooks.next(0, 0).await.expect("a batch");
+        assert_eq!(batch.head, 2);
+        assert_eq!(batch.unreadable, 1, "the planted entry is dropped and counted");
+        assert_eq!(batch.dropped, 3);
+        let [event] = batch.events.as_slice() else { panic!("one event: {batch:?}") };
+        assert_eq!((event.seq, event.hook.as_str(), event.received_at), (1, hook.id.as_str(), 1_764_000_000_000));
+        assert_eq!(
+            event.headers,
+            [("x-github-delivery".to_owned(), "d-1".to_owned()), ("x-github-event".to_owned(), "ping".to_owned())]
+        );
+        assert_eq!(event.body, b"{\"zen\":1}");
+
+        hooks.ack(batch.head).await.expect("acked");
+        assert_eq!(relay.acks(), [2]);
+        assert!(hooks.next(2, 0).await.expect("a batch").events.is_empty());
+
+        hooks.revoke_hook(&hook.id).await.expect("revoked");
+        assert!(relay.hooks().is_empty());
+        assert!(!relay.deliver(&hook.id, 1, &[], b""), "a revoked hook takes nothing");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_long_poll_wakes_on_an_event() {
+        let relay = Arc::new(FakeHookRelay::start().await);
+        let hooks = inbox(&relay);
+        hooks.ensure().await.expect("ensured");
+        let hook = hooks.create_hook().await.expect("a hook");
+        let poster = relay.clone();
+        let id = hook.id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            poster.deliver(&id, 1, &[], b"late");
+        });
+        let started = std::time::Instant::now();
+        let batch = hooks.next(0, 20_000).await.expect("a batch");
+        assert!(started.elapsed() < std::time::Duration::from_secs(10), "answered on the event");
+        assert_eq!(batch.events.len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn refusals_and_a_missing_relay_are_errors_and_nothing_is_guessed() {
+        let relay = FakeHookRelay::start().await;
+        let hooks = inbox(&relay);
+        assert!(matches!(hooks.next(0, 0).await, Err(Error::NotFound { .. })), "an inbox never ensured");
+        let none = RelayHookInbox::new(reqwest::Client::new(), Arc::new(|| None), Arc::new(FakeRemoteStore::default()));
+        assert!(matches!(none.ensure().await, Err(Error::Validation(_))));
+        let before = relay.requests();
+        assert!(none.next(0, 0).await.is_err());
+        assert_eq!(relay.requests(), before, "no relay set: nothing is dialled");
+    }
+}

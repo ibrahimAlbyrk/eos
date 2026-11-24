@@ -2820,19 +2820,24 @@ dependencies = [
 name = "eos-relay"
 version = "0.0.1"
 dependencies = [
+ "aes-gcm",
  "base64 0.22.1",
  "bytes",
  "eos-core",
  "eos-kit-net",
  "eos-testkit",
  "futures-util",
+ "getrandom 0.4.3",
+ "hkdf",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tracing",
+ "x25519-dalek",
 ]
 
 [[package]]
@@ -7924,6 +7929,17 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "x25519-dalek"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7e8131a03190127fb2263afc72b322ecadae46b6ff8c6f399ff5d02f5559af6"
+dependencies = [
+ "curve25519-dalek",
+ "rand_core 0.10.1",
+ "zeroize",
+]
 
 [[package]]
 name = "x509-parser"

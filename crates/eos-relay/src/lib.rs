@@ -1,7 +1,8 @@
 //! The relay: a server both ends of a link dial out to. This crate holds the
 //! envelope every message travels in ([`envelope`], [`control`]) and the
 //! connections that own or join a room ([`RelayClient`], the
-//! `eos_core::net::relay` ports).
+//! `eos_core::net::relay` ports), and the hook inbox outside services post to
+//! ([`RelayHookInbox`], sealed in the [`seal`] format).
 //!
 //! ## What is bounded
 //!
@@ -20,10 +21,14 @@
 
 pub mod control;
 pub mod envelope;
+mod hooks;
 mod hosting;
 mod pipe;
 mod push;
+pub mod seal;
 mod socket;
+
+pub use hooks::{RelayHookInbox, RelayUrl};
 
 use std::sync::Arc;
 use std::time::Duration;

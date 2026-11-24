@@ -124,3 +124,39 @@ fn reads_the_relays_own_messages() {
         );
     }
 }
+
+fn seal_corpus() -> Value {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/relay/hook-seal.json");
+    serde_json::from_str(&std::fs::read_to_string(path).expect("the vectors")).expect("JSON")
+}
+
+fn bytes32(text: &str) -> [u8; 32] {
+    unhex(text).try_into().expect("32 bytes")
+}
+
+#[test]
+fn hook_events_open_and_seal_as_the_relay_seals_them() {
+    use base64::Engine as _;
+    let corpus = seal_corpus();
+    assert_eq!(corpus["info"], "eos-hook-seal-v1");
+    let secret = bytes32(corpus["recipientSecret"].as_str().expect("secret"));
+    let public = bytes32(corpus["recipientPublic"].as_str().expect("public"));
+    assert_eq!(eos_relay::seal::public_key(&secret), public);
+    let cases = corpus["cases"].as_array().expect("cases");
+    assert!(cases.len() >= 2);
+    for case in cases {
+        let sealed =
+            base64::engine::general_purpose::STANDARD.decode(case["sealed"].as_str().expect("sealed")).expect("base64");
+        let plaintext = case["plaintext"].as_str().expect("plaintext").as_bytes();
+        assert_eq!(eos_relay::seal::open(&secret, &sealed).as_deref(), Some(plaintext));
+        let ephemeral = bytes32(case["ephemeralSecret"].as_str().expect("ephemeral"));
+        let nonce: [u8; 12] = unhex(case["nonce"].as_str().expect("nonce")).try_into().expect("12 bytes");
+        assert_eq!(eos_relay::seal::seal(&public, plaintext, ephemeral, nonce), sealed);
+
+        let mut changed = sealed.clone();
+        changed[50] ^= 1;
+        assert_eq!(eos_relay::seal::open(&secret, &changed), None, "a changed byte never opens");
+        assert_eq!(eos_relay::seal::open(&[1; 32], &sealed), None, "another key never opens");
+    }
+    assert_eq!(eos_relay::seal::open(&secret, &[0; 59]), None, "too short to be sealed");
+}
