@@ -60,7 +60,7 @@ impl std::fmt::Debug for Opening<'_> {
 }
 
 /// The local day `at` falls on, counted from the epoch.
-fn local_day(zone: &dyn TimeZone, at: i64) -> i64 {
+pub(crate) fn local_day(zone: &dyn TimeZone, at: i64) -> i64 {
     (at + i64::from(zone.offset_minutes_at(at)) * 60_000).div_euclid(DAY_MS)
 }
 

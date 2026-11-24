@@ -15,9 +15,9 @@ use eos_domain::outbound::{self, Flag, OutboundContext};
 use eos_domain::run_scope::Trust;
 use serde_json::{Map, Value, json};
 
-use super::repeat::sent_before_in;
+use super::repeat::{About, sent_before_in};
 use super::targets::{Chosen, Targets, choose, with_recipients};
-use super::{Gate, run_subject, subject_of};
+use super::{Gate, subject_of};
 use crate::delivery::{NewDelivery, queue_in, target_value};
 use crate::items::{ALERT_PRODUCER, open_replacing_in};
 use crate::outcomes::replaced_in;
@@ -63,7 +63,7 @@ pub(crate) fn apply_in(
         stale: false,
         waiting: None,
         halted: tx.inbox_halt().get()?.on,
-        repeat: repeat_in(tx, input, &chosen)?,
+        repeat: repeat_in(tx, gate, now, input, &chosen)?,
     };
     let freedom = input.freedom_confirmed.clone().unwrap_or_else(held_freedom);
     let rung = effective_rung(class, &freedom, &facts, &caps);
@@ -94,12 +94,13 @@ pub(crate) fn apply_in(
     Ok(GateDecision::Delivering { delivery_ids })
 }
 
-/// Whether any place the result goes already had a send of the run's
-/// subject from this routine (D55).
-fn repeat_in(tx: &dyn Tx, input: &GateInput, chosen: &[Chosen]) -> Result<bool, Error> {
-    let subject = tx.runs().find(&input.run_id)?.as_ref().and_then(run_subject);
+/// Whether any place the result goes already had a send of what the run
+/// is about from this routine (D55).
+fn repeat_in(tx: &dyn Tx, gate: &Gate, now: i64, input: &GateInput, chosen: &[Chosen]) -> Result<bool, Error> {
+    let run = tx.runs().find(&input.run_id)?;
+    let about = run.as_ref().map_or(About { subject: None, version: None }, About::of);
     for target in chosen {
-        if sent_before_in(tx, &input.routine_id, &target.target.recipient_id, subject.as_deref())? {
+        if sent_before_in(tx, gate.zone.as_ref(), now, &input.routine_id, &target.target.recipient_id, &about)? {
             return Ok(true);
         }
     }
