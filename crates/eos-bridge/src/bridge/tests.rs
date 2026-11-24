@@ -578,6 +578,57 @@ async fn a_link_that_launched_the_app_reaches_the_page_once_it_listens() {
     assert!(!text.contains("paste"), "an Edit command from before the page listened must not run later");
 }
 
+/// Knows one surface issue; everything else goes to the fake core.
+struct IssueCore(Arc<FakeCore>);
+
+impl Core for IssueCore {
+    fn ui_token(&self) -> String {
+        TOKEN.to_string()
+    }
+
+    fn call(&self, plane: Plane, req: Req, sink: Sink) {
+        if req.url == "/api/surface-issues/si-41" {
+            let row = json!({ "id": "si-41", "surfaceId": "sf-3", "seq": 41, "kind": "page" });
+            sink.respond(200, vec![("content-type".into(), "application/json".into())], row.to_string().as_bytes());
+        } else {
+            self.0.call(plane, req, sink);
+        }
+    }
+}
+
+#[tokio::test]
+async fn links_open_their_place_and_an_issue_link_finds_its_page_first() {
+    let w = world_over(None, |core| Arc::new(IssueCore(core)));
+    assert_eq!(
+        w.bridge.open_link("eos://run/pr-review?item=482"),
+        crate::links::Link::Open("eos:/form?routine=pr-review&item=482&from=link".into())
+    );
+    w.bridge.open_link("eos://issue/si-41?button=ask&index=2");
+    assert_eq!(w.bridge.open_link("eos://run/pr-review?go=now"), crate::links::Link::Window);
+    let mut text = String::new();
+    for _ in 0..100 {
+        if text.contains("sf-3") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let (sink, body) = channel();
+        w.bridge.events().subscribe(sink);
+        let mut buf = [0u8; 4096];
+        if let Read::Data(n) = body.read(&mut buf, || {}) {
+            text.push_str(&String::from_utf8_lossy(&buf[..n]));
+        }
+    }
+    assert!(
+        text.contains(r#"{"name":"navigate","payload":{"route":"eos:/form?routine=pr-review&item=482&from=link"}}"#),
+        "{text}"
+    );
+    assert!(
+        text.contains(r#"{"name":"navigate","payload":{"route":"eos:/surfaces/sf-3?issue=41&button=ask&index=2"}}"#),
+        "{text}"
+    );
+    assert_eq!(text.matches("navigate").count(), 2, "a link outside the grammar navigates nowhere: {text}");
+}
+
 #[tokio::test]
 async fn the_theme_is_kept_for_the_next_launch() {
     let w = world();

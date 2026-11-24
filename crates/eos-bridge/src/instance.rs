@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 pub enum Request {
     /// Show the window and bring the app forward.
     Activate,
-    /// Open a link the system handed over (`eos://pair/…`).
+    /// Open a link the system handed over (`eos://…`, or `eos-dev://…` in a dev build).
     Open(String),
     /// Run without showing anything (`--background`): a later launch shows nothing either.
     Background,
@@ -29,7 +29,9 @@ impl Request {
     /// Reads a launch's arguments (without the program name). A link wins over the flags;
     /// anything unknown is ignored (the system adds arguments of its own).
     pub fn from_args<S: AsRef<str>>(args: &[S]) -> Self {
-        if let Some(url) = args.iter().map(AsRef::as_ref).find(|a| a.starts_with("eos://")) {
+        if let Some(url) =
+            args.iter().map(AsRef::as_ref).find(|a| a.starts_with("eos://") || a.starts_with("eos-dev://"))
+        {
             return Request::Open(url.to_string());
         }
         if args.iter().any(|a| a.as_ref() == "--quit") {

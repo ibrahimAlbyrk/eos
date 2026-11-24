@@ -23,6 +23,7 @@ pub mod in_order;
 pub mod instance;
 pub mod lan_guard;
 pub mod launch;
+pub mod links;
 pub mod migrate;
 pub mod panel;
 pub mod power;
