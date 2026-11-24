@@ -1,5 +1,6 @@
 //! `GET /api/surfaces/:id/issues?before=&limit=` (newest first) and
-//! `GET /api/surfaces/:id/issues/:issueId`. A View issue answers the View and
+//! `GET /api/surfaces/:id/issues/:issueId`, and `GET /api/surface-issues/:issueId`, which
+//! finds an issue's row by its id alone (an `eos://issue/…` link names no surface). A View issue answers the View and
 //! the ids of its bound actions, never their argument templates: the frame
 //! names a bound action, the core fills it. With plain reading on, a Page
 //! issue also answers its fallback View (`plain`).
@@ -96,5 +97,15 @@ pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
         }
     })
     .access(Access::ui_token().phone_user(Tier::Read));
-    vec![list, one]
+    let at = parts.clone();
+    let find = RouteDef::get("/api/surface-issues/{issueId}", move |req: Request| {
+        let (at, issue_id) = (at.clone(), param(&req, "issueId"));
+        async move {
+            let found = at.store.read(move |tx| tx.surface_issues().find(&issue_id)).await?;
+            let issue = found.ok_or_else(|| ApiError::NotFound("issue not found".into()))?;
+            Ok(Response::json(200, &issue_row(&issue)))
+        }
+    })
+    .access(Access::ui_token().phone_user(Tier::Read));
+    vec![list, one, find]
 }

@@ -411,6 +411,8 @@ pub const SURFACE_RESHAPE: Route = Route::new("surfaceReshape", "/api/surfaces/:
 pub const SURFACE_ARRANGE: Route = Route::new("surfaceArrange", "/api/surfaces/:id/arrange", &[Post]).added();
 pub const SURFACE_ISSUES: Route = Route::new("surfaceIssues", "/api/surfaces/:id/issues", &[Get]).added();
 pub const SURFACE_ISSUE: Route = Route::new("surfaceIssue", "/api/surfaces/:id/issues/:issueId", &[Get]).added();
+/// Finds an issue by its id alone, for an `eos://issue/<id>` link, which names no surface.
+pub const SURFACE_ISSUE_FIND: Route = Route::new("surfaceIssueFind", "/api/surface-issues/:issueId", &[Get]).added();
 pub const SURFACE_ISSUE_DOCUMENT: Route =
     Route::new("surfaceIssueDocument", "/api/surfaces/:id/issues/:issueId/document", &[Get]).added();
 pub const SURFACE_ISSUE_MAIL: Route =
@@ -807,6 +809,7 @@ pub const ROUTES: &[Route] = &[
     SURFACE_ISSUE,
     SURFACE_ISSUE_DOCUMENT,
     SURFACE_ISSUE_MAIL,
+    SURFACE_ISSUE_FIND,
     SURFACE_ISSUE_PDF,
     SURFACE_ISSUE_FIELDS,
     SURFACE_ISSUE_READ,
