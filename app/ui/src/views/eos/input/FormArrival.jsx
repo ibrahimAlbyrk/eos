@@ -93,7 +93,8 @@ export function LinkDialog({ location, routine }) {
 }
 
 // An `eos:/form` location over Home: a link asks first in its dialog; any
-// other door opens the run sheet filled, centred.
+// other opens the run sheet filled, centred, as Home's own door: "form" is
+// no door the core knows.
 export function FormArrival({ location }) {
   const { list } = useRoutines();
   const routine = routineNamed(offeredRoutines(list), location.routine);
@@ -101,7 +102,7 @@ export function FormArrival({ location }) {
   const routineId = routine?.id;
   useEffect(() => {
     if (fromLink || !routineId) return;
-    openRunSheet({ routineId, input: formInput(location, routine), door: "form" });
+    openRunSheet({ routineId, input: formInput(location, routine), door: "home" });
     home();
     // Once per arrival: the location names it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
