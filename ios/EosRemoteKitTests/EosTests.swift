@@ -73,6 +73,10 @@ final class EosActionTests: XCTestCase {
     func testOnlyAWellFormedEosActionLinkIsAButton() {
         XCTAssertEqual(EosAction.parse(URL(string: "eos-action:si-1/approve/0")!),
                        EosAction(issueId: "si-1", button: "approve", index: 0))
+        // A button outside a repeat, as the phone renderer writes it (morning-paper phone golden).
+        XCTAssertEqual(EosAction.parse(URL(string: "eos-action:si-000000000041/good/")!),
+                       EosAction(issueId: "si-000000000041", button: "good", index: nil))
+        XCTAssertNil(EosAction.parse(URL(string: "eos-action:si-1/approve/x")!))
         XCTAssertNil(EosAction.parse(URL(string: "https://evil.example/si-1/approve/0")!))
         XCTAssertNil(EosAction.parse(URL(string: "eos-action:si-1/approve")!))
         XCTAssertNil(EosAction.parse(URL(string: "eos-action:si-1/approve/-1")!))
@@ -85,6 +89,9 @@ final class EosActionTests: XCTestCase {
                        .object(["issueId": .string("si-1"), "button": .string("approve"), "index": .number(2),
                                 "clientId": .string("c-1")]))
         XCTAssertEqual(press.request(clientId: "c-1", confirm: "tok", typed: "Prod")["confirm"], .string("tok"))
+        XCTAssertEqual(EosAction(issueId: "si-1", button: "good", index: nil).request(clientId: "c-1"),
+                       .object(["issueId": .string("si-1"), "button": .string("good"), "clientId": .string("c-1")]),
+                       "no index outside a repeat")
         XCTAssertEqual(EosActionAnswer(.object(["status": .string("done"), "recordId": .string("r")])), .done)
         XCTAssertEqual(EosActionAnswer(.object(["status": .string("confirm"), "recordId": .string("r"),
                                                 "token": .string("t"), "prompt": .string("Send it?")])),
