@@ -4,7 +4,8 @@
   "from": [
    "github:pr:acme/game#482 https://github.com/acme/game/pull/482 opened by @octocat",
    "alice@example.com",
-   "+90 532 123 45 67"
+   "+90 532 123 45 67",
+   "slack:T1:C0123ABCD:1712345678.000100 from U0SENDER1"
   ],
   "hosts": ["docs.unity3d.com"],
   "handles": ["@acme/core"],
@@ -61,6 +62,17 @@
   {"name": "brackets after a bang that no definition names", "parts": ["Prefer vec![0; n] here, as [the docs] say.\n\n[the docs]: https://docs.unity3d.com/Manual/x.html"], "flags": []},
   {"name": "a mention inside code", "parts": ["Keep `@Override` here.\n```java\n@Deprecated\nvoid run() {}\n```"], "flags": []},
   {"name": "a result at the limit", "parts": ["twelve bytes"], "maxBytes": 12, "flags": []},
-  {"name": "plain review text", "parts": ["Off by one in the loop at line 42; see #481 and 3f2a9c1. Tested on 2026-11-18, +1 from me.", "COMMENT"], "flags": []}
+  {"name": "plain review text", "parts": ["Off by one in the loop at line 42; see #481 and 3f2a9c1. Tested on 2026-11-18, +1 from me.", "COMMENT"], "flags": []},
+  {"name": "a Slack mention of someone the item does not name", "parts": ["Thanks <@U0STRANGE9>!"], "flags": ["new_mention"]},
+  {"name": "a Slack mention of the item's sender", "parts": ["Thanks <@U0SENDER1>, done."], "flags": []},
+  {"name": "a Slack mention with a label", "parts": ["Ask <@W0OTHER22|bob> about it"], "flags": ["new_mention"]},
+  {"name": "a Slack broadcast to the channel", "parts": ["<!channel> the build is green"], "flags": ["new_mention"]},
+  {"name": "a Slack broadcast to whoever is here", "parts": ["<!here|here> please look"], "flags": ["new_mention"]},
+  {"name": "a Slack broadcast to everyone", "parts": ["<!everyone>"], "flags": ["new_mention"]},
+  {"name": "a Slack user group", "parts": ["cc <!subteam^S0TEAM123|core>"], "flags": ["new_mention"]},
+  {"name": "a Slack link with a label to a new host", "parts": ["See <https://evil.io/pay|the invoice>"], "flags": ["new_host"]},
+  {"name": "a Slack link with a label to a known host", "parts": ["See <https://github.com/acme/game/pull/482|#482>"], "flags": []},
+  {"name": "a Slack mail link to a new address", "parts": ["<mailto:mallory@evil.io|write me>"], "flags": ["new_address"]},
+  {"name": "a Slack date token is no broadcast", "parts": ["Due <!date^1712345678^{date}|today>"], "flags": []}
  ]
 }
