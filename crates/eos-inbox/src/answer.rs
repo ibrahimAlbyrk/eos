@@ -55,7 +55,12 @@ pub(crate) fn waiting_at(tx: &dyn Tx, id: &str, rev: Option<i64>) -> Result<Chec
 /// A question whose asker waits is acted on by that asker, so it is marked
 /// in the answering job: the routines tell its answer only to a run whose
 /// asker is gone.
-fn heard_in(tx: &dyn Tx, waiters: &QuestionWaiters, item: &StoredItem, now: i64) -> Result<(), eos_core::Error> {
+pub(crate) fn heard_in(
+    tx: &dyn Tx,
+    waiters: &QuestionWaiters,
+    item: &StoredItem,
+    now: i64,
+) -> Result<(), eos_core::Error> {
     if item.kind == ItemKind::Question && waiters.waits(&item.id) {
         consume_in(tx, &item.id, now)?;
     }

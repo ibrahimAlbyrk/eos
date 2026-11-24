@@ -10,7 +10,9 @@ import { isDevRunRefusal, transport } from "./transport.js";
 
 // cards: null until loaded, then [{ surface, issue, body }] newest first.
 // byRoutine: routine id → its View's card, or null when it has none to show.
-const EMPTY = { cards: null, failed: false, byRoutine: {} };
+// byIssue: issue id → the card of a View a Needs-you item shows, or null
+// when it cannot be read.
+const EMPTY = { cards: null, failed: false, byRoutine: {}, byIssue: {} };
 let state = EMPTY;
 let started = false;
 const subs = new Set();
@@ -61,6 +63,14 @@ export async function loadRoutineView(routineId) {
   const view = r.ok ? (r.body?.surfaces ?? []).find((s) => s.level === "view" && !s.archivedAt) : null;
   const card = view ? await newestIssue(view) : null;
   set({ byRoutine: { ...state.byRoutine, [routineId]: card } });
+}
+
+// The View a Needs-you item shows ({ surfaceId, issueId } of the item).
+export async function loadItemView({ surfaceId, issueId }) {
+  if (issueId in state.byIssue) return;
+  const one = await transport.get(ROUTES.surfaceIssue(surfaceId, issueId));
+  const card = one.ok && one.body?.body?.view ? { issue: one.body.issue, body: one.body.body } : null;
+  set({ byIssue: { ...state.byIssue, [issueId]: card } });
 }
 
 export function ensureSurfacesLoaded() {

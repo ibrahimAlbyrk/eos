@@ -48,7 +48,21 @@ pub struct InboxItem {
     pub expires_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The routine's View it shows: a card or a question drawn from that
+    /// issue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<ItemView>,
 }
+
+/// The issue a View's item is drawn from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemView {
+    pub surface_id: String,
+    pub issue_id: String,
+}
+
+impl Validate for ItemView {}
 
 impl Validate for InboxItem {}
 

@@ -8,8 +8,10 @@ import {
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRuns, loadRun } from "../../../state/eos/runsStore.js";
+import { _resetSurfaces, loadItemView } from "../../../state/eos/surfacesStore.js";
 import { notify } from "../../../lib/notify.js";
 import { EosMain } from "../EosMain.jsx";
+import { UiProvider } from "../../../state/ui.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { _resetNeedsCursor } from "./NeedsYouList.jsx";
 import inbox from "../gallery/sample/inbox.json";
@@ -78,6 +80,7 @@ beforeEach(() => {
   _resetRuns();
   _resetEosNav();
   _resetNeedsCursor();
+  _resetSurfaces();
   globalThis.localStorage = stubStorage();
 });
 afterEach(() => {
@@ -106,6 +109,22 @@ describe("the Needs-you list", () => {
     expect(row("Allow Bash?")).not.toContain(">Later<");
     expect(row("Mail Triage is paused")).toContain('<span class="eos-needs-row__routine">Mail Triage</span>');
     expect(row("A run started late")).not.toContain(">Later<");
+  });
+
+  it("draws a routine's View in place with Later, and keeps its row out of the groups", async () => {
+    const view = { surfaceId: "sf-1", issueId: "si-1" };
+    const card = { id: "ib-view", kind: "notice", state: "open", attention: "digest", routineId: routines.routines?.[0]?.id ?? null,
+                   title: "Overnight mail", summary: "12 mails came in.", rev: 1, createdAt: 1763453400000, updatedAt: 1763453400000, view };
+    const issue = { id: "si-1", surfaceId: "sf-1", seq: 1, kind: "view", status: "ready", rev: 1, trial: false, createdAt: 1763453400000 };
+    const body = { view: { title: "Overnight mail", summary: "12 mails came in.", ui: "<Callout>12 mails came in overnight.</Callout>" }, actions: [] };
+    await loaded({ ...reads, [ROUTES.inbox]: { ...inbox, items: [card, ...inbox.items] }, [ROUTES.surfaceIssue("sf-1", "si-1")]: { issue, body } });
+    await loadItemView(view);
+    openLocation("eos:/needs");
+    const html = renderToStaticMarkup(<UiProvider><EosMain /></UiProvider>);
+    expect(groups(html)[0]).toBe("From your routines");
+    expect(html).toContain("12 mails came in overnight.");
+    expect(html).toContain('<span class="eos-actions eos-needs-view__aside"><button type="button" class="eos-btn">Later</button>');
+    expect(titles(html)).not.toContain("Overnight mail");
   });
 
   it("names the chats waiting in Agents in one line", async () => {

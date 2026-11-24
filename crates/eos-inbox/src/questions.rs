@@ -37,7 +37,7 @@ pub(crate) const QUESTION_PRODUCER: &str = "routines";
 type Answers = Option<UnknownRecord>;
 
 /// What a parked asker hears.
-enum Heard {
+pub(crate) enum Heard {
     Answered(Answers),
     /// The item ended without an answer.
     Withdrawn,
@@ -149,17 +149,17 @@ impl std::fmt::Debug for RunQuestionParts {
     }
 }
 
-struct Inner {
-    parts: RunQuestionParts,
-    control: LateControl,
-    waiters: Arc<QuestionWaiters>,
+pub(crate) struct Inner {
+    pub(crate) parts: RunQuestionParts,
+    pub(crate) control: LateControl,
+    pub(crate) waiters: Arc<QuestionWaiters>,
     closing: AtomicBool,
 }
 
 /// The user's questions for every session: a run's in Needs you, the rest
 /// as the wrapped questions ask them.
 #[derive(Clone)]
-pub struct RunQuestions(Arc<Inner>);
+pub struct RunQuestions(pub(crate) Arc<Inner>);
 
 impl std::fmt::Debug for RunQuestions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -224,6 +224,31 @@ impl RunQuestions {
                 Ok(Some(item.id))
             })
             .await
+    }
+
+    /// Parks the asker of `item_id` until the item is answered or ends,
+    /// without a time limit: the user may answer days later. A heard answer
+    /// is marked so the routines need not act on it; an asker that stops
+    /// waiting takes its item back.
+    pub(crate) async fn wait(&self, item_id: &str) -> Option<Heard> {
+        let heard = self.0.waiters.park(item_id);
+        let mut guard = Withdraw { questions: self.clone(), item_id: item_id.to_owned(), armed: true };
+        let heard = match self.settled(item_id).await {
+            Ok(Some(settled)) => {
+                self.0.waiters.forget(item_id);
+                Some(settled)
+            }
+            Ok(None) => heard.await.ok(),
+            Err(error) => {
+                tracing::warn!(item_id, %error, "a run's question could not be read");
+                heard.await.ok()
+            }
+        };
+        guard.armed = false;
+        if matches!(heard, Some(Heard::Answered(_))) {
+            self.consume(item_id).await;
+        }
+        heard
     }
 
     /// What the asker hears if the item was answered or ended before its
@@ -322,26 +347,8 @@ impl UserQuestions for RunQuestions {
                     return None;
                 }
             };
-            let heard = self.0.waiters.park(&item_id);
-            let mut guard = Withdraw { questions: self.clone(), item_id: item_id.clone(), armed: true };
-            let heard = match self.settled(&item_id).await {
-                Ok(Some(settled)) => {
-                    self.0.waiters.forget(&item_id);
-                    Some(settled)
-                }
-                // No time limit: the user may answer days later.
-                Ok(None) => heard.await.ok(),
-                Err(error) => {
-                    tracing::warn!(item_id, %error, "a run's question could not be read");
-                    heard.await.ok()
-                }
-            };
-            guard.armed = false;
-            match heard {
-                Some(Heard::Answered(answers)) => {
-                    self.consume(&item_id).await;
-                    answers
-                }
+            match self.wait(&item_id).await {
+                Some(Heard::Answered(answers)) => answers,
                 Some(Heard::Withdrawn) => Some(withdrawn(parsed.as_deref().unwrap_or_default())),
                 None => None,
             }

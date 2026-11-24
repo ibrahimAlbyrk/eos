@@ -54,3 +54,36 @@ pub trait SurfaceTools: Send + Sync {
     /// listing them all.
     fn return_view<'a>(&'a self, worker_id: &'a str, view: ReturnedView) -> BoxFuture<'a, Result<String, Error>>;
 }
+
+/// A returned View as Needs you shows it (03 §4.5): a `question` View is a
+/// question its run waits on; a `result` View a card the user can put aside.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ViewCard {
+    pub routine_id: String,
+    pub run_id: String,
+    pub surface_id: String,
+    pub issue_id: String,
+    pub question: bool,
+    pub title: String,
+    pub summary: String,
+    /// The user started the run by hand.
+    pub by_hand: bool,
+}
+
+/// Needs you's items for returned Views, handed to the surfaces at composition.
+pub trait ViewCards: Send + Sync {
+    /// Opens the View's item inside the job that stores its issue; its id.
+    fn open_in(
+        &self,
+        tx: &dyn crate::store::Tx,
+        out: &mut crate::store::Outbox,
+        now: i64,
+        card: &ViewCard,
+    ) -> Result<String, Error>;
+    /// Waits, without a limit, for the answer to a question View's item:
+    /// what the user pressed, as its run reads it. Its item is taken back
+    /// when the waiter stops waiting.
+    fn heard<'a>(&'a self, item_id: &'a str) -> BoxFuture<'a, String>;
+    /// Answers a question View's item with what the user pressed.
+    fn answer<'a>(&'a self, item_id: &'a str, pressed: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+}

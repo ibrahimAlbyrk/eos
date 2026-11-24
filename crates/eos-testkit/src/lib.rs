@@ -146,7 +146,7 @@ pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
 pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunOutcomes, FakeRunStarter, OutcomeCall};
 pub use secrets::FakeCapabilitySecrets;
 pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
-pub use surface::{FakeSurfaceAuthoring, SurfaceCall};
+pub use surface::{FakeSurfaceAuthoring, FakeViewCards, SurfaceCall};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };

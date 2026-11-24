@@ -66,6 +66,8 @@ pub struct SurfacesParts {
     pub actions: Actions,
     /// Needs you's gate every press passes.
     pub gate: Arc<dyn ActionGate>,
+    /// Needs you's items for returned Views.
+    pub cards: Arc<dyn eos_core::surface::ViewCards>,
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -93,6 +95,7 @@ impl SurfacesModule {
             ids: parts.ids.clone(),
             actions: parts.actions.clone(),
             gate: parts.gate.clone(),
+            cards: parts.cards.clone(),
         }));
         SurfacesModule { parts: Arc::new(parts), dispatcher }
     }
@@ -104,6 +107,7 @@ impl SurfacesModule {
             clock: self.parts.clock.clone(),
             ids: self.parts.ids.clone(),
             actions: self.parts.actions.clone(),
+            cards: self.parts.cards.clone(),
         })
     }
 

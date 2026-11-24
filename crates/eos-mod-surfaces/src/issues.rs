@@ -3,12 +3,14 @@
 //! bound to an action the routine may run and that nothing prefills a chat,
 //! and stores it as an issue of the routine's View surface, announced on
 //! `surfaces:issue`. A trial run's issue is a trial issue, with no number.
+//! A real run's View opens its Needs-you item in the same job; a question
+//! View waits there for the user's answer and hands it back to the run.
 
 use std::sync::Arc;
 
 use eos_contracts::SurfacesIssue;
-use eos_core::store::{Store, StoredIssue, Tx};
-use eos_core::surface::{ReturnedView, SurfaceTools};
+use eos_core::store::{Outbox, Store, StoredIssue, Tx};
+use eos_core::surface::{ReturnedView, SurfaceTools, ViewCard, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_genui::{ViewValidation, validate_view};
 use eos_runtime::actions::Actions;
@@ -19,12 +21,14 @@ use serde_json::{Map, Value, json};
 use crate::SURFACES_ISSUE;
 
 const PLACES: [&str; 2] = ["result", "question"];
+const QUESTION: &str = "question";
 
 pub(crate) struct ViewIssues {
     pub(crate) store: Arc<dyn Store>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) actions: Actions,
+    pub(crate) cards: Arc<dyn ViewCards>,
 }
 
 /// Every problem of the View and its bindings, or the bindings.
@@ -55,7 +59,23 @@ fn stored_body(returned: &ReturnedView, bindings: &[Binding]) -> Value {
     json!({ "place": returned.place, "view": returned.view, "bindings": bound })
 }
 
-fn store_in(tx: &dyn Tx, worker_id: &str, body: &Value, now: i64, ids: &dyn Ids) -> Result<StoredIssue, Error> {
+/// Where an issue is stored, and what it is made with.
+struct Storing<'a> {
+    cards: &'a dyn ViewCards,
+    question: bool,
+    now: i64,
+    ids: &'a dyn Ids,
+}
+
+/// The issue, and the Needs-you item a real run's View opens, whose id the
+/// issue's body keeps so a press can answer it.
+fn store_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    worker_id: &str,
+    mut body: Value,
+    at: &Storing<'_>,
+) -> Result<(StoredIssue, Option<String>), Error> {
     let run = tx.routine_sessions().run_of(worker_id)?;
     let run = run.ok_or_else(|| Error::Validation("return_view is for a routine run's sessions".into()))?;
     let surfaces = tx.surfaces().list(Some(&run.routine_id), None)?;
@@ -63,8 +83,26 @@ fn store_in(tx: &dyn Tx, worker_id: &str, body: &Value, now: i64, ids: &dyn Ids)
     let surface = surface
         .ok_or_else(|| Error::Validation("this routine makes no view: hand in the result with submit_result".into()))?;
     let trial = run.kind == "trial";
+    let id = at.ids.surface_issue_id();
+    let item_id = if trial {
+        None
+    } else {
+        let card = ViewCard {
+            routine_id: run.routine_id.clone(),
+            run_id: run.run_id.clone(),
+            surface_id: surface.id.clone(),
+            issue_id: id.clone(),
+            question: at.question,
+            title: text_of(&body["view"]["title"], "Your routine's view"),
+            summary: text_of(&body["view"]["summary"], ""),
+            by_hand: run.origin == "hand",
+        };
+        let item_id = at.cards.open_in(tx, out, at.now, &card)?;
+        body["itemId"] = Value::String(item_id.clone());
+        Some(item_id)
+    };
     let issue = StoredIssue {
-        id: ids.surface_issue_id(),
+        id,
         surface_id: surface.id.clone(),
         seq: if trial { None } else { Some(tx.surface_issues().next_seq(&surface.id)?) },
         run_id: Some(run.run_id),
@@ -76,11 +114,15 @@ fn store_in(tx: &dyn Tx, worker_id: &str, body: &Value, now: i64, ids: &dyn Ids)
         images_json: "[]".into(),
         trial,
         kept: false,
-        created_at: now,
-        updated_at: now,
+        created_at: at.now,
+        updated_at: at.now,
     };
     tx.surface_issues().put(&issue)?;
-    Ok(issue)
+    Ok((issue, item_id))
+}
+
+fn text_of(value: &Value, otherwise: &str) -> String {
+    value.as_str().map(str::trim).filter(|text| !text.is_empty()).unwrap_or(otherwise).to_owned()
 }
 
 impl SurfaceTools for ViewIssues {
@@ -89,10 +131,12 @@ impl SurfaceTools for ViewIssues {
             let bindings = checked(&self.actions, &returned).map_err(|p| Error::Validation(format_problems(&p)))?;
             let body = stored_body(&returned, &bindings);
             let (worker, now, ids) = (worker_id.to_owned(), self.clock.now_ms(), self.ids.clone());
-            let issue = self
+            let (cards, question) = (self.cards.clone(), returned.place == QUESTION);
+            let (issue, item_id) = self
                 .store
                 .write(move |tx, out| {
-                    let issue = store_in(tx, &worker, &body, now, ids.as_ref())?;
+                    let at = Storing { cards: cards.as_ref(), question, now, ids: ids.as_ref() };
+                    let (issue, item_id) = store_in(tx, out, &worker, body, &at)?;
                     let change = SurfacesIssue {
                         surface_id: issue.surface_id.clone(),
                         issue_id: issue.id.clone(),
@@ -100,12 +144,17 @@ impl SurfaceTools for ViewIssues {
                         rev: issue.rev,
                     };
                     out.push(SURFACES_ISSUE.name(), &change);
-                    Ok(issue)
+                    Ok((issue, item_id))
                 })
                 .await?;
             tracing::info!(surface = %issue.surface_id, issue = %issue.id, bound = bindings.len(), "a run returned a view");
             let n = bindings.len();
-            Ok(format!("issue {} · {n} bound action{}", issue.id, if n == 1 { "" } else { "s" }))
+            let line = format!("issue {} · {n} bound action{}", issue.id, if n == 1 { "" } else { "s" });
+            match item_id.filter(|_| question) {
+                // The run waits for the user, as it does on any question it asks.
+                Some(item_id) => Ok(format!("{line}\n\n{}", self.cards.heard(&item_id).await)),
+                None => Ok(line),
+            }
         })
     }
 }

@@ -170,7 +170,7 @@
   "tool/report_failure.prompt.md": "8da76dbf18f8ffe1bebf246612eb411ac0cebe96312d60afe2c3015e8960dfe2",
   "tool/report_progress.prompt.md": "a29e444df5799571eaea9c34df57a84614649a09dd322c710b1338177e762e29",
   "tool/respond_to_peer.prompt.md": "1aa3c6c70547dd04af06f06829b18bdabaace46e3ad8a87cc73ea68b4c7fdac0",
-  "tool/return_view.prompt.md": "38d8cbdf4735f4e9d42ec4b1119faa1b32489e4c3d42c58e3a55beee8f697404",
+  "tool/return_view.prompt.md": "7e1bdaa85a5bdcb02bc98d76fabb201abd9e0e4281be565b18a29985bd1ae9b0",
   "tool/search_memory.prompt.md": "bc475ca0f797adbc992e3d21ee51b34406397e20ec06ab87a23446bf53a5033f",
   "tool/send_message_to_parent.prompt.md": "350a3bc192b5da02bb022a04609db7ccb2209d06a955c7033794a9b6d122739b",
   "tool/send_to_machine.prompt.md": "6eecd13a708cbd8330ad280b577f9b96ffd8e21266ce70477ddde45afdb1c152",

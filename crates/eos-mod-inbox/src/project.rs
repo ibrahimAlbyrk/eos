@@ -64,6 +64,7 @@ fn permission(tx: &dyn Tx, ask: &PendingPermission) -> Result<Option<Entry>, Err
         expires_at: None,
         created_at: ask.created_at,
         updated_at: ask.created_at,
+        view: None,
     };
     Ok(Some(Entry { rank: order_rank(state, attention), item }))
 }
@@ -86,6 +87,7 @@ fn suggestion(memory: &UserMemory) -> Entry {
         expires_at: None,
         created_at: ms(memory.created_at.0),
         updated_at: ms(memory.updated_at.0),
+        view: None,
     };
     Entry { rank: order_rank(state, attention), item }
 }

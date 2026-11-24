@@ -14,7 +14,7 @@ use eos_runtime::module::Module;
 use eos_runtime::router::{AllPluginsOn, BoxFuture};
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_surface::{Field, IssueKind, IssueStatus, Level, MadeBy, Place, Role, Type, VersionStatus};
-use eos_testkit::{FakeActionGate, FakeClock, FakeSettings, SeqIds, TempStore};
+use eos_testkit::{FakeActionGate, FakeClock, FakeSettings, FakeViewCards, SeqIds, TempStore};
 use serde_json::{Value, json};
 
 pub(crate) struct Rig {
@@ -24,6 +24,7 @@ pub(crate) struct Rig {
     pub(crate) settings: Arc<FakeSettings>,
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) gate: Arc<FakeActionGate>,
+    pub(crate) cards: Arc<FakeViewCards>,
     /// Every call the test's actions heard, in order.
     pub(crate) heard: Arc<Mutex<Vec<ActionCall>>>,
 }
@@ -78,6 +79,7 @@ impl Rig {
         let clock = Arc::new(FakeClock::at(5_000));
         let gate = Arc::new(FakeActionGate::new(ActionDecision::Run));
         let heard = Arc::new(Mutex::new(Vec::new()));
+        let cards = Arc::new(FakeViewCards::new().hearing("The user answered: Ship it"));
         let module = Arc::new(SurfacesModule::new(SurfacesParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -85,12 +87,13 @@ impl Rig {
             settings: settings.clone(),
             actions: kernel.actions.clone(),
             gate: gate.clone(),
+            cards: cards.clone(),
         }));
         let probe = Arc::new(ProbeModule(heard.clone()));
         let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, heard }
+        Self { runtime, module, temp, settings, clock, gate, cards, heard }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
