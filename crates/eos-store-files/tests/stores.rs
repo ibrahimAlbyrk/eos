@@ -308,3 +308,33 @@ mod surface_images {
         assert!(images.read("sf-1", &dropped.hash, None).await.expect("reads").is_none());
     }
 }
+
+mod app_files {
+    use std::fs;
+
+    use eos_core::surface::AppFiles;
+    use eos_store_files::app_files::FsAppFiles;
+
+    #[tokio::test]
+    async fn an_app_reaches_only_files_below_its_root() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let (root, outside) = (dir.path().join("project"), dir.path().join("secret"));
+        fs::create_dir_all(root.join("levels")).expect("levels");
+        fs::create_dir_all(&outside).expect("outside");
+        fs::write(outside.join("key.txt"), "secret").expect("key");
+        fs::write(root.join("levels/one.json"), "{}").expect("level");
+        std::os::unix::fs::symlink(&outside, root.join("levels/out")).expect("link");
+        let files = FsAppFiles;
+
+        assert_eq!(files.list(&root, 100).await.expect("list"), vec!["levels/one.json".to_owned()]);
+        assert_eq!(files.read(&root, "levels/one.json", 1024).await.expect("read"), Some(b"{}".to_vec()));
+        assert!(files.read(&root, "levels/out/key.txt", 1024).await.is_err(), "a link out of the root was followed");
+        assert!(files.write(&root, "levels/out/new.txt", b"x".to_vec()).await.is_err());
+        assert!(!outside.join("new.txt").exists());
+        assert!(files.read(&root, "levels/one.json", 1).await.is_err(), "a file over the limit was read");
+        assert_eq!(files.read(&root, "levels/two.json", 1024).await.expect("missing"), None);
+
+        files.write(&root, "levels/deep/two.json", b"[1]".to_vec()).await.expect("write");
+        assert_eq!(fs::read(root.join("levels/deep/two.json")).expect("written"), b"[1]");
+    }
+}

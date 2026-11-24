@@ -51,6 +51,17 @@ impl std::fmt::Debug for Dispatcher {
     }
 }
 
+/// An App's call of one of its manifest's actions.
+pub(crate) struct AppPress {
+    pub(crate) surface_id: String,
+    pub(crate) routine_id: String,
+    pub(crate) action_id: String,
+    pub(crate) args: Value,
+    pub(crate) client_id: String,
+    pub(crate) confirm: Option<String>,
+    pub(crate) typed: Option<String>,
+}
+
 /// A press the core could make sense of: the action and its typed arguments.
 struct Resolved {
     decl: ActionDecl,
@@ -338,6 +349,45 @@ impl Dispatcher {
             Ok(resolved) => resolved,
             Err(why) => return Ok(refused(why)),
         };
+        self.decide(&req, resolved, origin).await
+    }
+
+    /// A call of an App's declared action: its arguments come from the App
+    /// and are typed against the action's argument type; then the same
+    /// limit, gate, handler and record as a press. Its client ids are the
+    /// App's own, so no App answers with another's record.
+    pub(crate) async fn run_app(&self, call: AppPress) -> Result<ActionAnswer, Error> {
+        let req = ActionRunRequest {
+            issue_id: None,
+            button: None,
+            action_id: Some(call.action_id.clone()),
+            index: None,
+            item_id: None,
+            state: None,
+            client_id: format!("app:{}:{}", call.surface_id, call.client_id),
+            confirm: call.confirm,
+            typed: call.typed,
+        };
+        let client = req.client_id.clone();
+        if let Some(first) = self.parts.store.read(move |tx| tx.action_log().by_client(&client)).await? {
+            if first.status == "confirming" {
+                return self.confirmed(first, &req).await;
+            }
+            return Ok(answer_of(&first));
+        }
+        let Some(decl) = self.decl(&call.action_id) else { return Ok(refused("That action does not exist")) };
+        let resolved = Resolved {
+            decl,
+            args: call.args,
+            surface_id: Some(call.surface_id),
+            issue_id: None,
+            routine_id: Some(call.routine_id),
+            answers: None,
+        };
+        self.decide(&req, resolved, "app").await
+    }
+
+    async fn decide(&self, req: &ActionRunRequest, resolved: Resolved, origin: &str) -> Result<ActionAnswer, Error> {
         let checked = validate(&resolved.decl.args, &resolved.args);
         if !checked.is_ok() {
             return Ok(refused(format!("The arguments do not fit: {}", format_problems(&checked.problems))));
@@ -354,11 +404,11 @@ impl Dispatcher {
         let store = self.parts.store.as_ref();
         match decision {
             ActionDecision::Run => {
-                let record = records::insert(store, self.record(&req, &resolved, origin, "run", "running")).await?;
+                let record = records::insert(store, self.record(req, &resolved, origin, "run", "running")).await?;
                 self.execute_answering(&resolved.decl, record, resolved.answers.as_ref()).await
             }
             ActionDecision::Confirm { prompt } => {
-                let mut record = self.record(&req, &resolved, origin, "confirm", "confirming");
+                let mut record = self.record(req, &resolved, origin, "confirm", "confirming");
                 record.result_json = Some(json!({ "prompt": prompt }).to_string());
                 let record = records::insert(store, record).await?;
                 let token = self.token_for(&record.id, self.parts.clock.now_ms());
@@ -366,7 +416,7 @@ impl Dispatcher {
                 Ok(ActionAnswer::Confirm { record_id: record.id, token, prompt, type_to_confirm })
             }
             ActionDecision::Hold { item_id } => {
-                let mut record = self.record(&req, &resolved, origin, "hold", "held");
+                let mut record = self.record(req, &resolved, origin, "hold", "held");
                 record.result_json = Some(json!({ "itemId": item_id }).to_string());
                 record.finished_at = Some(record.created_at);
                 let record = records::insert(store, record).await?;
@@ -374,7 +424,7 @@ impl Dispatcher {
                 Ok(ActionAnswer::Held { record_id: record.id, item_id })
             }
             ActionDecision::Refuse { reason: why } => {
-                let mut record = self.record(&req, &resolved, origin, "refuse", "refused");
+                let mut record = self.record(req, &resolved, origin, "refuse", "refused");
                 record.result_json = reason(&why);
                 record.finished_at = Some(record.created_at);
                 let record = records::insert(store, record).await?;

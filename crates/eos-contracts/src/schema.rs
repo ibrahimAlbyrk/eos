@@ -677,6 +677,8 @@ bundle![
     SubscriptionState,
     SuggestionChoice,
     SurfaceIssue,
+    AppCallAnswer,
+    AppCallRequest,
     SurfaceIssueList,
     SurfaceIssueRow,
     SurfaceList,

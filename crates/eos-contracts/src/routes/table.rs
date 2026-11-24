@@ -438,6 +438,7 @@ pub const SURFACE_ISSUE_PART: Route =
     Route::new("surfaceIssuePart", "/api/surfaces/:id/issues/:issueId/parts/:part", &[Get]).added();
 pub const SURFACE_QUERY: Route = Route::new("surfaceQuery", "/api/surfaces/:id/queries/:queryId", &[Get]).added();
 pub const SURFACE_STATE: Route = Route::new("surfaceState", "/api/surfaces/:id/state", &[Get, Put]).added();
+pub const SURFACE_APP_CALL: Route = Route::new("surfaceAppCall", "/api/surfaces/:id/app/call", &[Post]).added();
 pub const SETTINGS_SURFACES: Route = Route::new("settingsSurfaces", "/api/settings/surfaces", &[Get, Put]).added();
 pub const ACTIONS: Route = Route::new("actions", "/api/actions", &[Get]).added();
 pub const ACTIONS_RUN: Route = Route::new("actionsRun", "/api/actions/run", &[Post]).added();
@@ -834,6 +835,7 @@ pub const ROUTES: &[Route] = &[
     SURFACE_ISSUE_PART,
     SURFACE_QUERY,
     SURFACE_STATE,
+    SURFACE_APP_CALL,
     SETTINGS_SURFACES,
     ACTIONS,
     ACTIONS_RUN,

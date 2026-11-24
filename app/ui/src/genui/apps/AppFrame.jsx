@@ -9,7 +9,7 @@ import { usePageScope } from "../../views/pages/usePageScope.js";
 import { APP_ALLOW, APP_CSP, APP_SANDBOX, buildSrcdoc } from "./srcdoc.js";
 import {
   DEFAULT_APP_HEIGHT, RPC_ERRORS, buildHostContext, clampInlineHeight,
-  routeAppMessage, rpcError, rpcNotification, rpcResult,
+  recentCalls, routeAppMessage, rpcError, rpcNotification, rpcResult, toolResult,
 } from "./bridge.js";
 import { isAlwaysSend, setAlwaysSend } from "./trust.js";
 import { appPageBody } from "./pageExport.js";
@@ -26,7 +26,9 @@ import "./apps.css";
 // summary, onSend(text). Optional: onOpenLink(url) and onOpenPanel() override
 // the defaults (Eos browser panel / the view's side-panel tab); project (the
 // chat's folder, where "Save as page" files the page — else derived from live);
-// mode "inline" | "panel"; pending (still being written — no frame yet).
+// mode "inline" | "panel"; pending (still being written — no frame yet);
+// onCall(name, args) relays an App surface's tools/call to the core and
+// resolves to its result (a chat's App has none: tools/call is not found).
 
 const svg = (children, size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
@@ -40,13 +42,13 @@ const SHRINK = svg(<><polyline points="4 14 10 14 10 20" /><polyline points="20 
 const errText = (e) => (e instanceof Error ? e.message : String(e));
 
 function freshBridge() {
-  return { lastMessageAt: -Infinity, lastLinkAt: -Infinity, awaiting: null, initialized: false };
+  return { lastMessageAt: -Infinity, lastLinkAt: -Infinity, awaiting: null, initialized: false, callTimes: [], inFlight: 0 };
 }
 
 // A new window in the frame: its handshake and pending question start over;
 // the rate clocks carry on, so reloading can't reset them.
 function restarted(b) {
-  return { ...freshBridge(), lastMessageAt: b.lastMessageAt, lastLinkAt: b.lastLinkAt };
+  return { ...freshBridge(), lastMessageAt: b.lastMessageAt, lastLinkAt: b.lastLinkAt, callTimes: b.callTimes };
 }
 
 // The app's declared height (a number, or a numeric string from a loose
@@ -61,7 +63,7 @@ function declaredHeight(height) {
 }
 
 export function AppFrame({
-  viewId, title, html, height, summary, onSend,
+  viewId, title, html, height, summary, onSend, onCall,
   onOpenLink, onOpenPanel, live = null, project = null, mode = "inline", pending = false,
 }) {
   const ui = useUi();
@@ -114,7 +116,7 @@ export function AppFrame({
 
   // The long-lived listener reads the current render through this ref.
   const latest = useRef(null);
-  latest.current = { onSend, openLink, always, hostContext };
+  latest.current = { onSend, onCall, openLink, always, hostContext };
 
   // Hand the text to the agent and answer the app's ui/message once it is
   // through. onSend may be sync, return a promise, or resolve to the API
@@ -131,6 +133,21 @@ export function AppFrame({
       (r) => (r && typeof r === "object" && r.ok === false ? fail(r.body?.error ?? `status ${r.status ?? "unknown"}`) : post(rpcResult(id))),
       (e) => fail(errText(e)),
     );
+  }, [post]);
+
+  // The core answers the call (it holds the App to its manifest); the App
+  // reads the answer, or the reason it was refused, as JSON-RPC.
+  const relay = useCallback((b, { id, name, arguments: args }) => {
+    b.inFlight += 1;
+    let answered;
+    try {
+      answered = Promise.resolve(latest.current.onCall(name, args));
+    } catch (e) {
+      answered = Promise.reject(e);
+    }
+    answered
+      .then((value) => post(rpcResult(id, toolResult(value))), (e) => post(rpcError(id, RPC_ERRORS.denied, errText(e))))
+      .finally(() => { b.inFlight = Math.max(0, b.inFlight - 1); });
   }, [post]);
 
   useEffect(() => {
@@ -161,8 +178,12 @@ export function AppFrame({
         awaitingUser: b.awaiting != null,
         alwaysSend: l.always,
         canSend: typeof l.onSend === "function",
+        canCall: typeof l.onCall === "function",
+        callTimes: b.callTimes,
+        inFlight: b.inFlight,
         hostContext: l.hostContext,
       });
+      if (effect.stamp === "call") b.callTimes = [...recentCalls(b.callTimes, now), now];
       if (effect.stamp === "message") b.lastMessageAt = now;
       if (effect.stamp === "link") b.lastLinkAt = now;
       switch (effect.type) {
@@ -181,6 +202,9 @@ export function AppFrame({
         case "send":
           deliver(effect.id, effect.text);
           break;
+        case "call":
+          relay(b, effect);
+          break;
         case "confirm":
           b.awaiting = effect.id;
           setAsk({ id: effect.id, text: effect.text, kind: "send" });
@@ -195,7 +219,7 @@ export function AppFrame({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [post, deliver]);
+  }, [post, deliver, relay]);
 
   // Tell a running app when it moves between inline, the panel and fullscreen.
   useEffect(() => {

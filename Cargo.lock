@@ -2552,6 +2552,7 @@ dependencies = [
  "eos-domain",
  "eos-genui",
  "eos-runtime",
+ "eos-store-files",
  "eos-surface",
  "eos-testkit",
  "serde",

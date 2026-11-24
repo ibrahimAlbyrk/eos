@@ -124,6 +124,22 @@ export function pressedRow(data, item) {
 // part it sits in): the core's answer
 // { status: done | confirm | held | refused, … }, or refused with the reason
 // when the core turned the request away.
+// One tools/call of an App in use, relayed to the core, which holds it to the
+// App's manifest. Resolves to the call's result; rejects with the reason the
+// App reads as its JSON-RPC error.
+export async function callSurfaceApp({ surfaceId, version, name, arguments: args, clientId, confirm, typed }) {
+  const body = {
+    version, name, arguments: args ?? {},
+    ...(clientId ? { clientId } : {}),
+    ...(confirm ? { confirm } : {}),
+    ...(typed ? { typed } : {}),
+  };
+  const r = await transport.send("POST", ROUTES.surfaceAppCall(surfaceId), body);
+  if (r.ok) return r.body?.result ?? null;
+  if (isDevRunRefusal(r)) throw new Error("This is a dev run: an App calls nothing from here.");
+  throw new Error(r.body?.error ?? `The App's call failed (${r.status}).`);
+}
+
 export async function runSurfaceAction({ issueId, actionId, button, state: input, clientId, confirm, typed, itemId, index }) {
   const body = {
     issueId, clientId,

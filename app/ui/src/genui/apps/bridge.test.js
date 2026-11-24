@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  INLINE_MAX_HEIGHT, INLINE_MIN_HEIGHT, LINK_INTERVAL_MS, MAX_MESSAGE_CHARS, MESSAGE_INTERVAL_MS, RPC_ERRORS,
-  allowedLink, buildHostContext, clampInlineHeight, messageText, readRpc, routeAppMessage,
+  CALLS_IN_FLIGHT, CALLS_PER_SECOND, INLINE_MAX_HEIGHT, INLINE_MIN_HEIGHT, LINK_INTERVAL_MS, MAX_MESSAGE_CHARS, MESSAGE_INTERVAL_MS, RPC_ERRORS,
+  allowedLink, buildHostContext, clampInlineHeight, messageText, readRpc, routeAppMessage, toolResult,
 } from "./bridge.js";
 import { isAlwaysSend, setAlwaysSend } from "./trust.js";
 import { appPageBody, fenceFor } from "./pageExport.js";
@@ -201,5 +201,48 @@ describe("Save as page", () => {
     const tricky = "<pre>```js\nx\n```</pre>";
     expect(fenceFor(tricky)).toBe("````");
     expect(appPageBody({ summary: "", html: tricky })).toBe("````html\n<pre>```js\nx\n```</pre>\n````\n");
+  });
+});
+
+describe("tools/call", () => {
+  const call = (name, args, id = 9) => req("tools/call", { name, arguments: args }, id);
+
+  it("is not found where the frame cannot call, as in a chat", () => {
+    const out = routeAppMessage(ev(call("state.get", {})), ctx());
+    expect(out.message.error.code).toBe(RPC_ERRORS.methodNotFound);
+  });
+
+  it("goes to the core with its name and arguments, which the core checks", () => {
+    const out = routeAppMessage(ev(call("routine.run_again", { why: "x" })), ctx({ canCall: true }));
+    expect(out).toEqual({ type: "call", id: 9, name: "routine.run_again", arguments: { why: "x" }, stamp: "call" });
+    expect(routeAppMessage(ev(req("tools/call", { name: "state.get" })), ctx({ canCall: true })).arguments).toEqual({});
+  });
+
+  it("tells the App it may call tools only where it can", () => {
+    const at = (over) => routeAppMessage(ev(req("ui/initialize", {}, 1)), ctx(over)).message.result.hostCapabilities;
+    expect(at({ canCall: true }).serverTools).toEqual({});
+    expect(at({}).serverTools).toBeUndefined();
+  });
+
+  it("refuses a call without a name or with arguments that are no object", () => {
+    for (const params of [{}, { name: "" }, { name: 3 }, { name: "x".repeat(201) }, { name: "state.set", arguments: [1] }]) {
+      const out = routeAppMessage(ev(req("tools/call", params)), ctx({ canCall: true }));
+      expect(out.message.error.code).toBe(RPC_ERRORS.invalidParams);
+    }
+  });
+
+  it("holds the App to ten calls a second and sixteen at once", () => {
+    const now = 100_000;
+    const busy = Array.from({ length: CALLS_PER_SECOND }, (_, n) => now - n * 10);
+    const tooFast = routeAppMessage(ev(call("state.get", {})), ctx({ canCall: true, callTimes: busy }));
+    expect(tooFast.message.error.code).toBe(RPC_ERRORS.denied);
+    const later = routeAppMessage(ev(call("state.get", {})), ctx({ canCall: true, callTimes: busy.map((t) => t - 1000) }));
+    expect(later.type).toBe("call");
+    const waiting = routeAppMessage(ev(call("state.get", {})), ctx({ canCall: true, inFlight: CALLS_IN_FLIGHT }));
+    expect(waiting.message.error.message).toMatch(/at once/);
+  });
+
+  it("answers as MCP's tool result", () => {
+    expect(toolResult({ count: 2 })).toEqual({ content: [{ type: "text", text: '{"count":2}' }], structuredContent: { count: 2 } });
   });
 });
