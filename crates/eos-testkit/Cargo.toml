@@ -21,6 +21,7 @@ eos-mail-app.workspace = true
 eos-platform.workspace = true
 eos-relay.workspace = true
 eos-runtime.workspace = true
+eos-slack.workspace = true
 flate2.workspace = true
 futures-util.workspace = true
 eos-store-files.workspace = true

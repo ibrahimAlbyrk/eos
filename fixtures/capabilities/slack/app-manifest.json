@@ -1,0 +1,40 @@
+{
+  "_metadata": {
+    "major_version": 1,
+    "minor_version": 1
+  },
+  "display_information": {
+    "name": "Eos",
+    "description": "Your routines read your conversations and post what you send, as you.",
+    "long_description": "Eos runs routines on your Mac. With Slack connected, a routine can read the channels and direct messages you choose, start when a new message arrives or someone mentions you, and draft a message that goes out under your name only after you press Send, or on its own once you let it. Eos has no server: your Mac talks to Slack directly, and your sign-in stays in your Mac's keychain.",
+    "background_color": "#0e0f13"
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "eos://sign-in/slack"
+    ],
+    "scopes": {
+      "user": [
+        "chat:write",
+        "im:write",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "users:read",
+        "users:read.email",
+        "search:read"
+      ]
+    },
+    "pkce_enabled": true
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": true
+  }
+}

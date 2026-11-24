@@ -76,6 +76,8 @@ pub enum StateCode {
     OutputSchema,
     /// What a routine's source reads is gone (a deleted repository).
     SourceGone,
+    /// The sign-in lacks a permission Eos asks for: the user signs in again.
+    ScopeMissing,
 }
 
 impl StateCode {
@@ -92,6 +94,7 @@ impl StateCode {
             StateCode::HealthFailed => "health_failed".to_owned(),
             StateCode::OutputSchema => "output_schema".to_owned(),
             StateCode::SourceGone => "source_gone".to_owned(),
+            StateCode::ScopeMissing => "scope_missing".to_owned(),
         }
     }
 
@@ -111,6 +114,7 @@ impl StateCode {
             StateCode::HealthFailed,
             StateCode::OutputSchema,
             StateCode::SourceGone,
+            StateCode::ScopeMissing,
         ]
         .into_iter()
         .find(|code| code.as_string() == text)
@@ -133,6 +137,8 @@ pub enum Event {
     CheckFailed,
     /// The service refused the sign-in (401, a revoked token).
     Unauthorized,
+    /// The sign-in works but lacks a permission Eos asks for.
+    ScopeMissing,
     /// A step the user takes is missing: one of the setup codes
     /// (`secret_missing`, `client_id_missing`, `automation_denied`,
     /// `program_missing`, `source_gone`).
@@ -190,6 +196,7 @@ impl Health {
             Event::CheckFailed => self.failed(StateCode::HealthFailed, true),
             Event::BadOutput => self.failed(StateCode::OutputSchema, false),
             Event::Unauthorized => set(HealthState::NeedsSignIn, Some(StateCode::Http401)),
+            Event::ScopeMissing => set(HealthState::NeedsSignIn, Some(StateCode::ScopeMissing)),
             Event::Missing(code) => set(HealthState::NeedsSetup, Some(code)),
             Event::HashMismatch => set(HealthState::Broken, Some(StateCode::HashMismatch)),
             Event::SandboxUnavailable => set(HealthState::Broken, Some(StateCode::SandboxUnavailable)),

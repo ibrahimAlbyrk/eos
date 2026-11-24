@@ -11,7 +11,7 @@ use eos_domain::capability::manifest::Manifest;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
-use super::{ActionError, DeviceSignIn};
+use super::{ActionError, BrowserSignIn, DeviceSignIn};
 use crate::{BoxFuture, Error};
 
 /// The most capabilities installed besides the built-ins.
@@ -108,6 +108,11 @@ pub trait BuiltinCapability: Send + Sync {
     /// How the user signs in to it with a code on the service's own page;
     /// `None` when it does not sign in that way.
     fn device_sign_in(&self) -> Option<&dyn DeviceSignIn> {
+        None
+    }
+    /// How the user signs in to it in the browser; `None` when it does not
+    /// sign in that way.
+    fn browser_sign_in(&self) -> Option<&dyn BrowserSignIn> {
         None
     }
 }

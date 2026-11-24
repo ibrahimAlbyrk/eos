@@ -96,6 +96,7 @@ mod runs;
 pub mod samples;
 mod secrets;
 mod signals;
+mod slack;
 mod surface;
 mod terminal;
 mod tools;
@@ -146,6 +147,7 @@ pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
 pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunOutcomes, FakeRunStarter, OutcomeCall};
 pub use secrets::FakeCapabilitySecrets;
 pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
+pub use slack::{FakeSlack, SLACK_CODE, SLACK_TEAM, SLACK_USER, SlackCall};
 pub use surface::{FakeSurfaceAuthoring, FakeViewCards, SurfaceCall};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
