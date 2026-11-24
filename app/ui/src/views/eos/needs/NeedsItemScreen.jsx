@@ -5,6 +5,7 @@ import {
   discardInboxItem, ensureInboxLoaded, laterInboxItem, loadInboxItem, useInbox,
 } from "../../../state/eos/inboxStore.js";
 import { loadRun } from "../../../state/eos/runsStore.js";
+import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -12,6 +13,7 @@ import { actionsOf, cardOf } from "./cards/index.js";
 import { followReplacement } from "./cards/DraftCard.jsx";
 import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
+import { ItemView } from "./SurfaceCard.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
 import { closedLine, isShownOnly } from "./words.js";
@@ -44,6 +46,8 @@ function Closed({ detail, refused }) {
 export function NeedsItemScreen({ id }) {
   const { list, details, failed, refused, devRun, offline } = useInbox();
   const [values, setValues] = useState({});
+  const routines = useRoutines().list;
+  const nameOf = (routineId) => routines?.find((r) => r.id === routineId)?.name;
   const detail = details[id];
   const runId = detail?.item.runId;
   useEffect(() => {
@@ -59,7 +63,8 @@ export function NeedsItemScreen({ id }) {
     if (to) openLocation(itemLocation(to.id));
   };
   const open = Boolean(detail) && WAITING.has(detail.item.state) && !refused[id];
-  const actions = open ? actionsOf(detail, values) : [];
+  // A View's own buttons answer it; only Later and Discard sit beside them.
+  const actions = open && !detail.item.view ? actionsOf(detail, values) : [];
   const setValue = (key, value) => setValues((v) => ({ ...v, [key]: value }));
   const doing = async (action) => {
     if (await action.run(detail, values, setValue)) openLocation(after(order, at));
@@ -110,7 +115,9 @@ export function NeedsItemScreen({ id }) {
           <div className="eos-needs-item__columns">
             <div className="eos-needs-item__main">
               {!open && <Closed detail={detail} refused={refused[id]} />}
-              <Body detail={detail} values={values} setValue={setValue} />
+              {detail.item.view
+                ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} />
+                : <Body detail={detail} values={values} setValue={setValue} />}
               {open && (
                 <div className="eos-actions eos-needs-item__actions">
                   {actions.map((a) => (

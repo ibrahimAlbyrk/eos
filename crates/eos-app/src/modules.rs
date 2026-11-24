@@ -263,6 +263,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             zone: Arc::new(crate::host::HostTimeZone),
             control: routines.control(),
         })),
+        cards: Arc::new(cx.run_questions.clone()),
     }));
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =

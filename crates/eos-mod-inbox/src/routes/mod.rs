@@ -48,6 +48,9 @@ fn row(item: &StoredItem) -> InboxItem {
         expires_at: item.expires_at,
         created_at: item.created_at,
         updated_at: item.updated_at,
+        view: serde_json::from_str::<Value>(&item.payload)
+            .ok()
+            .and_then(|payload| serde_json::from_value(payload["view"].clone()).ok()),
     }
 }
 

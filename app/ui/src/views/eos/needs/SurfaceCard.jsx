@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ViewSurface } from "../../../genui/ViewBlock.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { notify } from "../../../lib/notify.js";
 import { refreshInbox } from "../../../state/eos/inboxStore.js";
-import { pressId, runSurfaceAction } from "../../../state/eos/surfacesStore.js";
+import { loadItemView, pressId, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { EosFrame } from "../surface/EosFrame.jsx";
 
 // A routine's View in Needs you, a choice or a form (05, 08 §4.9): drawn in
@@ -40,6 +40,14 @@ export function SurfaceCard({ card, routineName }) {
       </GenuiHostContext.Provider>
     </EosFrame>
   );
+}
+
+// The View a Needs-you item shows (a card, or a question whose press answers
+// its run), drawn once its issue is read.
+export function ItemView({ item, routineName }) {
+  const card = useSurfaces().byIssue[item.view.issueId];
+  useEffect(() => { void loadItemView(item.view); }, [item.view]);
+  return card ? <SurfaceCard card={card} routineName={routineName} /> : null;
 }
 
 // Whether what the user typed is the name an action that cannot be taken

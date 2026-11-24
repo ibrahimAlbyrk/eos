@@ -1,7 +1,8 @@
 //! A run worker's questions wait in Needs you and their answer reaches the
 //! asker; a chat's take the path they always took; an interrupted asker
 //! takes its item back, except while the app shuts down; one taken away by
-//! anything else wakes its asker.
+//! anything else wakes its asker. A returned View waits as a card or as a
+//! question its run waits on, answered by the user's press.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -180,4 +181,58 @@ async fn a_question_withdrawn_by_anything_but_its_asker_wakes_the_asker() {
     let heard = asker.await.expect("the asker ends").expect("an answer");
     assert_eq!(heard.get("Which branch?"), Some(&Value::String(eos_inbox::WITHDRAWN.into())));
     assert_eq!(asking.rig.find(&item.id).await.state, ItemState::Withdrawn, "not answered");
+}
+
+fn card(question: bool) -> eos_core::surface::ViewCard {
+    eos_core::surface::ViewCard {
+        routine_id: "rt-1".into(),
+        run_id: "rn-1".into(),
+        surface_id: "sf-1".into(),
+        issue_id: "si-1".into(),
+        question,
+        title: "Ship the release?".into(),
+        summary: "Two fixes are ready.".into(),
+        by_hand: false,
+    }
+}
+
+async fn open_card(asking: &Asking, question: bool) -> StoredItem {
+    use eos_core::surface::ViewCards;
+    let questions = asking.questions.clone();
+    let id = asking
+        .rig
+        .temp
+        .port()
+        .write(move |tx, out| questions.open_in(tx, out, 1_000_000, &card(question)))
+        .await
+        .expect("opens");
+    asking.rig.find(&id).await
+}
+
+#[tokio::test]
+async fn a_returned_view_is_a_card_to_put_aside_or_a_question_its_run_hears_the_press_of() {
+    use eos_core::surface::ViewCards;
+    let asking = Asking::new().with_run();
+    let shown = open_card(&asking, false).await;
+    assert_eq!((shown.kind, shown.attention.as_str()), (ItemKind::Notice, "digest"));
+    let payload: Value = serde_json::from_str(&shown.payload).expect("json");
+    assert_eq!(payload["view"], json!({"surfaceId": "sf-1", "issueId": "si-1"}));
+    asking.rig.items.later(&shown.id, None).await.expect("put aside");
+    let newer = open_card(&asking, false).await;
+    asking.state_becomes(&shown.id, ItemState::Replaced).await;
+    assert_ne!(newer.id, shown.id, "a newer View of the surface takes the card's place");
+
+    let asked = open_card(&asking, true).await;
+    assert_eq!(
+        (asked.kind, asked.attention.as_str(), asked.producer.as_str()),
+        (ItemKind::Question, "interrupt", "routines")
+    );
+    let (questions, id) = (asking.questions.clone(), asked.id.clone());
+    let waiter = tokio::spawn(async move { questions.heard(&id).await });
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    asking.questions.answer(&asked.id, "Ship it (note: today)").await.expect("answers");
+    assert_eq!(waiter.await.expect("hears"), "The user answered: Ship it (note: today)");
+    let answered = asking.rig.find(&asked.id).await;
+    assert_eq!(answered.state, ItemState::Answered);
+    assert!(answered.consumed_at.is_some(), "its run heard it: the routines need not tell it again");
 }

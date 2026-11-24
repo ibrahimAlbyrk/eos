@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use eos_contracts::{ActionAnswer, ActionClass, ActionRunRequest};
 use eos_core::inbox::{ActionDecision, ActionGate, ActionRequest};
 use eos_core::store::{Store, StoredActionRecord};
-use eos_core::surface::DirectActions;
+use eos_core::surface::{DirectActions, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
 use eos_runtime::actions::{ActionCall, ActionDecl, ActionScope, Actions};
 use eos_surface::limits::{ACTIONS_PER_SECOND, CONFIRM_TOKEN_MS};
@@ -29,6 +29,7 @@ pub(crate) struct DispatchParts {
     /// The registry, filled once the app is built.
     pub(crate) actions: Actions,
     pub(crate) gate: Arc<dyn ActionGate>,
+    pub(crate) cards: Arc<dyn ViewCards>,
 }
 
 impl std::fmt::Debug for DispatchParts {
@@ -56,10 +57,28 @@ struct Resolved {
     surface_id: Option<String>,
     issue_id: Option<String>,
     routine_id: Option<String>,
+    /// A question View's item, and what the press says, which answers it.
+    answers: Option<(String, String)>,
 }
 
 fn refused(reason: impl Into<String>) -> ActionAnswer {
     ActionAnswer::Refused { record_id: None, reason: reason.into() }
+}
+
+/// What a press of `action_id` says, as the asking run reads it: the
+/// button's label and what the user typed or picked.
+fn pressed(body: &Value, action_id: &str, state: &Value) -> String {
+    let label = body["view"]["actions"][action_id]["label"].as_str().unwrap_or(action_id);
+    let picked: Vec<String> = state
+        .as_object()
+        .into_iter()
+        .flatten()
+        .map(|(key, value)| match value {
+            Value::String(text) => format!("{key}: {text}"),
+            other => format!("{key}: {other}"),
+        })
+        .collect();
+    if picked.is_empty() { label.to_owned() } else { format!("{label} ({})", picked.join(", ")) }
 }
 
 /// The name the user types to confirm `decl`: only one that cannot be taken back asks for it.
@@ -90,7 +109,14 @@ impl Dispatcher {
             if decl.scope != ActionScope::Any {
                 return Ok(Err("That action runs only from its routine's surface".into()));
             }
-            return Ok(Ok(Resolved { decl, args: state, surface_id: None, issue_id: None, routine_id: None }));
+            return Ok(Ok(Resolved {
+                decl,
+                args: state,
+                surface_id: None,
+                issue_id: None,
+                routine_id: None,
+                answers: None,
+            }));
         };
         if req.button.is_some() {
             return Ok(Err("That issue has no such button".into()));
@@ -114,12 +140,18 @@ impl Dispatcher {
         let Some(decl) = self.decl(bound) else { return Ok(Err("That action does not exist".into())) };
         let template = binding["args"].as_object().cloned().unwrap_or_default();
         let args = fill_args(&template, &body["view"]["data"], &state);
+        let question = body["place"] == "question";
+        let answers = body["itemId"]
+            .as_str()
+            .filter(|_| question)
+            .map(|item| (item.to_owned(), pressed(&body, &action_id, &state)));
         Ok(Ok(Resolved {
             decl,
             args,
             surface_id: Some(surface.id),
             issue_id: Some(issue.id),
             routine_id: Some(surface.routine_id),
+            answers,
         }))
     }
 
@@ -173,6 +205,20 @@ impl Dispatcher {
             args: args.clone(),
             origin: origin.to_owned(),
         }
+    }
+
+    /// Runs the press, then answers the question View it was made on.
+    async fn execute_answering(
+        &self,
+        decl: &ActionDecl,
+        record: StoredActionRecord,
+        answers: Option<&(String, String)>,
+    ) -> Result<ActionAnswer, Error> {
+        let answer = self.execute(decl, record).await?;
+        if let (ActionAnswer::Done { .. }, Some((item_id, pressed))) = (&answer, answers) {
+            self.parts.cards.answer(item_id, pressed).await?;
+        }
+        Ok(answer)
     }
 
     /// Calls the handler with no lock held, then finishes the record.
@@ -237,7 +283,10 @@ impl Dispatcher {
         let args: Value = serde_json::from_str(&record.args_json).unwrap_or_default();
         let request = Self::gate_request(&decl, record.routine_id.as_deref(), &args, &record.origin);
         match self.parts.gate.decide(&request).await? {
-            ActionDecision::Run | ActionDecision::Confirm { .. } => self.execute(&decl, record).await,
+            ActionDecision::Run | ActionDecision::Confirm { .. } => {
+                let answers = self.resolve(req).await?.ok().and_then(|resolved| resolved.answers);
+                self.execute_answering(&decl, record, answers.as_ref()).await
+            }
             ActionDecision::Refuse { reason } => self.finish_refused(record, &reason).await,
             ActionDecision::Hold { .. } => self.finish_refused(record, "That action waits in Needs you").await,
         }
@@ -272,7 +321,7 @@ impl Dispatcher {
         match decision {
             ActionDecision::Run => {
                 let record = records::insert(store, self.record(&req, &resolved, origin, "run", "running")).await?;
-                self.execute(&resolved.decl, record).await
+                self.execute_answering(&resolved.decl, record, resolved.answers.as_ref()).await
             }
             ActionDecision::Confirm { prompt } => {
                 let mut record = self.record(&req, &resolved, origin, "confirm", "confirming");

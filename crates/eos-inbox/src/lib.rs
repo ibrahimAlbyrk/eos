@@ -73,6 +73,7 @@ mod routing;
 mod send;
 mod stale;
 mod sweep;
+mod views;
 
 use eos_contracts::InboxChange;
 use eos_core::store::{Outbox, StoredItem, Tx};

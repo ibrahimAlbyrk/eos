@@ -3,13 +3,12 @@ import { fmtTimeAgo } from "../../../lib/format.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { ensureInboxLoaded, laterInboxItem, loadLastAnswered, refreshInbox, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
-import { ensureSurfacesLoaded, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { AgentsWaitingLine } from "./AgentsWaitingLine.jsx";
 import { onControl, plainKey } from "./keys.js";
-import { SurfaceCard } from "./SurfaceCard.jsx";
+import { ItemView } from "./SurfaceCard.jsx";
 import { GROUPS, groupOf, isShownOnly, primaryAction } from "./words.js";
 
 export const itemLocation = (id) => `eos:/needs/${encodeURIComponent(id)}`;
@@ -67,21 +66,35 @@ function Row({ item, routineName, current }) {
   );
 }
 
+function ViewItem({ item, routineName }) {
+  return (
+    <div className="eos-needs-view">
+      <ItemView item={item} routineName={routineName} />
+      <span className="eos-actions eos-needs-view__aside">
+        <button type="button" className="eos-btn" onClick={() => void laterInboxItem(item.id)}>Later</button>
+      </span>
+    </div>
+  );
+}
+
+// An open item that shows a routine's View is drawn as that View.
+const drawnAsView = (item) => Boolean(item.view) && item.state === "open";
+
 // eos:/needs — everything that waits for the user, grouped; J and K move,
 // Enter opens.
 export function NeedsYouList() {
   const { list, listFailed, devRun, lastAnswered } = useInbox();
   const routines = useRoutines().list;
-  const cards = useSurfaces().cards ?? [];
   const current = useSyncExternalStore(subscribeCursor, cursorSnapshot, cursorSnapshot);
   useEffect(() => {
     ensureInboxLoaded();
     ensureRoutinesLoaded();
-    ensureSurfacesLoaded();
   }, []);
 
-  const items = list ? inListOrder(list.items) : [];
-  const empty = list !== null && items.length === 0 && cards.length === 0;
+  const all = list ? inListOrder(list.items) : [];
+  const views = all.filter(drawnAsView);
+  const items = all.filter((i) => !drawnAsView(i));
+  const empty = list !== null && all.length === 0;
   useEffect(() => { if (empty) void loadLastAnswered(); }, [empty]);
   const at = Math.max(0, items.findIndex((i) => i.id === current));
   const move = (by) => {
@@ -113,10 +126,10 @@ export function NeedsYouList() {
             {lastAnswered && <p className="eos-needs-last">Last: {lastAnswered.title}, {fmtTimeAgo(lastAnswered.updatedAt)}.</p>}
           </div>
         )}
-        {cards.length > 0 && (
+        {views.length > 0 && (
           <section className="eos-needs-group" aria-label="From your routines">
             <h2 className="eos-label">From your routines</h2>
-            {cards.map((card) => <SurfaceCard key={card.issue.id} card={card} routineName={nameOf(card.surface.routineId)} />)}
+            {views.map((item) => <ViewItem key={item.id} item={item} routineName={nameOf(item.routineId)} />)}
           </section>
         )}
         {GROUPS.map((g) => {

@@ -133,3 +133,39 @@ async fn a_view_that_is_not_one_or_binds_what_it_may_not_is_refused_with_every_p
         rig.temp.port().read(move |tx| tx.surface_issues().find(&issue_id)).await.expect("reads").expect("an issue");
     assert!(stored.trial && stored.seq.is_none(), "a trial's issue has no number");
 }
+
+#[tokio::test]
+async fn a_returned_view_waits_in_needs_you_and_a_question_hands_its_run_the_answer() {
+    let rig = Rig::new().await;
+    rig.run_worker("rt-1", "Morning mail", "rn-1", "standing", "w-lead");
+    author(&rig).create_for_routine("rt-1", "rv-1", "view").await.expect("made");
+    let tools = rig.module.tools();
+    let bound = || json!({"again": {"action": "probe.with", "args": {"item": "{data.lead.url}"}}});
+    let line = tools.return_view("w-lead", digest(bound())).await.expect("stored");
+    assert!(line.ends_with("· 1 bound action"), "a result View does not wait: {line}");
+    let card = &rig.cards.opened()[0];
+    assert_eq!(
+        (card.question, card.title.as_str(), card.summary.as_str()),
+        (false, "Overnight", "Three mails came in.")
+    );
+    assert_eq!((card.routine_id.as_str(), card.run_id.as_str()), ("rt-1", "rn-1"));
+    assert!(line.contains(&card.issue_id), "the card names its issue");
+
+    let asked = ReturnedView { place: "question".into(), ..digest(bound()) };
+    let line = tools.return_view("w-lead", asked).await.expect("answered");
+    assert!(line.ends_with("The user answered: Ship it"), "the run hears the answer: {line}");
+    let question = rig.cards.opened()[1].clone();
+    assert!(question.question);
+    let pressed = json!({"issueId": question.issue_id, "actionId": "again", "clientId": "c-q",
+                         "state": {"note": "today"}});
+    let (_, answer) = rig.ask(Method::Post, "/api/actions/run", Some(pressed)).await;
+    assert_eq!(answer["status"], "done");
+    assert_eq!(rig.cards.answered(), [("ny-view-2".to_owned(), "Run again (note: today)".to_owned())]);
+    let first = json!({"issueId": card.issue_id, "actionId": "again", "clientId": "c-r"});
+    rig.ask(Method::Post, "/api/actions/run", Some(first)).await;
+    assert_eq!(rig.cards.answered().len(), 1, "a press on a result View answers nothing");
+
+    rig.run_worker("rt-1", "Morning mail", "rn-2", "trial", "w-trial");
+    tools.return_view("w-trial", digest(bound())).await.expect("stored");
+    assert_eq!(rig.cards.opened().len(), 2, "a trial's View waits nowhere");
+}
