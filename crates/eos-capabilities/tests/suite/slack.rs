@@ -96,6 +96,18 @@ async fn too_long_a_text_is_refused_unsent_and_a_lost_answer_is_found_by_its_mar
 }
 
 #[tokio::test]
+async fn a_refused_post_says_it_was_not_allowed_not_that_a_delete_was() {
+    let (rig, fake, clock) = slack_rig().await;
+    let channel = rig.service.channels().get("slack").expect("a slack channel");
+    for (code, key) in [("not_in_channel", "dl-000000000007"), ("restricted_action", "dl-000000000008")] {
+        fake.refuse("chat.postMessage", code);
+        clock.advance(1_000);
+        let refused = channel.send(&request(key, Place::Address(CHANNEL.into()), message("Hi."))).await;
+        assert_eq!(refused.map(drop).map_err(|e| e.detail_kind), Err("not_allowed".into()), "{code}");
+    }
+}
+
+#[tokio::test]
 async fn both_slack_kinds_tell_their_shape_and_a_message_with_no_paragraph_fails_it() {
     let (rig, _, _) = slack_rig().await;
     for kind in ["slack.message", "slack.reply"] {
