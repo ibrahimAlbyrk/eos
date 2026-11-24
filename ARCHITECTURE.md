@@ -253,6 +253,11 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   links no crate of the app, no Tauri and no CEF — `serde_json` only. It swaps the staged
   bundle in and puts the old one back unless the new app writes `boot-ok` in time
   (`docs/first-rust-release.md`).
+- **The share extension is Swift of its own** (`host/share/`, shipped as
+  `Contents/PlugIns/EosShare.appex` in the installed identity's build only): sandboxed, as
+  every extension must be, with no UI. It opens shared files with its containing app by the
+  app's location, and text or a web address as that app's `send` link, so it hands nothing
+  to another build and adds no way in that the Dock and links do not already have.
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
   notifications, the work hold's App Nap activity, the launch's Apple Event, the Dock's
   number, the login item, the quick panel's window, the selection through Accessibility, the
