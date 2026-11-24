@@ -195,3 +195,45 @@ pub struct InlineImage {
 pub trait SurfaceRender: Send + Sync {
     fn mail_document<'a>(&'a self, issue_id: &'a str) -> BoxFuture<'a, Result<MailDocument, Error>>;
 }
+
+/// A page the probe loads: a URL on the raw origin held a minute, and the
+/// script it evaluates there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeDoc {
+    pub url: String,
+    pub script: String,
+}
+
+/// What the measuring script found at one width.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProbeFinding {
+    /// `readable`, `narrow` or `empty`.
+    pub check: String,
+    #[serde(default)]
+    pub part: Option<String>,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeWidth {
+    pub width: u16,
+    pub findings: Vec<ProbeFinding>,
+    /// A picture of the page at this width, for the designer to look at.
+    pub screenshot: Option<std::path::PathBuf>,
+}
+
+/// The shell's hidden view that lays a page out as the dashboard would
+/// (05 Q3): one page at a time, at each width, within its time limit.
+/// Without Eos's window it is not available, and a candidate waits.
+pub trait PageProbe: Send + Sync {
+    fn is_available(&self) -> bool;
+    /// Loads `doc` at each of `widths` and evaluates its script there;
+    /// each screenshot is written into `shots`.
+    fn measure<'a>(
+        &'a self,
+        doc: ProbeDoc,
+        widths: &'a [u16],
+        shots: &'a std::path::Path,
+    ) -> BoxFuture<'a, Result<Vec<ProbeWidth>, Error>>;
+}
