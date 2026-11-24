@@ -11,9 +11,11 @@ const pasteboardPaths = () => import("../../../lib/nativeBridge.js").then((m) =>
 // Paste and drop for the Home input: Finder paths come from the native
 // bridge, file bytes are uploaded through the core's paste route, a lone
 // link or a long text becomes a chip; short text is typed as usual. `cardRef`
-// is the element a drop lands on.
-export function useThingIntake(cardRef) {
-  const [things, setThings] = useState([]);
+// is the element a drop lands on. `given`: things a door outside Eos handed
+// in (the quick panel's held item); a new list replaces what is there.
+export function useThingIntake(cardRef, given = null) {
+  const [things, setThings] = useState(() => given ?? []);
+  useEffect(() => { if (given) setThings(given); }, [given]);
   const [dragging, setDragging] = useState(false);
   const next = useRef(0);
   const id = () => `th-${++next.current}`;

@@ -17,13 +17,15 @@ const sentenceOf = (text, attachments) => [text, ...attachments.map((a) => a.val
 // architect, or do it once. `act` answers whether it took the text; a
 // refusal stays on the line as `outcome` ({ repeat } with the earlier run,
 // { devRun }, { dayCap }, { offline } or { error }).
-export function useHomeActs(byId) {
+// `door`: where the input sits (`home`, or the outside door that opened the
+// quick panel).
+export function useHomeActs(byId, door = "home") {
   const [outcome, setOutcome] = useState(null);
   const requestId = useRef(null);
 
-  async function run(routine, form, { confirmRepeat = false, stoppable = false, door = "home" } = {}) {
+  async function run(routine, form, { confirmRepeat = false, stoppable = false, door: from = door } = {}) {
     if (confirmRepeat || !requestId.current) requestId.current = crypto.randomUUID();
-    const answer = await startRun(startBody(routine, optionsOf(routine), form, { door, clientRequestId: requestId.current, confirmRepeat }));
+    const answer = await startRun(startBody(routine, optionsOf(routine), form, { door: from, clientRequestId: requestId.current, confirmRepeat }));
     if (answer.runs) {
       requestId.current = null;
       setOutcome(null);
@@ -36,7 +38,7 @@ export function useHomeActs(byId) {
   }
 
   async function once(text, attachments) {
-    const answer = await startOnce({ text: text || "Do this", attachments, result: "usual", door: "home" });
+    const answer = await startOnce({ text: text || "Do this", attachments, result: "usual", door });
     if (!answer.started) {
       setOutcome(answer);
       return false;

@@ -49,6 +49,7 @@
 @import "./styles/eos-input.css";
 @import "./styles/eos-surface.css";
 @import "./views/eos/field/field.css";
+@import "./views/eos/quick/quick.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

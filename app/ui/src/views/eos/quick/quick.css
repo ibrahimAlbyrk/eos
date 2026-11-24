@@ -1,0 +1,22 @@
+/* ── The quick panel (RunOutside.dc.html): the Home input over another app ── */
+html.eos-quick-doc, html.eos-quick-doc body { background: transparent; }
+.eos-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+.eos-quick .eos-input { margin-top: 0; background: rgba(28, 28, 28, 0.96); }
+.eos-quick__offer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(28, 28, 28, 0.96);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08);
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+}
+.eos-quick__offer-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.eos-quick__offer-title { color: var(--fg-strong); }

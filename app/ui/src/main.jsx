@@ -48,6 +48,9 @@ withoutIterationListener(document.body);
 // the one plugin it is asked about (plugins/preview.jsx) — not the app.
 if (location.hash === "#plugin-preview") {
   void import("./plugins/preview.jsx").then((m) => m.startPluginPreview());
+} else if (new URLSearchParams(location.search).get("surface") === "quick") {
+  // The quick panel the doors on the Mac open: its own small document.
+  void whenDaemonUp().then(() => import("./views/eos/quick/start.jsx")).then((m) => m.startQuickPanel(rootEl));
 } else if (location.hash === "#eos-gallery") {
   // Eos's screens drawn from sample JSON, to check by eye; it never calls the core.
   void import("./views/eos/gallery/EosGallery.jsx").then((m) => m.startEosGallery(rootEl));
