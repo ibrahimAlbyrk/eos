@@ -30,8 +30,12 @@ export function useSurfaces() {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+// How far back the newest real issue is looked for: trials and issues not
+// ready yet come first in the list but are never the card.
+const ISSUES_LOOKED_AT = 20;
+
 async function newestIssue(surface) {
-  const list = await transport.get(`${ROUTES.surfaceIssues(surface.id)}?limit=1`);
+  const list = await transport.get(`${ROUTES.surfaceIssues(surface.id)}?limit=${ISSUES_LOOKED_AT}`);
   const row = list.ok ? list.body?.issues?.find((i) => i.status === "ready" && !i.trial) : null;
   if (!row) return null;
   const one = await transport.get(ROUTES.surfaceIssue(surface.id, row.id));

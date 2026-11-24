@@ -55,7 +55,7 @@ export const SAMPLE_READS = {
   [ROUTES.inbox]: inbox,
   ...Object.fromEntries(inboxItems.map((detail) => [ROUTES.inboxItem(detail.item.id), detail])),
   [`${ROUTES.surfaces}?place=needs_you`]: { surfaces: [surfaceSample.surface] },
-  [`${ROUTES.surfaceIssues(surfaceSample.surface.id)}?limit=1`]: { issues: [surfaceSample.issue], more: true },
+  [`${ROUTES.surfaceIssues(surfaceSample.surface.id)}?limit=20`]: { issues: [surfaceSample.issue], more: true },
   [ROUTES.surfaceIssue(surfaceSample.surface.id, surfaceSample.issue.id)]: { issue: surfaceSample.issue, body: surfaceSample.body },
   [ROUTES.capabilities]: capabilities.map(rowOf),
   ...Object.fromEntries(capabilities.map((detail) => [ROUTES.capability(detail.id), detail])),
