@@ -40,6 +40,12 @@ const SECRET_KEYS: &[&str] = &[
 /// A key ending in one of these is secret too (`refresh_token`, `client_secret`, `x-api-key`).
 const SECRET_ENDINGS: &[&str] = &["token", "secret", "password", "apikey", "sessionkey", "cookie", "credential"];
 
+/// Whether any word of `text` is in a secret's shape: the value of a
+/// secret-looking key or an opaque run.
+pub fn looks_secret(text: &str) -> bool {
+    text.split(word_break).any(|word| without_secret_value(word).is_some() || without_opaque_runs(word).is_some())
+}
+
 /// Where one word of a text ends: a secret value runs to the next one.
 pub fn word_break(c: char) -> bool {
     c.is_whitespace() || matches!(c, '"' | '\'' | '`' | '<' | '>' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';')
@@ -122,6 +128,14 @@ pub fn without_opaque_runs(word: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_text_looks_secret_when_a_word_has_a_secrets_shape() {
+        assert!(looks_secret("use token=ghp_abc to sign in"));
+        assert!(looks_secret("key sk-ant-api03-AbCdEf0123456789XyZ0123"));
+        assert!(!looks_secret("Merge queues stop being a big-company thing"));
+        assert!(!looks_secret("064_genui_views and w-0j0ya9qd"));
+    }
 
     #[test]
     fn a_secret_looking_key_loses_its_value() {
