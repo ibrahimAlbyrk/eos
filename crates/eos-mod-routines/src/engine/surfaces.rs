@@ -1,7 +1,10 @@
 //! Surfaces at a routine's life (05 §4): a routine whose blueprint makes a
-//! view, a page or an app has its surface created with it, kept when it
-//! starts, archived with it and brought back with it. Each call follows the
-//! routine's committed write; a surface failing never undoes it.
+//! view, a page or an app has its surface created with it, and again at the
+//! brief of each run whose version makes one (a routine its architect made,
+//! or a version that changed what it makes; a surface that exists is left
+//! as it is), kept when it starts, archived with it and brought back with
+//! it. Each call follows the routine's committed write; a surface failing
+//! never undoes it.
 
 use eos_core::Error;
 
@@ -31,7 +34,8 @@ fn warn(routine_id: &str, what: &'static str, error: &Error) {
     tracing::warn!(routine_id, what, %error, "a routine's surface did not follow it");
 }
 
-/// A routine was made from `version_id`, whose blueprint makes `makes`.
+/// A routine was made from `version_id`, whose blueprint makes `makes`, or a
+/// run of that version is about to start.
 pub(crate) async fn created(engine: &Engine, routine_id: &str, version_id: &str, makes: &str) {
     if is_surface(makes)
         && let Err(error) = engine.surfaces.create_for_routine(routine_id, version_id, makes).await
