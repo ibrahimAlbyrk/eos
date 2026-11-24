@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct EosRemoteApp: App {
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
+
     var body: some Scene {
         WindowGroup {
             rootScene.eosTheme()

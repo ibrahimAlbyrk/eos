@@ -17,6 +17,7 @@ struct DevicesView: View {
     @State private var removeTarget: Device?
     @State private var renameTarget: Device?
     @State private var renameText = ""
+    @State private var pushLine = PushRegistration.shared.settingsLine
 
     var body: some View {
         ZStack {
@@ -40,6 +41,12 @@ struct DevicesView: View {
                         addButton
                     }
 
+                    if let pushLine {
+                        Text(pushLine)
+                            .font(EosFont.caption)
+                            .foregroundStyle(EosColor.inkSecondary)
+                    }
+
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, EosSpacing.screenInset)
@@ -57,6 +64,9 @@ struct DevicesView: View {
             }
         }
         .sheet(isPresented: $showAdd) { AddDeviceSheet().environmentObject(model) }
+        .onReceive(NotificationCenter.default.publisher(for: .eosPushStateChanged)) { _ in
+            pushLine = PushRegistration.shared.settingsLine
+        }
         .confirmationDialog("Remove this device?",
                             isPresented: .constant(removeTarget != nil),
                             titleVisibility: .visible, presenting: removeTarget) { device in

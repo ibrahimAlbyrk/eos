@@ -80,6 +80,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app
+        # Push (07 §4.6): `aps-environment`. Xcode writes `production` into a TestFlight export.
+        CODE_SIGN_ENTITLEMENTS: EosRemote/EosRemote.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: "NO"
         TARGETED_DEVICE_FAMILY: "1,2"
