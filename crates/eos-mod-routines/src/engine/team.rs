@@ -12,6 +12,7 @@ use eos_contracts::{Blueprint, RoutineAgent, RunInput, WorkerState};
 use eos_core::Error;
 use eos_core::routine::{RunRef, Specialist};
 use eos_core::store::StoredRoutineSession;
+use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use eos_sessions::MessageInput;
@@ -158,6 +159,12 @@ pub(crate) async fn message(engine: &Engine, worker_id: &str, key: &str, text: &
         text: text.to_owned(),
         queue_when_busy: true,
         origin: Some("run-lead".into()),
+        // An agent's words, never the user's: wrapped as the lead's, and no slash command of
+        // Eos's (`/run`) runs from them.
+        envelope: Some(Envelope::OrchestratorMessage {
+            from_parent: worker_id.to_owned(),
+            parent_name: Some("Run lead".into()),
+        }),
         ..MessageInput::default()
     };
     engine.sessions.dispatch(words).await?;

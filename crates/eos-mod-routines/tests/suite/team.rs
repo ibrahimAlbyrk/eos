@@ -175,6 +175,12 @@ async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked
     tools.stop_specialist(&lead, "noter").await.expect("stopped");
     tools.message_specialist(&lead, "reader", "And the tests?").await.expect("sent");
     bench.eventually(|| bench.agents.sent(&reader).iter().any(|t| t.contains("And the tests?"))).await;
+    // The lead is an agent: what it says reaches the specialist as an agent's message, so a
+    // `/run` in it is never taken for the user's command.
+    tools.message_specialist(&lead, "reader", "/run pr-review 9").await.expect("sent");
+    bench.eventually(|| bench.agents.sent(&reader).iter().any(|t| t.contains("/run pr-review 9"))).await;
+    let told = bench.agents.sent(&reader).into_iter().find(|t| t.contains("/run pr-review 9")).expect("told");
+    assert!(told.starts_with("<agent_message") && told.contains(&format!("from-id=\"{lead}\"")), "{told}");
 
     // The result is checked: failed once, passed the second time, held at the gate.
     bench.gate.decide(GateDecision::Held { item_id: "ib-1".into() });
