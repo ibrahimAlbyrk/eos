@@ -26,6 +26,8 @@ export type RelayConfig = {
   maxVaults: number;
   maxVaultBytes: number;
   maxBlobBytes: number;
+  // Hook inboxes (hooks/): how many may exist, for the same reason as vaults.
+  maxHookInboxes: number;
   apns: ApnsConfig | null;
   // Tests point these at a local fake.
   apnsOrigins: ApnsOrigins;
@@ -42,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
     maxVaults: Number(env.RELAY_VAULT_MAX ?? 16),
     maxVaultBytes: Number(env.RELAY_VAULT_MAX_BYTES ?? 256 * 1024 * 1024),
     maxBlobBytes: 8 * 1024 * 1024,
+    maxHookInboxes: Number(env.RELAY_HOOK_INBOX_MAX ?? 16),
     apns: loadApns(env),
     apnsOrigins: { production: "https://api.push.apple.com", sandbox: "https://api.sandbox.push.apple.com" },
   };

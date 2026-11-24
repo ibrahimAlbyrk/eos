@@ -40,6 +40,7 @@ npm test             # node strip-types test suite
 | `RELAY_VAULT_DB` | `./vault.db` | sync vault SQLite file (`/data/vault.db` in Docker, on the `eos-relay-data` volume) |
 | `RELAY_VAULT_MAX` | `16` | how many vaults may exist; a new one past it is `503 {"error":"vault limit"}` |
 | `RELAY_VAULT_MAX_BYTES` | `268435456` | per-vault blob bytes (256 MiB); a put past it is `507`. Keep it at 256 MiB or more: the app splits that much among its sync domains (one domain stops adding records at its share) |
+| `RELAY_HOOK_INBOX_MAX` | `16` | how many hook inboxes may exist; a new one past it is `503 {"error":"inbox limit"}` |
 | `APNS_KEY` | _(unset)_ | path to the operator's APNs `.p8` key |
 | `APNS_KEY_ID` | _(unset)_ | the key's id |
 | `APNS_TEAM_ID` | _(unset)_ | the Apple team that owns the key and signs the phone app |
@@ -91,6 +92,39 @@ service reaches Apple.
 - **Rate:** 30 a minute and 300 an hour per room; past it the socket answers
   `reason: "throttled"` and HTTP `429`. `reason: "not-configured"` means no APNs key is set.
 - The relay logs no room ids, tokens, bearers or payloads.
+
+## Hook inbox (events from outside services)
+
+Plain HTTP beside the vault, so a webhook (a GitHub pull request, say) reaches a Mac that is
+closed or asleep. It needs no room and no phone. Each Mac owns one inbox; each hook is a URL an
+outside service posts to.
+
+| | |
+|---|---|
+| `PUT /hooks/v1/:inbox` `{publicKey}` | the Mac: creates the inbox or replaces its key → `200` · `503` past `RELAY_HOOK_INBOX_MAX` |
+| `PUT /hooks/v1/:inbox/hooks/:hook` | the Mac: adds a hook → `200` · `409` the id is another inbox's · `507` past 64 hooks |
+| `DELETE /hooks/v1/:inbox/hooks/:hook` | the Mac: removes it → `200` |
+| `POST /hooks/v1/:inbox/:hook` | the outside service, no auth (the URL is the capability) → `202` · `404` unknown hook · `413` body > 1 MiB · `429` > 120 a minute per hook · `507` inbox full |
+| `GET /hooks/v1/:inbox/events?since=N&wait=S` | the Mac → `200 {head, entries:[{seq, sealed}], dropped}`, at most 100 entries; when empty, held up to `S` s (max 25) |
+| `POST /hooks/v1/:inbox/ack` `{through}` | the Mac: deletes the events with `seq ≤ through` → `200` |
+
+`:inbox` and `:hook` are 32 hex chars. The Mac's calls carry `Authorization: Bearer <16–128
+chars [A-Za-z0-9_-]>`, pinned on the inbox's first `PUT` (TOFU); a different one is `403`.
+
+- **Sealed at rest.** On arrival an event becomes the JSON `{hook, receivedAt, headers, body}`
+  (`body` base64; headers without cookies, authorization and proxy headers, at most 8 KiB),
+  sealed to the inbox's X25519 key: an ephemeral X25519 key, HKDF-SHA256 of the shared secret
+  (empty salt, info `eos-hook-seal-v1`) to a 32-byte key, AES-256-GCM with a random 12-byte
+  nonce. `sealed` = base64(ephemeral public 32 ‖ nonce 12 ‖ ciphertext ‖ tag 16). The relay
+  keeps only that; it sees the body only in transit. Vectors: `fixtures/relay/hook-seal.json`,
+  checked here and in `crates/eos-relay`.
+- **The signature is the Mac's to check.** The relay holds no webhook secret: it checks only
+  that the hook exists, the size and the rate.
+- **Kept:** 2,000 events or 64 MiB per inbox (past that a new event is `507`, and the Mac's
+  polls of the service cover the gap), for 7 days: older events are swept and `dropped`
+  counts them, so the Mac knows it missed some.
+- Tables `hook_inboxes`, `hooks`, `hook_events` in the `RELAY_VAULT_DB` file. The relay logs
+  no inbox or hook ids and no bodies.
 
 ## Deploy (coexists with an existing Caddy + Docker on 80/443)
 

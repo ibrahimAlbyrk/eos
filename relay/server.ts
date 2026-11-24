@@ -18,6 +18,12 @@ import { handlePush } from "./push/routes.ts";
 import { PushTokens } from "./push/tokens.ts";
 import { VaultStore } from "./vault/VaultStore.ts";
 import { handleVault, type VaultWaiters } from "./vault/routes.ts";
+import { HookStore } from "./hooks/HookStore.ts";
+import { HookRate } from "./hooks/rate.ts";
+import { handleHooks, type HookWaiters } from "./hooks/routes.ts";
+
+// How often events past their seven days are swept when no Mac asks for its inbox.
+const HOOK_SWEEP_MS = 10 * 60 * 1000;
 
 // The dumb unicast forwarder (protocol §4). A single plain-ws listener fronted by
 // Caddy (which owns TLS/ACME). The relay parses only the outer header and the
@@ -159,8 +165,10 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry, push:
   }
 }
 
-export function createRelay(config: RelayConfig): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry; vault: VaultStore; tokens: PushTokens } {
+export function createRelay(config: RelayConfig, now: () => number = Date.now): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry; vault: VaultStore; tokens: PushTokens; hooks: HookStore } {
   const vault = new VaultStore(config.vaultPath, { maxVaults: config.maxVaults, maxVaultBytes: config.maxVaultBytes });
+  const hooks = new HookStore(config.vaultPath, config.maxHookInboxes, now);
+  const hookCtx = { store: hooks, rate: new HookRate(now), waiters: new Map() as HookWaiters, now };
   const tokens = new PushTokens(config.vaultPath);
   const sender = new ApnsSender(config);
   const push = { tokens, pusher: new Pusher(tokens, sender, new PushRate()) };
@@ -178,6 +186,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     }
     if (handleVault(req, res, vault, waiters, config)) return;
     if (handlePush(req, res, tokens, push.pusher)) return;
+    if (handleHooks(req, res, hookCtx)) return;
     res.writeHead(426, { "content-type": "text/plain" });
     res.end("Upgrade Required");
   });
@@ -194,8 +203,12 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     }
   }, config.heartbeatMs);
   heartbeat.unref?.();
+  const sweep = setInterval(() => hooks.sweep(), HOOK_SWEEP_MS);
+  sweep.unref?.();
   wss.on("close", () => clearInterval(heartbeat));
   httpServer.on("close", () => {
+    clearInterval(sweep);
+    hooks.close();
     vault.close();
     tokens.close();
     sender.close();
@@ -216,7 +229,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     });
     ws.on("error", () => {});
   });
-  return { httpServer, wss, registry, vault, tokens };
+  return { httpServer, wss, registry, vault, tokens, hooks };
 }
 
 function isEntrypoint(): boolean {
