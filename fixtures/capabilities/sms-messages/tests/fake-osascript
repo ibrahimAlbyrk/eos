@@ -1,0 +1,6 @@
+#!/bin/zsh
+# Stands in for osascript in the offline tests: keeps what it was given and
+# answers as a send through an SMS account would.
+print -rl -- "$@" > "$FAKE_LOG.args"
+cat > "$FAKE_LOG.stdin"
+print '{"sent":true,"via":"sms"}'

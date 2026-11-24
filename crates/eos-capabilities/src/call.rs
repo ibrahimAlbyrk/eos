@@ -166,7 +166,7 @@ impl CapabilityService {
 
     /// Runs a package's action through the runner, once its files still
     /// hash to the pinned hash; each secret goes to the variable its
-    /// manifest names.
+    /// manifest names, each setting the user gave to its `EOS_SETTING_` one.
     pub(crate) async fn run_package(
         &self,
         loaded: &Loaded,
@@ -180,12 +180,17 @@ impl CapabilityService {
         };
         let capability = &loaded.capability;
         self.verify_package(&capability.id, version, loaded.hash.as_deref().unwrap_or_default()).await?;
-        let env = capability
+        let mut env: Vec<(String, Zeroizing<String>)> = capability
             .manifest
             .secrets
             .iter()
             .filter_map(|secret| Some((secret.env.clone()?, secrets.remove(&secret.name)?)))
             .collect();
+        // Settings are the user's (a phone number): kept out of logs like secrets.
+        env.extend(capability.manifest.settings.iter().filter_map(|setting| {
+            let value = capability.settings.get(&setting.name)?.as_str()?;
+            Some((setting.env(), Zeroizing::new(value.to_owned())))
+        }));
         let package =
             Package { id: capability.id.clone(), version: version.to_owned(), manifest: capability.manifest.clone() };
         runner.run(&package, &action.name, input, env, Duration::from_secs(u64::from(action.timeout_s))).await

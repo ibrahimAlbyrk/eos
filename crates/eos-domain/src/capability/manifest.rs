@@ -160,6 +160,13 @@ pub struct Setting {
     pub choices: Vec<String>,
 }
 
+impl Setting {
+    /// The variable a package's code finds the setting's value in.
+    pub fn env(&self) -> String {
+        format!("EOS_SETTING_{}", self.name.to_ascii_uppercase())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SettingKind {

@@ -1,0 +1,40 @@
+id = "sms-messages"
+name = "SMS through your iPhone"
+version = "1.0.0"
+summary = "Sends a text to your own number through Messages on this Mac."
+form = "script"
+works = "this_mac"
+instructions = "README.md"
+requires = { programs = ["/usr/bin/osascript"], permissions = ["automation:com.apple.MobileSMS"] }
+reach = { hosts = [], apple_events = ["com.apple.MobileSMS"], files_read = [] }
+health = { action = "check" }
+tests = { command = ["/bin/zsh", "tests/run.sh"], live = "send_to_me" }
+
+[[settings]]
+name = "phone_number"
+label = "Your mobile number"
+kind = "phone"
+required = true
+
+[[actions]]
+name = "check"
+summary = "See that Messages can be asked."
+class = "read"
+recipient = "none"
+run = ["/usr/bin/osascript", "-l", "JavaScript", "check.js"]
+timeout_s = 15
+
+[[actions]]
+name = "send_to_me"
+summary = "Send a text to your own number."
+class = "tell_user"
+recipient = "user"
+undo = ""
+run = ["/bin/zsh", "send.sh"]
+timeout_s = 30
+input = { type = "object", required = ["text"], properties = { text = { type = "string", minLength = 1, maxLength = 600 } } }
+output = { type = "object", required = ["sent", "via"], properties = { sent = { type = "boolean" }, via = { type = "string", enum = ["sms", "imessage"] } } }
+
+[[channels]]
+name = "sms"
+action = "send_to_me"
