@@ -30,7 +30,10 @@ pub(crate) struct Gated {
 
 impl Gated {
     pub(crate) fn new() -> Self {
-        let channels = FakeChannels::new().with("github", review_traits(ActionClass::Speak));
+        Self::over(FakeChannels::new().with("github", review_traits(ActionClass::Speak)))
+    }
+
+    pub(crate) fn over(channels: FakeChannels) -> Self {
         let rig = Rig::with_channels(TempStore::new(), channels.clone(), pull_requests());
         let gate = Arc::new(Gate::new(Arc::new(channels.clone()), rig.zone.clone(), rig.clock.clone()));
         let control: Arc<dyn RoutineControl> = rig.control.clone();
@@ -254,6 +257,27 @@ async fn a_bound_or_grant_resting_on_a_fact_the_sender_writes_is_ignored() {
     assert_eq!(gated.rows(), 0, "the grant on an untrusted fact adds no freedom");
     let gated = Gated::new();
     assert!(matches!(gated.apply(grant(&[])).await, GateDecision::Delivering { .. }), "a trusted fact's grant holds");
+}
+
+#[tokio::test]
+async fn telling_the_user_goes_at_once_while_a_send_to_others_waits_out_its_hold() {
+    // A channel that cannot take a send back holds an automatic one for two minutes,
+    // unless it reaches only the user (D67).
+    let no_undo = ChannelTraits { undo: Undo::None, ..review_traits(ActionClass::Speak) };
+    let recipient = |value: Value| -> Recipient { serde_json::from_value(value).expect("a recipient") };
+    let me = recipient(json!({"id": "me", "kind": "me", "channel": "github"}));
+    let boss = recipient(json!({"id": "boss", "kind": "fixed", "channel": "github", "address": "boss@acme.dev"}));
+    for (target, state) in [(me, "queued"), (boss, "holding")] {
+        let gated = Gated::over(FakeChannels::new().with("github", no_undo.clone()));
+        let input = GateInput { targets: vec![target.clone()], goes_to_confirmed: vec![target], ..input("on_its_own") };
+        assert!(matches!(gated.apply(input).await, GateDecision::Delivering { .. }));
+        let found = gated.rig.temp.count(&format!("SELECT COUNT(*) FROM inbox_deliveries WHERE state = '{state}'"));
+        assert_eq!(found, 1, "{state}");
+    }
+    let tell = ChannelTraits { undo: Undo::None, ..review_traits(ActionClass::TellUser) };
+    let gated = Gated::over(FakeChannels::new().with("github", tell));
+    assert!(matches!(gated.apply(input("on_its_own")).await, GateDecision::Delivering { .. }));
+    assert_eq!(gated.rig.temp.count("SELECT COUNT(*) FROM inbox_deliveries WHERE state = 'queued'"), 1, "a banner");
 }
 
 #[tokio::test]
