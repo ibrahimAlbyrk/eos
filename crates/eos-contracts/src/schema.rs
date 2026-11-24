@@ -226,6 +226,7 @@ bundle![
     EventFrame,
     EventsQuery,
     ExperienceChange,
+    ExperienceHookRequest,
     ExperienceRecalledEvent,
     ExperienceSettings,
     ExpertiseLevel,

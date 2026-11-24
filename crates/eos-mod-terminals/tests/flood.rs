@@ -76,6 +76,7 @@ fn app() -> App {
             terminals: Arc::new(PtyTerminals::new(shell)),
             claude: Arc::new(FakeClaudeProgram(None)),
             claude_env: Arc::new(FakeClaudeEnv(None)),
+            pane_hooks: Arc::new(eos_testkit::FakePaneHooks(None)),
             bus: kernel.bus.clone(),
             ids: Arc::new(RandomIds),
             clock: Arc::new(SystemClock),

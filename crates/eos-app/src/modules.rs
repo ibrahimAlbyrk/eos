@@ -130,6 +130,8 @@ pub(crate) struct Terminal {
     pub(crate) commands: Arc<dyn ShellCommands>,
     pub(crate) claude: Arc<dyn ClaudeProgram>,
     pub(crate) claude_env: Arc<dyn ClaudeLaunchEnv>,
+    /// Whether a new Claude pane gets memory's hooks (04 G34).
+    pub(crate) pane_hooks: Arc<dyn eos_core::terminal::PaneHooks>,
     pub(crate) transcripts: Arc<dyn ClaudeTranscripts>,
     /// Where a terminal opens when the dashboard names no folder.
     pub(crate) default_cwd: String,
@@ -448,6 +450,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
                 terminals: cx.terminals.ptys.clone(),
                 claude: cx.terminals.claude.clone(),
                 claude_env: cx.terminals.claude_env.clone(),
+                pane_hooks: cx.terminals.pane_hooks.clone(),
                 bus: cx.bus.clone(),
                 ids: cx.ids.clone(),
                 clock: cx.clock.clone(),

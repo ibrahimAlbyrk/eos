@@ -191,6 +191,8 @@ pub const FOLDER_ROUTES: &[(&str, &str)] = &[
 /// data folder (or the temporary folder). A new write route is added here only after
 /// someone has read what it does.
 pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
+    // A Code-mode pane's hook asks memory what it learned: a read that records the delivery.
+    ("POST", "/api/memory/hook"),
     // Stops a turn; drops a queued message; renames a chat; stops a workflow run or a subagent.
     ("POST", "/workers/{id}/interrupt"),
     ("DELETE", "/workers/{id}/queue/{queueId}"),

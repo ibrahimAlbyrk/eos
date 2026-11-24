@@ -3,6 +3,7 @@
 //! notes are in [`notes`], forgetting everything and the export in [`everything`].
 
 mod everything;
+pub(crate) mod hook;
 mod notes;
 mod view;
 

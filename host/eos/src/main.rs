@@ -54,6 +54,19 @@ fn bundle_id() -> Option<String> {
     bundle_id_of(&plist).map(str::to_string)
 }
 
+/// The command a Code-mode pane's memory hooks run: this bundle's own `eos`, told which
+/// app to ask when the shell folder was named (a test run). `None` outside a bundle.
+fn memory_hook() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let helper = exe.parent()?.parent()?.join("Helpers/eos");
+    if !helper.is_file() {
+        return None;
+    }
+    let quote = |s: &str| format!("'{}'", s.replace('\'', r"'\''"));
+    let named = env("EOS_SHELL_DATA").map(|dir| format!("EOS_SHELL_DATA={} ", quote(&dir))).unwrap_or_default();
+    Some(format!("{named}{} memory hook", quote(&helper.to_string_lossy())))
+}
+
 /// What kind of build this is, for the log: `release`, or a `dev-run` build (`test`, or
 /// `debug` with debug assertions).
 const BUILD: &str = if RELEASE {
@@ -265,6 +278,7 @@ fn start_core(
     rt: &tokio::runtime::Handle,
     ports: &Ports,
     callers: eos_app::Callers,
+    memory_hook: Option<String>,
 ) -> Option<(Arc<eos_app::App>, Arc<RouterCore>)> {
     // Building the app spawns its own tasks.
     let _runtime = rt.enter();
@@ -305,6 +319,7 @@ fn start_core(
                 .ok()?,
         ),
         mail: Some(eos_app::mail()),
+        memory_hook,
         reaches_network: network,
         dashboard: Some(dist.to_path_buf()).filter(|dist| dist.join("index.html").is_file()),
         callers: Some(callers),
@@ -366,13 +381,14 @@ impl Hooks for Eos {
         let _ = self.core.late.set(late.clone());
         let (state, dist, rt, ports) = (self.core.clone(), self.dist.clone(), self.rt.handle().clone(), ports.clone());
         let (shell_data, scheme) = (self.shell_data.clone(), self.scheme);
+        let memory_hook = memory_hook();
         let settling = late.clone();
         // On a thread of the core's own pool, at the core's thread class.
         drop(self.rt.spawn_blocking(move || {
             // Settled however this ends, a panic below included: with the core once it is up.
             let mut settle = Settle { late: settling, core: None };
             let up = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                start_core(&home, &dist, &rt, &ports, callers)
+                start_core(&home, &dist, &rt, &ports, callers, memory_hook)
             }));
             match up {
                 Ok(Some((app, core))) => {

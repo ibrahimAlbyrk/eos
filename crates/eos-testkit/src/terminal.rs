@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use eos_core::terminal::{
-    ClaudeLaunchEnv, ClaudeProgram, ClaudeTranscripts, CommandEvents, CommandExit, Pty, PtyEvents, PtySpawn,
+    ClaudeLaunchEnv, ClaudeProgram, ClaudeTranscripts, CommandEvents, CommandExit, PaneHooks, Pty, PtyEvents, PtySpawn,
     RunningCommand, Screen, ShellCommands, Terminals, TranscriptFile,
 };
 use eos_core::{BoxFuture, Error};
@@ -162,6 +162,16 @@ pub struct FakeClaudeEnv(pub Option<Vec<(String, String)>>);
 
 impl ClaudeLaunchEnv for FakeClaudeEnv {
     fn env(&self) -> BoxFuture<'_, Option<Vec<(String, String)>>> {
+        Box::pin(std::future::ready(self.0.clone()))
+    }
+}
+
+/// Memory's pane hooks: the command they run, or `None` (off).
+#[derive(Debug, Clone, Default)]
+pub struct FakePaneHooks(pub Option<String>);
+
+impl PaneHooks for FakePaneHooks {
+    fn memory_command(&self) -> BoxFuture<'_, Option<String>> {
         Box::pin(std::future::ready(self.0.clone()))
     }
 }

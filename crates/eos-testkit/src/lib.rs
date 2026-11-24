@@ -19,7 +19,7 @@
 //!
 //! - [`ScriptedRuntime`]: agent sessions that play scripted turns of canonical
 //!   events, with no model ([`agent`]).
-//! - [`FakeTerminals`], [`FakeShellCommands`], [`FakeTranscripts`], [`FakeClaudeProgram`], [`FakeClaudeEnv`]:
+//! - [`FakeTerminals`], [`FakeShellCommands`], [`FakeTranscripts`], [`FakeClaudeProgram`], [`FakeClaudeEnv`], [`FakePaneHooks`]:
 //!   the terminal ports — terminals and commands the test speaks for.
 //!
 //! - [`relay`]: the phone link's other ends — a relay on a loopback port, a phone that speaks the
@@ -152,7 +152,8 @@ pub use surface::{
     FAKE_PDF, FakePagePrinter, FakePageProbe, FakeSurfaceAuthoring, FakeSurfaceImages, FakeViewCards, SurfaceCall,
 };
 pub use terminal::{
-    FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
+    FakeClaudeEnv, FakeClaudeProgram, FakePaneHooks, FakePty, FakeRun, FakeShellCommands, FakeTerminals,
+    FakeTranscripts,
 };
 pub use tools::{FakeFeatures, FakeTimeZone};
 pub use trash::FakeTrash;

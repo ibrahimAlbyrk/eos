@@ -118,6 +118,13 @@ pub trait ClaudeLaunchEnv: Send + Sync + 'static {
     fn env(&self) -> BoxFuture<'_, Option<Vec<(String, String)>>>;
 }
 
+/// The command a Claude pane's memory hooks run (`<eos> memory hook`, 04 G34), when a new
+/// pane gets them: the app ships the command and the user's Reminders switch is on. `None`:
+/// the pane starts without them.
+pub trait PaneHooks: Send + Sync + 'static {
+    fn memory_command(&self) -> BoxFuture<'_, Option<String>>;
+}
+
 /// Claude Code's own record of its conversations (`~/.claude/projects/…`).
 pub trait ClaudeTranscripts: Send + Sync + 'static {
     /// The transcript of conversation `session_id`, started in folder `cwd`.

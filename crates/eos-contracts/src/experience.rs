@@ -47,6 +47,25 @@ pub struct ExperienceSettings {
 
 impl Validate for ExperienceSettings {}
 
+/// `POST /api/memory/hook`: a Code-mode pane's Claude Code hook (04 G34), as the terminal's
+/// `eos memory hook` hands it on. `input` is the hook's own input, as Claude Code wrote it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExperienceHookRequest {
+    pub event: String,
+    #[serde(default)]
+    pub input: serde_json::Value,
+}
+
+impl Validate for ExperienceHookRequest {
+    fn validate(&self, cx: &mut crate::validate::Issues) {
+        cx.at("event", |cx| {
+            cx.str_min(&self.event, 1);
+            cx.str_max(&self.event, 64);
+        });
+    }
+}
+
 /// `POST /api/memory/tidy`: whether a tidying started (`false` while one
 /// already works).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

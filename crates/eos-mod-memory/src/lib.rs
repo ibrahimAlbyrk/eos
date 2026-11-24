@@ -76,8 +76,8 @@ use crate::edits::EditWatch;
 use crate::hooks::Capturer;
 use crate::night::{LibraryGeneralize, LibraryPlaybook, Nightly};
 use crate::reflection::{LibraryPrompt, Moments, PlanGate, Reflecting};
-pub use crate::reminders::NoteSink;
 use crate::reminders::Reminders;
+pub use crate::reminders::{NoteSink, PaneMemoryHooks};
 
 pub const MEMORY_CHANGE: Topic<ExperienceChange> = Topic::new("memory:change");
 pub const MEMORY_RECALLED: Topic<ExperienceRecalledEvent> = Topic::new(eos_memory::deliver::MEMORY_RECALLED);
@@ -479,7 +479,9 @@ impl Module for MemoryModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        routes::all(&self.api)
+        let mut all = routes::all(&self.api);
+        all.push(routes::hook::route(self.reminders.clone()));
+        all
     }
 
     /// The handle is an `Arc<dyn ExperienceSync>`; a note written from

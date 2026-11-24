@@ -44,6 +44,7 @@ impl Harness {
             terminals: terminals.clone(),
             claude: Arc::new(FakeClaudeProgram(claude.map(str::to_owned))),
             claude_env: Arc::new(FakeClaudeEnv(Some(vec![("CLAUDE_STORE".to_owned(), "/store".to_owned())]))),
+            pane_hooks: Arc::new(eos_testkit::FakePaneHooks(None)),
             bus: kernel.bus.clone(),
             ids: Arc::new(SeqIds::new()),
             clock: clock.clone(),

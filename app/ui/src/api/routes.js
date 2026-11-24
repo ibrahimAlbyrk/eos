@@ -417,6 +417,7 @@ export const ROUTES = {
   memoryStated: "/api/memory/stated",
   memorySettings: "/api/memory/settings",
   memoryTidy: "/api/memory/tidy",
+  memoryHook: "/api/memory/hook",
   memoryForgetAll: "/api/memory/forget-all",
   memoryExport: "/api/memory/export",
   // Surfaces (eos-contracts `surfaces.rs`): a routine's surfaces, one

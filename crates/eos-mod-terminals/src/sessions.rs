@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use eos_contracts::stream::topics;
 use eos_contracts::{PtyCreateRequest, PtyKind, PtyPending, PtySession};
-use eos_core::terminal::{ClaudeLaunchEnv, ClaudeProgram, Pty, PtyEvents, PtySpawn, Screen, Terminals};
+use eos_core::terminal::{ClaudeLaunchEnv, ClaudeProgram, PaneHooks, Pty, PtyEvents, PtySpawn, Screen, Terminals};
 use eos_core::{Clock, Error, Ids};
 use eos_runtime::bus::{Bus, ScopeKind, Topic};
 use indexmap::IndexMap;
@@ -151,6 +151,7 @@ struct Inner {
     terminals: Arc<dyn Terminals>,
     claude: Arc<dyn ClaudeProgram>,
     claude_env: Arc<dyn ClaudeLaunchEnv>,
+    pane_hooks: Arc<dyn PaneHooks>,
     bus: Bus,
     ids: Arc<dyn Ids>,
     clock: Arc<dyn Clock>,
@@ -165,6 +166,8 @@ pub struct SessionDeps {
     pub terminals: Arc<dyn Terminals>,
     pub claude: Arc<dyn ClaudeProgram>,
     pub claude_env: Arc<dyn ClaudeLaunchEnv>,
+    /// Whether a new Claude pane gets memory's hooks, and the command they run.
+    pub pane_hooks: Arc<dyn PaneHooks>,
     pub bus: Bus,
     pub ids: Arc<dyn Ids>,
     pub clock: Arc<dyn Clock>,
@@ -182,11 +185,22 @@ pub(crate) const CLAUDE_MISSING: &str = "Claude Code is not installed on this co
 
 impl Sessions {
     pub(crate) fn new(deps: SessionDeps) -> Self {
-        let SessionDeps { terminals, claude, claude_env, bus, ids, clock, default_cwd } = deps;
+        let SessionDeps { terminals, claude, claude_env, pane_hooks, bus, ids, clock, default_cwd } = deps;
         let registry = Mutex::new(Registry { sessions: IndexMap::new(), next_number: 1 });
         let ordered = OrderedInput::default();
         Self {
-            inner: Arc::new(Inner { terminals, claude, claude_env, bus, ids, clock, default_cwd, registry, ordered }),
+            inner: Arc::new(Inner {
+                terminals,
+                claude,
+                claude_env,
+                pane_hooks,
+                bus,
+                ids,
+                clock,
+                default_cwd,
+                registry,
+                ordered,
+            }),
         }
     }
 
@@ -221,7 +235,14 @@ impl Sessions {
             Some(claude) => {
                 let word = inner.claude.locate().await.ok_or_else(|| Error::Conflict(CLAUDE_MISSING.to_owned()))?;
                 let conversation = claude.resume.clone().unwrap_or_else(|| inner.ids.uuid());
-                let command = claude_command(inner.terminals.as_ref(), &word, &conversation, claude.resume.is_some());
+                let memory = inner.pane_hooks.memory_command().await;
+                let command = claude_command(
+                    inner.terminals.as_ref(),
+                    &word,
+                    &conversation,
+                    claude.resume.is_some(),
+                    memory.as_deref(),
+                );
                 Some((conversation, command))
             }
         };

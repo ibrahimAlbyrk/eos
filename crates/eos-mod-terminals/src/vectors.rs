@@ -90,12 +90,26 @@ fn fixture() -> Fixture {
 fn claude_is_launched_with_todays_command_line() {
     let terminals = FakeTerminals::new();
     for case in fixture().launch {
-        let command = claude_command(&terminals, "claude", &case.id, case.resume.is_some());
+        let command = claude_command(&terminals, "claude", &case.id, case.resume.is_some(), None);
         assert_eq!(command, case.command, "resume: {:?}", case.resume);
     }
     // A Claude the shell does not find itself is run by its path.
-    let by_path = claude_command(&terminals, "/Users/me/it's here/claude", "id-1", false);
+    let by_path = claude_command(&terminals, "/Users/me/it's here/claude", "id-1", false, None);
     assert!(by_path.starts_with(r"EOS_TTY=$(tty) '/Users/me/it'\''s here/claude' --model opus "), "{by_path}");
+}
+
+/// With memory's hooks on, the pane's settings add the four hooks of 04 G34 beside today's, in
+/// the order `terminal-memory-hooks.json` holds (made on purpose for ME-22, not recorded).
+#[test]
+fn memory_hooks_are_added_beside_todays_hooks() {
+    let terminals = FakeTerminals::new();
+    let memory = "'/Applications/Eos.app/Contents/Helpers/eos' memory hook";
+    let command = claude_command(&terminals, "claude", "id-1", false, Some(memory));
+    let settings = command.split(" --settings ").nth(1).expect("settings");
+    let settings: Value = serde_json::from_str(&settings.trim_matches('\'').replace(r"'\''", "'")).expect("json");
+    let expected: Value =
+        serde_json::from_str(include_str!("../tests/fixtures/terminal-memory-hooks.json")).expect("fixture");
+    assert_eq!(settings, expected);
 }
 
 fn event_json(event: OscEvent) -> Value {

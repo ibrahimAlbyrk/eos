@@ -28,6 +28,10 @@ use eos_memory::deliver::{How, Receiver, record, reminder};
 use eos_memory::{Credit, Cues, Recall, Situation, chat_pack};
 use tokio::sync::Semaphore;
 
+mod pane;
+
+pub use pane::PaneMemoryHooks;
+
 /// Chats whose state is kept; past it the oldest-started is dropped.
 pub(crate) const CHATS_MAX: usize = 512;
 pub(crate) const IN_FLIGHT_MAX: usize = 4;
@@ -100,7 +104,12 @@ pub(crate) struct Reminders {
 fn tool_moment(activity: &ActivityEvent, root: Option<&str>) -> Option<(&'static str, Vec<Cue>)> {
     let name = activity.tool_name.as_deref()?;
     let input = serde_json::to_value(activity.input.as_ref()?).ok()?;
-    let found = cues::from_tool(name, &input, root);
+    tool_call_moment(name, &input, root)
+}
+
+/// [`tool_moment`] of a tool's name and input.
+fn tool_call_moment(name: &str, input: &serde_json::Value, root: Option<&str>) -> Option<(&'static str, Vec<Cue>)> {
+    let found = cues::from_tool(name, input, root);
     if found.is_empty() {
         return None;
     }
@@ -230,6 +239,11 @@ impl Reminders {
     /// else a reminder when the message matches.
     pub(crate) async fn turn_notes(&self, worker_id: &str, message: Option<&str>, start: bool) -> Vec<String> {
         let Some(place) = self.place(worker_id).await else { return Vec::new() };
+        self.turn_notes_at(worker_id, &place, message, start).await
+    }
+
+    /// [`Self::turn_notes`] for a conversation whose place is known.
+    async fn turn_notes_at(&self, worker_id: &str, place: &Place, message: Option<&str>, start: bool) -> Vec<String> {
         let now = self.clock.now_ms();
         let first = {
             let mut chats = self.chats();
@@ -275,7 +289,7 @@ impl Reminders {
         let Some(pack) = picked else { return Vec::new() };
         let how = if first { How::Pack } else { How::Reminder };
         self.watch(worker_id, &recalled, &pack.note_ids);
-        self.deliver(worker_id, &place, how, &pack.note_ids).await;
+        self.deliver(worker_id, place, how, &pack.note_ids).await;
         vec![pack.text]
     }
 
@@ -372,7 +386,8 @@ impl Reminders {
         }
         let epoch = self.chats().get(worker_id).map_or(0, |c| c.epoch);
         let to = Receiver {
-            worker_id: Some(worker_id.to_owned()),
+            // A Code-mode pane is no worker of Eos's.
+            worker_id: (!worker_id.starts_with(pane::PANE)).then(|| worker_id.to_owned()),
             run_id: place.run.as_ref().map(|r| r.run_id.clone()),
             epoch,
         };
