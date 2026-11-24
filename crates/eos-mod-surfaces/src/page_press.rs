@@ -43,6 +43,12 @@ pub(crate) fn resolve(
             let from = Sources { data, state, item: &item, fields: &fields };
             Ok((action, fill_args(&pressable.args, from)))
         }
-        None => Ok((ASK_ACTION.to_owned(), json!({ "issue": issue_id, "part": part, "item": item }))),
+        None => {
+            let mut args = json!({ "issue": issue_id, "part": part });
+            if !item.is_null() {
+                args["item"] = json!(item.to_string());
+            }
+            Ok((ASK_ACTION.to_owned(), args))
+        }
     }
 }

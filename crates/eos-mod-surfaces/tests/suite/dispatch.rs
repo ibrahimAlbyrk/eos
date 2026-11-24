@@ -267,3 +267,21 @@ async fn a_page_button_runs_what_its_design_names_on_the_row_it_sits_in() {
     }
     assert_eq!(rig.heard.lock().expect("heard").len(), 3);
 }
+
+#[tokio::test]
+async fn an_ask_starts_an_ask_run_of_the_routine_on_the_row_it_sits_in() {
+    let rig = page_rig().await;
+    let body = json!({"issueId": "si-p", "button": "ask", "clientId": "a-1", "index": 1});
+    let (_, answer) = press(&rig, body).await;
+    assert_eq!(answer["status"], "done", "{answer}");
+    assert_eq!(answer["result"], json!({"runId": "rn-1"}));
+    let started = rig.runs.started();
+    assert_eq!(started.len(), 1);
+    assert_eq!(started[0].routine_id, "rt-1");
+    assert_eq!(started[0].origin, eos_core::routine::RunOrigin::Surface { surface_id: "sf-p".into() });
+    let asked = started[0].input.surface.clone().expect("an ask");
+    assert_eq!(asked.kind, eos_contracts::SurfaceRunKind::Ask);
+    assert_eq!((asked.part.as_deref(), asked.issue_id.as_deref()), (Some("ask"), Some("si-p")));
+    assert_eq!(asked.item, Some(json!({"id": "s-2", "url": "https://example.com/two"})), "the row the core holds");
+    assert_eq!(started[0].input.result, eos_contracts::ResultMode::ShowOnly);
+}

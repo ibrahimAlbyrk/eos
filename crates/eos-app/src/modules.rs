@@ -279,6 +279,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         zone: Arc::new(crate::host::HostTimeZone),
         profile: cx.notes.profile.profile.clone(),
         feedback: memory.experience_feedback(),
+        runs: routines.runs(),
     }));
     cx.raw_routes.add(surfaces.raw_routes());
     let transfer = crate::machines::transfer(cx);

@@ -102,6 +102,8 @@ pub struct SurfacesParts {
     pub profile: Arc<dyn eos_core::store::UserProfileStore>,
     /// Memory, told what the reader edits and opens.
     pub feedback: Arc<dyn eos_core::experience::ExperienceFeedback>,
+    /// Routines, which run a surface's design and ask runs.
+    pub runs: Arc<dyn eos_core::routine::RunStarter>,
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -198,7 +200,7 @@ impl Module for SurfacesModule {
     }
 
     fn direct_actions(&self) -> Vec<ActionDecl> {
-        builtins::declared(&self.parts.store)
+        builtins::declared(&self.parts.store, &self.parts.runs)
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
