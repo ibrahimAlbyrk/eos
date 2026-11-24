@@ -331,7 +331,7 @@ impl Shell {
             picker: Arc::new(ViewPorts(views.clone())),
             previewer: Arc::new(Previewer::new(views.clone())),
             page_probe: page_views.clone(),
-            page_printer: page_views,
+            page_printer: page_views.clone(),
             opener: Arc::new(Opener),
             work_hold: Arc::new(Activities::default()),
             dock_badge: Arc::new(DockTile(app.clone())),
@@ -411,6 +411,7 @@ impl Shell {
         let _ = host.bridge.set(Arc::downgrade(&bridge));
         let _ = self.host.set(host.clone());
         let _ = self.bridge.set(bridge.clone());
+        page_views.attach(bridge.clone());
         let artifacts = self.start_artifacts(&views, &bridge);
         self.start_hosts(&views, &bridge, core, host.clone(), artifacts);
         let early_link = self.early_link.lock().ok().and_then(|mut link| link.take());
