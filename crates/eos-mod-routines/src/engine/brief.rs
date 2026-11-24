@@ -180,6 +180,7 @@ async fn to_work(engine: &Engine, run_id: &str) -> Result<(), Error> {
         .store
         .write(move |tx, out| {
             let Some(run) = tx.runs().find(&id)?.filter(|run| run.state == RunState::Running) else { return Ok(()) };
+            super::project::begin_in(tx, &run)?;
             let work = RunMove { state: RunState::Running, station: Some(Station::Work), reason: None, at: now };
             move_run(tx, out, &run, work).map(drop)
         })
@@ -236,8 +237,19 @@ fn render(
         })
         .collect();
     let steps: Vec<String> = blueprint.how.steps.iter().map(|step| format!("- {step}")).collect();
-    let how = format!("{}\n\nHow the result reads: {}", steps.join("\n"), blueprint.how.format);
+    let mut how = format!("{}\n\nHow the result reads: {}", steps.join("\n"), blueprint.how.format);
+    let project = super::project::brief_text(blueprint);
+    if let Some(project) = &project {
+        how = format!("{project}\n\n{how}");
+    }
     let limits = &blueprint.limits;
+    let budget = match project {
+        Some(_) => format!(
+            "No cap per run: at most ${} a day. The run pauses when the day's budget is spent and goes on the next day.",
+            limits.per_day_usd
+        ),
+        None => format!("${} and {} minutes for this run.", limits.per_run_usd, limits.per_run_minutes),
+    };
     let pairs = [
         ("ROUTINE_NAME", blueprint.name.clone()),
         ("SUMMARY", blueprint.summary.clone()),
@@ -249,7 +261,7 @@ fn render(
         ("OPTIONS", if options.is_empty() { "None.".into() } else { options.join("\n") }),
         ("NOTE", note_of(input)),
         ("RESULT_MODE", result_mode(input)),
-        ("BUDGET", format!("${} and {} minutes for this run.", limits.per_run_usd, limits.per_run_minutes)),
+        ("BUDGET", budget),
         ("CHECKOUT", folder.to_owned()),
     ];
     let values = pairs.into_iter().map(|(name, value)| (name.to_owned(), serde_json::Value::String(value))).collect();

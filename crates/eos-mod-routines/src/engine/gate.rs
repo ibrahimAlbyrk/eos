@@ -73,6 +73,9 @@ pub(crate) fn done(
     outcome: Outcome,
     now: i64,
 ) -> Result<(), Error> {
+    if super::project::advance_in(engine, tx, out, run, outcome, now)? {
+        return Ok(());
+    }
     tx.runs().set_outcome(&run.id, outcome)?;
     let done = RunMove { state: RunState::Done, station: run.station, reason: None, at: now };
     move_run(tx, out, run, done)?;

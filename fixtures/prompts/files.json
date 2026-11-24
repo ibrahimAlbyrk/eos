@@ -138,6 +138,7 @@
   "tool/browser_type.prompt.md": "bb8a3a9e237c38d3ff9182213a283e49c2f0f1c66da3c25cdb9a2f30f968500a",
   "tool/browser_wait.prompt.md": "6ff6a9e3ed3716ace78ef8e66d5967f2aa4c255d053ff5d6a732ea2da4a0b6dc",
   "tool/call_capability.prompt.md": "ad81a9072466670177cc653ec08aad15ca3b85d7af1c44676c19f6d2283dcb3d",
+  "tool/complete_milestone.prompt.md": "265d1d1894a6a83e94c7eab24ffbd1f36292c2977b0ad23fee81bea1553637ac",
   "tool/create_page.prompt.md": "d7b3cb7b49ed3d748a33f0c7281778fd151c4c31439283f3efefa9feed2711fe",
   "tool/create_worker.prompt.md": "a5534005196835d91f07d0e2f1f2eeeac2bbcd4ab22ee4d392950e5615e75139",
   "tool/current_datetime.prompt.md": "a9235e2534f19af05b08e7d4f36484ceb86f5e6edccca1f88b1f233984da3b76",

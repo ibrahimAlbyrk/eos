@@ -399,6 +399,17 @@ pub struct SubmittedResult {
     pub files: Vec<String>,
 }
 
+/// A project's milestone a lead hands in (`complete_milestone`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MilestoneDone {
+    /// The milestone's key: the one the run works on.
+    pub key: String,
+    /// What was done, as the user reads it.
+    pub summary: String,
+    /// Paths of the files it carries, as the agent names them.
+    pub files: Vec<String>,
+}
+
 /// What the tools of a run's sessions do. Each call names the worker that
 /// made it; a worker of no run, or of a run that is not at work, is refused.
 pub trait RoutineTools: Send + Sync {
@@ -412,6 +423,10 @@ pub trait RoutineTools: Send + Sync {
     /// Keeps a copy of the result and its files, then moves the run to its
     /// check.
     fn submit_result<'a>(&'a self, worker_id: &'a str, result: SubmittedResult) -> BoxFuture<'a, Result<(), Error>>;
+    /// A project run's lead hands in the milestone it works on: it goes
+    /// through the check and the gate as a result does, then the run goes on
+    /// with the next one.
+    fn complete_milestone<'a>(&'a self, worker_id: &'a str, done: MilestoneDone) -> BoxFuture<'a, Result<(), Error>>;
     /// Ends the run as failed, the agent's reason its headline.
     fn report_failure<'a>(&'a self, worker_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The checker's verdict on the result it was given: a pass goes on, a

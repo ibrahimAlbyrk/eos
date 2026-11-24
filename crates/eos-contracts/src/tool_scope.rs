@@ -45,6 +45,7 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "report_progress",
     "submit_result",
     "report_failure",
+    "complete_milestone",
     "submit_verdict",
     "start_specialist",
     "message_specialist",

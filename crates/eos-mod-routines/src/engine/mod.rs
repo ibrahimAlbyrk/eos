@@ -26,6 +26,7 @@ mod lifecycle;
 mod memory;
 mod outcomes;
 mod ports;
+mod project;
 mod ready;
 mod recover;
 mod shape;
