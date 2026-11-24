@@ -92,7 +92,7 @@ impl Module for CapabilitiesModule {
     fn after_ready(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         Box::pin(async move {
             self.service.start().await?;
-            self.ticker.start(self.service.clone(), self.clock.clone(), self.sleeper.clone());
+            self.ticker.start(self.service.clone(), self.store.clone(), self.clock.clone(), self.sleeper.clone());
             Ok(())
         })
     }
