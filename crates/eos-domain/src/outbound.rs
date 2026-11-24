@@ -11,7 +11,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use eos_contracts::ResultDoc;
 
-use crate::redact::{without_opaque_runs, without_secret_value, word_break};
+use crate::redact::looks_secret;
 
 /// A run of base64 this long, mixing capitals, small letters and digits,
 /// may carry data out.
@@ -299,8 +299,7 @@ fn digits(text: &str) -> String {
 
 /// A secret in `redact`'s key or token shapes, or a long run of base64.
 fn secret_like(text: &str) -> bool {
-    let shaped =
-        text.split(word_break).any(|word| without_secret_value(word).is_some() || without_opaque_runs(word).is_some());
+    let shaped = looks_secret(text);
     // A `/` ends a run: base64 has one only now and then, a path every few
     // letters.
     let base64 = text.split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '_'))).any(|run| {
