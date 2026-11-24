@@ -43,12 +43,12 @@ function UnderLine({ h }) {
 // candidates; then the runs it started and the tasks done once. Entering
 // Home never focuses it (08 G10): a click or `/` does. The text survives
 // leaving Home.
-export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef }) {
+export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held, door }) {
   const cardRef = useRef(null);
   const ownRef = useRef(null);
   const inputRef = givenRef ?? ownRef;
   const fileRef = useRef(null);
-  const h = useHomeInput(cardRef);
+  const h = useHomeInput(cardRef, { held, door });
   const { things, dragging, onPaste, addFiles, remove } = h.intake;
 
   useEffect(() => {

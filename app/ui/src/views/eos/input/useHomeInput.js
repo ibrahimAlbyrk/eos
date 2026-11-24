@@ -16,7 +16,9 @@ const CLOSED = { open: true, active: -1 };
 // handed in, the routine token with its form (the text is its item slot),
 // the `/` menu and the token's candidates, the intent, and Enter. An act
 // that took the text clears it, unless the user typed on meanwhile.
-export function useHomeInput(cardRef) {
+// `held` and `door`: the quick panel's item from a door outside Eos, and
+// that door.
+export function useHomeInput(cardRef, { held = null, door = "home" } = {}) {
   const text = useHomeDraft();
   const picked = useHomePick();
   const all = useRoutines().list;
@@ -24,8 +26,8 @@ export function useHomeInput(cardRef) {
   const { accounts } = useAccounts();
   const byId = useMemo(() => new Map((routines ?? []).map((r) => [r.id, r])), [routines]);
   const routine = picked ? byId.get(picked) ?? null : null;
-  const intake = useThingIntake(cardRef);
-  const acts = useHomeActs(byId);
+  const intake = useThingIntake(cardRef, held);
+  const acts = useHomeActs(byId, door);
   const [base, setBase] = useState(null);
   const [list, setList] = useState(CLOSED);
   const [items, setItems] = useState([]);
