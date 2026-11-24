@@ -112,12 +112,13 @@ fn send_of(target: &Target, text: &str) -> Result<(&'static str, Value), SendErr
     }
 }
 
-/// A send's failure as delivery reads it; a workspace that forbids
-/// deleting says so.
+/// A post's or a delete's failure as delivery reads it: Slack refusing a
+/// post (not in the channel, a restricted action) is `not_allowed`, and
+/// refusing a delete is a workspace that forbids deleting.
 fn slack_error(error: &ActionError, sending: bool) -> SendError {
     match error {
+        ActionError::Failed { kind: FailureKind::NotAllowed } if sending => failure("not_allowed"),
         ActionError::Failed { kind: FailureKind::NotAllowed } => failure("cant_delete_message"),
-        ActionError::Invalid(_) => failure("too_long"),
         other => send_error(other, sending),
     }
 }
