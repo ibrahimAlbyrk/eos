@@ -2221,6 +2221,7 @@ dependencies = [
  "eos-accounts",
  "eos-auth",
  "eos-capabilities",
+ "eos-capability-host",
  "eos-config",
  "eos-contracts",
  "eos-core",
@@ -2360,6 +2361,19 @@ dependencies = [
  "hmac",
  "serde_json",
  "sha2 0.11.1",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "eos-capability-host"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-domain",
+ "eos-kit-proc",
+ "serde_json",
  "tokio",
  "tracing",
  "zeroize",
