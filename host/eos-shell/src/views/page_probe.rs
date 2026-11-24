@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use base64::Engine;
+use eos_bridge::Service;
 use eos_bridge::urlspace::RAW_HOST;
 use eos_core::surface::{PagePrinter, PageProbe, Paper, ProbeDoc, ProbeFinding, ProbeWidth};
 use eos_core::{BoxFuture, Error};
@@ -108,11 +109,31 @@ async fn measure_at(view: &View, doc: &ProbeDoc, width: u16, shots: &Path) -> Re
 pub(crate) struct PageViews {
     views: Arc<Views>,
     queue: tokio::sync::Mutex<()>,
+    /// What serves the raw-content origin, once the bridge exists.
+    service: std::sync::OnceLock<Arc<dyn Service>>,
 }
 
 impl PageViews {
     pub(crate) fn new(views: Arc<Views>) -> Self {
-        PageViews { views, queue: tokio::sync::Mutex::new(()) }
+        PageViews { views, queue: tokio::sync::Mutex::new(()), service: std::sync::OnceLock::new() }
+    }
+
+    /// The bridge that serves the raw-content origin to the views.
+    pub(crate) fn attach(&self, service: Arc<dyn Service>) {
+        let _ = self.service.set(service);
+    }
+
+    /// Serves the raw-content origin to `view`'s profile. The dashboard does this when it
+    /// loads; a hidden start or a released dashboard never did, and the page would not load.
+    async fn serve(&self, view: &View) -> Result<(), Error> {
+        let service = self.service.get().cloned().ok_or_else(|| failed("Eos is still starting"))?;
+        let (tx, rx) = oneshot::channel();
+        view.webview
+            .with_cef_webview(move |w| {
+                let _ = tx.send(crate::scheme::register(&w.browser(), &[RAW_HOST], service));
+            })
+            .map_err(|e| failed(e.to_string()))?;
+        rx.await.map_err(|_| failed("the page view went away"))?.map_err(failed)
     }
 
     /// Runs `work` on a fresh hidden view of the raw origin, closed afterwards whatever
@@ -131,11 +152,15 @@ impl PageViews {
             .map_err(failed_view)?;
         // A hidden view's page is otherwise in the background: its fonts and frames wait.
         let focused = view.cdp.call("Emulation.setFocusEmulationEnabled", json!({ "enabled": true })).await;
-        let done = match focused {
-            Ok(_) => {
+        let served = match focused {
+            Ok(_) => self.serve(&view).await,
+            Err(e) => Err(failed_view(e)),
+        };
+        let done = match served {
+            Ok(()) => {
                 tokio::time::timeout(limit, work(&view)).await.unwrap_or_else(|_| Err(failed("the page took too long")))
             }
-            Err(e) => Err(failed_view(e)),
+            Err(e) => Err(e),
         };
         crate::views::create::closed(view.webview.label());
         let _ = tokio::task::spawn_blocking(move || view.webview.close()).await;

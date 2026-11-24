@@ -12,8 +12,9 @@
 //! the core would ask for one),
 //! `{"browser": {"method": "POST", "path": "/browser/tabs", "body": {…}, "agent": "w-…",
 //! "tab": "t"}}`: a browser route of the Rust core, called in process as the user's window
-//! (or as the agent `agent` names). Only `/browser/…` paths and a plugin's preview
-//! (`/api/plugins/<id>/preview`): nothing else of the core can be reached from a script. `tab` remembers the answer's `tabId` (or its first tab's);
+//! (or as the agent `agent` names). Only `/browser/…` paths, a plugin's preview
+//! (`/api/plugins/<id>/preview`), a page's reads (`GET /api/surfaces/…`) and an issue's PDF
+//! (`POST …/issues/<id>/pdf`): nothing else of the core can be reached from a script. `tab` remembers the answer's `tabId` (or its first tab's);
 //! `{t}` in a later path stands for it. `retry_ms` asks again until the answer names a tab.
 //! The step's value is `{"status": …, "body": …}`.
 //! `{"artifacts": {"verb": "warm", "body": {…}}}`: an `eosArtifacts` call as the dashboard
@@ -91,12 +92,14 @@ impl Run {
         for (alias, tab) in &self.tabs {
             path = path.replace(&format!("{{{alias}}}"), tab);
         }
-        // The script drives the browser and has a plugin drawn; nothing else of the core.
+        // The script drives the browser, has a plugin drawn, reads pages and prints an issue
+        // (into the run's own data folder); nothing else of the core.
         let preview = path.starts_with("/api/plugins/") && path.ends_with("/preview");
-        if !(path.starts_with("/browser/") || preview) || path.contains("..") {
+        let method = Method::parse(text("method")).ok_or("no such method")?;
+        let pages = path.starts_with("/api/surfaces/") && (method == Method::Get || path.ends_with("/pdf"));
+        if !(path.starts_with("/browser/") || preview || pages) || path.contains("..") {
             return Err(format!("{path:?}: a script may only call the browser's routes"));
         }
-        let method = Method::parse(text("method")).ok_or("no such method")?;
         let agent = text("agent");
         let caller = if agent.is_empty() { Caller::DASHBOARD } else { Caller::UNTRUSTED };
         let mut request = Request::new(method, &path, caller);
