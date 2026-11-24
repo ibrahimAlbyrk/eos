@@ -148,7 +148,9 @@ pub use runs::{FakeRoutineDirectory, FakeRunGate, FakeRunIntake, FakeRunOutcomes
 pub use secrets::FakeCapabilitySecrets;
 pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
 pub use slack::{FakeSlack, SLACK_CODE, SLACK_TEAM, SLACK_USER, SlackCall};
-pub use surface::{FakePageProbe, FakeSurfaceAuthoring, FakeSurfaceImages, FakeViewCards, SurfaceCall};
+pub use surface::{
+    FAKE_PDF, FakePagePrinter, FakePageProbe, FakeSurfaceAuthoring, FakeSurfaceImages, FakeViewCards, SurfaceCall,
+};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };

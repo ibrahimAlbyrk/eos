@@ -267,6 +267,8 @@ fn start_core(
         pdfjs_root: resources.as_ref().map(|dir| dir.join("pdfjs")).filter(|dir| dir.is_dir()),
         resources,
         plugin_previewer: ports.previewer.clone(),
+        page_probe: ports.page_probe.clone(),
+        page_printer: ports.page_printer.clone(),
         shell: Some(eos_app::Shell {
             views: ports.views.clone(),
             panel: ports.panel.clone(),

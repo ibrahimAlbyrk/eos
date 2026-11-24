@@ -6,6 +6,7 @@ mod cdp;
 pub(crate) mod create;
 mod fetch;
 mod hosts;
+mod page_probe;
 mod preview;
 mod profiles;
 mod proxy;
@@ -32,6 +33,7 @@ use tauri_runtime_cef::{WebviewBuilderCefExt, WebviewCefExt};
 pub(crate) use self::artifacts::ArtifactShell;
 pub(crate) use self::cdp::Cdp;
 pub(crate) use self::hosts::HostShell;
+pub(crate) use self::page_probe::PageViews;
 pub(crate) use self::preview::Previewer;
 use crate::native::appkit;
 

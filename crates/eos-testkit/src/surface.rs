@@ -287,3 +287,59 @@ impl eos_core::surface::PageProbe for FakePageProbe {
         Box::pin(std::future::ready(answer))
     }
 }
+
+/// A page printer that writes a small stand-in PDF and keeps each document
+/// and paper it was asked to print.
+#[derive(Debug)]
+pub struct FakePagePrinter {
+    available: std::sync::atomic::AtomicBool,
+    printed: Mutex<Vec<(eos_core::surface::ProbeDoc, eos_core::surface::Paper)>>,
+}
+
+impl Default for FakePagePrinter {
+    fn default() -> Self {
+        Self { available: std::sync::atomic::AtomicBool::new(true), printed: Mutex::default() }
+    }
+}
+
+impl FakePagePrinter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_available(&self, available: bool) {
+        self.available.store(available, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn printed(&self) -> Vec<(eos_core::surface::ProbeDoc, eos_core::surface::Paper)> {
+        self.printed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+}
+
+/// What the fake writes as a PDF.
+pub const FAKE_PDF: &[u8] = b"%PDF-1.7\n% Eos test\n";
+
+impl eos_core::surface::PagePrinter for FakePagePrinter {
+    fn is_available(&self) -> bool {
+        self.available.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn pdf<'a>(
+        &'a self,
+        doc: eos_core::surface::ProbeDoc,
+        paper: eos_core::surface::Paper,
+        out: &'a std::path::Path,
+    ) -> BoxFuture<'a, Result<u64, Error>> {
+        Box::pin(async move {
+            if !self.is_available() {
+                return Err(Error::Unreachable("Eos's window is not open".into()));
+            }
+            self.printed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((doc, paper));
+            if let Some(dir) = out.parent() {
+                std::fs::create_dir_all(dir).map_err(Error::storage)?;
+            }
+            std::fs::write(out, FAKE_PDF).map_err(Error::storage)?;
+            Ok(FAKE_PDF.len() as u64)
+        })
+    }
+}

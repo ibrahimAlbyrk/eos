@@ -96,6 +96,9 @@ pub struct Options {
     /// The window shell's hidden view that lays out a page design to check
     /// it. Until the shell hands one in, a design waits for the window.
     pub page_probe: Arc<dyn eos_core::surface::PageProbe>,
+    /// The window shell's hidden view that prints a page issue to PDF. Until
+    /// the shell hands one in, a PDF is refused.
+    pub page_printer: Arc<dyn eos_core::surface::PagePrinter>,
     /// What the window shell lends the core. Without it (tests, a run with no
     /// window) the browser is absent, the open panels answer that there is
     /// none, and pages open through the system's own opener.
@@ -201,6 +204,7 @@ impl Options {
             resources: None,
             plugin_previewer: Arc::new(NoPreviewWindow),
             page_probe: Arc::new(eos_mod_surfaces::NoProbeWindow),
+            page_printer: Arc::new(eos_mod_surfaces::NoProbeWindow),
             shell: None,
             sweep_leftovers: false,
             exec_path: std::env::current_exe().ok(),
@@ -300,6 +304,7 @@ impl App {
             resources,
             plugin_previewer,
             page_probe,
+            page_printer,
             shell,
             exec_path,
             update_applier,
@@ -635,6 +640,7 @@ impl App {
             paths: paths.clone(),
             raw_routes: Default::default(),
             page_probe,
+            page_printer,
             pdfjs_root,
             embed_model,
             settings: settings.clone(),

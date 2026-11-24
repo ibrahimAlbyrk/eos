@@ -34,7 +34,7 @@ use crate::native::dock::DockTile;
 use crate::native::{appkit, dock, launch, notify};
 use crate::splash::Splash;
 use crate::tray::{Action, Tray};
-use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
+use crate::views::{ArtifactShell, Cdp, HostShell, PageViews, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
 use crate::{Hooks, Options, Ports, menu, scheme, window};
 
@@ -323,12 +323,15 @@ impl Shell {
         let view_ports: Arc<dyn eos_core::shell::BrowserViews> = Arc::new(ViewPorts(views.clone()));
         // The panel exists before the core: the browser feature holds it too.
         let panel = Panel::new(view_ports.clone(), self.rt.handle());
+        let page_views = Arc::new(PageViews::new(views.clone()));
         let ports = Ports {
             views: view_ports,
             panel: Arc::new(panel.clone()),
             capture: Arc::new(ViewPorts(views.clone())),
             picker: Arc::new(ViewPorts(views.clone())),
             previewer: Arc::new(Previewer::new(views.clone())),
+            page_probe: page_views.clone(),
+            page_printer: page_views,
             opener: Arc::new(Opener),
             work_hold: Arc::new(Activities::default()),
             dock_badge: Arc::new(DockTile(app.clone())),

@@ -70,6 +70,8 @@ pub(crate) struct Context {
     pub(crate) raw_routes: crate::files::RawRoutes,
     /// The shell's page probe, which checks page designs.
     pub(crate) page_probe: Arc<dyn eos_core::surface::PageProbe>,
+    /// The shell's page printer, which prints page issues to PDF.
+    pub(crate) page_printer: Arc<dyn eos_core::surface::PagePrinter>,
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
     /// The folder of memory's meaning model, when this run has one.
@@ -283,6 +285,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         feedback: memory.experience_feedback(),
         runs: routines.runs(),
         probe: cx.page_probe.clone(),
+        printer: cx.page_printer.clone(),
         root: cx.paths.join("surfaces"),
     }));
     cx.raw_routes.add(surfaces.raw_routes());
