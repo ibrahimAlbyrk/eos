@@ -61,6 +61,8 @@ cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos --features "$FEATURES" >&2
 cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos-cef-helper >&2
 # The update applier: runs while the app is closed, so it links nothing of the app.
 cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos-apply >&2
+# The terminal's `eos` command: links the contract types only.
+cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos-cli >&2
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 FRAMEWORK="$(ls -d "$CEF_PATH"/*/cef_macos_*/"Chromium Embedded Framework.framework" | head -1)"
@@ -82,6 +84,9 @@ grep -q "<key>MallocLargeCache</key>" "$APP/Contents/Info.plist" \
   || { echo "Info.plist does not name the $SCHEME scheme" >&2; exit 1; }
 cp "$BIN/eos" "$APP/Contents/MacOS/$NAME"
 cp "$BIN/eos-apply" "$APP/Contents/MacOS/eos-apply"
+# A Mach-O, never a script: the system signs and checks what sits in Helpers as code.
+mkdir -p "$APP/Contents/Helpers"
+cp "$BIN/eos-cli" "$APP/Contents/Helpers/eos"
 if [ "${EOS_UPDATE_CHANNEL:-}" = "stable" ]; then
   printf '{"version":"%s","channel":"stable","platform":"darwin-arm64"}' "$VERSION" > "$APP/Contents/Resources/update.json"
 fi

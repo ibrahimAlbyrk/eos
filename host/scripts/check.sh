@@ -7,12 +7,14 @@ require_setup
 cd "$HOST_DIR"
 
 # The vendored runtime and the helper keep upstream's formatting: only our crates.
-cargo fmt -p eos -p eos-apply -p eos-shell --check
-cargo clippy -p eos -p eos-apply -p eos-shell --all-targets --quiet -- -D warnings
+cargo fmt -p eos -p eos-apply -p eos-cli -p eos-shell --check
+cargo clippy -p eos -p eos-apply -p eos-cli -p eos-shell --all-targets --quiet -- -D warnings
 cargo clippy -p eos -p eos-shell --all-targets --features eos/dev-run --quiet -- -D warnings
 cargo build -p eos-cef-helper --quiet
 # The update applier: its swap and rollback, on throwaway bundle folders.
 cargo test -p eos-apply --quiet
+# The terminal's command against a fake gateway.
+cargo test -p eos-cli --quiet
 # The shell's tests that need no window, the work hold's per-reason system activities among them.
 cargo test -p eos-shell --quiet
 # The bridge's dev guard: the main workspace checks the bridge without that feature.

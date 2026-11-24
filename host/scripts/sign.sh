@@ -1,6 +1,6 @@
 #!/bin/bash
 # Signs the bundle locally with the Developer ID identity, inside out: the framework's
-# libraries, the framework, the helper apps, the bundled esbuild, the applier, the location
+# libraries, the framework, the helper apps, the bundled esbuild, the applier, the `eos` command, the location
 # helper, the screen saver, the app; hardened runtime
 # on the executables, and the CEF entitlements on those that run Chromium.
 #
@@ -35,6 +35,8 @@ ESBUILD="$APP/Contents/Resources/esbuild"
 # The update applier is a program of its own beside the main executable: signed by itself
 # (it runs from a copy outside the bundle), with no entitlement.
 [ -f "$APP/Contents/MacOS/eos-apply" ] && sign --options runtime "$APP/Contents/MacOS/eos-apply"
+# The terminal's `eos` command: a program of its own, run from a link outside the bundle.
+[ ! -f "$APP/Contents/Helpers/eos" ] || sign --options runtime "$APP/Contents/Helpers/eos"
 LOCATION="$APP/Contents/Resources/EosLocation.app"
 [ ! -d "$LOCATION" ] || sign --options runtime "$LOCATION"
 # The screen saver: a loadable bundle of its own, copied out of the app when installed, so
