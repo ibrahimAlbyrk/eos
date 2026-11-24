@@ -47,10 +47,10 @@ pub(crate) fn automatic(mode: &str) -> bool {
 
 /// How long a send waits before it goes, so it can still be stopped where
 /// the channel cannot take it back (03 G6): after the user's Send, or on
-/// its own. Telling the user themself reaches no one else, so it goes at
-/// once (D67).
+/// its own. A send to the user themself reaches no one else, so it goes at
+/// once (D67). Only the target says that: the action is what the run wrote.
 pub fn hold_ms(traits: &ChannelTraits, approved: bool, target: &Target) -> i64 {
-    if traits.class == eos_contracts::ActionClass::TellUser || target.place == Place::Me {
+    if target.place == Place::Me {
         return 0;
     }
     match (traits.undo, approved) {
