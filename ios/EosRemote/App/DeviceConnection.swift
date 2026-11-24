@@ -136,7 +136,8 @@ final class DeviceConnection: NSObject {
         link = ConnectionSupervisor { WSConnection(url: device.relayURL!, room: room, bearer: bearer) }
         super.init()
         eos.attach(call: { [weak self] method, path, body in await self?.eosCall(method, path, body) },
-                   sendWatch: { [weak self] run in self?.sendWatch(run) })
+                   sendWatch: { [weak self] run in self?.sendWatch(run) },
+                   fetchAsset: { [weak self] path in await self?.eosAsset(path) })
         link.onChange = { [weak self] in self?.onChange?() }
         link.onFrame = { [weak self] frame in await self?.handle(frame) }
         link.onLive = { [weak self] in self?.didGoLive() }
@@ -211,6 +212,15 @@ final class DeviceConnection: NSObject {
     func approve(pendingId: String, allow: Bool) async {
         await control("POST", "/pending/\(pendingId)/decision",
                       .object(["decision": .string(allow ? "allow" : "deny")]))
+    }
+
+    // A route that answers a document (an `asset` frame), as its bytes.
+    fileprivate func eosAsset(_ path: String) async -> Data? {
+        guard let connection,
+              case .asset(let asset)? = try? await connection.sendControlRaw(method: "GET", path: path,
+                                                                             bodyData: encodeOnce(.object([:])))
+        else { return nil }
+        return Data(base64Encoded: asset.bytesB64)
     }
 
     fileprivate func sendWatch(_ run: String?) {

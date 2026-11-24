@@ -68,3 +68,29 @@ final class EosTests: XCTestCase {
         XCTAssertNil(cache.load(device: "a"))
     }
 }
+
+final class EosActionTests: XCTestCase {
+    func testOnlyAWellFormedEosActionLinkIsAButton() {
+        XCTAssertEqual(EosAction.parse(URL(string: "eos-action:si-1/approve/0")!),
+                       EosAction(issueId: "si-1", button: "approve", index: 0))
+        XCTAssertNil(EosAction.parse(URL(string: "https://evil.example/si-1/approve/0")!))
+        XCTAssertNil(EosAction.parse(URL(string: "eos-action:si-1/approve")!))
+        XCTAssertNil(EosAction.parse(URL(string: "eos-action:si-1/approve/-1")!))
+        XCTAssertNil(EosAction.parse(URL(string: "eos-action://si-1/approve/0")!), "no host form")
+    }
+
+    func testThePressGoesAsTheMacsRouteReadsItAndItsAnswersAreKnown() {
+        let press = EosAction(issueId: "si-1", button: "approve", index: 2)
+        XCTAssertEqual(press.request(clientId: "c-1"),
+                       .object(["issueId": .string("si-1"), "button": .string("approve"), "index": .number(2),
+                                "clientId": .string("c-1")]))
+        XCTAssertEqual(press.request(clientId: "c-1", confirm: "tok", typed: "Prod")["confirm"], .string("tok"))
+        XCTAssertEqual(EosActionAnswer(.object(["status": .string("done"), "recordId": .string("r")])), .done)
+        XCTAssertEqual(EosActionAnswer(.object(["status": .string("confirm"), "recordId": .string("r"),
+                                                "token": .string("t"), "prompt": .string("Send it?")])),
+                       .confirm(token: "t", prompt: "Send it?", typeToConfirm: nil))
+        XCTAssertEqual(EosActionAnswer(.object(["status": .string("held"), "recordId": .string("r"),
+                                                "itemId": .string("in-1")])), .held(itemId: "in-1"))
+        XCTAssertEqual(EosActionAnswer(.object(["error": .string("forbidden")])), .refused("forbidden"))
+    }
+}

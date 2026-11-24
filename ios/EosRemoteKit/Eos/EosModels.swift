@@ -90,6 +90,12 @@ public struct EosRunActivity: Codable, Sendable, Equatable {
     public let at: Double
 }
 
+/// The issue of a routine's surface an item shows.
+public struct EosItemView: Codable, Sendable, Equatable {
+    public let surfaceId: String
+    public let issueId: String
+}
+
 public struct EosInboxItem: Codable, Sendable, Equatable, Identifiable {
     public let id: String
     public let kind: String
@@ -104,6 +110,7 @@ public struct EosInboxItem: Codable, Sendable, Equatable, Identifiable {
     public let staleAt: Double?
     public let createdAt: Double
     public let updatedAt: Double
+    public let view: EosItemView?
 }
 
 public struct EosInboxCounts: Codable, Sendable, Equatable {
