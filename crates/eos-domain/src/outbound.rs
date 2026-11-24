@@ -1,7 +1,9 @@
 //! The outbound check: what in a routine's result could reach someone or
 //! somewhere that the item, the routine and the user did not name. A link
 //! to a new host, an embedded image, a new `@mention`, a new mail address or
-//! phone number, a secret, a result over the channel's limit. Any flag holds
+//! phone number, a secret, a result over the channel's limit. Slack's own
+//! syntax counts too: `<@U…>` is a mention, `<!here>` and the other
+//! broadcasts always flag, and `<url|label>` is a link. Any flag holds
 //! an automatic delivery as a draft; a held draft shows its flags. Pure; a
 //! result is the user's text, so nothing here logs.
 
@@ -68,6 +70,7 @@ impl OutboundContext {
     pub fn add_from(&mut self, text: &str) {
         self.hosts.extend(hosts(text));
         self.handles.extend(mentions(text));
+        self.handles.extend(slack_ids(text));
         self.addresses.extend(addresses(text));
         self.numbers.extend(numbers(text));
     }
@@ -98,7 +101,8 @@ pub fn check(doc: &ResultDoc, ctx: &OutboundContext) -> Vec<Flag> {
         bytes += text.len();
         flag(new(hosts(text), &known_hosts), Flag::NewHost);
         flag(has_image(text, &labels), Flag::Image);
-        flag(new(mentions(&outside_code(text)), &known_handles), Flag::NewMention);
+        let unquoted = outside_code(text);
+        flag(new(mentions(&unquoted), &known_handles) || broadcast(&unquoted), Flag::NewMention);
         flag(new(addresses(text), &known_addresses) || new(numbers(text), &known_numbers), Flag::NewAddress);
         flag(secret_like(text), Flag::SecretLike);
     }
@@ -225,6 +229,29 @@ fn mentions(text: &str) -> Vec<String> {
         }
     }
     found
+}
+
+/// The Slack member ids a text names on their own (`U0123ABCD`, as an
+/// item's facts or a Goes-to entry hold them), lowercase as a mention reads.
+fn slack_ids(text: &str) -> Vec<String> {
+    let id = |word: &str| {
+        word.len() >= 9
+            && word.starts_with(['U', 'W'])
+            && word.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+            && word.chars().any(|c| c.is_ascii_digit())
+    };
+    text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|word| id(word)).map(str::to_ascii_lowercase).collect()
+}
+
+/// Slack's broadcasts, which notify a crowd: `<!here>`, `<!channel>`,
+/// `<!everyone>` and a user group's `<!subteam^…>`.
+fn broadcast(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    lower.match_indices("<!").any(|(at, _)| {
+        let name = &lower[at + 2..];
+        let name = &name[..name.find(['>', '|', '^']).unwrap_or(name.len())];
+        matches!(name, "here" | "channel" | "everyone" | "subteam")
+    })
 }
 
 /// Every mail address, lowercase.
