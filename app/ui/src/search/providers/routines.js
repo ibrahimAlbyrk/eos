@@ -19,7 +19,7 @@ export const routinesProvider = {
       keywords: [r.slug, ...(r.aliases ?? [])].filter(Boolean),
       onSelect: (ctx) => {
         openEosRoute("eos:/", ctx.setActiveView);
-        openRunSheet({ routineId: r.id });
+        openRunSheet({ routineId: r.id, door: "palette" });
       },
     }));
     const stop = {
