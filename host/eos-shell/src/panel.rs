@@ -106,6 +106,14 @@ impl QuickPanel {
         self.show();
     }
 
+    /// Files and folders dropped on the Dock icon: held, and the panel shows.
+    pub(crate) fn from_dock(self: &Arc<Self>, paths: Vec<std::path::PathBuf>) {
+        if let Some(bridge) = self.bridge.get().and_then(Weak::upgrade) {
+            bridge.hold(DoorItem::new(DoorSource::Dock, None, paths.into_iter().map(DoorPart::of_path).collect()));
+        }
+        self.show();
+    }
+
     /// Closes the panel, whatever asked: the page, Escape, or the panel losing the keyboard.
     pub(crate) fn close(self: &Arc<Self>) {
         self.on_main(|me| {
