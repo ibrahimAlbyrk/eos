@@ -3,7 +3,8 @@
 //! starts (so the first `worker:spawn` already finds it), the lead starts as
 //! a focused session of the reserved definition with the run brief as its
 //! first message and memory's notes for the item with it, and the run goes
-//! to work.
+//! to work. A run whose version makes a surface finds it made before its
+//! lead starts, whichever way the routine or that version was made.
 
 use std::sync::Arc;
 
@@ -32,6 +33,7 @@ const NOT_VALID: &str = "This routine's blueprint no longer passes its rules.";
 /// What the brief station starts the lead from.
 struct Briefing {
     routine_id: String,
+    version_id: String,
     blueprint: Blueprint,
     input: RunInput,
     trust: Trust,
@@ -61,10 +63,11 @@ fn internal(error: Error) -> Refusal {
 
 async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     let Some(briefing) = read(engine, run_id).await.map_err(internal)? else { return Ok(()) };
-    let Briefing { routine_id, blueprint, input, trust } = briefing;
+    let Briefing { routine_id, version_id, blueprint, input, trust } = briefing;
     if !passes(&routine_id, &blueprint) {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
     }
+    super::surfaces::created(engine, &routine_id, &version_id, &blueprint.makes.kind).await;
     let (agent, role, role_word, definition) = match (blueprint.who.depth, blueprint.who.agents.as_slice()) {
         (WhoDepth::Solo, [agent]) => (agent.clone(), RunRole::Solo, "solo", SOLO_DEFINITION),
         (WhoDepth::Team, agents) => match agents.iter().find(|agent| agent.lead) {
@@ -139,7 +142,7 @@ async fn read(engine: &Engine, run_id: &str) -> Result<Option<Briefing>, Error> 
             let input: RunInput =
                 serde_json::from_str(&run.input).map_err(|_| Error::storage(format!("run {id} has no input")))?;
             let trust = eos_domain::routine::trust::of_run(Some(version.trust), &input);
-            Ok(Some(Briefing { routine_id: run.routine_id, blueprint, input, trust }))
+            Ok(Some(Briefing { routine_id: run.routine_id, version_id, blueprint, input, trust }))
         })
         .await
 }

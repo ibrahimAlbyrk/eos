@@ -1,7 +1,8 @@
 //! Memory and surfaces at the stations: the lead's first start carries the
 //! notes memory packed for its item, a playbook replay packs its candidate,
-//! memory hears how runs end, and a routine that makes a page takes its
-//! surface through its life.
+//! memory hears how runs end, a routine that makes a page takes its
+//! surface through its life, and a run of a version that makes a view finds
+//! its surface made however the routine was made.
 
 use eos_contracts::RoutineState;
 use eos_core::experience::RunPack;
@@ -141,4 +142,20 @@ async fn a_replay_runs_a_past_item_as_a_show_only_trial_with_its_playbook_candid
     let refused = bench.module.replays().replay(&paused, "mv-candidate", &[paused_past]).await;
     assert_eq!(refused, Err(StartError::RoutineState(RoutineState::Paused)), "only an active routine is replayed");
     bench.module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_of_a_version_that_makes_a_view_has_its_surface_made_before_its_lead_starts() {
+    let bench = Bench::new(true);
+    let mut view = blueprint(1);
+    view["makes"] = json!({"kind": "view", "description": "A digest card."});
+    // Written straight to the store, as the architect writes its routines: nothing made a surface.
+    let routine = bench.routine(RoutineState::Active, view);
+    assert_eq!(bench.surfaces.calls(), []);
+    let (run, _) = at_work(&bench, &routine).await;
+    let version = bench.run(&run).version_id.expect("a version");
+    assert_eq!(
+        bench.surfaces.calls(),
+        [SurfaceCall::Create { routine_id: routine.clone(), version_id: version, makes: "view".into() }]
+    );
 }
