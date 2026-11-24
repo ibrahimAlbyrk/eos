@@ -103,6 +103,7 @@ zeroize.workspace = true
 [dev-dependencies]
 eos-engine = { workspace = true, features = ["mock-api"] }
 eos-kit-log.workspace = true
+eos-surface.workspace = true
 eos-testkit.workspace = true
 rusqlite.workspace = true
 tempfile.workspace = true

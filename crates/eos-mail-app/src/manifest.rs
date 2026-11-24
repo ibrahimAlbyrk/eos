@@ -70,10 +70,15 @@ fn actions() -> Value {
               "items": { "type": "array", "items": item }, "cursor": cursor, "pollAfterS": { "type": "integer" },
               "baseline": { "type": "boolean" },
           }), &["items", "cursor", "pollAfterS"]) },
-        { "name": "send_mail", "summary": "Send a plain mail to one address through Mail. It cannot be taken back.",
+        { "name": "send_mail", "summary": "Send a mail to one address through Mail. It cannot be taken back.",
           "class": "speak", "recipient": "input:/to",
           "input": object(json!({
               "to": { "type": "string", "format": "email" }, "subject": text(), "body": text(),
+              "html": text(),
+              "images": { "type": "array", "items": object(json!({
+                  "cid": text(), "contentType": text(), "data": text(),
+              }), &["cid", "contentType", "data"]) },
+              "pdf": text(),
           }), &["to", "subject", "body"]),
           "output": object(json!({ "sent": { "type": "boolean" } }), &["sent"]) },
     ])

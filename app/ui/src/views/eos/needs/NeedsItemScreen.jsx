@@ -117,7 +117,7 @@ export function NeedsItemScreen({ id }) {
               {!open && <Closed detail={detail} refused={refused[id]} />}
               {detail.item.view
                 ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} />
-                : <Body detail={detail} values={values} setValue={setValue} />}
+                : <Body detail={detail} values={values} setValue={setValue} routineName={nameOf(detail.item.routineId)} />}
               {open && (
                 <div className="eos-actions eos-needs-item__actions">
                   {actions.map((a) => (

@@ -27,6 +27,8 @@ struct State {
     /// As the RECENT program prints them, with `body` and `to` for READ.
     inbox: Vec<Value>,
     sent: Vec<SentMail>,
+    /// What each send was given, whole.
+    sends: Vec<Value>,
     programs: Vec<Program>,
 }
 
@@ -76,6 +78,11 @@ impl FakeMail {
         self.lock().sent.clone()
     }
 
+    /// What each send was given, whole: a page's html, images and PDF too.
+    pub fn sends(&self) -> Vec<Value> {
+        self.lock().sends.clone()
+    }
+
     /// The real mail built-in, driving this fake: for a crate below the
     /// adapters that needs a mail capability in its tests.
     pub fn builtin(&self, now: i64) -> Arc<dyn BuiltinCapability> {
@@ -83,6 +90,7 @@ impl FakeMail {
             script: Arc::new(self.clone()),
             clock: Arc::new(FakeClock::at(now)),
             sleeper: Arc::new(FakeSleeper::default()),
+            surfaces: std::path::PathBuf::from("/eos-test/surfaces"),
         }))
     }
 
@@ -133,6 +141,7 @@ impl FakeMail {
             Program::Send => {
                 let text = |field: &str| input[field].as_str().unwrap_or_default().to_owned();
                 state.sent.push(SentMail { to: text("to"), subject: text("subject"), body: text("body") });
+                state.sends.push(input.clone());
                 Ok(json!({ "sent": true }))
             }
         }

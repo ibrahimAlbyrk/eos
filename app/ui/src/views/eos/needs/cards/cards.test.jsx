@@ -278,3 +278,29 @@ describe("the other cards", () => {
     expect(buttons(html)).toEqual(["Open", "Later", "Discard"]);
   });
 });
+
+describe("a page draft", () => {
+  const draft = byKind.draft;
+  const page = {
+    ...draft,
+    payload: {
+      ...draft.payload,
+      doc: {
+        kind: "page.issue", channel: "mail", action: "send_mail",
+        parts: [
+          { key: "title", role: "field", text: "The Morning Build" },
+          { key: "@issue", role: "issue", text: "si-7", meta: { surface: "sf-paper" } },
+          { key: "to:boss", role: "recipient", text: "boss@acme.dev" },
+        ],
+      },
+    },
+  };
+
+  it("names the page it sends and who it goes to, and is edited on the page, not as text", async () => {
+    const html = await screen("draft", page);
+    expect(html).toContain('<span class="eos-chip eos-result__locked">boss@acme.dev</span>');
+    expect(html).not.toContain("The Morning Build</textarea>");
+    expect(buttons(html)).not.toContain("Edit");
+    expect(buttons(html)[0]).toMatch(/^Send/);
+  });
+});

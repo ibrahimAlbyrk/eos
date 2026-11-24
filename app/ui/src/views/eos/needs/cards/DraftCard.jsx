@@ -7,6 +7,7 @@ import { MailEditor } from "../editors/MailEditor.jsx";
 import { ReviewEditor } from "../editors/ReviewEditor.jsx";
 import { SlackEditor } from "../editors/SlackEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
+import { PageItem } from "../ItemView.jsx";
 import { DocView, ResultView } from "../results/ResultView.jsx";
 import { SendState } from "../SendState.jsx";
 import { staleLine } from "../words.js";
@@ -52,9 +53,29 @@ export function followReplacement(detail) {
   openLocation(`eos:/needs/${encodeURIComponent(detail.replacedBy)}`);
 }
 
+// The page issue a page draft sends: its page and its id, from the part
+// that names it.
+export function pageOf(doc) {
+  if (doc?.kind !== "page.issue") return null;
+  const part = doc.parts.find((p) => p.key === "@issue");
+  return part?.meta?.surface ? { surfaceId: part.meta.surface, issueId: part.text } : null;
+}
+
+// Who a page draft goes to: fixed by the blueprint.
+function PageTo({ doc }) {
+  const to = doc.parts.filter((p) => p.key.startsWith("to:"));
+  if (to.length === 0) return null;
+  return (
+    <p className="eos-result__to">
+      To {to.map((r) => <span key={r.key} className="eos-chip eos-result__locked">{r.text}</span>)}
+      <span className="eos-result__fixed">Fixed in the blueprint</span>
+    </p>
+  );
+}
+
 // A draft: read, or edited in place by its kind's editor. Every change is
 // kept in this window at once and in the core once typing pauses.
-export function DraftCard({ detail, values, setValue }) {
+export function DraftCard({ detail, values, setValue, routineName }) {
   const id = detail.item.id;
   const original = originalDoc(detail);
   const edit = original ? currentEdit(detail, values) : null;
@@ -71,6 +92,17 @@ export function DraftCard({ detail, values, setValue }) {
     writeEdit(id, next, detail.item.rev, Date.now());
   };
   const Editor = editorOf(original?.kind);
+  const page = pageOf(original);
+  if (page) {
+    // A page is edited on the page itself: the mail draws the issue as it is when it goes.
+    return (
+      <div className="eos-draft">
+        <SendState detail={detail} />
+        <PageTo doc={original} />
+        <PageItem surfaceId={page.surfaceId} issueId={page.issueId} routineName={routineName} />
+      </div>
+    );
+  }
   return (
     <div className={carried ? "eos-draft eos-draft--beside" : "eos-draft"}>
       <SendState detail={detail} />

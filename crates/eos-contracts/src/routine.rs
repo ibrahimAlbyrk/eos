@@ -341,6 +341,9 @@ pub struct Makes {
     /// What a page result must hold, kept as it came.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contract: Option<Value>,
+    /// A page sent by mail carries its issue's PDF too (D30).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pdf: bool,
     /// Keys this version does not know; kept so a round trip loses nothing.
     #[serde(flatten)]
     pub extra: Map<String, Value>,

@@ -102,6 +102,8 @@ pub struct CapabilityService {
     /// to the pinned hash: an unchanged stamp spares the hashing.
     stamps: Mutex<HashMap<(String, String), String>>,
     early: early::EarlyChecks,
+    /// Draws a page issue for the mail channel; attached once surfaces exist.
+    render: std::sync::OnceLock<Arc<dyn eos_core::surface::SurfaceRender>>,
 }
 
 impl std::fmt::Debug for CapabilityService {
@@ -116,12 +118,26 @@ impl CapabilityService {
     /// `builtins`: Eos's own capabilities, by the ids their manifests give.
     pub fn new(ports: CapabilityPorts, builtins: Vec<Arc<dyn BuiltinCapability>>) -> Self {
         let builtins = builtins.into_iter().map(|builtin| (builtin.manifest().id.clone(), builtin)).collect();
-        Self { ports, builtins, limits: limits::Limits::default(), stamps: Mutex::default(), early: Default::default() }
+        Self {
+            ports,
+            builtins,
+            limits: limits::Limits::default(),
+            stamps: Mutex::default(),
+            early: Default::default(),
+            render: std::sync::OnceLock::new(),
+        }
     }
 
     /// The signal sources the built-ins declare, by `<capability>.<source>`.
     pub fn signal_sources(self: &Arc<Self>) -> Arc<dyn SignalSources> {
         Arc::new(sources::Sources(self.clone()))
+    }
+
+    /// What draws a page issue the mail channel sends; until then a page
+    /// cannot be mailed.
+    pub fn attach_render(&self, render: Arc<dyn eos_core::surface::SurfaceRender>) {
+        // Attached once at composition; a second call changes nothing.
+        let _ = self.render.set(render);
     }
 
     /// The channels deliveries go out through.

@@ -212,8 +212,9 @@ async fn the_phone_the_share_file_and_the_mail_carry_no_script_and_inline_their_
     assert_eq!(status, 400);
     let (_, _, preview) = rig.fetch(router, &format!("/api/surfaces/sf-paper/issues/{id}/mail")).await;
     assert!(preview.contains("max-width:640px") && preview.contains("data:image/jpeg"));
-    let mail = rig.module.render().mail_document(&id).await.expect("a mail");
+    let mail = rig.module.render().mail_document(&id, false).await.expect("a mail");
     assert_eq!(mail.subject, "Morning Paper · No. 1");
+    assert_eq!(mail.pdf, None);
     assert_eq!(mail.inline_images.len(), 1);
     assert!(mail.html.contains(&format!("cid:{}", mail.inline_images[0].cid)));
     assert!(mail.text.contains("Deterministic replays"));
@@ -241,9 +242,13 @@ async fn an_issue_prints_to_its_export_file_on_the_paper_asked_with_its_images_i
     assert_eq!(rig.ask(Method::Post, &path, Some(json!({}))).await.0, 200, "A4 when no paper is named");
     assert_eq!(rig.printer.printed()[1].1, eos_core::surface::Paper::A4);
     assert_eq!(rig.ask(Method::Post, &path, Some(json!({"paper": "a3"}))).await.0, 400);
+    let mailed = rig.module.render().mail_document(&id, true).await.expect("a mail");
+    assert_eq!(mailed.pdf.as_deref(), Some(out.as_path()), "a mail asked to carry its PDF prints it");
     rig.printer.set_available(false);
     let (status, refused) = rig.ask(Method::Post, &path, Some(json!({}))).await;
     assert_eq!((status, refused["error"].as_str()), (409, Some("A PDF needs Eos's window: open Eos and try again")));
+    let without = rig.module.render().mail_document(&id, true).await.expect("a mail without its window");
+    assert_eq!(without.pdf, None, "without the window the mail goes without its PDF");
 }
 
 #[tokio::test]

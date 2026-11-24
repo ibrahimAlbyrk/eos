@@ -5,7 +5,9 @@
 //! [`MailApp`] answers `BuiltinCapability`: it lists and reads the mail of
 //! the inboxes inside the last [`WINDOW_HOURS`], polls the inbox for mail it
 //! has not seen (by RFC Message-ID, the first poll only marking what is
-//! there), and sends one plain mail to one address. Its health check asks
+//! there), and sends one mail to one address: plain text, or a page issue's
+//! html with its images and, when asked, its PDF, which must be one of the
+//! page export files under [`Parts::surfaces`]. Its health check asks
 //! Mail for its accounts; a refused Apple Event (-1743) reads as
 //! `automation_denied`, a step the user takes. Every action is bounded by
 //! its timeout.
@@ -19,6 +21,7 @@ mod manifest;
 mod script;
 
 use std::collections::HashSet;
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use eos_core::capability::{ActionContext, ActionError, BuiltinCapability, FailureKind};
@@ -41,10 +44,14 @@ pub struct Parts {
     pub script: Arc<dyn Script>,
     pub clock: Arc<dyn Clock>,
     pub sleeper: Arc<dyn Sleeper>,
+    /// The surfaces folder: a mail may carry only a PDF under
+    /// `<surface>/exports/` in it.
+    pub surfaces: PathBuf,
 }
 
 pub struct MailApp {
     manifest: Manifest,
+    surfaces: PathBuf,
     script: Arc<dyn Script>,
     clock: Arc<dyn Clock>,
     sleeper: Arc<dyn Sleeper>,
@@ -72,13 +79,28 @@ fn action_error(error: &ScriptError) -> ActionError {
     }
 }
 
+/// Whether `path` is a page's PDF export: `<surfaces>/<surface>/exports/<file>.pdf`.
+fn is_export(surfaces: &Path, path: &Path) -> bool {
+    let Ok(rest) = path.strip_prefix(surfaces) else { return false };
+    let parts: Vec<Component<'_>> = rest.components().collect();
+    let plain = parts.iter().all(|part| matches!(part, Component::Normal(_)));
+    let pdf = path.extension().is_some_and(|ext| ext == "pdf");
+    plain && pdf && surfaces.is_absolute() && parts.len() == 3 && parts[1].as_os_str() == "exports"
+}
+
 fn strings(value: &Value) -> impl Iterator<Item = &str> {
     value.as_array().into_iter().flatten().filter_map(Value::as_str)
 }
 
 impl MailApp {
     pub fn new(parts: Parts) -> Self {
-        Self { manifest: manifest::manifest(), script: parts.script, clock: parts.clock, sleeper: parts.sleeper }
+        Self {
+            manifest: manifest::manifest(),
+            surfaces: parts.surfaces,
+            script: parts.script,
+            clock: parts.clock,
+            sleeper: parts.sleeper,
+        }
     }
 
     async fn script(&self, program: Program, input: Value) -> Result<Value, ActionError> {
@@ -153,7 +175,18 @@ impl MailApp {
     }
 
     async fn send(&self, input: &Value) -> Result<Value, ActionError> {
-        let program = json!({ "to": input["to"], "subject": input["subject"], "body": input["body"] });
+        let mut program = json!({ "to": input["to"], "subject": input["subject"], "body": input["body"] });
+        for field in ["html", "images"] {
+            if let Some(value) = input.get(field) {
+                program[field] = value.clone();
+            }
+        }
+        if let Some(pdf) = input.get("pdf").and_then(Value::as_str) {
+            if !is_export(&self.surfaces, Path::new(pdf)) {
+                return Err(ActionError::Invalid("Input validation error: pdf: a page's export file".into()));
+            }
+            program["pdf"] = json!(pdf);
+        }
         let sent = self.script(Program::Send, program).await?;
         if sent["sent"] != true {
             return Err(ActionError::Failed { kind: FailureKind::Service });

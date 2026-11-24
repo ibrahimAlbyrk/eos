@@ -6,7 +6,7 @@
 use eos_contracts::{Facts, Part, Recipient, RecipientKind, ResultDoc};
 use eos_core::delivery::{Place, Target};
 use eos_core::routine::GateInput;
-use eos_domain::result_doc::{MAIL, recipient_key};
+use eos_domain::result_doc::{names_recipients, recipient_key};
 use eos_domain::signals::which::{self, Verdict};
 
 /// One place the result goes.
@@ -43,7 +43,7 @@ fn channel_of(recipient: &Recipient) -> &str {
 fn named(doc: &ResultDoc, confirmed: &[Recipient], recipient: &Recipient) -> bool {
     let known = |name: &&str| confirmed.iter().any(|recipient| recipient.id == *name);
     let names: Vec<&str> = doc.parts.iter().filter_map(|part| part.key.strip_prefix("to:")).filter(known).collect();
-    doc.kind != MAIL || names.is_empty() || names.contains(&recipient.id.as_str())
+    !names_recipients(&doc.kind) || names.is_empty() || names.contains(&recipient.id.as_str())
 }
 
 pub(crate) fn choose(input: &GateInput, facts: &Facts) -> Targets {
@@ -86,7 +86,7 @@ fn readable(recipient: &Recipient) -> String {
 /// goes to in a readable `to:` part, so the user can untick one.
 pub(crate) fn with_recipients(doc: &ResultDoc, chosen: &[Chosen]) -> ResultDoc {
     let mut doc = doc.clone();
-    if doc.kind != MAIL {
+    if !names_recipients(&doc.kind) {
         return doc;
     }
     for target in chosen {

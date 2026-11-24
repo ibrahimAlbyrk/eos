@@ -7,7 +7,7 @@ import { answerInboxItem, decideRunAsk, decideSuggestion, isHolding, sendInboxDr
 import { openLocation } from "../../nav/eosNav.js";
 import { dropEdit } from "../editDrafts.js";
 import { docChanged, sendLabel } from "../editors/editDoc.js";
-import { currentEdit, DraftCard, isStale, originalDoc } from "./DraftCard.jsx";
+import { currentEdit, DraftCard, isStale, originalDoc, pageOf } from "./DraftCard.jsx";
 import { PermissionCard } from "./PermissionCard.jsx";
 import { questionAnswers, QuestionCard } from "./QuestionCard.jsx";
 import { editedGuess, MemoryQuestion } from "./MemoryQuestion.jsx";
@@ -53,7 +53,8 @@ const KINDS = {
       },
       {
         label: "Edit",
-        when: (detail, values) => Boolean(originalDoc(detail)) && !currentEdit(detail, values),
+        // A page is edited on the page itself.
+        when: (detail, values) => Boolean(originalDoc(detail)) && !pageOf(originalDoc(detail)) && !currentEdit(detail, values),
         run: (detail, values, setValue) => {
           setValue("edit", originalDoc(detail));
           return false;

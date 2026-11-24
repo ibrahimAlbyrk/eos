@@ -41,7 +41,7 @@ pub enum Program {
     Recent,
     /// One inbox mail by `messageId`, with its text.
     Read,
-    /// One plain mail to `to`: `{sent}`.
+    /// One mail to `to`, with a page's html, images and PDF: `{sent}`.
     Send,
 }
 
@@ -79,9 +79,9 @@ impl Osascript {
     }
 
     async fn run_once(&self, program: Program, input: Value) -> Result<Value, ScriptError> {
-        // `argv[0]` of the program's `run(argv)` is its input as JSON text.
         let command = Command::new("/usr/bin/osascript")
-            .args(["-l", "JavaScript", "-e", program.source(), &input.to_string()])
+            .args(["-l", "JavaScript", "-e", &jxa::with_input(program.source())])
+            .stdin(input.to_string())
             .env(Env::empty())
             .timeout(OSASCRIPT_TIMEOUT)
             .max_output(OSASCRIPT_MAX_OUTPUT, eos_kit_proc::Overflow::Truncate);

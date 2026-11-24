@@ -289,6 +289,8 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         root: cx.paths.join("surfaces"),
     }));
     cx.raw_routes.add(surfaces.raw_routes());
+    // The mail channel draws a page issue it sends.
+    cx.capabilities.attach_render(surfaces.render());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
         crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory, &surfaces)?;

@@ -87,7 +87,7 @@ async fn mail(parts: &SurfacesParts, drawn: &Drawn, inline: bool) -> Result<Mail
             })
             .collect()
     };
-    Ok(MailDocument { subject: subject(drawn), html: body.html, text: body.text, inline_images })
+    Ok(MailDocument { subject: subject(drawn), html: body.html, text: body.text, inline_images, pdf: None })
 }
 
 /// Prints the issue to its export file; the file's path and size.
@@ -166,17 +166,25 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>, docs: &Arc<ProbeDocs>) -> Vec<R
 }
 
 /// The mail channel's view of page issues.
-pub(crate) struct MailRender(pub(crate) Arc<SurfacesParts>);
+pub(crate) struct MailRender(pub(crate) Arc<SurfacesParts>, pub(crate) Arc<ProbeDocs>);
 
 impl SurfaceRender for MailRender {
-    fn mail_document<'a>(&'a self, issue_id: &'a str) -> BoxFuture<'a, Result<MailDocument, Error>> {
+    fn mail_document<'a>(&'a self, issue_id: &'a str, with_pdf: bool) -> BoxFuture<'a, Result<MailDocument, Error>> {
         Box::pin(async move {
             let id = issue_id.to_owned();
             let found = self.0.store.read(move |tx| tx.surface_issues().find(&id)).await?;
             let issue = found.ok_or_else(|| Error::not_found("issue", issue_id))?;
             let drawn =
                 load(&self.0, &issue.surface_id, issue_id, None).await.map_err(|e| Error::Validation(e.to_string()))?;
-            mail(&self.0, &drawn, false).await
+            let mut doc = mail(&self.0, &drawn, false).await?;
+            if with_pdf {
+                // Without the window the mail still goes, without its PDF.
+                match pdf(&self.0, &self.1, &drawn, Paper::A4).await {
+                    Ok(export) => doc.pdf = Some(export.path.into()),
+                    Err(error) => tracing::info!(issue = %issue_id, %error, "a mailed issue went without its PDF"),
+                }
+            }
+            Ok(doc)
         })
     }
 }

@@ -107,3 +107,22 @@ fn a_diff_names_each_part_that_went_came_changed_or_moved() {
     moved_and_changed.parts = vec![field("b", "B"), field("c", "C"), field("d", "D"), field("a", "A!")];
     assert_eq!(ops(&diff(&before, &moved_and_changed)), [("a", EditOp::Changed)]);
 }
+
+#[test]
+fn a_page_issue_is_its_fields_by_path_in_order_and_names_its_issue() {
+    let data = json!({"title": "Morning", "stories": [{"title": "One", "score": 3}, {"title": "Two", "image": null}]});
+    let page = page_issue_doc(("sf-1", "si-1"), &data, true, "mail", "send_mail");
+    let keys: Vec<&str> = page.parts.iter().map(|part| part.key.as_str()).collect();
+    assert_eq!(keys, ["title", "stories[0].title", "stories[0].score", "stories[1].title", ISSUE_PART]);
+    assert_eq!(page.parts[2].text, "3");
+    assert_eq!(issue_of(&page), Some(("si-1", true)));
+    assert_eq!(issue_of(&page_issue_doc(("sf-1", "si-2"), &data, false, "mail", "send_mail")), Some(("si-2", false)));
+    assert!(names_recipients(PAGE_ISSUE) && names_recipients(MAIL) && !names_recipients(TEXT));
+    let mut to = page.clone();
+    to.parts.push(part(&recipient_key("b"), "recipient", "b@example.com"));
+    to.parts.insert(0, part(&recipient_key("a"), "recipient", "a@example.com"));
+    let mut swapped = to.clone();
+    let last = swapped.parts.len() - 1;
+    swapped.parts.swap(0, last);
+    assert!(diff(&to, &swapped).is_empty(), "a page's recipients are a set");
+}

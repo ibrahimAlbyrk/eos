@@ -12,7 +12,7 @@ use eos_core::delivery::{ChannelTraits, Idempotency, Place, Target, Undo};
 use eos_core::routine::RoutineControl;
 use eos_core::store::{ItemAnswer, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::result_doc::{MAIL, recipient_key};
+use eos_domain::result_doc::{names_recipients, recipient_key};
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
@@ -44,7 +44,7 @@ fn targets(payload: &Value, doc: &ResultDoc) -> Vec<Target> {
     let held = payload["targets"].as_array().into_iter().flatten().filter_map(target_from);
     let kept = |target: &Target| {
         let key = recipient_key(&target.recipient_id);
-        doc.kind != MAIL || doc.parts.iter().any(|part| part.key == key)
+        !names_recipients(&doc.kind) || doc.parts.iter().any(|part| part.key == key)
     };
     held.filter(kept).collect()
 }

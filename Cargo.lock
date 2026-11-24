@@ -1609,6 +1609,7 @@ dependencies = [
  "eos-slack",
  "eos-store-files",
  "eos-store-sqlite",
+ "eos-surface",
  "eos-symbols",
  "eos-sync-vault",
  "eos-testkit",
@@ -1680,6 +1681,8 @@ dependencies = [
 name = "eos-capabilities"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
+ "bytes",
  "eos-contracts",
  "eos-core",
  "eos-domain",
