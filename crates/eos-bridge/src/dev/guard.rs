@@ -136,6 +136,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/inbox/{id}/answer"),
     // A surface's button runs a declared action: it may start a run or answer for the user.
     ("POST", "/api/actions/run"),
+    // Reshaping a page by saying starts its designer.
+    ("POST", "/api/surfaces/{id}/reshape"),
     // A send approves a delivery as the user.
     ("POST", "/api/inbox/{id}/send"),
     // Taking a send back reaches the service it went to as the user; trying a failed one again
@@ -423,6 +425,12 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/surfaces/{id}/issues/{issueId}/read"),
     // Pins are this Mac's Home layout, in the data folder.
     ("PUT", "/api/surfaces/pins"),
+    // Keeping, discarding or bringing back a page's design and arranging its parts change
+    // rows in the data folder, with no agent.
+    ("POST", "/api/surfaces/{id}/versions/{version}/keep"),
+    ("POST", "/api/surfaces/{id}/versions/{version}/discard"),
+    ("POST", "/api/surfaces/{id}/versions/{version}/restore"),
+    ("POST", "/api/surfaces/{id}/arrange"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

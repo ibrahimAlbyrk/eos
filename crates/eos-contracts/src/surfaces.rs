@@ -493,6 +493,47 @@ pub struct SurfacesPins {}
 
 impl Validate for SurfacesPins {}
 
+/// `POST /api/surfaces/{id}/reshape`: what the user said, about the part
+/// they pointed at, from the version they saw.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReshapeRequest {
+    pub base_version: i64,
+    pub instruction: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<u32>,
+}
+
+impl Validate for ReshapeRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("instruction", |cx| cx.str_max(&self.instruction, 2_000));
+    }
+}
+
+/// The design run a reshape started.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReshapeStarted {
+    pub run_id: String,
+}
+
+impl Validate for ReshapeStarted {}
+
+/// `POST /api/surfaces/{id}/arrange`: the popover's Remove, Move up or
+/// Move down on the part pointed at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ArrangeRequest {
+    pub base_version: i64,
+    pub part: String,
+    /// `remove`, `move_up` or `move_down`.
+    pub op: String,
+}
+
+impl Validate for ArrangeRequest {}
+
 /// `surfaces:design`: a design version moved through its checks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

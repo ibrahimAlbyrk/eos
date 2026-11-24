@@ -207,3 +207,19 @@ fn problems_say_where_they_are() {
     let found = small_problems("<p>ok</p>\n  <p>{nope}</p>");
     assert!(found.starts_with("template:2:"), "{found}");
 }
+
+#[test]
+fn pointing_removes_a_part_or_moves_it_among_its_siblings() {
+    use eos_surface::{ArrangeOp, PageDesign, arrange};
+    let body = serde_json::json!({
+        "template": "<header part=\"top\"><h1>{title}</h1></header><section part=\"a\"><p>A</p></section><section part=\"b\"><p>B</p></section>",
+        "style": "", "contract": {"type": "object", "fields": {"title": {"type": "text", "max": 20}}},
+        "sample": {"title": "Paper"}});
+    let design = PageDesign::from_body(&body).expect("a design");
+    let parts = |body: &serde_json::Value| PageDesign::from_body(body).expect("still a design").template.parts;
+    assert_eq!(parts(&arrange(&design, "b", ArrangeOp::MoveUp).expect("moved")), ["top", "b", "a"]);
+    assert_eq!(parts(&arrange(&design, "top", ArrangeOp::MoveDown).expect("moved")), ["a", "top", "b"]);
+    assert_eq!(parts(&arrange(&design, "a", ArrangeOp::Remove).expect("removed")), ["top", "b"]);
+    assert!(arrange(&design, "top", ArrangeOp::MoveUp).is_err(), "nothing above the first");
+    assert!(arrange(&design, "nowhere", ArrangeOp::Remove).is_err());
+}

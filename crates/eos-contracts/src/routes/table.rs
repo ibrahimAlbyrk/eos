@@ -401,6 +401,14 @@ pub const SURFACE_TILES: Route = Route::new("surfaceTiles", "/api/surfaces/tiles
 pub const SURFACE: Route = Route::new("surface", "/api/surfaces/:id", &[Get]).added();
 pub const SURFACE_VERSIONS: Route = Route::new("surfaceVersions", "/api/surfaces/:id/versions", &[Get]).added();
 pub const SURFACE_VERSION: Route = Route::new("surfaceVersion", "/api/surfaces/:id/versions/:version", &[Get]).added();
+pub const SURFACE_VERSION_KEEP: Route =
+    Route::new("surfaceVersionKeep", "/api/surfaces/:id/versions/:version/keep", &[Post]).added();
+pub const SURFACE_VERSION_DISCARD: Route =
+    Route::new("surfaceVersionDiscard", "/api/surfaces/:id/versions/:version/discard", &[Post]).added();
+pub const SURFACE_VERSION_RESTORE: Route =
+    Route::new("surfaceVersionRestore", "/api/surfaces/:id/versions/:version/restore", &[Post]).added();
+pub const SURFACE_RESHAPE: Route = Route::new("surfaceReshape", "/api/surfaces/:id/reshape", &[Post]).added();
+pub const SURFACE_ARRANGE: Route = Route::new("surfaceArrange", "/api/surfaces/:id/arrange", &[Post]).added();
 pub const SURFACE_ISSUES: Route = Route::new("surfaceIssues", "/api/surfaces/:id/issues", &[Get]).added();
 pub const SURFACE_ISSUE: Route = Route::new("surfaceIssue", "/api/surfaces/:id/issues/:issueId", &[Get]).added();
 pub const SURFACE_ISSUE_DOCUMENT: Route =
@@ -788,6 +796,11 @@ pub const ROUTES: &[Route] = &[
     SURFACE,
     SURFACE_VERSIONS,
     SURFACE_VERSION,
+    SURFACE_VERSION_KEEP,
+    SURFACE_VERSION_DISCARD,
+    SURFACE_VERSION_RESTORE,
+    SURFACE_RESHAPE,
+    SURFACE_ARRANGE,
     SURFACE_ISSUES,
     SURFACE_ISSUE,
     SURFACE_ISSUE_DOCUMENT,
