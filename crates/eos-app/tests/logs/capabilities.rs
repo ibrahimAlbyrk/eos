@@ -1,6 +1,7 @@
 //! Capabilities: a chat calls a capability whose answer quotes its secret, and the user
-//! signs in to GitHub. Neither the secret, nor GitHub's token, codes or account name
-//! reaches the log; the call and the sign-in are told by capability id.
+//! signs in to GitHub and to Slack. Neither the secret, nor GitHub's or Slack's tokens,
+//! codes, state or account name reaches the log; the call and the sign-ins are told by
+//! capability id.
 
 use std::time::Duration;
 
@@ -24,9 +25,17 @@ pub(crate) async fn steps(app: &App, agents: &ScriptedRuntime, planted: &Planted
     assert!(!reply.is_error && reply.text.contains("[secret]") && !reply.text.contains(ECHO_SECRET), "{}", reply.text);
     let signed_in = sign_in_to_github(app).await;
     assert_eq!(signed_in["state"], "signed_in");
+    let slack = planted.sign_in_to_slack(app).await;
+    assert_eq!(slack["state"], "signed_in", "{slack}");
     let (status, _) = rig::call(app, Method::Delete, &format!("/workers/{chat}"), None).await;
     assert!(status < 300);
 
-    let told = ["capability call", "capability=echo", "signed in to GitHub", "a capability sign-in ended"];
+    let told = [
+        "capability call",
+        "capability=echo",
+        "signed in to GitHub",
+        "signed in to Slack",
+        "a capability sign-in ended",
+    ];
     Area { planted: planted.values(), told: told.map(str::to_owned).to_vec() }
 }

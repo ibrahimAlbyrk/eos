@@ -48,6 +48,8 @@ async fn every_area_is_told_by_id_and_nothing_private_reaches_the_log() {
     let agents = ScriptedRuntime::new();
     agents.otherwise(rig::turn_for);
     let planted = planted::Planted::plant();
+    let config = serde_json::json!({ "slack": { "clientId": planted::SLACK_CLIENT_ID } });
+    std::fs::write(home.path().join("config.json"), config.to_string()).expect("the config");
     let app = rig::build_with(home.path(), &agents, planted.options());
     app.start().await.expect("starts");
 

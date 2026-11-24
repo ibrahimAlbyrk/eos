@@ -309,6 +309,40 @@ async fn a_run_on_the_network_without_the_host_s_transport_sends_github_nothing(
     app.shutdown(Duration::from_secs(5)).await;
 }
 
+/// Slack acts as the user: off the network the app sends Slack nothing, a token planted in
+/// its own secret store included, and a sign-in's link back finishes nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn off_the_network_slack_is_sent_nothing_and_no_sign_in_finishes() {
+    let home = TempHome::new();
+    std::fs::write(home.path().join("config.json"), r#"{"slack":{"clientId":"1234.5678"}}"#).expect("the config");
+    let slack = Arc::new(eos_testkit::FakeSlack::new().signed_in());
+    let planted = slack.token_secret(i64::MAX / 2);
+    let secrets = Arc::new(FakeCapabilitySecrets::new().with("slack", "token", &planted));
+    let capabilities = CapabilityOptions { secrets: Some(secrets), ..CapabilityOptions::default() };
+    let app =
+        App::build(Options { capabilities, slack: Some(slack.clone()), ..options(&home, false) }).expect("builds");
+    app.start().await.expect("starts");
+
+    let (status, checked) = call(&app, Method::Post, "/api/capabilities/slack/check", None).await;
+    assert!(status < 500, "{checked}");
+    let (status, started) = call(&app, Method::Post, "/api/capabilities/slack/sign-in", None).await;
+    assert_eq!(status, 200, "a sign-in only opens Slack's page: {started}");
+    let page = url::Url::parse(started["verificationUri"].as_str().expect("a page")).expect("a page");
+    let state = page.query_pairs().find(|(key, _)| key == "state").map(|(_, v)| v.into_owned()).expect("a state");
+    assert!(app.open_link(&format!("eos://sign-in/slack?code={}&state={state}", eos_testkit::SLACK_CODE)));
+    let mut ended = json!(null);
+    for _ in 0..200 {
+        ended = call(&app, Method::Get, "/api/capabilities/slack/sign-in", None).await.1;
+        if ended["state"] != "pending" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(ended, json!({"state": "failed"}), "the exchange never left the Mac");
+    assert!(slack.calls().is_empty(), "nothing reached Slack");
+    app.shutdown(Duration::from_secs(5)).await;
+}
+
 /// The TypeScript app reads the same file: going back to it, the usage it
 /// saved is still there.
 #[tokio::test(flavor = "multi_thread")]
