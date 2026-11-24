@@ -1,6 +1,6 @@
 //! `/run <slug> [item…] [--note …] [--show-only]`: the user starts a routine
-//! from a chat. Only a word shaped like a slug is taken; anything else goes
-//! to the agent as typed. The run is the user's own start, so it runs as if
+//! from a chat. Only the name of a live routine is taken; anything else (another
+//! word, the agent's own `/run`) goes to the agent as typed. The run is the user's own start, so it runs as if
 //! started from the form; the chat gets its card ([`super::tell`]).
 
 use std::sync::Arc;
@@ -59,6 +59,14 @@ impl SlashCommand for RunCommand {
 
     fn accepts(&self, args: &str, _capabilities: &AgentCapabilities) -> bool {
         parse(args).is_some()
+    }
+
+    fn claims<'a>(&'a self, args: &'a str) -> BoxFuture<'a, Result<bool, Error>> {
+        Box::pin(async move {
+            let Some(typed_run) = parse(args) else { return Ok(false) };
+            let (now, slug) = (self.0.clock.now_ms(), typed_run.slug);
+            Ok(self.0.store.read(move |tx| named(tx, &slug, now)).await?.is_some())
+        })
     }
 
     fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<CommandAnswer, Error>> {

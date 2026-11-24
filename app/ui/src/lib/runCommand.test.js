@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseRunCommand, routineNamed } from "./runCommand.js";
+import { parseRunCommand, routineForCommand, routineNamed } from "./runCommand.js";
 
 describe("/run in a chat", () => {
   it("reads the routine, the item, the note and show-only as the core does", () => {
@@ -22,5 +22,14 @@ describe("/run in a chat", () => {
     expect(routineNamed(list, "rt-1")?.id).toBe("rt-1");
     expect(routineNamed(list, "review")).toBeNull();
     expect(routineNamed(list, "pr review")?.id).toBe("rt-1");
+  });
+
+  it("decides only once the routines are known", async () => {
+    let list = null;
+    const asked = parseRunCommand("/run pr-review 482");
+    const loaded = await routineForCommand(asked, () => list, async () => { list = [{ id: "rt-1", slug: "pr-review" }]; });
+    expect(loaded?.id).toBe("rt-1");
+    expect(await routineForCommand(parseRunCommand("/run tests"), () => list, async () => {})).toBeNull();
+    expect(await routineForCommand(asked, () => null, async () => {})).toBeUndefined();
   });
 });

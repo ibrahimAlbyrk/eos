@@ -368,6 +368,7 @@ impl Sessions {
             && let Some((name, args)) = commands::parse(&input.text)
             && let (Some(command), Some(session)) = (self.command(name), session.clone())
             && command.accepts(args, session.capabilities())
+            && command.claims(args).await?
         {
             // A command may take long (a summary): nobody waits behind it.
             drop(place);

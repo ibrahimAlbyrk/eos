@@ -24,3 +24,13 @@ export function routineNamed(list, name) {
   const lower = (name ?? "").toLowerCase();
   return (list ?? []).find((r) => r.slug === name || r.id === name || r.name?.toLowerCase() === lower) ?? null;
 }
+
+// Which routine a parsed /run names, read only once the user's routines are
+// known: sent on before that, a routine's name would start the run in the
+// core without the sheet. `undefined` while the list cannot be read (keep
+// the text), `null` when no routine has that name (the agent gets it).
+export async function routineForCommand(asked, readList, load) {
+  if (readList() === null) await load();
+  const list = readList();
+  return list === null ? undefined : routineNamed(list, asked.routine);
+}

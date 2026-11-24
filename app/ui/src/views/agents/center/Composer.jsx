@@ -27,8 +27,8 @@ import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../..
 import { parentScope } from "../../../lib/mentionQuery.js";
 import { backendCaps, providerSpawn } from "../../../lib/backendCaps.js";
 import { parseSideQuestion } from "../../../lib/sideQuestion.js";
-import { parseRunCommand, routineNamed } from "../../../lib/runCommand.js";
-import { ensureRoutinesLoaded, offeredRoutines, routinesNow } from "../../../state/eos/routinesStore.js";
+import { parseRunCommand, routineForCommand } from "../../../lib/runCommand.js";
+import { ensureRoutinesLoaded, offeredRoutines, refreshRoutines, routinesNow } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet } from "../../../state/eos/runSheetStore.js";
 import { typedItem } from "../../eos/runform/runFormModel.js";
 import { askSideQuestion } from "../../../state/sideQuestionStore.js";
@@ -651,7 +651,9 @@ export function Composer({ live, worker, paneId, focused }) {
     // name that is no routine goes to the agent as typed.
     if (mode !== "term" && !gitMode && selected) {
       const asked = parseRunCommand(t);
-      const routine = asked && routineNamed(offeredRoutines(routinesNow().list), asked.routine);
+      const offered = () => (routinesNow().list === null ? null : offeredRoutines(routinesNow().list));
+      const routine = asked && await routineForCommand(asked, offered, refreshRoutines);
+      if (routine === undefined) return;
       if (routine) {
         setTextAndSync("", 0, "reset");
         openRunSheet({ routineId: routine.id, input: runInputOf(asked, routine), door: "chat", chat: selected.id });
