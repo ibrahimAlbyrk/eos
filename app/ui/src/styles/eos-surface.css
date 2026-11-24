@@ -212,3 +212,23 @@
 .eos-tile__detail { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
 .eos-tile__open { align-self: flex-start; margin-top: 4px; font-size: var(--text-sm); text-decoration: none; }
 .eos-tile__open:hover { text-decoration: underline; }
+
+/* ── The sample gallery's own bar (#eos-gallery only) ─────────────────────── */
+.eos-gallery-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--sh-modal);
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+}
+.eos-gallery-bar__state { max-width: 240px; height: 28px; border: 0; border-radius: 8px; background: var(--chip); color: var(--fg); font: inherit; }
+.eos-gallery-bar__play { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--solid-btn-bg); color: var(--solid-btn-fg); font: inherit; cursor: pointer; }
+.eos-gallery-bar__slow { display: inline-flex; align-items: center; gap: 4px; }

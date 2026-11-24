@@ -29,7 +29,12 @@ running, approving or deleting (the dev script refuses those itself); there is n
 input at all. Agents cannot start in a dev run anyway. `--trace file` also writes a Chromium
 trace of every process over the run.
 
-usage: responsiveness.py <path to Eos.app> [--reps N] [--scenario plain,browser] [--json out.json] [--trace trace.json]
+The `transition` scenario opens Eos's sample gallery (`#eos-gallery`, which reads only its
+samples) on Home and clicks its Play: Home turns into the field and back. Gated: no dropped
+frame while it plays (08 §4.6: every frame within 16.7 ms; a gap past 25 ms is a frame
+missed).
+
+usage: responsiveness.py <path to Eos.app> [--reps N] [--scenario plain,browser,transition] [--json out.json] [--trace trace.json]
 """
 import json
 import os
@@ -47,7 +52,9 @@ smoke.SHELL_DATA = SHELL_DATA
 STEPS = os.path.join(OUT, "steps.jsonl")
 RESULTS = os.path.join(OUT, "results.jsonl")
 
-BUDGET = {"paint_p95": 100, "probe": 50, "ui": 16, "task": 50}
+BUDGET = {"paint_p95": 100, "probe": 50, "ui": 16, "task": 50, "frame": 25}
+# The transition's whole play: entering, held open, leaving (transition.js and the gallery).
+TRANSITION_MS = 1680 + 700 + 880
 # `--trace file`: a Chromium trace of the run (every process), for finding where time goes.
 TRACE_CATEGORIES = "toplevel,devtools.timeline,disabled-by-default-devtools.timeline,input,benchmark,latencyInfo,cc,viz,ui,browser,blink.user_timing"
 
@@ -57,7 +64,7 @@ def arg(name, default=None):
 
 
 REPS = int(arg("--reps", "20"))
-SCENARIOS = (arg("--scenario") or "plain,browser").split(",")
+SCENARIOS = (arg("--scenario") or "plain,browser,transition").split(",")
 
 # Installed once in the dashboard: observers and a frame clock. Read-only: it changes nothing
 # the page does.
@@ -253,12 +260,12 @@ BROWSER_ROUND = [
 ]
 
 
-def measure(d, name, selector, text, index):
+def measure(d, name, selector, text, index, quiet=250, limit=3000):
     mark = d.page("__rsp.mark()")
     clicked = d.click(selector, text, index)
     if not clicked["ok"]:
         return {"name": name, "error": clicked["error"]}
-    record = d.page("__rsp.settle(250, 3000)", wait=True)
+    record = d.page(f"__rsp.settle({quiet}, {limit})", wait=True)
     stalls = d.step({"stalls": None}).get("value") or {}
     record["ui"] = max([ms for _, ms in stalls.get("stalls", [])], default=0)
     record["uiStalls"] = stalls.get("stalls", [])
@@ -296,6 +303,18 @@ def show_a_page(d):
     if not (tabs["ok"] and navigated["ok"] and navigated["value"].get("status") == 200):
         return False
     return smoke.wait_for("panel", lambda: smoke.bridge_of(smoke.ctl("--status")).get("panel", {}).get("shown"), 15)
+
+
+def open_gallery(d):
+    """The dashboard reloaded as the sample gallery on Home, its observers installed again."""
+    d.page("sessionStorage.setItem('eos:galleryState', 'home'); location.hash = '#eos-gallery'; location.reload(); true")
+    time.sleep(3)
+    return d.page(PROBE) is True
+
+
+def play_transition(d):
+    """One Play: measured until the field has left again and the page is quiet."""
+    return measure(d, "transition.play", "button.eos-gallery-bar__play", "Play", 0, quiet=TRANSITION_MS + 400, limit=TRANSITION_MS + 4000)
 
 
 def pct(values, p):
@@ -344,6 +363,8 @@ def report(records):
             over.append(f"a {ours_ui:.0f} ms UI-thread stall during a bridge call > {BUDGET['ui']}")
         if ours_task > BUDGET["task"]:
             over.append(f"a {ours_task:.0f} ms long frame running the bridge script > {BUDGET['task']}")
+        if name.startswith("transition") and frames and max(frames) > BUDGET["frame"]:
+            over.append(f"a {max(frames):.0f} ms gap between frames while it played > {BUDGET['frame']}")
         if over:
             failed.append((name, over))
     return failed
@@ -390,6 +411,12 @@ def main():
                 return 1
             for rep in range(REPS):
                 records += [measure(d, *click) for click in BROWSER_ROUND]
+        if "transition" in SCENARIOS:
+            if not open_gallery(d):
+                print("the gallery's observers could not be installed")
+                return 1
+            for rep in range(REPS):
+                records.append(play_transition(d))
         if trace:
             print("trace:", d.step({"trace": {"stop": os.path.abspath(trace)}}, timeout=120))
         with open(arg("--json") or os.path.join(OUT, "records.json"), "w") as f:

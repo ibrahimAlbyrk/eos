@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
@@ -28,6 +29,9 @@ import paper from "./sample/paper.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
+import { closeField, openField, setTransitionScale } from "../field/fieldStore.js";
+import { ENTER_MS } from "../field/transition.js";
+import { failingTransport, GALLERY_STATES, loadingTransport, stateOf, storedState, storeState } from "./states.js";
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
@@ -83,11 +87,52 @@ export const SAMPLE_READS = {
   [ROUTES.signalsRoutines]: homeNext(Date.now()),
 };
 
+// Slow plays the transition this many times longer (08 §10).
+export const SLOW_K = 2.8;
+// How long the field stays open in Play before it leaves again.
+const HOLD_MS = 700;
+
+// Plays Home → field → Home once, at `k`.
+export function playTransition(k = 1) {
+  setTransitionScale(k);
+  openField();
+  setTimeout(closeField, ENTER_MS * k + HOLD_MS);
+}
+
+// The gallery's own bar: which screen and state, and the transition's Play
+// and Slow. It sits over Eos and is no part of it.
+export function GalleryBar({ current, onPick }) {
+  const [slow, setSlow] = useState(false);
+  const play = () => {
+    const k = slow ? SLOW_K : 1;
+    document.querySelector(".eos-mode")?.style.setProperty("--k", String(k));
+    playTransition(k);
+  };
+  return (
+    <div className="eos-gallery-bar" role="toolbar" aria-label="Gallery">
+      <select className="eos-gallery-bar__state" aria-label="Screen and state" value={current} onChange={(e) => onPick(e.target.value)}>
+        {GALLERY_STATES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </select>
+      <button type="button" className="eos-gallery-bar__play" onClick={play}>Play</button>
+      <label className="eos-gallery-bar__slow">
+        <input type="checkbox" checked={slow} onChange={(e) => setSlow(e.target.checked)} /> Slow
+      </label>
+    </div>
+  );
+}
+
+// Another state: the gallery starts again in it, so every store reads afresh.
+function pick(id) {
+  storeState(id);
+  location.reload();
+}
+
 // Eos's columns in the app's grid. The chrome around them (the mode switcher,
 // the account footer) reads the core, so the gallery leaves it out.
-export function EosGallery() {
+export function EosGallery({ state = "home" }) {
   return (
     <div className="app eos-mode">
+      <GalleryBar current={state} onPick={pick} />
       <aside className="side">
         <div className="side-island side-island--agents"><EosSidebarRows /></div>
       </aside>
@@ -98,11 +143,20 @@ export function EosGallery() {
 
 // The #eos-gallery page (main.jsx): Eos drawn from sample JSON. It never calls
 // the core: every read answers from a sample and every write is refused. It
-// opens where Eos opens and leaves where the user's own Eos opens untouched.
+// opens in the state last picked in this tab (Home at first) and leaves where
+// the user's own Eos opens untouched.
+// The transport a gallery state reads through.
+export function galleryTransport(state) {
+  if (state.answer === "loading") return loadingTransport;
+  if (state.answer === "error") return failingTransport;
+  return fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
+}
+
 export function startEosGallery(rootEl) {
-  setEosTransport(fixtureTransport(SAMPLE_READS));
-  holdEosNavInMemory("eos:/");
+  const state = stateOf(storedState());
+  setEosTransport(galleryTransport(state));
+  holdEosNavInMemory(state.location);
   holdHomeInMemory();
   holdHomeDraftInMemory();
-  createRoot(rootEl).render(<EosGallery />);
+  createRoot(rootEl).render(<EosGallery state={state.id} />);
 }

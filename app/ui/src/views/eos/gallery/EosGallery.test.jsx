@@ -5,7 +5,12 @@ import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
 import { eosLocation, openLocation, _resetEosNav } from "../nav/eosNav.js";
 import routines from "./sample/routines.json";
-import { startEosGallery } from "./EosGallery.jsx";
+import { galleryTransport, playTransition, SLOW_K, startEosGallery } from "./EosGallery.jsx";
+import { GALLERY_STATE_KEY, GALLERY_STATES, stateOf } from "./states.js";
+import { parseLocation } from "../nav/eosNav.js";
+import { _resetField, useField } from "../field/fieldStore.js";
+import { ENTER_MS } from "../field/transition.js";
+import paper from "./sample/paper.json";
 
 const rendered = [];
 vi.mock("react-dom/client", () => ({
@@ -67,5 +72,54 @@ describe("#eos-gallery", () => {
 
     expect(runOn("")).toHaveBeenCalledWith("http://core/api/boot", { headers: {} });
     expect(runOn("#eos-gallery")).not.toHaveBeenCalled();
+  });
+
+  it("holds a state of every screen, each at an Eos location, the reads answering from the samples", async () => {
+    const ids = GALLERY_STATES.map((st) => st.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const st of GALLERY_STATES) expect(parseLocation(st.location), st.id).not.toBeNull();
+    const screens = new Set(GALLERY_STATES.map((st) => parseLocation(st.location).screen));
+    for (const screen of ["home", "needs", "need", "routines", "routine", "run", "memory", "capabilities", "surface"]) expect(screens).toContain(screen);
+    const candidate = galleryTransport(stateOf("page-candidate"));
+    expect((await candidate.get(ROUTES.surface(paper.surface.id))).body.candidateVersion).toBe(3);
+    expect((await galleryTransport(stateOf("home-error")).get(ROUTES.routines)).status).toBe(500);
+    let answered = false;
+    void galleryTransport(stateOf("home-loading")).get(ROUTES.routines).then(() => { answered = true; });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(answered).toBe(false);
+  });
+
+  it("opens in the state picked last, and offers the states, Play and Slow", () => {
+    vi.stubGlobal("sessionStorage", { getItem: (k) => (k === GALLERY_STATE_KEY ? "page-reshape" : null), setItem: () => {} });
+    vi.stubGlobal("fetch", vi.fn());
+    startEosGallery({});
+    expect(eosLocation()).toBe(`eos:/surfaces/${paper.surface.id}?mode=reshape`);
+    const html = renderToStaticMarkup(rendered[0]);
+    expect(html).toContain('role="toolbar" aria-label="Gallery"');
+    expect(html).toContain('<option value="page-reshape" selected="">Page · changing it</option>');
+    expect(html).toContain('<button type="button" class="eos-gallery-bar__play">Play</button>');
+    expect(html).toContain("Slow");
+  });
+
+  it("Play opens the field and leaves it again, Slow at 2.8 times the timings", () => {
+    vi.useFakeTimers();
+    _resetField();
+    let field;
+    const Probe = () => { field = useField(); return null; };
+    playTransition(SLOW_K);
+    renderToStaticMarkup(<Probe />);
+    expect(field.phase).toBe("entering");
+    vi.advanceTimersByTime(ENTER_MS * SLOW_K - 1);
+    renderToStaticMarkup(<Probe />);
+    expect(field.phase).toBe("entering");
+    vi.advanceTimersByTime(1);
+    renderToStaticMarkup(<Probe />);
+    expect(field.phase).toBe("field");
+    vi.advanceTimersByTime(700);
+    renderToStaticMarkup(<Probe />);
+    expect(field.phase).toBe("leaving");
+    playTransition(1);
+    _resetField();
+    vi.useRealTimers();
   });
 });
