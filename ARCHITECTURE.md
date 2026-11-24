@@ -188,7 +188,9 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 
 A permission gateway or PTY spawner of its own (the gateway is `eos-policy`, called in process),
 stdio MCP servers, a launchd agent, the Codex and Gemini lanes. Its command-line client is a
-door, not a server: one user-only socket the running app listens on (§1).
+door, not a server: one user-only socket the running app listens on (§1). Any program the user
+runs can use it, so what it would start (a run, a one-off, resuming after a halt) is asked in
+the app's window, as an `eos://` link is; it never starts one itself.
 
 ## 5. The host layer
 
