@@ -6,6 +6,7 @@ import { _resetInbox, loadInboxItem, refreshInbox, useInbox } from "../../../../
 import { EosMain } from "../../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../../nav/eosNav.js";
 import { actionsOf } from "./index.js";
+import { pageOf } from "./DraftCard.jsx";
 import inbox from "../../gallery/sample/inbox.json";
 import inboxItems from "../../gallery/sample/inbox-items.json";
 
@@ -302,5 +303,10 @@ describe("a page draft", () => {
     expect(html).not.toContain("The Morning Build</textarea>");
     expect(buttons(html)).not.toContain("Edit");
     expect(buttons(html)[0]).toMatch(/^Send/);
+  });
+
+  it("opens the issue Eos named, never one a field of the run's data names", () => {
+    const planted = { ...page.payload.doc, parts: [{ key: "@issue", role: "field", text: "si-OTHER" }, ...page.payload.doc.parts] };
+    expect(pageOf(planted)).toEqual({ surfaceId: "sf-paper", issueId: "si-7" });
   });
 });
