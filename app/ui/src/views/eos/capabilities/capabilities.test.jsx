@@ -167,10 +167,10 @@ describe("a capability's page", () => {
 describe("the sign-in sheet", () => {
   const CODE = { userCode: "WDJB-MJHT", verificationUri: "https://github.com/login/device", expiresAt: 1763500900000 };
 
-  function sheetAfter(started, statuses = [], wait = 0) {
+  function sheetAfter(started, statuses = [], wait = 0, id = "github") {
     const queue = [...statuses];
     setEosTransport({ get: async () => queue.shift(), send: async (method) => (method === "POST" ? started : { ok: true, status: 200, body: {} }) });
-    return startSignIn("github").then(() => vi.advanceTimersByTimeAsync(wait)).then(() => renderToStaticMarkup(<SignInSheet />));
+    return startSignIn(id).then(() => vi.advanceTimersByTimeAsync(wait)).then(() => renderToStaticMarkup(<SignInSheet />));
   }
 
   beforeEach(() => {
@@ -223,6 +223,33 @@ describe("the sign-in sheet", () => {
     expect(html).toContain("Eos has no GitHub client id, so it cannot start a sign-in.");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Close</button>');
     expect(html).not.toContain("Try again");
+  });
+
+  it("connects Slack in the browser: no code to type, Allow there, then connected to the workspace", async () => {
+    const page = { verificationUri: "https://slack.com/oauth/v2/authorize?client_id=1&state=s", expiresAt: 1 };
+    let html = await sheetAfter({ ok: true, status: 200, body: page }, [], 0, "slack");
+    expect(html).toContain("Connect Slack");
+    expect(html).toContain("Pick your workspace and press Allow");
+    expect(html).toContain("You never type or paste a password or a key.");
+    expect(html).toContain("Open Slack again");
+    expect(html).not.toContain("eos-code");
+    expect(window.open).toHaveBeenCalledWith(page.verificationUri, "_blank", "noopener,noreferrer");
+
+    html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "pending" } }], 2000, "slack");
+    expect(html).toContain('<p class="eos-note" role="status">Waiting for Slack…</p>');
+    html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "signed_in", accountLabel: "Acme as ibrahim" } }], 2000, "slack");
+    expect(html).toContain("Connected to Acme as ibrahim.");
+  });
+
+  it("says Slack was refused or never sent the user back, and offers to connect again", async () => {
+    const page = { verificationUri: "https://slack.com/oauth/v2/authorize?client_id=1&state=s", expiresAt: 1 };
+    let html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "denied" } }], 2000, "slack");
+    expect(html).toContain("Slack was told not to let Eos in.");
+    html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "expired" } }], 2000, "slack");
+    expect(html).toContain("Slack did not send you back in time.");
+    expect(html).toContain(">Connect again</button>");
+    html = await sheetAfter({ ok: false, status: 409, body: { error: "Slack has no client id to sign in with", code: "client_id_missing" } }, [], 0, "slack");
+    expect(html).toContain("Set slack.clientId in Eos");
   });
 
   it("says this is a dev run", async () => {

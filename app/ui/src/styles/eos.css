@@ -188,6 +188,7 @@
   box-shadow: var(--sh-modal);
 }
 .eos-sheet__title { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
+.eos-sign-in__quiet { font-size: var(--text-sm); }
 
 /* ── Capabilities ─────────────────────────────────────────────────────────── */
 .eos-caps { margin: 0; padding: 4px 20px; list-style: none; }

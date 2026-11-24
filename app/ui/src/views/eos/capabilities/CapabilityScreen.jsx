@@ -8,7 +8,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { CapabilityState, DevRunNote, LoadFailed, Loading } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { CLASSES, fixFor, ORIGINS, OUTCOMES, signsIn, usedBy, VERSION_STATUSES, WORKS } from "./words.js";
+import { CLASSES, fixFor, ORIGINS, OUTCOMES, signInLabel, signsIn, usedBy, VERSION_STATUSES, WORKS } from "./words.js";
 
 const LIST = "eos:/capabilities";
 
@@ -31,7 +31,7 @@ function Controls({ detail }) {
   };
   return (
     <div className="eos-actions">
-      {signsIn(detail) && <button type="button" className={cls("sign-in")} onClick={() => void startSignIn(id)}>Sign in</button>}
+      {signsIn(detail) && <button type="button" className={cls("sign-in")} onClick={() => void startSignIn(id)}>{signInLabel(detail)}</button>}
       <button type="button" className={cls("check")} onClick={() => void checkCapability(id)}>Check now</button>
       <button type="button" className={cls("enable")} onClick={() => void setCapabilityEnabled(id, !enabled)}>{enabled ? "Disable" : "Enable"}</button>
       {detail.origin !== "builtin" && <button type="button" className="eos-btn" onClick={() => void remove()}>Remove</button>}
@@ -101,7 +101,7 @@ function Detail({ detail }) {
     detail.version && `Version ${detail.version}`,
     WORKS[detail.works] ?? detail.works,
     usedBy(detail),
-    detail.accountLabel && `Signed in as ${detail.accountLabel}`,
+    detail.accountLabel && (detail.id === "slack" ? `Connected to ${detail.accountLabel}` : `Signed in as ${detail.accountLabel}`),
   ].filter(Boolean);
   return (
     <>

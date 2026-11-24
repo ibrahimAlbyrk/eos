@@ -12,7 +12,7 @@ const STATES = {
 };
 
 const CODES = {
-  client_id_missing: "Eos has no GitHub client id to sign in with.",
+  scope_missing: "Its sign-in lacks a permission Eos needs. Sign in again.",
   automation_denied: "macOS has not let it control the app it needs.",
   http_401: "The service no longer accepts its sign-in.",
   hash_mismatch: "Its files changed after they were checked.",
@@ -32,6 +32,7 @@ export const stateTone = (row) => STATES[row.state]?.tone ?? null;
 export function stateLine(row) {
   const code = row.stateCode ?? "";
   if (code.startsWith("secret_missing:")) return "A secret it needs is missing.";
+  if (code === "client_id_missing") return `Eos has no ${row.name ?? "service"} client id to sign in with.`;
   return CODES[code] ?? STATES[row.state]?.line ?? "";
 }
 
@@ -65,8 +66,11 @@ export function usedBy(row) {
   return n === 1 ? "Used by 1 routine" : `Used by ${n} routines`;
 }
 
-// The built-in that signs in through GitHub's device flow.
-export const signsIn = (row) => row.id === "github";
+// The built-ins that sign in: GitHub by a code, Slack in the browser.
+export const signsIn = (row) => row.id === "github" || row.id === "slack";
+
+// What the button that signs in says: Slack is connected.
+export const signInLabel = (row) => (row.id === "slack" ? "Connect" : "Sign in");
 
 // The one action that fixes a bad state: sign in, enable, or check again
 // once the cause is gone. None for a capability that works.
@@ -78,3 +82,6 @@ export function fixFor(row) {
 }
 
 export const FIX_LABELS = { "sign-in": "Sign in", enable: "Enable", check: "Check now" };
+
+// The fix's label for `row`: Slack is connected, not signed in to.
+export const fixLabel = (row, fix) => (fix === "sign-in" ? signInLabel(row) : FIX_LABELS[fix]);
