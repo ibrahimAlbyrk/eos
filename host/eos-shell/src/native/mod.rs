@@ -12,6 +12,7 @@
 //! - `launch`: the Apple Event the app was launched with, read from `NSAppleEventManager`.
 //! - `dock`: the number on the Dock icon, through `NSApp.dockTile`.
 //! - `login`: the login item, through `SMAppService`.
+//! - `ax`: the front app's selection through Accessibility, and asking for that permission.
 //! - `panel`: the quick panel's `NSPanel` floated over every app, placed and shown without
 //!   activating the app.
 //!
@@ -20,6 +21,7 @@
 
 pub(crate) mod activity;
 pub(crate) mod appkit;
+pub(crate) mod ax;
 pub(crate) mod buffer;
 pub(crate) mod dock;
 pub(crate) mod launch;

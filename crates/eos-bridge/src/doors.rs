@@ -1,6 +1,7 @@
 //! `doors.json` in the shell's data folder: what the doors outside Eos remember: whether the
 //! dashboard already offered to start Eos at login (`loginOffered`) and the user's shortcut
-//! for the quick panel (`shortcut`). Other keys in the file are kept as they are. [`held`] is the item a door hands the quick panel.
+//! for the quick panel (`shortcut`), and whether Accessibility was asked for
+//! (`accessibilityAsked`). Other keys in the file are kept as they are. [`held`] is the item a door hands the quick panel.
 
 mod held;
 
@@ -37,6 +38,17 @@ pub fn login_offered(data_dir: &Path) -> bool {
 /// Remembers that the offer was made.
 pub fn mark_login_offered(data_dir: &Path) -> std::io::Result<()> {
     write(data_dir, "loginOffered", Value::Bool(true))
+}
+
+/// Whether the system was asked for Accessibility already: once, at the first shortcut press
+/// (D38).
+pub fn accessibility_asked(data_dir: &Path) -> bool {
+    read(data_dir).get("accessibilityAsked").and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// Remembers that it was asked.
+pub fn mark_accessibility_asked(data_dir: &Path) -> std::io::Result<()> {
+    write(data_dir, "accessibilityAsked", Value::Bool(true))
 }
 
 /// The shortcut that opens the quick panel (07 §4.3): the user's own, else ⌥Space.
@@ -137,6 +149,9 @@ mod tests {
         set_shortcut(dir.path(), SHORTCUT_FALLBACK).unwrap();
         assert_eq!(shortcut_order(dir.path()), [SHORTCUT_FALLBACK]);
         mark_login_offered(dir.path()).unwrap();
+        assert!(!accessibility_asked(dir.path()));
+        mark_accessibility_asked(dir.path()).unwrap();
+        assert!(accessibility_asked(dir.path()) && login_offered(dir.path()));
         assert_eq!(shortcut_order(dir.path()), [SHORTCUT_FALLBACK], "one key never loses another");
         for good in ["alt+space", "Ctrl+Alt+Space", "cmd+shift+k"] {
             assert!(valid_accelerator(good), "{good}");

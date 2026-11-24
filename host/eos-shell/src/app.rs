@@ -407,8 +407,8 @@ impl Shell {
             quick: quick.clone(),
             // A dev or test run never takes a key from the user's Mac.
             hotkeys: options.doors.then(|| {
-                let quick = quick.clone();
-                Hotkeys::start(options.data_dir.clone(), Arc::new(move || quick.show()))
+                let (quick, data_dir) = (quick.clone(), options.data_dir.clone());
+                Hotkeys::start(options.data_dir.clone(), Arc::new(move || quick.from_shortcut(&data_dir)))
             }),
         });
         let bridge = Bridge::new(Parts {

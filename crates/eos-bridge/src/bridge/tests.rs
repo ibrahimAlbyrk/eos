@@ -40,6 +40,8 @@ struct FakeHost {
     cli: Mutex<Option<crate::cli_link::CliCommand>>,
     /// The quick panel's shortcut, when the app owns the doors.
     shortcut: Mutex<Option<crate::Shortcut>>,
+    /// Accessibility as the system reports it, when the app owns the doors.
+    accessibility: Mutex<Option<bool>>,
 }
 
 impl FakeHost {
@@ -107,6 +109,12 @@ impl ShellHost for FakeHost {
     }
     fn close_panel(&self) {
         self.log("panel close");
+    }
+    fn accessibility(&self) -> Option<bool> {
+        *self.accessibility.lock().unwrap()
+    }
+    fn ask_accessibility(&self, prompt: bool) {
+        self.log(if prompt { "accessibility prompt" } else { "accessibility settings" });
     }
     fn shortcut(&self) -> Option<crate::Shortcut> {
         self.shortcut.lock().unwrap().clone()
@@ -928,4 +936,22 @@ async fn the_shortcut_says_which_one_holds_and_changes_only_when_asked_by_an_app
     assert_eq!(put(br#"{"accelerator":"space"}"#).await.status, 400, "a bare key would take typing from every app");
     assert_eq!(call(&w.bridge, "PUT", url, &[], br#"{"accelerator":"alt+space"}"#).await.status, 403);
     assert_eq!(*w.host.calls.lock().unwrap(), ["shortcut cmd+shift+space", "shortcut cmd+k"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn accessibility_is_read_and_asked_for_only_by_an_app_that_owns_the_doors() {
+    let w = world();
+    let url = "http://eos.localhost/_shell/doors/accessibility";
+    let token = [("x-eos-ui-token", TOKEN)];
+    assert_eq!(call(&w.bridge, "GET", url, &token, b"").await.json(), json!({ "available": false }));
+    assert_eq!(call(&w.bridge, "POST", url, &token, br#"{"prompt":true}"#).await.json(), json!({ "available": false }));
+    assert!(w.host.calls.lock().unwrap().is_empty(), "a dev run never asks the system");
+
+    *w.host.accessibility.lock().unwrap() = Some(false);
+    assert_eq!(call(&w.bridge, "GET", url, &token, b"").await.json(), json!({ "available": true, "trusted": false }));
+    assert_eq!(call(&w.bridge, "POST", url, &token, br#"{"prompt":true}"#).await.status, 200);
+    assert_eq!(call(&w.bridge, "POST", url, &token, br#"{"openSettings":true}"#).await.status, 200);
+    assert_eq!(call(&w.bridge, "POST", url, &token, br#"{}"#).await.status, 400);
+    assert_eq!(call(&w.bridge, "GET", url, &[], b"").await.status, 403);
+    assert_eq!(*w.host.calls.lock().unwrap(), ["accessibility prompt", "accessibility settings"]);
 }

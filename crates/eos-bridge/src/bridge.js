@@ -175,6 +175,9 @@
     shortcut: () => door("doors/shortcut", "GET"),
     setShortcut: (accelerator) => door("doors/shortcut", "PUT", { accelerator }),
     command: () => door("doors/cli", "GET"),
+    // Reading the front app's selection: { available, trusted }.
+    accessibility: () => door("doors/accessibility", "GET"),
+    openAccessibilitySettings: () => door("doors/accessibility", "POST", { openSettings: true }),
     installCommand: () => door("doors/cli", "POST", {}),
     // The quick panel: what a door holds for it, and asking the panel to close or fit.
     held: () => door("doors/held", "GET"),

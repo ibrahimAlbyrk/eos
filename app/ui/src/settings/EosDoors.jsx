@@ -1,5 +1,6 @@
 // Settings › Eos › Doors (09 §4.5): the shortcut that opens the quick panel
-// and which one holds, and Eos's `eos` command on the PATH. Each row reads the
+// and which one holds, Accessibility for reading the selection, and Eos's
+// `eos` command on the PATH. Each row reads the
 // shell's door (window.eosDoors); a browser tab and a build that owns no door
 // show none.
 
@@ -52,6 +53,22 @@ export function ShortcutRow({ doors }) {
       <select aria-label="Quick input shortcut" value={shortcut.accelerator} onChange={(e) => void choose(e.target.value)}>
         {offered.map((a) => <option key={a} value={a}>{shortcutWords(a)}</option>)}
       </select>
+    </Row>
+  );
+}
+
+export const accessLine = (trusted) =>
+  trusted
+    ? "Allowed: the quick panel arrives holding what is selected in the app in front."
+    : "Not allowed: the quick panel arrives empty. Allow Eos in Privacy & Security › Accessibility.";
+
+export function AccessibilityRow({ doors }) {
+  const [access, setAccess] = useState(null);
+  useEffect(() => { doors.accessibility?.().then(setAccess, () => {}); }, [doors]);
+  if (!access?.available) return null;
+  return (
+    <Row label="Read the selection" description={accessLine(access.trusted)}>
+      {!access.trusted && <button type="button" className="m-btn" onClick={() => void doors.openAccessibilitySettings().catch(() => {})}>Open Settings</button>}
     </Row>
   );
 }

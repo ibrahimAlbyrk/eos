@@ -4,9 +4,11 @@
 //! bridge and shows the panel; Escape, the page or losing the keyboard closes it, and the
 //! view is released ten minutes after it last closed.
 
+use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
 
+use eos_bridge::doors::{self, DoorItem, DoorPart, DoorSource};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::{Bridge, Service};
 use tauri::Manager;
@@ -14,6 +16,7 @@ use tauri_runtime_cef::WebviewCefExt;
 
 use crate::host::open_external;
 use crate::log::log;
+use crate::native::ax;
 use crate::native::panel as native;
 use crate::scheme;
 use crate::views::create;
@@ -80,6 +83,27 @@ impl QuickPanel {
             }
             log("doors", "the quick panel opened");
         });
+    }
+
+    /// The shortcut was pressed: what the front app has selected is held and the panel shows.
+    /// The first press without Accessibility asks the system for it once (D38); the panel says
+    /// why. Main thread, while the other app still has the focus.
+    pub(crate) fn from_shortcut(self: &Arc<Self>, data_dir: &Path) {
+        if !ax::trusted() && !doors::accessibility_asked(data_dir) {
+            if let Err(e) = doors::mark_accessibility_asked(data_dir) {
+                log("doors", &format!("the Accessibility request was not remembered: {e}"));
+            }
+            ax::prompt();
+        }
+        let selection = ax::selection();
+        let mut parts = Vec::new();
+        parts.extend(selection.text.map(DoorPart::Text));
+        parts.extend(selection.url.map(DoorPart::Url));
+        parts.extend(selection.document.map(DoorPart::of_path));
+        if let Some(bridge) = self.bridge.get().and_then(Weak::upgrade) {
+            bridge.hold(DoorItem::new(DoorSource::Shortcut, selection.app, parts));
+        }
+        self.show();
     }
 
     /// Closes the panel, whatever asked: the page, Escape, or the panel losing the keyboard.

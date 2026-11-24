@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ensureRoutinesLoaded } from "../../../state/eos/routinesStore.js";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { doorOf, heldThings } from "./held.js";
+import { AccessNote } from "./AccessNote.jsx";
 import { LoginOffer } from "./LoginOffer.jsx";
 
 // The panel's width; its height follows what it shows.
@@ -44,6 +45,7 @@ export function QuickPanel({ doors = globalThis.window?.eosDoors }) {
   return (
     <div ref={rootRef} className="eos-quick" style={{ width: WIDTH }}>
       <HomeInput held={held} door={doorOf(item)} inputRef={inputRef} />
+      <AccessNote doors={doors} />
       <LoginOffer doors={doors} />
     </div>
   );

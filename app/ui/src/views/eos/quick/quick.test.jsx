@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { setEosTransport } from "../../../state/eos/transport.js";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { doorOf, heldThings } from "./held.js";
+import { AccessLine } from "./AccessNote.jsx";
 import { OfferCard, offerShown } from "./LoginOffer.jsx";
 import { QuickPanel, WIDTH } from "./QuickPanel.jsx";
 
@@ -67,5 +68,13 @@ describe("the one-time Start-at-login offer", () => {
     expect(html).toContain("Start Eos at login?");
     expect(html).toContain(">Not now</button>");
     expect(html).toContain(">Start at login</button>");
+  });
+});
+
+describe("the panel without Accessibility", () => {
+  it("says why it arrives empty and where to allow it", () => {
+    const html = renderToStaticMarkup(<AccessLine onOpen={() => {}} />);
+    expect(html).toContain("Allow Eos in Accessibility");
+    expect(html).toContain(">Open Settings</button>");
   });
 });
