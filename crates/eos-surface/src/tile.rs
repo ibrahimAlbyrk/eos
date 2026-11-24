@@ -14,8 +14,8 @@ use crate::types::{Contract, Type};
 pub struct TileSpec {
     pub headline: Vec<Seg>,
     pub detail: Option<Vec<Seg>>,
-    /// A direct action the tile's button runs.
-    pub action: Option<String>,
+    /// The words on the tile's button, which opens the surface (05 Q8).
+    pub action: Option<Vec<Seg>>,
 }
 
 /// A tile's words for one issue.
@@ -23,6 +23,7 @@ pub struct TileSpec {
 pub struct TileText {
     pub headline: String,
     pub detail: Option<String>,
+    /// The words on the tile's button.
     pub action: Option<String>,
 }
 
@@ -59,10 +60,10 @@ impl TileSpec {
         };
         let headline = text("headline", &mut problems);
         let detail = text("detail", &mut problems);
+        let action = text("action", &mut problems);
         if headline.is_none() && problems.is_empty() {
             problems.push(Problem::new("tile.headline", "is required: text with slots"));
         }
-        let action = json.get("action").and_then(Value::as_str).map(str::to_owned);
         match (headline, problems.is_empty()) {
             (Some(headline), true) => Ok(TileSpec { headline, detail, action }),
             _ => Err(problems),
@@ -86,7 +87,7 @@ impl TileSpec {
         TileText {
             headline: fill(&self.headline),
             detail: self.detail.as_deref().map(fill).filter(|d| !d.is_empty()),
-            action: self.action.clone(),
+            action: self.action.as_deref().map(fill).filter(|a| !a.is_empty()),
         }
     }
 }
