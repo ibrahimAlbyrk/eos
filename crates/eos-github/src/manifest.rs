@@ -135,6 +135,10 @@ fn actions() -> Value {
           "input": object(json!({ "repo": repo(), "number": number(), "commitId": text(), "body": text() }),
                           &["repo", "number", "commitId"]),
           "output": receipt() },
+        { "name": "create_webhook", "summary": "Have GitHub tell Eos of a repository's pull requests at once. Needs admin rights on the repository.",
+          "class": "speak", "recipient": "input:/repo",
+          "input": object(json!({ "repo": repo(), "url": { "type": "string", "minLength": 8 } }), &["repo", "url"]),
+          "output": object(json!({ "hookId": int() }), &["hookId"]) },
         { "name": "poll_pull_requests", "summary": "The pull requests of a repository that changed since the cursor.",
           "class": "read",
           "input": object(json!({ "repo": repo(), "cursor": cursor.clone() }), &["repo"]),
@@ -178,6 +182,10 @@ pub(crate) fn manifest() -> Manifest {
             "events": ["opened", "updated", "ready", "closed"],
             "closing": ["closed"],
             "interval_s": 60, "min_interval_s": 30,
+            "push": {
+                "verify": "hmac-sha256", "signature_header": "X-Hub-Signature-256",
+                "delivery_header": "X-GitHub-Delivery",
+            },
         }],
         "candidates": [{ "item": PULL_REQUEST, "action": "find_pull_requests" }],
         "items": [{

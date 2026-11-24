@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 use serde_json::Value;
 
 use crate::BoxFuture;
+use crate::net::hooks::HookUrl;
 
 /// A fact a source gives, which a routine's rules may test.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,10 +84,19 @@ pub enum SourceError {
 
 /// A push the relay's mailbox held, as the service sent it. Never trusted
 /// before the source checked its signature.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PushEvent {
+    /// The hook it came through: which secret signs it.
+    pub hook: String,
+    /// Lower-case names, as the service sent them.
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
+}
+
+impl std::fmt::Debug for PushEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PushEvent").field("bytes", &self.body.len()).finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,9 +127,22 @@ pub trait SignalSource: Send + Sync {
         false
     }
     fn poll(&self, request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>>;
-    /// A verified push: a hint to poll now, a signal (a source with no list
-    /// to poll), or refused.
-    fn accept_push(&self, scope: &Scope, event: &PushEvent) -> Result<PushOutcome, SourceError>;
+    /// Checks a push's signature: a hint to poll now, a signal (a source
+    /// with no list to poll), or refused.
+    fn accept_push<'a>(
+        &'a self,
+        scope: &'a Scope,
+        event: &'a PushEvent,
+    ) -> BoxFuture<'a, Result<PushOutcome, SourceError>>;
+    /// Whether the service can push this source's events.
+    fn pushes(&self) -> bool {
+        false
+    }
+    /// Has the service push the scope's events to `hook`: keeps a secret
+    /// for it and registers the webhook with the service.
+    fn add_push<'a>(&'a self, _scope: &'a Scope, _hook: &'a HookUrl) -> BoxFuture<'a, Result<(), SourceError>> {
+        Box::pin(std::future::ready(Err(SourceError::Bad("push"))))
+    }
 }
 
 /// The sources the capabilities declare, by name (`github.pulls`).

@@ -4,6 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_core::BoxFuture;
+use eos_core::net::hooks::HookUrl;
 use eos_core::signals::{
     DeviceReport, DeviceSeen, FactDecl, Handoff, Holder, PollPage, PollRequest, PushEvent, PushOutcome, RunnerError,
     Scope, SignalSource, SignalSources, SourceError,
@@ -27,6 +28,11 @@ pub struct FakeSource {
     polls: Mutex<VecDeque<Result<PollPage, SourceError>>>,
     pushes: Mutex<VecDeque<Result<PushOutcome, SourceError>>>,
     requests: Mutex<Vec<PollRequest>>,
+    push_capable: bool,
+    /// The hook of each push it was handed, in order.
+    pushed: Mutex<Vec<String>>,
+    /// The hooks it was asked to push to.
+    added: Mutex<Vec<String>>,
 }
 
 impl FakeSource {
@@ -46,6 +52,22 @@ impl FakeSource {
     pub fn closing(mut self, kinds: &[&str]) -> Self {
         self.closing = kinds.iter().map(|kind| (*kind).to_owned()).collect();
         self
+    }
+
+    /// Its service can push events.
+    pub fn pushing(mut self) -> Self {
+        self.push_capable = true;
+        self
+    }
+
+    /// The hook of each push it checked, in order.
+    pub fn pushed(&self) -> Vec<String> {
+        locked(&self.pushed).clone()
+    }
+
+    /// The hook ids it was asked to push to, in order.
+    pub fn added(&self) -> Vec<String> {
+        locked(&self.added).clone()
     }
 
     /// The next poll answers `page`.
@@ -99,8 +121,24 @@ impl SignalSource for FakeSource {
         Box::pin(std::future::ready(answer))
     }
 
-    fn accept_push(&self, _scope: &Scope, _event: &PushEvent) -> Result<PushOutcome, SourceError> {
-        locked(&self.pushes).pop_front().unwrap_or(Ok(PushOutcome::PollNow { focus: None }))
+    fn accept_push<'a>(
+        &'a self,
+        _scope: &'a Scope,
+        event: &'a PushEvent,
+    ) -> BoxFuture<'a, Result<PushOutcome, SourceError>> {
+        locked(&self.pushed).push(event.hook.clone());
+        let answer = locked(&self.pushes).pop_front().unwrap_or(Ok(PushOutcome::PollNow { focus: None }));
+        Box::pin(std::future::ready(answer))
+    }
+
+    fn pushes(&self) -> bool {
+        self.push_capable
+    }
+
+    fn add_push<'a>(&'a self, _scope: &'a Scope, hook: &'a HookUrl) -> BoxFuture<'a, Result<(), SourceError>> {
+        locked(&self.added).push(hook.id.clone());
+        let answer = if self.push_capable { Ok(()) } else { Err(SourceError::Bad("push")) };
+        Box::pin(std::future::ready(answer))
     }
 }
 
@@ -281,9 +319,10 @@ mod tests {
         assert_eq!(source.requests().len(), 3);
         assert_eq!(source.facts()[0].name, "repo");
         source.push_outcome(Ok(PushOutcome::Refused));
-        let push = PushEvent { headers: vec![], body: vec![] };
-        assert_eq!(source.accept_push(&Scope::new(), &push), Ok(PushOutcome::Refused));
-        assert_eq!(source.accept_push(&Scope::new(), &push), Ok(PushOutcome::PollNow { focus: None }));
+        let push = PushEvent { hook: "h1".into(), headers: vec![], body: vec![] };
+        assert_eq!(source.accept_push(&Scope::new(), &push).await, Ok(PushOutcome::Refused));
+        assert_eq!(source.accept_push(&Scope::new(), &push).await, Ok(PushOutcome::PollNow { focus: None }));
+        assert_eq!(source.pushed(), ["h1", "h1"]);
 
         let sources = FakeSignalSources::new().with("github.pulls", Arc::new(source));
         assert!(sources.get("github.pulls").is_some() && sources.get("mail.inbox").is_none());
