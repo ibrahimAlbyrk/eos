@@ -126,7 +126,7 @@ async fn a_page_goes_with_its_html_images_and_export_pdf_and_no_other_file() {
         "pdf": format!("{SURFACES}/sf-1/exports/si-1.pdf"),
     });
     assert_eq!(rig.call("send_mail", page.clone()).await.expect("sent"), json!({"sent": true}));
-    assert_eq!(rig.fake.sends(), [page.clone()]);
+    assert_eq!(rig.fake.sends(), std::slice::from_ref(&page));
     for elsewhere in [
         "/Users/me/.ssh/id_rsa.pdf",
         "/data/surfaces/sf-1/exports/../../../secret.pdf",
