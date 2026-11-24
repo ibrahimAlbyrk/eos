@@ -19,6 +19,16 @@ use crate::health::{apply, event_of};
 use crate::output::finish;
 use crate::registry::Loaded;
 
+/// The action that registers a webhook with the service. Only adding push
+/// calls it: any other caller has no hook secret, and its refusal must not
+/// read as a secret the user is missing.
+pub(crate) const CREATE_WEBHOOK: &str = "create_webhook";
+
+/// Whether `caller` may call `action` at all, before any grant is read.
+pub(crate) fn open_to(action: &Action, caller: &ActionCaller) -> bool {
+    action.name != CREATE_WEBHOOK || matches!(caller, ActionCaller::Push { .. })
+}
+
 /// How much an action may do, from reading up.
 fn rank(class: ActionClass) -> u8 {
     match class {
@@ -115,6 +125,9 @@ impl CapabilityService {
 
     /// An agent calls only what its grant lists; a surface only reads.
     async fn granted(&self, capability: &str, action: &Action, caller: &ActionCaller) -> Result<(), ActionError> {
+        if !open_to(action, caller) {
+            return Err(ActionError::NotGranted);
+        }
         match caller {
             ActionCaller::Agent { worker_id } => match self.ports.grants.grant(worker_id).await {
                 Some(grant) if !allows(&grant, capability, action) => Err(ActionError::NotGranted),

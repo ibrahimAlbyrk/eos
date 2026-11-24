@@ -27,6 +27,7 @@ use serde_json::{Map, Value};
 use zeroize::Zeroizing;
 
 use crate::CapabilityService;
+use crate::call::CREATE_WEBHOOK;
 
 /// The sources of the built-ins, by `<capability>.<source>`
 /// (`github.pulls`).
@@ -88,9 +89,6 @@ fn failed(error: &ActionError, now: i64) -> SourceError {
         _ => SourceError::Unreachable,
     }
 }
-
-/// The action that registers a webhook with the service.
-const CREATE_WEBHOOK: &str = "create_webhook";
 
 /// The secret a hook's pushes are signed with, by its name in the Keychain.
 fn webhook_secret(hook: &str) -> String {
