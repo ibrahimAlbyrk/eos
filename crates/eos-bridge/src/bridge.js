@@ -170,6 +170,12 @@
   if (!HOST) window.eosDoors = {
     loginItem: () => door("doors/login-item", "GET"),
     setLoginItem: (on) => door("doors/login-item", "PUT", { on: !!on }),
+    // The quick panel's shortcut ({ available, accelerator, held, problem? }) and the eos
+    // command on the PATH ({ available, installed, path, onPath, problem? }).
+    shortcut: () => door("doors/shortcut", "GET"),
+    setShortcut: (accelerator) => door("doors/shortcut", "PUT", { accelerator }),
+    command: () => door("doors/cli", "GET"),
+    installCommand: () => door("doors/cli", "POST", {}),
     // The quick panel: what a door holds for it, and asking the panel to close or fit.
     held: () => door("doors/held", "GET"),
     onHeld: (cb) => on("doors:held", cb),

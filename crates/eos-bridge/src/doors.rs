@@ -1,6 +1,6 @@
-//! `doors.json` in the shell's data folder: what the doors outside Eos remember. Here, whether
-//! the dashboard already offered to start Eos at login (`loginOffered`). Other keys in the
-//! file are kept as they are. [`held`] is the item a door hands the quick panel.
+//! `doors.json` in the shell's data folder: what the doors outside Eos remember: whether the
+//! dashboard already offered to start Eos at login (`loginOffered`) and the user's shortcut
+//! for the quick panel (`shortcut`). Other keys in the file are kept as they are. [`held`] is the item a door hands the quick panel.
 
 mod held;
 
@@ -39,6 +39,65 @@ pub fn mark_login_offered(data_dir: &Path) -> std::io::Result<()> {
     write(data_dir, "loginOffered", Value::Bool(true))
 }
 
+/// The shortcut that opens the quick panel (07 §4.3): the user's own, else ⌥Space.
+pub const SHORTCUT: &str = "alt+space";
+/// The one tried when the first is taken by another app.
+pub const SHORTCUT_FALLBACK: &str = "ctrl+alt+space";
+
+/// The accelerators to try, in order: the one the user chose (or ⌥Space), then ⌃⌥Space.
+pub fn shortcut_order(data_dir: &Path) -> Vec<String> {
+    let chosen = read(data_dir).get("shortcut").and_then(Value::as_str).map(str::to_owned);
+    let mut order = vec![chosen.unwrap_or_else(|| SHORTCUT.to_owned())];
+    if order[0] != SHORTCUT_FALLBACK {
+        order.push(SHORTCUT_FALLBACK.to_owned());
+    }
+    order
+}
+
+/// Remembers the user's shortcut.
+pub fn set_shortcut(data_dir: &Path, accelerator: &str) -> std::io::Result<()> {
+    write(data_dir, "shortcut", Value::String(accelerator.to_owned()))
+}
+
+/// A shortcut the page may ask for: modifiers and one key joined by `+`, at most 64
+/// characters, at least one modifier (a bare key would take typing from every app).
+pub fn valid_accelerator(accelerator: &str) -> bool {
+    const MODIFIERS: [&str; 7] = ["alt", "option", "ctrl", "control", "shift", "cmd", "super"];
+    let parts: Vec<&str> = accelerator.split('+').map(str::trim).collect();
+    accelerator.len() <= 64
+        && parts.len() >= 2
+        && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric()))
+        && parts[..parts.len() - 1].iter().all(|p| MODIFIERS.contains(&p.to_ascii_lowercase().as_str()))
+}
+
+/// A shortcut as the Mac writes it: `alt+space` → `⌥Space`.
+pub fn shortcut_words(accelerator: &str) -> String {
+    accelerator
+        .split('+')
+        .map(|part| match part.trim().to_ascii_lowercase().as_str() {
+            "alt" | "option" => "⌥".to_owned(),
+            "ctrl" | "control" => "⌃".to_owned(),
+            "shift" => "⇧".to_owned(),
+            "cmd" | "super" => "⌘".to_owned(),
+            key => {
+                let mut chars = key.chars();
+                chars.next().map_or_else(String::new, |first| first.to_ascii_uppercase().to_string() + chars.as_str())
+            }
+        })
+        .collect()
+}
+
+/// What the user reads when the shortcut asked for does not hold: `held` is the one that does.
+pub fn shortcut_problem(asked: &str, held: Option<&str>) -> Option<String> {
+    match held {
+        Some(held) if held == asked => None,
+        Some(held) => {
+            Some(format!("{} is taken by another app, so {} opens Eos.", shortcut_words(asked), shortcut_words(held)))
+        }
+        None => Some(format!("{} is taken by another app. Choose another.", shortcut_words(asked))),
+    }
+}
+
 /// Sets one key, keeping the others. Written whole through a temporary file, so a crash
 /// never leaves half a file.
 fn write(data_dir: &Path, key: &str, value: Value) -> std::io::Result<()> {
@@ -67,6 +126,32 @@ mod tests {
         assert!(login_offered(&data));
         let kept: Value = serde_json::from_str(&std::fs::read_to_string(data.join(FILE)).unwrap()).unwrap();
         assert_eq!(kept["shortcut"], "alt+space", "other doors are kept");
+    }
+
+    #[test]
+    fn the_shortcut_is_the_users_or_option_space_then_control_option_space() {
+        let dir = Dir::new("doors-shortcut");
+        assert_eq!(shortcut_order(dir.path()), [SHORTCUT, SHORTCUT_FALLBACK]);
+        set_shortcut(dir.path(), "cmd+shift+k").unwrap();
+        assert_eq!(shortcut_order(dir.path()), ["cmd+shift+k", SHORTCUT_FALLBACK]);
+        set_shortcut(dir.path(), SHORTCUT_FALLBACK).unwrap();
+        assert_eq!(shortcut_order(dir.path()), [SHORTCUT_FALLBACK]);
+        mark_login_offered(dir.path()).unwrap();
+        assert_eq!(shortcut_order(dir.path()), [SHORTCUT_FALLBACK], "one key never loses another");
+        for good in ["alt+space", "Ctrl+Alt+Space", "cmd+shift+k"] {
+            assert!(valid_accelerator(good), "{good}");
+        }
+        assert_eq!(shortcut_words("ctrl+alt+space"), "⌃⌥Space");
+        assert_eq!(shortcut_words("cmd+shift+k"), "⌘⇧K");
+        assert_eq!(shortcut_problem("alt+space", Some("alt+space")), None);
+        assert_eq!(
+            shortcut_problem("alt+space", Some("ctrl+alt+space")).as_deref(),
+            Some("⌥Space is taken by another app, so ⌃⌥Space opens Eos.")
+        );
+        assert_eq!(shortcut_problem("cmd+k", None).as_deref(), Some("⌘K is taken by another app. Choose another."));
+        for bad in ["space", "k", "alt+", "alt+space+x", "hyper+k", "alt+spa ce", ""] {
+            assert!(!valid_accelerator(bad), "{bad}");
+        }
     }
 
     #[test]

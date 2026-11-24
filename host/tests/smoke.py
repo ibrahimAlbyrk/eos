@@ -465,6 +465,7 @@ def quick_panel(link_env):
     check("the panel's page listens on its own event stream", streams == 1, streams)
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("the held text is never logged", "smoke door text" not in log and "smoke+door" not in log)
+    check("a test run registers no global shortcut", "shortcut" in st and st["shortcut"] is None, st.get("shortcut"))
 
 
 def read_logs():
