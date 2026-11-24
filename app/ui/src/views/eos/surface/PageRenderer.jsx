@@ -29,12 +29,12 @@ export function pageMessage(event, frame) {
 // same origin): its fonts and colours stay inside, and it reaches nothing.
 // Pressing, opening, pointing and reading come back as messages from that
 // frame only; the parent tells it the mode (read or point).
-export function PageRenderer({ src, title, mode = "read", onAct, onPart, onRead, onModeEnd }) {
+export function PageRenderer({ src, title, mode = "read", swaps, onLive, onAct, onPart, onRead, onModeEnd }) {
   const ref = useRef(null);
   const [height, setHeight] = useState(FIRST_HEIGHT);
   const [ready, setReady] = useState(false);
   const handlers = useRef({});
-  handlers.current = { onAct, onPart, onRead, onModeEnd };
+  handlers.current = { onLive, onAct, onPart, onRead, onModeEnd };
 
   useEffect(() => {
     setReady(false);
@@ -46,7 +46,10 @@ export function PageRenderer({ src, title, mode = "read", onAct, onPart, onRead,
       if (!message) return;
       const h = handlers.current;
       switch (message.type) {
-        case "eos-page/ready": setReady(true); break;
+        case "eos-page/ready":
+          setReady(true);
+          if (Array.isArray(message.live)) h.onLive?.(message.live.filter((part) => typeof part === "string"));
+          break;
         case "eos-page/size":
           if (Number.isFinite(message.height) && message.height > 0) setHeight(Math.ceil(message.height));
           break;
@@ -69,6 +72,15 @@ export function PageRenderer({ src, title, mode = "read", onAct, onPart, onRead,
   useEffect(() => {
     if (ready) ref.current?.contentWindow?.postMessage({ type: "eos-page/mode", mode }, "*");
   }, [mode, ready]);
+
+  // A Live part the core drew again goes into the page; the page keeps it
+  // only when it is HTML of that same part.
+  useEffect(() => {
+    if (!ready || !swaps) return;
+    for (const [part, html] of Object.entries(swaps)) {
+      ref.current?.contentWindow?.postMessage({ type: "eos-page/swap", part, html }, "*");
+    }
+  }, [swaps, ready]);
 
   return (
     <iframe

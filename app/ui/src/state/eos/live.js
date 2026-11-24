@@ -57,8 +57,24 @@ const HANDLERS = {
 
 export const EOS_TOPICS = Object.keys(HANDLERS);
 
+// Who else waits on a topic: a page's Live part refreshes on the topics its
+// query names.
+const watchers = new Map();
+
+// Calls `cb` on each event of one of `topics`; returns the way to stop.
+export function watchEosTopics(topics, cb) {
+  for (const topic of topics) {
+    if (!watchers.has(topic)) watchers.set(topic, new Set());
+    watchers.get(topic).add(cb);
+  }
+  return () => {
+    for (const topic of topics) watchers.get(topic)?.delete(cb);
+  };
+}
+
 // True when the event was Eos's (useLive stops routing it).
 export function applyEosEvent(reason, payload) {
+  for (const cb of watchers.get(reason) ?? []) cb(payload);
   const handle = HANDLERS[reason];
   if (!handle) return false;
   handle(payload);
