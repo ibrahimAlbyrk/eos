@@ -16,6 +16,7 @@ dashboard (React)  ──fetch / EventSource──▶  http://eos.localhost/_cor
                                              eos-bridge: shell request ⇄ runtime request
 phone (relay) ─┐                             eos-runtime: Router ─▶ feature route handler
 paired Mac ────┴── gateways call the Router directly
+terminal (`eos`) ──<shell data>/cli.sock──▶  eos-bridge::cli: a command ⇄ the dashboard's own calls
 ```
 
 - The wire is fixed: the 0.1.x app's paths, methods, JSON shapes, status codes, error bodies and
@@ -30,6 +31,11 @@ paired Mac ────┴── gateways call the Router directly
   (`eos_bridge::hosts`): it reaches only `/h/<id>/…`, every request there carries that view's
   token (the core sees that host's user, nobody else), and its document gets only the machine
   switcher and, when it runs this computer's own dashboard, the transfer calls.
+- The terminal's `eos` command (`host/eos-cli`, shipped as `Contents/Helpers/eos`) talks to
+  the running app over a Unix socket in the shell's data folder that only the user can open
+  (mode 0600, and each connection's peer must be the app's user). The gateway
+  (`eos_bridge::cli`) turns each command into the requests the dashboard makes, through the
+  same `Core`, token and dev guard; it adds no route of its own.
 
 ## 2. Layers and crates
 
@@ -181,7 +187,8 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 ## 4. What the app does not have
 
 A permission gateway or PTY spawner of its own (the gateway is `eos-policy`, called in process),
-stdio MCP servers, a launchd agent, a command-line client, the Codex and Gemini lanes.
+stdio MCP servers, a launchd agent, the Codex and Gemini lanes. Its command-line client is a
+door, not a server: one user-only socket the running app listens on (§1).
 
 ## 5. The host layer
 
@@ -247,7 +254,8 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   bundle in and puts the old one back unless the new app writes `boot-ok` in time
   (`docs/first-rust-release.md`).
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
-  notifications, the work hold's App Nap activity), each use with its reason. Also checked
+  notifications, the work hold's App Nap activity, the launch's Apple Event, the Dock's
+  number, the login item), each use with its reason. Also checked
   by `cargo xtask shell`. The one exception in the main workspace is
   `eos-platform/src/darwin/qos.rs`: two pthread calls that set and read the calling thread's
   scheduling class, behind a safe function.
