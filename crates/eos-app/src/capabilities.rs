@@ -214,7 +214,7 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
     let mail: Arc<dyn BuiltinCapability> = Arc::new(MailApp::new(eos_mail_app::Parts {
         script,
         clock: clock.clone(),
-        sleeper,
+        sleeper: sleeper.clone(),
         surfaces: paths.join("surfaces"),
     }));
     Ok(Arc::new(CapabilityService::new(
@@ -223,15 +223,18 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
             files: Arc::new(FsCapabilityFiles::new(paths.join("capabilities"), trash)),
             secrets,
             grants,
-            runner: Some(Arc::new(eos_capability_host::ScriptHost::new(
-                paths.join("capabilities"),
-                paths.join("scratch").join("capability-calls"),
+            runner: Some(Arc::new(eos_capability_host::CapabilityHost::new(eos_capability_host::HostParts {
+                root: paths.join("capabilities"),
+                temp: paths.join("scratch").join("capability-calls"),
                 confinement,
-                eos_kit_proc::Runner::new(eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
-                    eos_platform::kill_process_tree(pid).is_ok()
-                })),
-                ids.clone(),
-            ))),
+                runner: eos_kit_proc::Runner::new(eos_kit_proc::ProcessTrees::new(
+                    eos_platform::isolate_command,
+                    |pid| eos_platform::kill_process_tree(pid).is_ok(),
+                )),
+                ids: ids.clone(),
+                clock: clock.clone(),
+                sleeper,
+            }))),
             clock,
             ids,
         },

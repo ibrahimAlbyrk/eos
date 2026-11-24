@@ -36,6 +36,9 @@ terminal (`eos`) ──<shell data>/cli.sock──▶  eos-bridge::cli: a comman
   (mode 0600, and each connection's peer must be the app's user). The gateway
   (`eos_bridge::cli`) turns each command into the requests the dashboard makes, through the
   same `Core`, token and dev guard; it adds no route of its own.
+- A capability's code is never a door: `eos-capability-host` starts a script action, or a
+  capability's MCP server, as a child of the app under the sandbox `eos-engine` confines it with,
+  and speaks to the server over that child's pipes. Nothing reaches it from outside the process.
 
 ## 2. Layers and crates
 
@@ -187,7 +190,8 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 ## 4. What the app does not have
 
 A permission gateway or PTY spawner of its own (the gateway is `eos-policy`, called in process),
-stdio MCP servers, a launchd agent, the Codex and Gemini lanes. Its command-line client is a
+stdio MCP servers of its own (a capability's MCP server is a confined child that only
+`eos-capability-host` speaks to, at most eight at once, stopped after ten idle minutes), a launchd agent, the Codex and Gemini lanes. Its command-line client is a
 door, not a server: one user-only socket the running app listens on (§1). Any program the user
 runs can use it, so what it would start (a run, a one-off, resuming after a halt) is asked in
 the app's window, as an `eos://` link is; it never starts one itself.

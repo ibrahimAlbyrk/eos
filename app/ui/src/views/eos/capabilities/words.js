@@ -18,6 +18,8 @@ const CODES = {
   hash_mismatch: "Its files changed after they were checked.",
   program_missing: "A program it needs is not installed.",
   sandbox_unavailable: "Its sandbox is not available.",
+  server_crashed: "Its server stopped three times in ten minutes.",
+  tools_changed: "Its server offers tools that were not reviewed.",
   rate_limited: "The service is limiting how often Eos may ask.",
   health_failed: "Its last checks failed.",
   output_schema: "Its answers no longer have the shape it promised.",

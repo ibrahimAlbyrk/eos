@@ -1707,6 +1707,7 @@ dependencies = [
  "eos-kit-proc",
  "eos-platform",
  "eos-testkit",
+ "rmcp",
  "serde_json",
  "tempfile",
  "tokio",

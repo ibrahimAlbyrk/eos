@@ -78,6 +78,10 @@ pub enum StateCode {
     SourceGone,
     /// The sign-in lacks a permission Eos asks for: the user signs in again.
     ScopeMissing,
+    /// Its MCP server crashed three times in ten minutes.
+    ServerCrashed,
+    /// Its MCP server lists tools other than the ones reviewed.
+    ToolsChanged,
 }
 
 impl StateCode {
@@ -95,6 +99,8 @@ impl StateCode {
             StateCode::OutputSchema => "output_schema".to_owned(),
             StateCode::SourceGone => "source_gone".to_owned(),
             StateCode::ScopeMissing => "scope_missing".to_owned(),
+            StateCode::ServerCrashed => "server_crashed".to_owned(),
+            StateCode::ToolsChanged => "tools_changed".to_owned(),
         }
     }
 
@@ -115,6 +121,8 @@ impl StateCode {
             StateCode::OutputSchema,
             StateCode::SourceGone,
             StateCode::ScopeMissing,
+            StateCode::ServerCrashed,
+            StateCode::ToolsChanged,
         ]
         .into_iter()
         .find(|code| code.as_string() == text)
@@ -145,6 +153,10 @@ pub enum Event {
     Missing(StateCode),
     HashMismatch,
     SandboxUnavailable,
+    /// Its MCP server crashed once too often.
+    ServerCrashed,
+    /// Its MCP server's tools are not the reviewed ones.
+    ToolsChanged,
     /// A call's output broke its schema.
     BadOutput,
     /// The user switched it off.
@@ -200,6 +212,8 @@ impl Health {
             Event::Missing(code) => set(HealthState::NeedsSetup, Some(code)),
             Event::HashMismatch => set(HealthState::Broken, Some(StateCode::HashMismatch)),
             Event::SandboxUnavailable => set(HealthState::Broken, Some(StateCode::SandboxUnavailable)),
+            Event::ServerCrashed => set(HealthState::Broken, Some(StateCode::ServerCrashed)),
+            Event::ToolsChanged => set(HealthState::Broken, Some(StateCode::ToolsChanged)),
             Event::Disabled => Health { state: HealthState::Disabled, code: None, failures: 0 },
         }
     }
