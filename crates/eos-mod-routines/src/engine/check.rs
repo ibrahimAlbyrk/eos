@@ -241,7 +241,9 @@ pub(crate) async fn judged(
                 gate::hand_over(&job, tx, out, &run, &untrusted, now)?;
                 return Ok(Some(Next::Passed));
             }
-            match next_attempt(attempt) {
+            // A project's milestone counts its rounds from its own first.
+            let first = super::project::first_round_in(tx, &id)?;
+            match next_attempt(attempt - first + 1).map(|round| first + round - 1) {
                 Some(round) => {
                     tx.runs().set_attempt(&id, round)?;
                     let work =

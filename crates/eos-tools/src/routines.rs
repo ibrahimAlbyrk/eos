@@ -1,5 +1,6 @@
 //! The tools of a routine run's sessions: the lead reports where the run is
-//! (`report_progress`), hands in its result (`submit_result`) or says the run
+//! (`report_progress`), hands in its result (`submit_result`) or, in a
+//! project, the milestone at work (`complete_milestone`), or says the run
 //! cannot be done (`report_failure`); the checker gives its verdict on a
 //! result (`submit_verdict`); a team's lead starts, follows up, stops and
 //! lists its specialists (`start_specialist`, `message_specialist`,
@@ -15,7 +16,7 @@ use std::sync::Arc;
 
 use eos_contracts::CheckVerdict;
 use eos_core::BoxFuture;
-use eos_core::routine::{ChatRoutines, ChatRunAsk, ChatStart, RoutineTools, SubmittedResult};
+use eos_core::routine::{ChatRoutines, ChatRunAsk, ChatStart, MilestoneDone, RoutineTools, SubmittedResult};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -70,6 +71,26 @@ impl Handler for SubmitResult {
             self.0.submit_result(call.self_id, SubmittedResult { kind, headline, body, files }).await?;
             // The lead waits while the result is checked; a finding comes back as a message.
             Ok(Output::EndTurn("Result handed in. It is being checked; wait for what comes back.".into()))
+        })
+    }
+}
+
+struct CompleteMilestone(Arc<dyn RoutineTools>);
+
+#[derive(Deserialize)]
+struct MilestoneArgs {
+    key: String,
+    summary: String,
+    #[serde(default)]
+    files: Vec<String>,
+}
+
+impl Handler for CompleteMilestone {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let MilestoneArgs { key, summary, files } = args(input)?;
+            self.0.complete_milestone(call.self_id, MilestoneDone { key, summary, files }).await?;
+            Ok(Output::EndTurn("Milestone handed in. It is being checked; wait for what comes back.".into()))
         })
     }
 }
@@ -129,7 +150,7 @@ pub(crate) fn checker_specs(tools: &Arc<dyn RoutineTools>) -> Vec<Spec> {
     ]
 }
 
-/// The lead's three tools. Sent with every
+/// The lead's four tools. Sent with every
 /// request: a lead that has to search for how to end its run may not.
 pub(crate) fn lead_specs(tools: &Arc<dyn RoutineTools>) -> Vec<Spec> {
     vec![
@@ -151,6 +172,16 @@ pub(crate) fn lead_specs(tools: &Arc<dyn RoutineTools>) -> Vec<Spec> {
                 ("files", array(string()).max(20).optional().describe("Paths of files the result carries.")),
             ]),
             SubmitResult(tools.clone()),
+        )
+        .always_load(),
+        Spec::new(
+            "complete_milestone",
+            object(vec![
+                ("key", string().min(1).describe("The key of the milestone at work, as the brief lists it.")),
+                ("summary", string().min(1).max(4000).describe("What was done and where it is, in plain sentences.")),
+                ("files", array(string()).max(20).optional().describe("Paths of files the milestone carries.")),
+            ]),
+            CompleteMilestone(tools.clone()),
         )
         .always_load(),
         Spec::new(

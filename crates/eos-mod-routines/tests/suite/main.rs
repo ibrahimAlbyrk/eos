@@ -18,6 +18,7 @@ mod intent;
 mod isolation;
 mod once;
 mod ports;
+mod project;
 mod recover;
 mod retention;
 mod routes;

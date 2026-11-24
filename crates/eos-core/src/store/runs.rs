@@ -145,8 +145,11 @@ pub trait RunRepo {
     fn set_lead(&self, id: &str, worker_id: &str) -> Result<(), Error>;
     /// What became of its result.
     fn set_outcome(&self, id: &str, outcome: Outcome) -> Result<(), Error>;
-    /// The check round it is in, from 1.
+    /// The round its result is in, from 1; a project's next milestone
+    /// starts a round after the last one.
     fn set_attempt(&self, id: &str, attempt: i64) -> Result<(), Error>;
+    /// How many of a project run's milestones are done, of how many.
+    fn set_progress(&self, id: &str, done: i64, total: i64) -> Result<(), Error>;
     /// The line the user reads first: its result's, or why it failed.
     fn set_headline(&self, id: &str, headline: &str) -> Result<(), Error>;
     /// Every queued run, the one to start first first: by priority, then

@@ -114,6 +114,14 @@ impl RoutineTools for RunCalls {
         self.record(worker_id, format!("result {worker_id} {kind} {headline} {body} {files:?}"))
     }
 
+    fn complete_milestone<'a>(
+        &'a self,
+        worker_id: &'a str,
+        done: eos_core::routine::MilestoneDone,
+    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
+        self.record(worker_id, format!("milestone {worker_id} {} {} {:?}", done.key, done.summary, done.files))
+    }
+
     fn report_failure<'a>(
         &'a self,
         worker_id: &'a str,
@@ -476,6 +484,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
     let lead = [
         "report_progress",
         "submit_result",
+        "complete_milestone",
         "report_failure",
         "return_view",
         "fill_page",
@@ -486,7 +495,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         "call_capability",
     ];
     let team = ["start_specialist", "message_specialist", "stop_specialist", "list_specialists"];
-    let team_lead: Vec<&str> = lead[..3].iter().chain(&team).chain(&lead[3..]).copied().collect();
+    let team_lead: Vec<&str> = lead[..4].iter().chain(&team).chain(&lead[4..]).copied().collect();
     for (definition, expected) in
         [("eos-run-solo", lead.to_vec()), ("eos-run-lead", team_lead), ("eos-run-script", lead.to_vec())]
     {
@@ -499,7 +508,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
     }
     let designer: Vec<&str> = ["page_design_read", "page_design_propose"]
         .iter()
-        .chain(&lead[..3])
+        .chain(&lead[..4])
         .chain(&["current_datetime", "search_memory"])
         .copied()
         .collect();
@@ -511,7 +520,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.names("worker")
     );
     let lead = bench.names("run-lead");
-    assert_eq!(lead[8..], ["list_capabilities", "call_capability"]);
+    assert_eq!(lead[9..], ["list_capabilities", "call_capability"]);
     for never in
         ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
     {
@@ -565,6 +574,9 @@ async fn the_run_tools_hand_the_call_to_the_routines_feature() {
     let result = serde_json::json!({"kind": "github.review", "headline": "Two issues", "body": {"summary": "s"}});
     let submitted = call(&bench.tool("run-lead", "submit_result"), "w-lead", result).await;
     assert!(!submitted.is_error && submitted.ends_turn, "{}", submitted.text);
+    let milestone = serde_json::json!({"key": "m1", "summary": "Login screen done.", "files": ["login.png"]});
+    let handed = call(&bench.tool("run-lead", "complete_milestone"), "w-lead", milestone).await;
+    assert!(!handed.is_error && handed.ends_turn, "{}", handed.text);
     let failed =
         call(&bench.tool("run-lead", "report_failure"), "w-lead", serde_json::json!({"reason": "Closed."})).await;
     assert!(!failed.is_error && failed.ends_turn);
@@ -577,6 +589,7 @@ async fn the_run_tools_hand_the_call_to_the_routines_feature() {
         [
             "progress w-lead Reading None",
             r#"result w-lead github.review Two issues {"summary":"s"} []"#,
+            r#"milestone w-lead m1 Login screen done. ["login.png"]"#,
             "failure w-lead Closed.",
             r#"verdict w-check false ["Add a test."]"#
         ]
