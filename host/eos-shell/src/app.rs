@@ -14,6 +14,7 @@ use eos_bridge::hosts::{HostParts, HostViews, MachineItem, machine_items};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
 use eos_bridge::launch::LaunchKind;
+use eos_bridge::links::Link;
 use eos_bridge::panel::Panel;
 use eos_bridge::power::WakeDetector;
 use eos_bridge::recovery::{AfterCrash, Recovery};
@@ -32,6 +33,7 @@ use crate::menu::Command;
 use crate::native::activity::Activities;
 use crate::native::dock::DockTile;
 use crate::native::{appkit, dock, launch, notify};
+use crate::panel::QuickPanel;
 use crate::splash::Splash;
 use crate::tray::{Action, Tray};
 use crate::views::{ArtifactShell, Cdp, HostShell, PageViews, Previewer, ViewPorts, Views, create};
@@ -160,6 +162,8 @@ struct Shell {
     /// The core as the bridge reaches it: the menu-bar item's commands go there too.
     core: OnceLock<Arc<dyn Core>>,
     host: OnceLock<Arc<Host>>,
+    /// The quick panel the doors open (07 §4.3).
+    quick: OnceLock<Arc<QuickPanel>>,
 }
 
 pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
@@ -252,6 +256,7 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         tray: Tray::default(),
         core: OnceLock::new(),
         host: OnceLock::new(),
+        quick: OnceLock::new(),
     });
 
     let for_setup = shell.clone();
@@ -389,6 +394,8 @@ impl Shell {
                 ),
             );
         }
+        let quick = QuickPanel::new(app.clone(), self.rt.handle().clone(), options.quiet);
+        let _ = self.quick.set(quick.clone());
         let host = Arc::new(Host {
             window: window.clone(),
             views: views.clone(),
@@ -396,6 +403,7 @@ impl Shell {
             bridge: OnceLock::new(),
             quiet: options.quiet,
             doors: options.doors,
+            quick: quick.clone(),
         });
         let bridge = Bridge::new(Parts {
             assets: options.ui_dist.clone(),
@@ -412,6 +420,7 @@ impl Shell {
         let _ = self.host.set(host.clone());
         let _ = self.bridge.set(bridge.clone());
         page_views.attach(bridge.clone());
+        quick.attach(&bridge);
         let artifacts = self.start_artifacts(&views, &bridge);
         self.start_hosts(&views, &bridge, core, host.clone(), artifacts);
         let early_link = self.early_link.lock().ok().and_then(|mut link| link.take());
@@ -653,9 +662,11 @@ impl Shell {
         }
         // Never the link itself in the log: an invite is a secret.
         log("shell", "a link was opened with the app");
-        self.show_window();
-        if let Some(bridge) = self.bridge.get() {
-            bridge.open_link(url);
+        let link = self.bridge.get().map(|bridge| bridge.open_link(url));
+        // A send link holds its text for the quick panel; every other link opens the window.
+        match (link, self.quick.get()) {
+            (Some(Link::Send(_)), Some(quick)) => quick.show(),
+            _ => self.show_window(),
         }
         // A sign-in's link back is the core's.
         self.hooks.open_url(url);
@@ -689,6 +700,12 @@ impl Shell {
                 }
                 _ => {}
             },
+            // The quick panel lost the keyboard: the user went back to another app.
+            RunEvent::WindowEvent { label, event: WindowEvent::Focused(false), .. } if label == "quick" => {
+                if let Some(quick) = self.quick.get() {
+                    quick.close();
+                }
+            }
             // A window of its own showing a paired computer closed: its door goes.
             RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } => {
                 if let Some(hosts) = self.bridge.get().and_then(|b| b.hosts()) {
@@ -954,6 +971,7 @@ impl Shell {
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
+            "quick": self.quick.get().map(|quick| quick.report()),
             "dockBadge": self.dock_label(),
             "tray": self.tray.status(self.app.get()),
             "logs": self.options.logs.as_ref().map(|dir| json!({

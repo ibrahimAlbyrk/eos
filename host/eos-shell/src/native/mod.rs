@@ -12,6 +12,8 @@
 //! - `launch`: the Apple Event the app was launched with, read from `NSAppleEventManager`.
 //! - `dock`: the number on the Dock icon, through `NSApp.dockTile`.
 //! - `login`: the login item, through `SMAppService`.
+//! - `panel`: the quick panel's `NSPanel` floated over every app, placed and shown without
+//!   activating the app.
 //!
 //! Each function states what the caller must hold (usually: the main thread).
 #![allow(unsafe_code)]
@@ -23,3 +25,4 @@ pub(crate) mod dock;
 pub(crate) mod launch;
 pub(crate) mod login;
 pub(crate) mod notify;
+pub(crate) mod panel;

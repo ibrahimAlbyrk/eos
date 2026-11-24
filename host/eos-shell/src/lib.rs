@@ -12,6 +12,7 @@ mod host;
 mod log;
 mod menu;
 mod native;
+mod panel;
 mod probe;
 mod quit;
 mod scheme;

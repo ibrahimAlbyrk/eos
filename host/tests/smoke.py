@@ -17,7 +17,8 @@ What it checks:
      other child views, and showing it again makes the view again;
   9. the menu-bar item shows only once a routine exists (the data copy has none; a copy
      with one is made for it), follows the working runs live, and `--quit` with runs working
-     quits without asking.
+     quits without asking;
+ 10. an `eos-dev://send` link opens the quick panel without activating the app.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -444,8 +445,26 @@ def checks(run):
     time.sleep(0.3)
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("a link is handed to the running app, and never logged", link.returncode == 0 and "a link was opened with the app" in log and "smoke-not-a-real-invite" not in log)
+    quick_panel(link_env=dict(os.environ, EOS_SHELL_DATA=SHELL_DATA))
     pid = st.get("pid")
     return finish(0, pid)
+
+
+def quick_panel(link_env):
+    """The door step: an `eos-dev://send` link holds its text and opens the quick panel, a
+    non-activating panel that never makes Eos the active app. A quiet run never gives it the
+    keyboard, so the panel's taking the keyboard is left to the installed app's check."""
+    sent = subprocess.run([BIN, "eos-dev://send?text=smoke+door+text"], env=link_env, capture_output=True, text=True, timeout=15)
+    st = wait_for("quick panel", lambda: (lambda s: s if (s.get("quick") or {}).get("visible") else None)(ctl("--status")), 20)
+    if not check("a send link opens the quick panel", sent.returncode == 0 and st, (st or {}).get("quick")):
+        return
+    quick = st["quick"]
+    check("the panel is a non-activating panel", quick.get("panel") and quick.get("nonactivating"), quick)
+    check("the panel did not make Eos the active app", quick.get("appActive") is False, quick)
+    streams = wait_for("quick stream", lambda: bridge_of(ctl("--status")).get("quickStreams"), 20)
+    check("the panel's page listens on its own event stream", streams == 1, streams)
+    log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+    check("the held text is never logged", "smoke door text" not in log and "smoke+door" not in log)
 
 
 def read_logs():

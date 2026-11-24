@@ -10,6 +10,7 @@ use tauri_runtime_cef::cef::{ImplBrowser, ImplFrame};
 
 use crate::log::log;
 use crate::native::{appkit, login, notify};
+use crate::panel::QuickPanel;
 use crate::views::Views;
 
 /// The window's background before the first paint, by theme (the dashboard's own colors).
@@ -29,6 +30,7 @@ pub(crate) struct Host {
     pub(crate) quiet: bool,
     /// Whether this app owns the doors, the login item among them (`Options::doors`).
     pub(crate) doors: bool,
+    pub(crate) quick: Arc<QuickPanel>,
 }
 
 /// `worker:<id>` or `route:<name>`, then `@<host>` when a paired computer raised it (a host
@@ -195,6 +197,14 @@ impl ShellHost for Host {
         let helper = exe.parent()?.parent()?.join("Helpers/eos");
         let home = PathBuf::from(std::env::var_os("HOME")?);
         helper.is_file().then(|| eos_bridge::cli_link::CliCommand { helper, bin_dir: home.join(".local/bin"), home })
+    }
+
+    fn close_panel(&self) {
+        self.quick.close();
+    }
+
+    fn size_panel(&self, width: f64, height: f64) {
+        self.quick.resize(width, height);
     }
 }
 

@@ -41,6 +41,7 @@ pub(crate) struct Popups {
 fn kind(label: &str) -> &'static str {
     match label {
         "main" => "dashboard",
+        "quick" => "quick input",
         l if l.starts_with("signin-") => "sign-in window",
         l if l.starts_with("art-") => "artifact",
         l if l.starts_with("bt-") => "browser",
