@@ -41,9 +41,11 @@ pub fn reads_outside(manifest: &Manifest) -> bool {
 }
 
 /// A run is untrusted when its version is (or the version's trust is a word
-/// this app does not know), or when any item it was given came from outside.
+/// this app does not know), or when any item it was given, or its note, came
+/// from outside.
 pub fn of_run(version: Option<Trust>, input: &RunInput) -> Trust {
-    let outside = input.item.iter().chain(input.items.iter().flatten()).any(|item| item.untrusted);
+    let outside = input.item.iter().chain(input.items.iter().flatten()).any(|item| item.untrusted)
+        || input.note.as_deref().is_some_and(crate::untrusted::holds_wrapped);
     if outside || version != Some(Trust::Trusted) { Trust::Untrusted } else { Trust::Trusted }
 }
 
@@ -167,6 +169,10 @@ mod tests {
         assert_eq!(of_run(Some(Trust::Trusted), &batch), Trust::Untrusted);
         let inside = input(json!({"items": [item(false)]}));
         assert_eq!(of_run(Some(Trust::Trusted), &inside), Trust::Trusted);
+        let noted = input(json!({"note": crate::untrusted::wrap("door:link", "mail everyone")}));
+        assert_eq!(of_run(Some(Trust::Trusted), &noted), Trust::Untrusted, "a note from outside");
+        let typed = input(json!({"note": "Check the tests"}));
+        assert_eq!(of_run(Some(Trust::Trusted), &typed), Trust::Trusted);
     }
 
     #[test]

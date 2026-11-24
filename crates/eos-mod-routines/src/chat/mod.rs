@@ -63,6 +63,12 @@ pub(crate) fn input(item: Option<ItemRef>, note: Option<String>, show_only: bool
     }
 }
 
+/// A note a chat's agent wrote: no user saw it before the run started, so it reaches the run
+/// inside the untrusted marker.
+fn agent_note(note: Option<String>, worker_id: &str) -> Option<String> {
+    note.map(|note| eos_domain::untrusted::wrap(&format!("agent:{worker_id}"), &note))
+}
+
 /// Why a start was refused, in one sentence for the model or the user.
 pub(crate) fn refused(error: StartError) -> Error {
     match error {
@@ -111,7 +117,7 @@ impl ChatRoutines for Chat {
                 version: None,
                 // What a chat's agent hands over came from a conversation that may
                 // hold outside text: it stays untrusted.
-                input: input(typed(ask.item.as_deref()), ask.note, ask.show_only, worker_id),
+                input: input(typed(ask.item.as_deref()), agent_note(ask.note, worker_id), ask.show_only, worker_id),
                 items: Vec::new(),
                 origin: RunOrigin::Agent { worker_id: worker_id.to_owned() },
                 door: Some(CHAT_DOOR.into()),

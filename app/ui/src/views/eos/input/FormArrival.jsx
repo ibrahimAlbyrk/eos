@@ -43,10 +43,13 @@ export function linkText(location) {
   return `eos://run/${location.routine}${q ? `?${q}` : ""}`;
 }
 
+const optionLabel = (routine, key) => routine.options?.find((o) => o.key === key)?.label ?? key;
+
 const home = () => openLocation(buildLocation({ screen: "home" }));
 
-// "A link wants to start a run" (RunOutside): what the link asks, Run to
-// start it, Cancel to drop it. A link never starts anything by itself.
+// "A link wants to start a run" (RunOutside): everything the link sets, one
+// row each, Run to start it, Cancel to drop it. A link never starts anything
+// by itself.
 export function LinkDialog({ location, routine }) {
   const [refused, setRefused] = useState(null);
   const [starting, setStarting] = useState(false);
@@ -70,6 +73,10 @@ export function LinkDialog({ location, routine }) {
             <div><dt>Routine</dt><dd>{routine.name}</dd></div>
             {input.item && <div><dt>Item</dt><dd>{input.item.title}</dd></div>}
             {input.note && <div><dt>Note</dt><dd>{input.note}</dd></div>}
+            {Object.entries(input.options).map(([key, value]) => (
+              <div key={key}><dt>{optionLabel(routine, key)}</dt><dd>{String(value)}</dd></div>
+            ))}
+            {input.at !== undefined && <div><dt>When</dt><dd>{new Date(input.at).toLocaleString()}</dd></div>}
             <div><dt>Result</dt><dd>{resultWord(input.result)}</dd></div>
           </dl>
         ) : (
