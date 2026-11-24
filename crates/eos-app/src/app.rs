@@ -540,7 +540,7 @@ impl App {
                 config: config.clone(),
             },
         );
-        confinement.attach(engine.clone());
+        confinement.attach(&(engine.clone() as Arc<dyn eos_core::capability::Confinement>));
         // "Resume at" and "Use API key" reach the live session through the engine.
         let runtime: Arc<dyn eos_core::agent::AgentRuntime> = match &agents.runtime {
             Some(runtime) => {

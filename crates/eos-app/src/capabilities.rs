@@ -80,18 +80,19 @@ impl CapabilityGrants for LateGrants {
 /// made, after the service. Until then, and without it, nothing is confined,
 /// so no package's code runs.
 #[derive(Default)]
-pub(crate) struct LateConfinement(OnceLock<Arc<dyn Confinement>>);
+pub(crate) struct LateConfinement(OnceLock<Weak<dyn Confinement>>);
 
 impl LateConfinement {
-    pub(crate) fn attach(&self, confinement: Arc<dyn Confinement>) {
-        let _ = self.0.set(confinement);
+    // Held weakly: the engine holds the tools, which hold this service.
+    pub(crate) fn attach(&self, confinement: &Arc<dyn Confinement>) {
+        let _ = self.0.set(Arc::downgrade(confinement));
     }
 }
 
 impl Confinement for LateConfinement {
     fn command(&self, spec: ConfineSpec) -> BoxFuture<'_, Result<Confined, ConfineError>> {
-        match self.0.get() {
-            Some(confinement) => confinement.command(spec),
+        match self.0.get().and_then(Weak::upgrade) {
+            Some(confinement) => Box::pin(async move { confinement.command(spec).await }),
             None => Box::pin(std::future::ready(Err(ConfineError::Unavailable))),
         }
     }

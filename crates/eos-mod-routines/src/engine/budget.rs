@@ -148,7 +148,7 @@ pub(crate) fn watch_usage(engine: &Arc<Engine>) {
 
 /// What booking a run's spend came to.
 enum Booked {
-    Working(Spending),
+    Working(Box<Spending>),
     /// A project run that spent the day's budget, paused till tomorrow.
     Paused(String),
 }
@@ -187,7 +187,7 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
                 return Ok(Some(Booked::Paused(run.id)));
             }
             let (cost, caps) = (cost_in(tx, &run.id)?, caps_of(tx, &run)?);
-            Ok(Some(Booked::Working(Spending { run, cost, caps })))
+            Ok(Some(Booked::Working(Box::new(Spending { run, cost, caps }))))
         })
         .await?;
     let spending = match spending {
@@ -195,7 +195,7 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
             super::steer::quiet(engine, &run_id).await;
             return Ok(());
         }
-        Some(Booked::Working(spending)) => spending,
+        Some(Booked::Working(spending)) => *spending,
         None => return Ok(()),
     };
     let Spending { run, cost, caps: Some(caps) } = spending else { return Ok(()) };
