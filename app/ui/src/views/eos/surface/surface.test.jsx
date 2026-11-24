@@ -15,7 +15,7 @@ import { applyDesignChange, arrange, reshape, stopReshape } from "../../../state
 import paper from "../gallery/sample/paper.json";
 import { editableFields, fieldLabel, textProblem } from "../needs/editors/pageFields.js";
 import { PageDataEditor } from "../needs/editors/PageDataEditor.jsx";
-import { editField } from "../../../state/eos/pageStore.js";
+import { editField, paperOf, printIssue } from "../../../state/eos/pageStore.js";
 import { ItemView } from "../needs/ItemView.jsx";
 import { _resetSurfaces, loadItemView } from "../../../state/eos/surfacesStore.js";
 import routines from "../gallery/sample/routines.json";
@@ -262,5 +262,17 @@ describe("a page issue in Needs you", () => {
     expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html"`);
     expect(html).toContain('aria-label="Edit before it goes"');
     expect(html).toContain("Lead title");
+  });
+});
+
+describe("a page issue as a PDF", () => {
+  it("prints on the paper of the reader's region, then shows the file", async () => {
+    expect([paperOf("en-US"), paperOf("tr-TR"), paperOf("en_CA"), paperOf("de"), paperOf(undefined)]).toEqual(["letter", "a4", "letter", "a4", "a4"]);
+    const transport = recording(async () => ({ ok: true, status: 200, body: { path: "/x/si-1.pdf", bytes: 10 } }));
+    setEosTransport(transport);
+    expect(await printIssue(SF, "si-1", "en-US")).toEqual({ ok: true, path: "/x/si-1.pdf" });
+    expect(transport.send.mock.calls[0]).toEqual(["POST", ROUTES.surfaceIssuePdf(SF, "si-1"), { paper: "letter" }]);
+    const html = await screen(`eos:/surfaces/${SF}`);
+    expect(html).toContain(">Save as PDF</button>");
   });
 });

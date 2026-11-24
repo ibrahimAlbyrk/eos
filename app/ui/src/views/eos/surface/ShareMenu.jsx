@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { notify } from "../../../lib/notify.js";
-import { mailPreview, shareDocument } from "../../../state/eos/pageStore.js";
+import { mailPreview, printIssue, revealFile, shareDocument } from "../../../state/eos/pageStore.js";
 
 // A file name from the page's title and the issue's number.
 export function shareName(title, seq) {
@@ -19,13 +19,22 @@ function save(html, name) {
 }
 
 // The issue taken out of the frame: the mail as it would be sent (one column,
-// shown in a frame that runs nothing), and one .html file to share (D31).
+// shown in a frame that runs nothing), a PDF shown in Finder once printed,
+// and one .html file to share (D31).
 export function ShareMenu({ surface, row }) {
   const [mail, setMail] = useState(null);
   const showMail = async () => {
     const html = await mailPreview(surface.id, row.id);
     if (html) setMail(html);
     else notify.error("The mail preview could not be made.", { title: "Mail preview" });
+  };
+  const [printing, setPrinting] = useState(false);
+  const pdf = async () => {
+    setPrinting(true);
+    const r = await printIssue(surface.id, row.id, typeof navigator === "undefined" ? undefined : navigator.language);
+    setPrinting(false);
+    if (r.ok) void revealFile(r.path);
+    else notify.error(r.error, { title: "Save as PDF" });
   };
   const share = async () => {
     const html = await shareDocument(surface.id, row.id);
@@ -35,6 +44,7 @@ export function ShareMenu({ surface, row }) {
   return (
     <>
       <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void showMail()}>Mail preview</button>
+      <button type="button" className="eos-btn eos-btn--quiet" disabled={printing} onClick={() => void pdf()}>{printing ? "Printing…" : "Save as PDF"}</button>
       <button type="button" className="eos-btn" onClick={() => void share()}>Save as a file</button>
       {mail && (
         <div className="eos-sheet-overlay" role="presentation" onClick={() => setMail(null)}>
