@@ -3,7 +3,7 @@
 # main workspace's crates by path. See ../README.md ("Host workspace") and ../ARCHITECTURE.md §5.
 [workspace]
 resolver = "3"
-members = ["cef-helper", "eos", "eos-apply", "eos-shell"]
+members = ["cef-helper", "eos", "eos-apply", "eos-cli", "eos-shell"]
 exclude = ["vendor"]
 
 [workspace.package]

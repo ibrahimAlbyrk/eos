@@ -2339,6 +2339,7 @@ dependencies = [
  "bytes",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-runtime",
  "rusty-leveldb",
  "serde_json",
@@ -2351,6 +2352,7 @@ dependencies = [
 name = "eos-capabilities"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "eos-contracts",
  "eos-core",
  "eos-domain",
@@ -2366,6 +2368,14 @@ version = "0.0.1"
 dependencies = [
  "cef",
  "cef-dll-sys",
+]
+
+[[package]]
+name = "eos-cli"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,21 @@
+[package]
+name = "eos-cli"
+description = "The terminal's `eos` command: asks the running app through its user-only socket, and starts it hidden when it is not running."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Shipped as Contents/Helpers/eos; built as `eos-cli` so it never meets the app's own binary.
+[[bin]]
+name = "eos-cli"
+path = "src/main.rs"
+
+# Small and quick to start: the contract types and JSON, nothing of the app.
+[dependencies]
+eos-contracts.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
