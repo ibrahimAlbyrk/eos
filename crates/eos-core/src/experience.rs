@@ -106,7 +106,8 @@ pub struct SurfaceSignal {
     pub routine_id: String,
     /// The run whose issue it was.
     pub run_id: Option<String>,
-    pub issue_id: String,
+    /// The issue it was about; none for a change of the design.
+    pub issue_id: Option<String>,
     pub kind: SurfaceSignalKind,
     /// The part read or the field's path edited.
     pub at: Option<String>,
@@ -124,6 +125,13 @@ pub enum SurfaceSignalKind {
     ReadFirst,
     /// A field edited in place.
     Edited,
+    /// The user asked for the design to change: the part pointed at, and
+    /// what they said or picked.
+    Reshaped,
+    /// The user kept a new design.
+    KeptDesign,
+    /// The user went back to the design they had.
+    Reverted,
 }
 
 impl SurfaceSignalKind {
@@ -132,6 +140,9 @@ impl SurfaceSignalKind {
             SurfaceSignalKind::Opened => "opened",
             SurfaceSignalKind::ReadFirst => "read_first",
             SurfaceSignalKind::Edited => "edited",
+            SurfaceSignalKind::Reshaped => "reshaped",
+            SurfaceSignalKind::KeptDesign => "kept_design",
+            SurfaceSignalKind::Reverted => "reverted",
         }
     }
 }

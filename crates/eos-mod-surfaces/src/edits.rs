@@ -43,7 +43,7 @@ fn signal(issue: &StoredIssue, routine_id: &str, kind: SurfaceSignalKind) -> Sur
         surface_id: issue.surface_id.clone(),
         routine_id: routine_id.to_owned(),
         run_id: issue.run_id.clone(),
-        issue_id: issue.id.clone(),
+        issue_id: Some(issue.id.clone()),
         kind,
         at: None,
         index: None,
@@ -53,7 +53,7 @@ fn signal(issue: &StoredIssue, routine_id: &str, kind: SurfaceSignalKind) -> Sur
 }
 
 /// Hands signals to memory; one that is not heard costs nothing the user sees.
-async fn tell(parts: &SurfacesParts, signals: Vec<SurfaceSignal>) {
+pub(crate) async fn tell(parts: &SurfacesParts, signals: Vec<SurfaceSignal>) {
     for signal in signals {
         let kind = signal.kind.as_str();
         if let Err(e) = parts.feedback.surface_signal(signal).await {

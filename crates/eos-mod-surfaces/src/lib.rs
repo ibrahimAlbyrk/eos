@@ -56,6 +56,7 @@ mod pins;
 mod queries;
 mod raw;
 mod records;
+mod reshape;
 mod retention;
 mod routes;
 mod settings;
@@ -226,6 +227,7 @@ impl Module for SurfacesModule {
         out.extend(export::routes(&self.parts));
         out.extend(settings::all(&self.parts));
         out.extend(queries::routes(&self.parts, &self.last_good));
+        out.extend(reshape::routes(&self.parts, &self.designs));
         out.extend(action_routes::all(&self.parts, &self.parts.actions, &self.dispatcher));
         out
     }

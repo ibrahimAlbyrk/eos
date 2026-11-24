@@ -14,6 +14,7 @@ pub mod render;
 pub mod template;
 
 mod args;
+mod arrange;
 mod design;
 mod edit;
 mod lifecycle;
@@ -27,6 +28,7 @@ mod view_check;
 mod words;
 
 pub use args::{Sources, fill_args, pressed_row};
+pub use arrange::{ArrangeOp, arrange};
 pub use design::PageDesign;
 pub use edit::{Edited, FieldEdit, apply_edit};
 pub use lifecycle::{IssueAge, PinError, VersionAge, arrange_pins, issues_to_drop, pin_slot, versions_to_drop};
