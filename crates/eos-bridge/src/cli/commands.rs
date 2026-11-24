@@ -133,6 +133,11 @@ fn result_mode(show_only: bool) -> ResultMode {
     if show_only { ResultMode::ShowOnly } else { ResultMode::Usual }
 }
 
+/// The start routes answer 201; any 2xx means the call did what it asked.
+fn is_success(status: u16) -> bool {
+    (200..300).contains(&status)
+}
+
 /// A request id of this app's life: the same request sent again starts nothing twice.
 fn request_id() -> String {
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -187,7 +192,7 @@ async fn start(ctx: &Ctx, run: CliRun) -> i32 {
         client_request_id: Some(request_id()),
     };
     let answer = ctx.call("POST", "/api/runs", serde_json::to_value(asked).ok()).await;
-    if answer.0 != 200 {
+    if !is_success(answer.0) {
         return ctx.refused(&answer);
     }
     tracing::info!(target: "eos::cli", command = "run", routine = %id, runs = answer.1["runs"].as_array().map_or(0, Vec::len), "started");
@@ -207,7 +212,7 @@ async fn start_once(ctx: &Ctx, once: CliOnce) -> i32 {
         door: "terminal".into(),
     };
     let answer = ctx.call("POST", "/api/runs/once", serde_json::to_value(asked).ok()).await;
-    if answer.0 != 200 {
+    if !is_success(answer.0) {
         return ctx.refused(&answer);
     }
     let run = answer.1["run"]["id"].as_str().unwrap_or_default().to_owned();
