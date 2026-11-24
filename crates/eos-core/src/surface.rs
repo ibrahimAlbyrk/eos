@@ -72,6 +72,16 @@ pub trait SurfaceTools: Send + Sync {
         design: serde_json::Value,
         note: String,
     ) -> BoxFuture<'a, Result<String, Error>>;
+    /// Scans an App a session building one hands in (its html, manifest and
+    /// tests) and, when the scan passes, keeps it as the App's version
+    /// waiting for its review and tests; the line the agent reads, or every
+    /// problem as a validation error.
+    fn app_propose<'a>(
+        &'a self,
+        worker_id: &'a str,
+        app: serde_json::Value,
+        note: String,
+    ) -> BoxFuture<'a, Result<String, Error>>;
 }
 
 /// A returned View as Needs you shows it (03 §4.5): a `question` View is a

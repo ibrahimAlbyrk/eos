@@ -1,5 +1,6 @@
 //! The pure surface rules, over plain values.
 
+mod app;
 mod contract;
 mod lifecycle;
 mod paper;

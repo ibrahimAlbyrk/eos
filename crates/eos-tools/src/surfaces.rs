@@ -1,6 +1,7 @@
 //! The surface tools of a routine run's sessions: `return_view` hands a View
 //! back for a routine whose result is one, `fill_page` the data of a Page;
-//! a design run's designer reads its page and proposes a design.
+//! a design run's designer reads its page and proposes a design; a session
+//! building an App hands it in with `app_propose`.
 //! The surfaces feature ([`SurfaceTools`]) checks each and stores it as an
 //! issue; the View, the data and the bindings never reach a log.
 
@@ -90,6 +91,21 @@ impl Handler for DesignPropose {
     }
 }
 
+struct AppPropose(Arc<dyn SurfaceTools>);
+
+impl Handler for AppPropose {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let ProposeArgs { note, design } = args(input)?;
+            match self.0.app_propose(call.self_id, Value::Object(design), note).await {
+                Ok(line) => Ok(Output::text(line)),
+                Err(Error::Validation(problems)) => Err(Failure(problems)),
+                Err(other) => Err(other.into()),
+            }
+        })
+    }
+}
+
 /// The designer's tools: read the page it works on, and propose a design.
 pub(crate) fn designer_specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
     vec![
@@ -130,6 +146,17 @@ pub(crate) fn specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
             record().optional().describe("The page's data, fitting its contract; left out to read the contract and a sample."),
         )]),
         FillPage(tools.clone()),
+    )
+    .always_load(),
+    Spec::new(
+        "app_propose",
+        object(vec![
+            ("html", string().describe("The App: one HTML document with its script and style inline.")),
+            ("manifest", record().describe("What it may call: title, summary, height?, uses, queries, files?, stateMaxBytes?")),
+            ("tests", string().optional().describe("Its tests, run in Eos's probe with a fake bridge.")),
+            ("note", string().min(1).max(200).describe("One line the user reads beside the change.")),
+        ]),
+        AppPropose(tools.clone()),
     )
     .always_load()]
 }

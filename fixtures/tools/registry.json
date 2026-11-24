@@ -1743,6 +1743,43 @@
    "plugin": null
   },
   {
+   "name": "app_propose",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "html": {
+      "type": "string",
+      "description": "The App: one HTML document with its script and style inline."
+     },
+     "manifest": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "What it may call: title, summary, height?, uses, queries, files?, stateMaxBytes?"
+     },
+     "tests": {
+      "type": "string",
+      "description": "Its tests, run in Eos's probe with a fake bridge."
+     },
+     "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "One line the user reads beside the change."
+     }
+    },
+    "required": [
+     "html",
+     "manifest",
+     "note"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
    "name": "submit_verdict",
    "inputSchema": {
     "type": "object",
@@ -3155,6 +3192,7 @@
     "report_failure",
     "return_view",
     "fill_page",
+    "app_propose",
     "ask_user",
     "current_datetime",
     "search_memory",
@@ -3176,6 +3214,7 @@
     "list_specialists",
     "return_view",
     "fill_page",
+    "app_propose",
     "ask_user",
     "current_datetime",
     "search_memory",

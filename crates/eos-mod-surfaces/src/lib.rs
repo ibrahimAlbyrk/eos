@@ -39,6 +39,7 @@
 //! a title, a body or state.
 
 mod action_routes;
+mod apps;
 mod authoring;
 mod builtins;
 mod design;

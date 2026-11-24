@@ -186,4 +186,8 @@ impl SurfaceTools for ViewIssues {
     ) -> BoxFuture<'a, Result<String, Error>> {
         Box::pin(crate::designer::propose(self, worker_id, design, note))
     }
+
+    fn app_propose<'a>(&'a self, worker_id: &'a str, app: Value, note: String) -> BoxFuture<'a, Result<String, Error>> {
+        Box::pin(crate::apps::propose(self, worker_id, app, note))
+    }
 }
