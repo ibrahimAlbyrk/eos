@@ -18,7 +18,8 @@ What it checks:
   9. the menu-bar item shows only once a routine exists (the data copy has none; a copy
      with one is made for it), follows the working runs live, and `--quit` with runs working
      quits without asking;
- 10. an `eos-dev://send` link opens the quick panel without activating the app.
+ 10. an `eos-dev://send` link opens the quick panel without activating the app, a file opened
+     with the app is held for it, and no global shortcut is registered.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -466,6 +467,16 @@ def quick_panel(link_env):
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("the held text is never logged", "smoke door text" not in log and "smoke+door" not in log)
     check("a test run registers no global shortcut", "shortcut" in st and st["shortcut"] is None, st.get("shortcut"))
+    # A file opened with the app (as a Dock drop is) is held for the panel, never logged.
+    dropped = os.path.join(OUT, "smoke-dropped-report.txt")
+    with open(dropped, "w") as f:
+        f.write("a build log\n")
+    subprocess.run(["open", "-g", "-a", APP, dropped], env=link_env, check=False, timeout=15)
+    core_log = os.path.join(SHELL_DATA, "logs", "core.log")
+    held = wait_for("dock item", lambda: "item=dock item: 1 file" in open(core_log).read(), 20)
+    check("a file opened with the app is held for the quick panel", held)
+    logs = open(core_log).read() + open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+    check("the file's path is never logged", "smoke-dropped-report" not in logs)
 
 
 def read_logs():

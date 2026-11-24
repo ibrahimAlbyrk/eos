@@ -720,8 +720,17 @@ impl Shell {
             }
             // A click on the Dock icon.
             RunEvent::Reopen { .. } => self.show_window(),
+            // Files dropped on the Dock icon (or opened with Eos) go to the quick panel; links
+            // are links.
             RunEvent::Opened { urls } => {
-                for url in urls {
+                let (files, links): (Vec<_>, Vec<_>) = urls.into_iter().partition(|url| url.scheme() == "file");
+                let paths: Vec<PathBuf> = files.iter().filter_map(|url| url.to_file_path().ok()).collect();
+                match self.quick.get() {
+                    Some(quick) if !paths.is_empty() => quick.from_dock(paths),
+                    _ if !paths.is_empty() => log("doors", "files arrived before the quick panel existed"),
+                    _ => {}
+                }
+                for url in links {
                     self.open_url(url.as_str());
                 }
             }
