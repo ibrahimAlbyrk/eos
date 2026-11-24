@@ -115,3 +115,65 @@ async fn a_system_step_that_fails_fails_its_run_with_its_reason() {
         (Some(Reason::Reported), Some("Two tests failed under confinement."))
     );
 }
+
+/// The Forge's shape: a lead and a builder that names its definition.
+fn forge_team() -> Value {
+    let mut blueprint = with_step();
+    blueprint["who"]["depth"] = json!("team");
+    let agent = |key: &str, lead: bool, extra: Value| {
+        let mut agent = json!({"key": key, "name": key, "lead": lead, "brief": format!("{key} brief."),
+               "model": "sonnet", "effort": "medium", "tools": {}, "readsOutside": false, "workspace": "shared"});
+        agent.as_object_mut().expect("an object").extend(extra.as_object().cloned().unwrap_or_default());
+        agent
+    };
+    blueprint["who"]["agents"] = json!([
+        agent("lead", true, json!({"workspace": "none"})),
+        agent("builder", false, json!({"definition": "forge-builder"})),
+    ]);
+    blueprint
+}
+
+fn scope_of(bench: &Bench, worker: &str) -> eos_contracts::ToolScope {
+    let id = worker.to_owned();
+    let row = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads").expect("a row");
+    serde_json::from_str(row.tool_scope.as_deref().expect("a scope")).expect("json")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_builtin_routines_lead_works_in_its_features_folder_and_its_agents_take_the_forge_roles_they_name() {
+    let bench = Bench::new(true);
+    let folder = bench.temp.home.join("scratch/forge-run");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    let folder = folder.to_string_lossy().into_owned();
+    bench.steps.give_folder(&folder);
+    let id = bench.module.builtins().ensure("forge", forge_team()).await.expect("made");
+    let start = || bench.start(new_run(&id, RunOrigin::Hand, None));
+    let run = start().await.expect("starts").remove(0).id;
+    let again = start().await.expect("starts").remove(0).id;
+    assert_ne!(run, again, "each start of a built-in routine is a run of its own");
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    let started = bench.agents.started();
+    assert_eq!(started.iter().find(|s| s.worker_id == lead).map(|s| s.cwd.clone()), Some(folder.clone()));
+
+    bench.module.tools().start_specialist(&lead, "builder", "Build it.").await.expect("starts");
+    let builder = bench.agents.started().into_iter().find(|s| s.parent_id.as_deref() == Some(&lead)).expect("one");
+    assert_eq!((builder.worker_definition.as_deref(), builder.cwd.as_str()), (Some("forge-builder"), folder.as_str()));
+    let scope = scope_of(&bench, &builder.worker_id);
+    assert!(!scope.allow.iter().any(|tool| tool == "WebFetch" || tool == "call_capability"), "{scope:?}");
+    assert!(scope.edit_regex.as_deref().is_some_and(|re| re.ends_with(r"(?!\.claude/)")), "{scope:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_users_routine_cannot_name_a_forge_definition() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, forge_team());
+    let run = bench.start(new_run(&routine, RunOrigin::Hand, None)).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    bench.module.tools().start_specialist(&lead, "builder", "Build it.").await.expect("starts");
+    let builder = bench.agents.started().into_iter().find(|s| s.parent_id.as_deref() == Some(&lead)).expect("one");
+    assert_eq!(builder.worker_definition.as_deref(), Some("eos-run-specialist"));
+}

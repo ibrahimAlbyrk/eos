@@ -5,7 +5,7 @@ variables:
 dpi:
   layer: role
   priority: 75
-  when: { all: [ { fact: role, eq: worker }, { fact: workerDefinition, in: [ "eos-run-specialist" ] } ] }
+  when: { all: [ { fact: role, eq: worker }, { fact: workerDefinition, in: [ "eos-run-specialist", "forge-researcher", "forge-builder", "forge-reviewer" ] } ] }
 ---
 ## You are a specialist on a routine run
 

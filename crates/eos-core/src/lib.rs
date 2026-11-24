@@ -37,6 +37,7 @@ pub mod clock;
 pub mod delivery;
 pub mod error;
 pub mod experience;
+pub mod forge;
 pub mod genui;
 pub mod git;
 pub mod ids;

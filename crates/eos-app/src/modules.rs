@@ -263,7 +263,10 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
             cx.paths.join("surfaces"),
         )),
-        system_steps: Arc::new(eos_core::routine::NoSystemSteps),
+        system_steps: Arc::new(eos_mod_forge::ForgeSteps::new(
+            Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
+            cx.paths.join("scratch"),
+        )),
     }));
     runs.attach(&routines);
     cx.grants.attach(&routines.grants());
@@ -301,9 +304,17 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     cx.raw_routes.add(surfaces.raw_routes());
     // The mail channel draws a page issue it sends.
     cx.capabilities.attach_render(surfaces.render());
+    let forge = Arc::new(eos_mod_forge::ForgeModule::new(eos_mod_forge::ForgeParts {
+        store: cx.store.clone(),
+        clock: cx.clock.clone(),
+        runs: routines.runs(),
+        builtins: routines.builtins(),
+        capabilities: cx.capabilities.clone(),
+        definitions: eos_workers::definition::records_from(&eos_store_files::worker_definitions::forge_definitions()),
+    }));
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
-        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory, &surfaces)?;
+        crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory, &surfaces, &forge)?;
     cx.tools.attach(&tools);
     let workers = Arc::new(
         eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
@@ -380,6 +391,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         )),
         cx.browser.clone(),
         crate::files::module(cx),
+        forge,
         genui,
         Arc::new(eos_mod_inbox::InboxModule::new(eos_mod_inbox::InboxParts {
             store: cx.store.clone(),

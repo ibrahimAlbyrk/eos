@@ -2037,6 +2037,63 @@
    "alwaysLoad": true,
    "searchHint": null,
    "plugin": null
+  },
+  {
+   "name": "request_capability",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "need": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "What is missing, in a plain sentence; or a capability's id."
+     },
+     "routineId": {
+      "type": "string",
+      "description": "The routine that waits for it."
+     }
+    },
+    "required": [
+     "need"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "forge_report",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "stage": {
+      "type": "string",
+      "enum": [
+       "research",
+       "build",
+       "review"
+      ],
+      "description": "Your stage of the Forge."
+     },
+     "report": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "The report, in the shape your brief gives."
+     }
+    },
+    "required": [
+     "stage",
+     "report"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
   }
  ],
  "sets": [
@@ -2096,7 +2153,8 @@
     "react",
     "no_reply",
     "run_routine",
-    "list_routines"
+    "list_routines",
+    "request_capability"
    ]
   },
   {
@@ -2141,7 +2199,8 @@
     "react",
     "no_reply",
     "run_routine",
-    "list_routines"
+    "list_routines",
+    "request_capability"
    ]
   },
   {
@@ -2196,7 +2255,8 @@
     "react",
     "no_reply",
     "run_routine",
-    "list_routines"
+    "list_routines",
+    "request_capability"
    ]
   },
   {
@@ -2241,7 +2301,8 @@
     "react",
     "no_reply",
     "run_routine",
-    "list_routines"
+    "list_routines",
+    "request_capability"
    ]
   },
   {
@@ -2297,7 +2358,8 @@
     "react",
     "no_reply",
     "run_routine",
-    "list_routines"
+    "list_routines",
+    "request_capability"
    ]
   },
   {
@@ -3148,6 +3210,7 @@
     "find_past_items",
     "start_trial",
     "list_capabilities",
+    "request_capability",
     "list_routines"
    ]
   }

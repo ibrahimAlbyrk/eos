@@ -64,6 +64,10 @@ fn the_forge_roles_get_their_own_rows() {
         assert_eq!(builder.allow, names(&[&READS, &EDITS, &SHELL]));
         let reviewer = scope(RunRole::ForgeReviewer, trust);
         assert_eq!(reviewer.allow, names(&[&READS]));
+        assert_eq!(
+            builder.edit_regex.as_deref(),
+            Some(r"^/Users/me/\.eos/routines/rn-0a1b2c3d4e5f/work/(?!\.claude/)")
+        );
         for scope in [researcher, builder, reviewer] {
             assert_eq!(scope.deny, ["Bash(git push:*)", "Bash(gh:*)"]);
         }
@@ -217,4 +221,10 @@ fn trust_is_stored_as_its_word_and_read_back() {
         assert_eq!(Trust::parse(trust.as_str()), Some(trust));
     }
     assert_eq!(Trust::parse("Untrusted"), None);
+}
+
+#[test]
+fn a_forge_definition_names_its_role() {
+    assert_eq!(RunRole::of_forge_definition("forge-builder"), Some(("forge-builder", RunRole::ForgeBuilder)));
+    assert_eq!(RunRole::of_forge_definition("eos-run-specialist"), None);
 }

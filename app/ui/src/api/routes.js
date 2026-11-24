@@ -406,6 +406,8 @@ export const ROUTES = {
   capabilityRollback: (id) => `/api/capabilities/${id}/rollback`,
   capabilitySignIn: (id) => `/api/capabilities/${id}/sign-in`,
   capabilitySecret: (id, name) => `/api/capabilities/${id}/secrets/${name}`,
+  // The Forge (eos-contracts `forge.rs`): build a capability Eos lacks.
+  forge: "/api/forge",
   // Memory (eos-contracts `experience.rs`): the screen's head, the notes,
   // one note (editing and forgetting it), bringing a forgotten one back,
   // saying one is not right, what a chat or a run was reminded of, where

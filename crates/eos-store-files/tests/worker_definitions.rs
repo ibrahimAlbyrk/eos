@@ -7,7 +7,9 @@ use std::path::PathBuf;
 
 use eos_contracts::WorkerDefinitionRecord;
 use eos_core::store::WorkerDefinitionFiles;
-use eos_store_files::worker_definitions::{BUILTIN_DEFINITIONS, FsWorkerDefinitionFiles, find_project_dir};
+use eos_store_files::worker_definitions::{
+    BUILTIN_DEFINITIONS, FORGE_DEFINITIONS, FsWorkerDefinitionFiles, find_project_dir, forge_definitions,
+};
 use eos_testkit::TempHome;
 use eos_workers::definition::records_from;
 use serde::Deserialize;
@@ -87,4 +89,21 @@ fn each_file_parses_as_typescript_parses_it() {
         let ours = records_from(&listed).into_iter().find(|r| r.source == eos_contracts::WorkerDefinitionSource::User);
         assert_eq!(ours, case.record, "{}", case.file);
     }
+}
+
+#[test]
+fn the_forges_definitions_are_the_frozen_ones_and_each_reads_as_a_definition() {
+    use sha2::{Digest, Sha256};
+    let path = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/workers/forge.json"));
+    let frozen: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("read")).expect("json");
+    let ours: BTreeMap<String, String> = FORGE_DEFINITIONS
+        .iter()
+        .map(|(name, text)| {
+            ((*name).to_owned(), Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect())
+        })
+        .collect();
+    let frozen: BTreeMap<String, String> = serde_json::from_value(frozen["sha256"].clone()).expect("hashes");
+    assert_eq!(ours, frozen);
+    let names: Vec<String> = records_from(&forge_definitions()).into_iter().map(|record| record.name).collect();
+    assert_eq!(names, ["forge-builder", "forge-researcher", "forge-reviewer"]);
 }

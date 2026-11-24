@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "Forge",
+  "summary": "Builds a capability Eos lacks: researches the ways, lets the user choose, builds it in a sandbox, tests and reviews it, and proposes it.",
+  "icon": "hammer",
+  "kind": "project",
+  "takes": {"kind": "none", "label": "nothing", "placeholder": "", "empty": "none", "many": false},
+  "options": [
+    {"key": "routine", "label": "The routine that waits for it", "type": "text", "default": "", "inline": false},
+    {"key": "capability", "label": "The capability to repair or update", "type": "text", "default": "", "inline": false},
+    {"key": "surface", "label": "The App to promote", "type": "text", "default": "", "inline": false}
+  ],
+  "when": {"on": []},
+  "which": {},
+  "who": {
+    "depth": "team",
+    "agents": [
+      {"key": "lead", "name": "Forge lead", "lead": true, "model": "sonnet", "effort": "medium",
+       "tools": {"allow": ["Read", "Grep", "Glob", "LS"]}, "readsOutside": false, "workspace": "none",
+       "brief": "You run the Forge for the need the user's note names. You coordinate and build nothing yourself: your team researches, builds and reviews, and Eos tests and proposes. Start the researcher at once. When its report is in, hand in `research`; then ask the user with ask_user which way to take, offering the researcher's ways by title with their cost, and never ask for a phone number, an address or a secret (the user gives those when installing). Hand in `choose` with the way the user picked. Start the builder with that way, and hand in `build` once its report names a package whose own tests pass. After Eos's tests, start the reviewer; a failed review goes back to the builder with the findings and to the reviewer again, two rounds at most, then report_failure. Hand in `review` once the reviewer passed it."},
+      {"key": "researcher", "name": "Researcher", "definition": "forge-researcher", "lead": false, "readsOutside": true, "workspace": "none"},
+      {"key": "builder", "name": "Builder", "definition": "forge-builder", "lead": false, "readsOutside": false, "workspace": "shared"},
+      {"key": "reviewer", "name": "Reviewer", "definition": "forge-reviewer", "lead": false, "readsOutside": true, "workspace": "shared"}
+    ],
+    "checker": {"model": "sonnet", "effort": "medium"}
+  },
+  "how": {"steps": [], "checks": [], "format": "A short note of what the milestone came to.", "checkAgent": false},
+  "makes": {"kind": "nothing", "description": "A capability proposed to the user; nothing is sent."},
+  "goesTo": [],
+  "freedom": {"rung": "ask"},
+  "limits": {"perRunUsd": 10, "perRunMinutes": 120, "perDayUsd": 20, "parallel": 3},
+  "project": {
+    "repo": "forge",
+    "baseBranch": "main",
+    "brief": "Give Eos the capability the user's note asks for, through the stations below. Nothing is installed without the user's yes on the proposal Eos makes at the end.",
+    "milestones": [
+      {"key": "research", "title": "Find the ways", "doneWhen": "the researcher handed in one to three ways with forge_report"},
+      {"key": "choose", "title": "Let the user choose", "doneWhen": "the user picked one way with ask_user"},
+      {"key": "build", "title": "Build the package", "doneWhen": "the builder handed in a package whose own tests pass"},
+      {"key": "test", "title": "Test it under confinement", "doneWhen": "Eos's tests passed", "system": "forge.test"},
+      {"key": "review", "title": "Have it reviewed", "doneWhen": "the reviewer passed it, in two rounds at most"},
+      {"key": "propose", "title": "Propose it to the user", "doneWhen": "the user answered the proposal", "system": "forge.propose"}
+    ]
+  },
+  "needs": []
+}

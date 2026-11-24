@@ -178,7 +178,9 @@ fn queue(
         return Err(StartError::RoutineState(routine.state));
     }
     let (version, blueprint) = version_in(tx, new)?;
-    check_origin(tx, &routine.agents_may_start, &routine.id, &blueprint, &new.origin, new.input.surface.is_some())?;
+    // A built-in routine is hidden from agents: one that starts it asked its feature to.
+    let agents_may_start = routine.agents_may_start || routine.origin == crate::routes::BUILTIN;
+    check_origin(tx, &agents_may_start, &routine.id, &blueprint, &new.origin, new.input.surface.is_some())?;
     let inputs = inputs(new, &blueprint)?;
     let keys: Vec<Option<String>> = inputs.iter().map(|input| input.item.as_ref().and_then(item::key)).collect();
     if !new.confirm_repeat {

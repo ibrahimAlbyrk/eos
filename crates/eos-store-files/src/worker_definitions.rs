@@ -19,6 +19,19 @@ pub const BUILTIN_DEFINITIONS: &[(&str, &str)] = &[
     ("researcher.md", include_str!("../assets/workers/researcher.md")),
 ];
 
+/// The definitions the Forge's sessions start as. They are no orchestrator's
+/// to spawn, so they are not among the built-in ones.
+pub const FORGE_DEFINITIONS: &[(&str, &str)] = &[
+    ("forge-builder.md", include_str!("../assets/workers/forge-builder.md")),
+    ("forge-researcher.md", include_str!("../assets/workers/forge-researcher.md")),
+    ("forge-reviewer.md", include_str!("../assets/workers/forge-reviewer.md")),
+];
+
+/// The Forge's definitions as files, for the Forge's routine to be made from.
+pub fn forge_definitions() -> Vec<DefinitionFile> {
+    FORGE_DEFINITIONS.iter().filter_map(|(_, text)| read(text, WorkerDefinitionSource::Builtin)).collect()
+}
+
 /// A definitions folder is shallow; this only stops a runaway tree.
 const MAX_DEPTH: usize = 16;
 

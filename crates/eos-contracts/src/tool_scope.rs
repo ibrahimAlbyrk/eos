@@ -60,6 +60,8 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "fill_page",
     "run_routine",
     "list_routines",
+    "request_capability",
+    "forge_report",
 ];
 
 /// Calls one action of a capability. Not a control tool: the permission gate
