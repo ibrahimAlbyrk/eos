@@ -46,8 +46,9 @@ async fn every_route_that_is_not_a_plain_read_is_classified() {
     }
 }
 
-/// The terminal's gateway reaches the core the way the dashboard does: in a dev run the
-/// guard refuses a run it would start, and the command ends with 2.
+/// The terminal's gateway reaches the core the way the dashboard does, behind the guard. It
+/// starts no run itself: a run is asked in the app's window, and with no window to ask (no
+/// shell answers here) nothing starts and the command ends with 3.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_terminal_cannot_start_a_run_in_a_dev_run() {
     use std::sync::Arc;
@@ -82,7 +83,9 @@ async fn the_terminal_cannot_start_a_run_in_a_dev_run() {
         }
     }
     assert_eq!(got.len(), 2, "{got:?}");
-    assert!(got[0].contains("refused in a dev run"), "{got:?}");
-    assert_eq!(got[1], r#"{"t":"done","exit":2}"#);
+    assert!(got[0].contains("Eos did not answer"), "{got:?}");
+    assert_eq!(got[1], r#"{"t":"done","exit":3}"#);
+    let runs = app.store().read(|tx| tx.runs().active()).await.expect("reads");
+    assert_eq!(runs.0, 0, "nothing was started");
     app.shutdown(std::time::Duration::from_secs(5)).await;
 }

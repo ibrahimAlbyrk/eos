@@ -13,14 +13,15 @@ eos: start Eos routines from a terminal.
           [--show-only] [--at <when>] [--wait] [--yes] [--json]
   eos once \"<what to do>\" [--file <path>]… [--show-only] [--wait] [--json]
   eos halt       stop every routine from starting and sending
-  eos resume     let them go on
+  eos resume     open Eos to let them go on
   eos memory hook --event <name>
                  for Claude Code's hooks: the hook's input on standard input, what Eos
                  remembers about it on standard output; nothing after 300 ms
   eos help
 
-Text piped in becomes one more item. --wait shows the run's progress and prints its
-result; Ctrl-C stops waiting and the run goes on. --at takes a time with its zone, like
+Eos asks you to confirm a run in its window, filled with what you gave here; a one-off
+waits in its quick panel. Text piped in is the item. --wait waits for your Run, shows the
+run's progress and prints its result; Ctrl-C stops waiting and the run goes on. --at takes a time with its zone, like
 2026-11-19T09:00+01:00.";
 
 /// What the command line asks.

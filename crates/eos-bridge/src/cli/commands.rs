@@ -1,19 +1,21 @@
 //! Each terminal command as the dashboard's own core calls (07 §4.4): the same routes, the
-//! same token, the same dev guard. What a call answers becomes [`CliFrame`] lines.
+//! same token, the same dev guard. What starts something (a run, a one-off, the end of a
+//! halt) is asked in Eos's window instead ([`super::confirm`]). What a call answers becomes
+//! [`CliFrame`] lines.
 
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use eos_contracts::cli::CliFrame;
 use eos_contracts::cli::{CliOnce, CliRequest, CliRun, exit};
-use eos_contracts::{EstimateRequest, IntentAttachment, ItemRef, OnceRequest, ResultMode, RunInput, StartRunRequest};
-use eos_domain::routine::item;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
+use super::confirm::{confirmed, newest, open_in_app, run_link, send_link};
 use super::wait::wait_for;
 use crate::ask::ask;
 use crate::core::{Core, Plane};
+use crate::instance::Request;
 use crate::urlspace::percent_encode;
 
 /// What a command needs: the core, how links are written, and where its lines go.
@@ -22,6 +24,8 @@ pub(super) struct Ctx {
     /// `eos` or `eos-dev` (`launch::link_scheme`).
     pub scheme: &'static str,
     pub version: String,
+    /// The shell's data folder, where the app's own socket is.
+    pub shell_data: PathBuf,
     pub out: UnboundedSender<CliFrame>,
 }
 
@@ -71,7 +75,7 @@ pub(super) async fn handle(ctx: &Ctx, request: CliRequest) -> i32 {
         CliRequest::Run(run) => start(ctx, run).await,
         CliRequest::Once(once) => start_once(ctx, once).await,
         CliRequest::Halt => switch(ctx, "/api/eos/halt", "Routines stopped. `eos resume` starts them again.").await,
-        CliRequest::Resume => switch(ctx, "/api/eos/resume", "Routines resumed.").await,
+        CliRequest::Resume => resume(ctx).await,
         CliRequest::MemoryHook { event, input } => memory_hook(ctx, event, input).await,
     }
 }
@@ -120,29 +124,20 @@ async fn routine(ctx: &Ctx, name: &str) -> Result<Value, i32> {
     })
 }
 
-fn items_of(run: &CliRun) -> Vec<ItemRef> {
-    let typed = run.items.iter().map(|text| item::typed(text));
-    let files = run
-        .files
-        .iter()
-        .map(|path| item::outside(if std::path::Path::new(path).is_dir() { "folder" } else { "file" }, path));
-    typed.chain(files).chain(run.stdin.iter().map(|text| item::outside("text", text))).collect()
+/// The routines stay halted until the user lifts the halt in Eos: the window opens there.
+async fn resume(ctx: &Ctx) -> i32 {
+    if !open_in_app(ctx, Request::Activate).await {
+        ctx.err("Eos did not answer. Open Eos and resume routines there.");
+        return exit::UNREACHABLE;
+    }
+    tracing::info!(target: "eos::cli", command = "resume", "asked in Eos");
+    ctx.out("Resume routines in Eos: they stay stopped until you resume them there.");
+    exit::OK
 }
 
-fn result_mode(show_only: bool) -> ResultMode {
-    if show_only { ResultMode::ShowOnly } else { ResultMode::Usual }
-}
-
-/// The start routes answer 201; any 2xx means the call did what it asked.
+/// The start route answers 201; any 2xx means the call did what it asked.
 fn is_success(status: u16) -> bool {
     (200..300).contains(&status)
-}
-
-/// A request id of this app's life: the same request sent again starts nothing twice.
-fn request_id() -> String {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
-    format!("cli-{started}-{}", NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
 async fn start(ctx: &Ctx, run: CliRun) -> i32 {
@@ -150,111 +145,85 @@ async fn start(ctx: &Ctx, run: CliRun) -> i32 {
         Ok(routine) => routine,
         Err(code) => return code,
     };
-    let (id, name) =
-        (routine["id"].as_str().unwrap_or_default().to_owned(), routine["name"].as_str().unwrap_or_default());
-    let at = match run.at.as_deref().map(eos_domain::time::ms_from_iso) {
-        Some(None) => {
-            ctx.err("--at takes a time with its zone, like 2026-11-19T09:00+01:00.");
-            return exit::REFUSED;
-        }
-        at => at.flatten(),
-    };
-    let mut items = items_of(&run);
-    let input = RunInput {
-        item: (items.len() == 1).then(|| items.remove(0)),
-        items: None,
-        trigger: None,
-        options: run.options.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect(),
-        note: run.note.clone(),
-        result: result_mode(run.show_only),
-        at,
-        surface: None,
-        chat: None,
-    };
-    if items.len() > 1 && !run.yes {
-        let estimate = EstimateRequest { routine_id: id.clone(), input: input.clone(), count: items.len() as i64 };
-        let answer = ctx.call("POST", "/api/runs/estimate", serde_json::to_value(estimate).ok()).await;
-        if answer.0 != 200 {
-            return ctx.refused(&answer);
-        }
-        let usd = answer.1["usd"].as_f64().unwrap_or(0.0);
-        ctx.send(CliFrame::Confirm { text: format!("Start {} runs of {name}? About ${usd:.2} in all.", items.len()) });
+    let (id, slug, name) = (
+        routine["id"].as_str().unwrap_or_default().to_owned(),
+        routine["slug"].as_str().unwrap_or_default(),
+        routine["name"].as_str().unwrap_or_default(),
+    );
+    if !run.files.is_empty() {
+        ctx.err("Files reach a routine through Eos: drop them on its Dock icon or share them to Eos.");
         return exit::REFUSED;
     }
-    let item_line = input.item.as_ref().and_then(|i| i.url.clone().or(i.path.clone()).or(i.text.clone()));
-    let asked = StartRunRequest {
-        routine_id: id.clone(),
-        input,
-        items: (!items.is_empty()).then_some(items),
-        again_of: None,
-        door: "terminal".into(),
-        confirm_repeat: None,
-        client_request_id: Some(request_id()),
-    };
-    let answer = ctx.call("POST", "/api/runs", serde_json::to_value(asked).ok()).await;
-    if !is_success(answer.0) {
-        return ctx.refused(&answer);
+    let items: Vec<&str> = run.items.iter().map(String::as_str).chain(run.stdin.as_deref()).collect();
+    if items.len() > 1 {
+        ctx.err("Start one item at a time here, or several from the routine in Eos.");
+        return exit::REFUSED;
     }
-    tracing::info!(target: "eos::cli", command = "run", routine = %id, runs = answer.1["runs"].as_array().map_or(0, Vec::len), "started");
-    let runs: Vec<String> =
-        answer.1["runs"].as_array().into_iter().flatten().filter_map(|r| r["id"].as_str().map(str::to_owned)).collect();
-    started(ctx, name, item_line.as_deref(), &runs, run.json, &answer.1);
-    if run.wait { wait_all(ctx, &runs).await } else { exit::OK }
+    if run.at.as_deref().is_some_and(|at| eos_domain::time::ms_from_iso(at).is_none()) {
+        ctx.err("--at takes a time with its zone, like 2026-11-19T09:00+01:00.");
+        return exit::REFUSED;
+    }
+    let Some(link) = run_link(ctx.scheme, slug, &run, items.first().copied()) else {
+        ctx.err(
+            "Eos cannot ask for this run: the item or note is too long, or an option has a name Eos cannot pass on.",
+        );
+        return exit::REFUSED;
+    };
+    let before = match newest(ctx, &id).await {
+        Ok(before) => before,
+        Err(code) => return code,
+    };
+    if !open_in_app(ctx, Request::Open(link)).await {
+        ctx.err("Eos did not answer. Open Eos and try again.");
+        return exit::UNREACHABLE;
+    }
+    tracing::info!(target: "eos::cli", command = "run", routine = %id, "asked in Eos");
+    ctx.out(format!("Confirm {name} in Eos: nothing starts until you press Run there."));
+    if !run.wait {
+        return exit::OK;
+    }
+    let Some(started) = confirmed(ctx, &id, before).await else {
+        ctx.err("Not started: the run was not confirmed in Eos.");
+        return exit::REFUSED;
+    };
+    if run.json {
+        ctx.send(CliFrame::Json { value: json!({ "runs": [{ "id": started }] }) });
+    } else {
+        ctx.out(format!("Started {name}. Open it: {}", ctx.link("runs", &started)));
+    }
+    wait_for(ctx, &percent_encode(&started)).await
 }
 
+/// A one-off is asked in the quick panel: its sentence and piped text are held there, as an
+/// `eos://send` link holds text, until the user starts it.
 async fn start_once(ctx: &Ctx, once: CliOnce) -> i32 {
-    let file = |path: &String| IntentAttachment { kind: "file".into(), value: path.clone() };
-    let piped = once.stdin.iter().map(|text| IntentAttachment { kind: "text".into(), value: text.clone() });
-    let asked = OnceRequest {
-        text: once.what.clone(),
-        attachments: once.files.iter().map(file).chain(piped).collect(),
-        result: result_mode(once.show_only),
-        door: "terminal".into(),
+    if !once.files.is_empty() {
+        ctx.err("Files reach a one-off through Eos: drop them on its Dock icon or share them to Eos.");
+        return exit::REFUSED;
+    }
+    let text = match &once.stdin {
+        Some(piped) => format!("{}\n\n{piped}", once.what),
+        None => once.what.clone(),
     };
-    let answer = ctx.call("POST", "/api/runs/once", serde_json::to_value(asked).ok()).await;
-    if !is_success(answer.0) {
-        return ctx.refused(&answer);
+    let Some(link) = send_link(ctx.scheme, &text) else {
+        ctx.err("Eos cannot hold this much: paste it in Eos.");
+        return exit::REFUSED;
+    };
+    if !open_in_app(ctx, Request::Open(link)).await {
+        ctx.err("Eos did not answer. Open Eos and try again.");
+        return exit::UNREACHABLE;
     }
-    let run = answer.1["run"]["id"].as_str().unwrap_or_default().to_owned();
-    tracing::info!(target: "eos::cli", command = "once", run = %run, "started");
-    started(ctx, answer.1["name"].as_str().unwrap_or("it"), None, std::slice::from_ref(&run), once.json, &answer.1);
-    if once.wait { wait_all(ctx, &[run]).await } else { exit::OK }
-}
-
-fn started(ctx: &Ctx, name: &str, item: Option<&str>, runs: &[String], as_json: bool, answer: &Value) {
-    if as_json {
-        ctx.send(CliFrame::Json { value: answer.clone() });
-        return;
+    tracing::info!(target: "eos::cli", command = "once", "asked in Eos");
+    ctx.out("Eos holds it in the quick panel: say what to do with it there.");
+    if once.wait {
+        ctx.err("--wait does not follow a one-off: see it in Eos.");
     }
-    match runs {
-        [run] => {
-            let on = item.map(|i| format!(" on {i}")).unwrap_or_default();
-            ctx.out(format!("Started {name}{on}. Open it: {}", ctx.link("runs", run)));
-        }
-        _ => {
-            ctx.out(format!("Started {} runs of {name}.", runs.len()));
-            for run in runs {
-                ctx.out(format!("  {}", ctx.link("runs", run)));
-            }
-        }
-    }
-}
-
-/// Waits for each run in turn; the worst ending decides the code.
-async fn wait_all(ctx: &Ctx, runs: &[String]) -> i32 {
-    let mut code = exit::OK;
-    for run in runs {
-        code = code.max(wait_for(ctx, &percent_encode(run)).await);
-        if code == exit::DETACHED {
-            break;
-        }
-    }
-    code
+    exit::OK
 }
 
 async fn switch(ctx: &Ctx, target: &str, said: &str) -> i32 {
     let answer = ctx.call("POST", target, Some(json!({}))).await;
-    if answer.0 != 200 {
+    if !is_success(answer.0) {
         return ctx.refused(&answer);
     }
     ctx.out(said);

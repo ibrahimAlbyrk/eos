@@ -2,13 +2,15 @@
 //! shell's data folder. The socket is the user's alone (mode 0600), and every connection's
 //! peer must be the user who runs the app. One request per connection, read within 10 s and
 //! at most 2 MiB; at most 8 connections at once. Each command becomes the dashboard's own core
-//! calls ([`commands`]), so a dev run's guard refuses here what it refuses there. The command
-//! keeps its side open while it waits: closing it detaches, and the run goes on.
+//! calls ([`commands`]), so a dev run's guard refuses here what it refuses there. A run, a
+//! one-off and resuming are asked in Eos's window, never started from here ([`confirm`]).
+//! The command keeps its side open while it waits: closing it detaches, and the run goes on.
 //!
 //! Logged: the command, routine and run ids, how it ended, how long it took. Never the
 //! arguments, notes or piped text.
 
 mod commands;
+mod confirm;
 #[cfg(test)]
 mod tests;
 mod wait;
@@ -181,7 +183,13 @@ async fn serve(stream: UnixStream, shared: &Shared) {
         }
     });
     let parts = &shared.parts;
-    let ctx = Ctx { core: parts.core.clone(), scheme: parts.scheme, version: parts.version.clone(), out };
+    let ctx = Ctx {
+        core: parts.core.clone(),
+        scheme: parts.scheme,
+        version: parts.version.clone(),
+        shell_data: parts.data_dir.clone(),
+        out,
+    };
     let started = Instant::now();
     let (name, code) = match serde_json::from_slice::<CliRequest>(&line) {
         Ok(request) => match check(&request) {
