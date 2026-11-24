@@ -1,0 +1,19 @@
+{
+  "info": "eos-hook-seal-v1",
+  "recipientSecret": "a8abababababababababababababababababababababababababababababab6b",
+  "recipientPublic": "e3712d851a0e5d79b831c5e34ab22b41a198171de209b8b8faca23a11c624859",
+  "cases": [
+    {
+      "ephemeralSecret": "1111111111111111111111111111111111111111111111111111111111111111",
+      "nonce": "212121212121212121212121",
+      "plaintext": "{\"hook\":\"0123456789abcdef0123456789abcdef\",\"receivedAt\":1764000000000,\"headers\":{\"content-type\":\"application/json\",\"x-github-event\":\"pull_request\",\"x-github-delivery\":\"72d3162e-cc78-11e3-81ab-4c9367dc0958\",\"x-hub-signature-256\":\"sha256=0000000000000000000000000000000000000000000000000000000000000000\"},\"body\":\"eyJhY3Rpb24iOiJvcGVuZWQiLCJudW1iZXIiOjd9\"}",
+      "sealed": "e06Qm75//kTEZaIgA31gjuNYl9Me+XLwf3SJLLD3PxMhISEhISEhISEhISFiaVAEO6Un4LOgh/I5/q/PheqiHfFiOWFUBAGSNGVKVX/lGrVFTWl8zTPwdrZehFj2soSU6wcrjT+khrHngr9Z6IHCfdyEQyZuQeGpuTEERFGJzFR64LUOET6QdxUzW2CkepntTSB0G/Z7JIcY64JVKS3YYHxPC3LiFFF90rXS+umIRA1wiBYKYXfqUiwC80uRezkE1PjdOvfTNTUPDVqYfG9fMlONI3sjrgoZBxwrBWU1hta7E/MC53Oqi8IXboGF6eVWnqa2POpNRENXDka+NQwPqUfLVfAkLCxtbvI42cfFlHQBGT1MrqZhxehtxF1DNAA94I3IQVBVmt6jKizIcF9Dd2A8t8gDV8mp0Q5lDDOM3qjZKzmKZoaryJNIoT7fUu9L2rBW3eOjCCSaPB599QHBD9sdUS9L0zinjMXr0S8xQRH/SVXzQirk1gU6jSLtVpEPJyjxjfJorSMAsbxQDrcamh3xj7R21qfrS2v/vvo="
+    },
+    {
+      "ephemeralSecret": "2222222222222222222222222222222222222222222222222222222222222222",
+      "nonce": "222222222222222222222222",
+      "plaintext": "{\"hook\":\"fedcba9876543210fedcba9876543210\",\"receivedAt\":1764000060000,\"headers\":{},\"body\":\"\"}",
+      "sealed": "D6poTtKIZ7l/Smot7l34zpdOdrcBjj8iocTPJnhXDyAiIiIiIiIiIiIiIiL60o1Gq/hNNtyCM6VB3sglOVnCPMHIq5lV8R1/ZtwaCUGtR421NXWDVPE7NKZOOSUYIr2O94YADKVH+7Z6C8za6Vo0shhwG3lgd/1+LhbH3KyFInkuY4MxGlIxV3lhXgEFkJujqJnoUZRFJkTp"
+    }
+  ]
+}
