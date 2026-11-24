@@ -16,6 +16,7 @@ import { EarlierIssues } from "./EarlierIssues.jsx";
 import { EosFrame } from "./EosFrame.jsx";
 import { PageRenderer } from "./PageRenderer.jsx";
 import { PinButton } from "./PinButton.jsx";
+import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
 import { TellBar } from "./TellBar.jsx";
 import { issueLine, olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
@@ -104,11 +105,12 @@ function Verdict({ issueId }) {
   );
 }
 
-// eos:/surfaces/<id>?issue=<n> — a routine's Page: the issue in Eos's dark
-// frame as a light sheet, earlier issues in the design each was made with,
-// pin to Home, mail preview and a file to share, how the issue was, and what
-// to change about the page.
-export function SurfaceScreen({ surfaceId, seq }) {
+// eos:/surfaces/<id>?issue=<n>&mode=reshape — a routine's Page: the issue in
+// Eos's dark frame as a light sheet, earlier issues in the design each was
+// made with, pin to Home, mail preview and a file to share, how the issue
+// was, and what to change about the page; in reshape mode, changing it by
+// saying or pointing.
+export function SurfaceScreen({ surfaceId, seq, mode }) {
   const { pages, issues, versions } = usePages();
   const { list: routines } = useRoutines();
   const devRun = useDevRunSeen();
@@ -142,13 +144,18 @@ export function SurfaceScreen({ surfaceId, seq }) {
     openLocation(buildLocation({ screen: "surface", surfaceId, mode: "reshape" }));
     return r;
   };
+  const reshaping = mode === "reshape" && surface?.currentVersion != null;
   const current = surface?.currentVersion != null ? versions[`${surfaceId}:${surface.currentVersion}`] : null;
 
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]}>
-        {row && <span className="eos-page__line">{issueLine(row)}</span>}
-        {surface && (
+        {reshaping && <span className="eos-chip">Changing the page</span>}
+        {reshaping && (
+          <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>
+        )}
+        {!reshaping && row && <span className="eos-page__line">{issueLine(row)}</span>}
+        {!reshaping && surface && (
           <>
             <EarlierIssues page={page} row={row} />
             <PinButton surface={surface} />
@@ -166,7 +173,12 @@ export function SurfaceScreen({ surfaceId, seq }) {
         {page?.failed === "gone" && <p className="eos-note">This page is no longer here.</p>}
         {page?.failed === "error" && <LoadFailed what="this page" retry={() => void loadPage(surfaceId)} />}
         {!page && <Loading blocks={4} />}
-        {surface && (
+        {surface && reshaping && (
+          <div className="eos-page__column eos-reshape">
+            <ReshapeMode surface={surface} row={row} />
+          </div>
+        )}
+        {surface && !reshaping && (
           <div className="eos-page__column">
             {surface.needsRedesign && (
               <div className="eos-band eos-band--warn" role="status">

@@ -9,6 +9,9 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { openableLink, pageMessage } from "./PageRenderer.jsx";
 import { shareName } from "./ShareMenu.jsx";
+import { partName, popoverPlace } from "./PointPopover.jsx";
+import { failedFindings } from "./ReshapeBar.jsx";
+import { applyDesignChange, arrange, reshape, stopReshape } from "../../../state/eos/pageStore.js";
 import paper from "../gallery/sample/paper.json";
 import routines from "../gallery/sample/routines.json";
 
@@ -144,5 +147,65 @@ describe("pins", () => {
     expect(pinsNow().ids).toEqual(["a", "b", "c"]);
     await replacePin("b", "d");
     expect(transport.send.mock.calls.at(-1)).toEqual(["PUT", ROUTES.surfacePins, { surfaceIds: ["a", "d", "c"] }]);
+  });
+});
+
+describe("reshape mode", () => {
+  const withCandidate = {
+    ...reads,
+    [ROUTES.surface(SF)]: { ...paper.surface, candidateVersion: 3 },
+    [ROUTES.surfaceVersion(SF, 3)]: paper.versionBodies["3"],
+  };
+
+  it("asks to point at a part, draws the issue in point mode, and offers the whole-page line", async () => {
+    const html = await screen(`eos:/surfaces/${SF}?mode=reshape`);
+    expect(html).toContain('<span class="eos-chip">Changing the page</span>');
+    expect(html).toContain(">Done</button>");
+    expect(html).toContain("Click any part of the page, then say what should change there.");
+    expect(html).toContain('aria-label="Or say what to change about the whole page"');
+    expect(html).not.toContain(">Good issue</button>");
+  });
+
+  it("shows the new version with Before and After, Keep and Go back, drawn with the same issue", async () => {
+    setEosTransport(fixtureTransport(withCandidate));
+    await loadVersion(SF, 3);
+    const html = await screen(`eos:/surfaces/${SF}?mode=reshape`, fixtureTransport(withCandidate));
+    expect(html).toContain("Version 3. Live ops is gone; Tools has the room.");
+    expect(html).toContain('role="radiogroup" aria-label="Compare versions"');
+    expect(html).toContain(">Keep version 3</button>");
+    expect(html).toContain(">Go back to 2</button>");
+    expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html?version=3"`);
+  });
+
+  it("says Eos is at work after a reshape, and Cancel stops its run; a checked version ends it", async () => {
+    const transport = recording(async (method, path) => (path === ROUTES.surfaceReshape(SF)
+      ? { ok: true, status: 202, body: { runId: "rn-design" } }
+      : { ok: true, status: 200, body: {} }));
+    await screen(`eos:/surfaces/${SF}?mode=reshape`, transport);
+    expect((await reshape(SF, { baseVersion: 2, instruction: "smaller headline", part: "lead", index: null })).ok).toBe(true);
+    expect(transport.send.mock.calls[0]).toEqual(["POST", ROUTES.surfaceReshape(SF), { baseVersion: 2, instruction: "smaller headline", part: "lead" }]);
+    expect(renderToStaticMarkup(<EosMain />)).toContain("Eos is changing the page…");
+    expect(renderToStaticMarkup(<EosMain />)).toContain(">Cancel</button>");
+    await stopReshape(SF);
+    expect(transport.send.mock.calls.at(-1)).toEqual(["POST", ROUTES.runStop("rn-design"), {}]);
+    await reshape(SF, { baseVersion: 2, instruction: "again" });
+    applyDesignChange({ surfaceId: SF, version: 4, phase: "failed" });
+    expect(renderToStaticMarkup(<EosMain />)).toContain("Version 4 did not pass its checks.");
+  });
+
+  it("sends Move up as arrange on the version on screen, with no agent", async () => {
+    const transport = recording();
+    setEosTransport(transport);
+    await arrange(SF, { baseVersion: 3, part: "sections", op: "move_up" });
+    expect(transport.send.mock.calls[0]).toEqual(["POST", ROUTES.surfaceArrange(SF), { baseVersion: 3, part: "sections", op: "move_up" }]);
+  });
+
+  it("names a part in words, keeps the popover inside the page, and lists what failed once", () => {
+    expect(partName("live-ops")).toBe("Live ops");
+    expect(popoverPlace({ x: 900, y: 100, width: 80, height: 40 }, 1000, 2000)).toEqual({ left: 672, top: 148 });
+    expect(popoverPlace({ x: 10, y: 1900, width: 80, height: 60 }, 1000, 2000)).toEqual({ left: 10, top: 1742 });
+    const finding = { check: "readable", part: "lead", detail: "text under 12 px" };
+    const checks = { probe: [{ widths: [{ findings: [finding] }, { findings: [finding] }] }] };
+    expect(failedFindings(checks)).toEqual(["lead: text under 12 px"]);
   });
 });

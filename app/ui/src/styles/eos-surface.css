@@ -100,3 +100,70 @@
 .eos-page-link__text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .eos-page-link__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-page-link__line { font-size: var(--text-sm); color: var(--fg-dim); }
+
+/* ── Reshape mode ─────────────────────────────────────────────────────────── */
+.eos-reshape__bar {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-height: 36px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.eos-reshape__hint { color: var(--fg-dim); }
+.eos-reshape__text { min-width: 0; }
+.eos-reshape__gap { flex: 1; }
+.eos-reshape__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: eos-pulse 1.6s ease-in-out infinite;
+}
+@keyframes eos-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .eos-reshape__dot { animation: none; } }
+.eos-reshape__bar--failed { box-shadow: inset 2px 0 0 var(--err); padding-left: 12px; }
+.eos-reshape__findings { flex-basis: 100%; margin: 0; padding-left: 18px; color: var(--fg-dim); }
+.eos-reshape__page { position: relative; }
+
+.eos-point {
+  position: absolute;
+  z-index: 5;
+  width: 320px;
+  max-width: calc(100% - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: var(--sh-modal);
+}
+.eos-point__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.eos-point__say {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.eos-point__input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  outline: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.eos-point__input::placeholder { color: var(--fg-dim2); }
+.eos-point__send { width: 28px; height: 28px; }
+.eos-point__picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.eos-point__picks .eos-btn { height: 28px; padding: 0 11px; }
