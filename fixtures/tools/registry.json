@@ -1689,6 +1689,24 @@
    "plugin": null
   },
   {
+   "name": "fill_page",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "data": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "The page's data, fitting its contract; left out to read the contract and a sample."
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
    "name": "submit_verdict",
    "inputSchema": {
     "type": "object",
@@ -2960,6 +2978,7 @@
     "submit_result",
     "report_failure",
     "return_view",
+    "fill_page",
     "ask_user",
     "current_datetime",
     "search_memory",
@@ -2979,6 +2998,7 @@
     "stop_specialist",
     "list_specialists",
     "return_view",
+    "fill_page",
     "ask_user",
     "current_datetime",
     "search_memory",

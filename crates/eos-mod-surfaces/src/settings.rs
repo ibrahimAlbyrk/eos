@@ -35,17 +35,19 @@ fn current(stored: &UserSettings) -> SurfaceSettings {
     }
 }
 
+/// The reading settings as they read now.
+pub(crate) async fn reading(parts: &SurfacesParts) -> Result<SurfaceSettings, Error> {
+    let store = parts.settings.clone();
+    let stored =
+        tokio::task::spawn_blocking(move || store.read()).await.map_err(|error| Error::Storage(error.to_string()))?;
+    Ok(current(&stored))
+}
+
 pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
     let at = parts.clone();
     let read = RouteDef::get("/api/settings/surfaces", move |_req: Request| {
         let at = at.clone();
-        async move {
-            let store = at.settings.clone();
-            let stored = tokio::task::spawn_blocking(move || store.read())
-                .await
-                .map_err(|error| Error::Storage(error.to_string()))?;
-            Ok(Response::json(200, &current(&stored)))
-        }
+        async move { Ok(Response::json(200, &reading(&at).await?)) }
     });
     let at = parts.clone();
     let write = RouteDef::put("/api/settings/surfaces", move |req: Request| {

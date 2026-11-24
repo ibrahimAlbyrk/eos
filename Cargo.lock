@@ -2493,8 +2493,10 @@ dependencies = [
 name = "eos-mod-surfaces"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-genui",
  "eos-runtime",
  "eos-surface",
@@ -2930,6 +2932,7 @@ dependencies = [
  "cssparser",
  "eos-genui",
  "serde_json",
+ "sha2",
  "thiserror 2.0.21",
 ]
 

@@ -53,6 +53,10 @@ pub trait SurfaceTools: Send + Sync {
     /// answers the line the agent reads; every problem is a validation error
     /// listing them all.
     fn return_view<'a>(&'a self, worker_id: &'a str, view: ReturnedView) -> BoxFuture<'a, Result<String, Error>>;
+    /// Stores the data as the run's issue of its routine's Page and answers
+    /// the line the agent reads; every problem is a validation error listing
+    /// them all. Null data answers the contract the run fills, and a sample.
+    fn fill_page<'a>(&'a self, worker_id: &'a str, data: serde_json::Value) -> BoxFuture<'a, Result<String, Error>>;
 }
 
 /// A returned View as Needs you shows it (03 §4.5): a `question` View is a
@@ -86,6 +90,19 @@ pub trait ViewCards: Send + Sync {
     fn heard<'a>(&'a self, item_id: &'a str) -> BoxFuture<'a, String>;
     /// Answers a question View's item with what the user pressed.
     fn answer<'a>(&'a self, item_id: &'a str, pressed: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// Opens, inside the job that stores a second fallback in a row, the one
+    /// item that says the routine's page needs a redesign.
+    #[allow(clippy::too_many_arguments)]
+    fn redesign_in(
+        &self,
+        tx: &dyn crate::store::Tx,
+        out: &mut crate::store::Outbox,
+        now: i64,
+        routine_id: &str,
+        run_id: &str,
+        surface_id: &str,
+        title: &str,
+    ) -> Result<String, Error>;
 }
 
 /// Where an image of a page issue comes from: an http(s) URL in its data, or
@@ -152,4 +169,26 @@ pub trait SurfaceImages: Send + Sync {
     ) -> BoxFuture<'a, Result<Option<StoredImage>, Error>>;
     /// Removes every image of the surface not in `keep`; the bytes freed.
     fn collect<'a>(&'a self, surface_id: &'a str, keep: &'a [String]) -> BoxFuture<'a, Result<u64, Error>>;
+}
+
+/// A page issue as mail (05 Q9), for the mail channel at send time.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MailDocument {
+    pub subject: String,
+    pub html: String,
+    pub text: String,
+    /// The images the html names as `cid:<cid>`.
+    pub inline_images: Vec<InlineImage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InlineImage {
+    pub cid: String,
+    pub content_type: String,
+    pub body: bytes::Bytes,
+}
+
+/// Draws a page issue for a channel that sends it.
+pub trait SurfaceRender: Send + Sync {
+    fn mail_document<'a>(&'a self, issue_id: &'a str) -> BoxFuture<'a, Result<MailDocument, Error>>;
 }

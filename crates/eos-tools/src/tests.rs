@@ -69,6 +69,15 @@ impl eos_core::surface::SurfaceTools for RunCalls {
         self.0.lock().expect("calls").push(format!("view {worker_id} {} {}", view.place, view.view));
         Box::pin(std::future::ready(Ok("issue si-000000000001 · 0 bound actions".to_owned())))
     }
+
+    fn fill_page<'a>(
+        &'a self,
+        worker_id: &'a str,
+        data: Value,
+    ) -> eos_core::BoxFuture<'a, Result<String, eos_core::Error>> {
+        self.0.lock().expect("calls").push(format!("page {worker_id} {data}"));
+        Box::pin(std::future::ready(Ok("issue si-000000000002 accepted".to_owned())))
+    }
 }
 
 impl RoutineTools for RunCalls {
@@ -414,6 +423,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         "submit_result",
         "report_failure",
         "return_view",
+        "fill_page",
         "ask_user",
         "current_datetime",
         "search_memory",
@@ -439,7 +449,7 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         bench.names("worker")
     );
     let lead = bench.names("run-lead");
-    assert_eq!(lead[7..], ["list_capabilities", "call_capability"]);
+    assert_eq!(lead[8..], ["list_capabilities", "call_capability"]);
     for never in
         ["send_to_machine", "ask_peer", "respond_to_peer", "list_peers", "notify_user", "present_app", "read_page"]
     {
@@ -471,6 +481,17 @@ async fn a_run_hands_back_a_view_and_reads_every_problem_at_once() {
     let elsewhere =
         call(&bench.tool("run-lead", "return_view"), "w-lead", serde_json::json!({"place": "aside", "view": {}})).await;
     assert!(elsewhere.is_error, "{}", elsewhere.text);
+}
+
+#[tokio::test]
+async fn a_run_fills_its_page_with_data_or_asks_for_the_contract() {
+    let bench = bench(FakeFeatures::new([]));
+    let filled =
+        call(&bench.tool("run-lead", "fill_page"), "w-lead", serde_json::json!({"data": {"title": "Hi"}})).await;
+    assert_eq!((filled.text.as_str(), filled.is_error), ("issue si-000000000002 accepted", false));
+    let asked = call(&bench.tool("run-lead", "fill_page"), "w-lead", serde_json::json!({})).await;
+    assert!(!asked.is_error);
+    assert_eq!(*bench.runs.0.lock().expect("calls"), [r#"page w-lead {"title":"Hi"}"#, "page w-lead null"]);
 }
 
 #[tokio::test]
