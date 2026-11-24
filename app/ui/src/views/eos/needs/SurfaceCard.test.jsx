@@ -17,7 +17,7 @@ const view = {
 };
 const reads = {
   [`${ROUTES.surfaces}?place=needs_you`]: { surfaces: [surface, { ...surface, id: "sf-page", level: "page" }] },
-  [`${ROUTES.surfaceIssues(surface.id)}?limit=1`]: { issues: [issue], more: true },
+  [`${ROUTES.surfaceIssues(surface.id)}?limit=20`]: { issues: [{ ...issue, id: "si-trial", seq: null, trial: true }, issue], more: true },
   [ROUTES.surfaceIssue(surface.id, issue.id)]: { issue, body: { view, actions: ["again"] } },
 };
 
@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 describe("a routine's View in Needs you", () => {
-  it("is read as the newest ready issue of each View surface placed there", async () => {
+  it("is read as the newest ready issue of each View surface placed there, past a newer trial", async () => {
     setEosTransport(fixtureTransport(reads));
     await refreshSurfaces();
     expect(cards()).toEqual([{ surface, issue, body: { view, actions: ["again"] } }]);
