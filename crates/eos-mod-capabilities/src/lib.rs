@@ -42,6 +42,7 @@ use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 
+pub use sign_in::SIGN_IN_LINK;
 pub use ticker::{CHECK_EVERY_MS, TICK_MS};
 
 pub const CAPABILITIES_CHANGE_TOPIC: Topic<CapabilitiesChange> = Topic::new(CAPABILITIES_CHANGE);
@@ -70,7 +71,36 @@ impl CapabilitiesModule {
         clock: Arc<dyn Clock>,
         sleeper: Arc<dyn Sleeper>,
     ) -> Self {
-        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins: Arc::default() }
+        let sign_ins = Arc::new(sign_in::SignIns::new(clock.clone()));
+        Self { service, store, clock, sleeper, ticker: ticker::Ticker::default(), sign_ins }
+    }
+}
+
+impl CapabilitiesModule {
+    /// What takes a sign-in's `eos://sign-in/<id>` link back.
+    pub fn sign_in_links(&self) -> SignInLinks {
+        SignInLinks { sign_ins: self.sign_ins.clone(), service: self.service.clone() }
+    }
+}
+
+/// Hands an `eos://sign-in/<id>` link to the attempt that waits for it.
+#[derive(Clone)]
+pub struct SignInLinks {
+    sign_ins: Arc<sign_in::SignIns>,
+    service: Arc<CapabilityService>,
+}
+
+impl std::fmt::Debug for SignInLinks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignInLinks").finish_non_exhaustive()
+    }
+}
+
+impl SignInLinks {
+    /// Whether `link` was a sign-in's link back that an attempt waited for.
+    /// Any other link is not one; a link that matches no attempt is dropped.
+    pub fn open(&self, link: &str) -> bool {
+        link.starts_with(SIGN_IN_LINK) && self.sign_ins.link(&self.service, link)
     }
 }
 

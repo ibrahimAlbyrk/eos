@@ -112,6 +112,8 @@ pub(crate) struct Rig {
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) sleeper: Arc<FakeSleeper>,
     pub(crate) service: Arc<CapabilityService>,
+    /// Where a sign-in's link back goes.
+    pub(crate) links: eos_mod_capabilities::SignInLinks,
 }
 
 /// The module over these built-ins, with GitHub signed in when `signed_in`,
@@ -145,12 +147,13 @@ pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets:
         builtins,
     ));
     let module = Arc::new(CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone()));
+    let links = module.sign_in_links();
     let runtime =
         Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
     assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
     runtime.lifecycle.start().await.expect("starts");
     runtime.lifecycle.ready().await.expect("ready");
-    Rig { runtime, temp, clock, sleeper, service }
+    Rig { runtime, temp, clock, sleeper, service, links }
 }
 
 impl Rig {

@@ -140,6 +140,8 @@ pub(crate) struct Features {
     /// The rows of `GET /workers` by id, full and brief: what the row patches read.
     pub(crate) worker_rows: Arc<dyn ListedWorkers>,
     pub(crate) brief_worker_rows: Arc<dyn ListedWorkers>,
+    /// Where a sign-in's `eos://sign-in/<id>` link goes.
+    pub(crate) sign_in_links: eos_mod_capabilities::SignInLinks,
 }
 
 /// The modules and the agent tools over them. A feature crate adds its line
@@ -276,6 +278,13 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     );
     let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
 
+    let capabilities = Arc::new(eos_mod_capabilities::CapabilitiesModule::new(
+        cx.capabilities.clone(),
+        cx.store.clone(),
+        cx.clock.clone(),
+        cx.sleeper.clone(),
+    ));
+    let sign_in_links = capabilities.sign_in_links();
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(
             cx.accounts.clone(),
@@ -306,12 +315,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         )),
         cx.boot.clone(),
         Arc::new(eos_mod_btw::BtwModule::new(cx.store.clone(), Arc::new(cx.sessions.clone()))),
-        Arc::new(eos_mod_capabilities::CapabilitiesModule::new(
-            cx.capabilities.clone(),
-            cx.store.clone(),
-            cx.clock.clone(),
-            cx.sleeper.clone(),
-        )),
+        capabilities.clone(),
         Arc::new(eos_mod_compaction::CompactionModule::new(eos_mod_compaction::Parts {
             store: cx.store.clone(),
             sessions: Arc::new(cx.sessions.clone()),
@@ -460,5 +464,5 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);
-    Ok(Features { modules, tools, worker_rows, brief_worker_rows })
+    Ok(Features { modules, tools, worker_rows, brief_worker_rows, sign_in_links })
 }

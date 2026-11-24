@@ -283,6 +283,11 @@ fn start_core(
                 .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
                 .ok()?,
         ),
+        slack: Some(
+            eos_app::slack()
+                .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
+                .ok()?,
+        ),
         mail: Some(eos_app::mail()),
         reaches_network: network,
         dashboard: Some(dist.to_path_buf()).filter(|dist| dist.join("index.html").is_file()),
@@ -400,6 +405,15 @@ impl Hooks for Eos {
         tracing::debug!(target: "eos", "the window was shown");
         if let Some((app, _)) = self.core.app.get() {
             app.update_signals().window_shown();
+        }
+    }
+
+    fn open_url(&self, url: &str) {
+        // A sign-in's link back goes to the core, never to the dashboard. Before the core is
+        // up no attempt can wait for it.
+        if let Some((app, rt)) = self.core.app.get() {
+            let _entered = rt.enter();
+            app.open_link(url);
         }
     }
 
