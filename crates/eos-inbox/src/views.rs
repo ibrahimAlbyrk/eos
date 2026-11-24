@@ -65,6 +65,38 @@ impl ViewCards for RunQuestions {
         Ok(item.id)
     }
 
+    fn redesign_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        now: i64,
+        routine_id: &str,
+        run_id: &str,
+        surface_id: &str,
+        title: &str,
+    ) -> Result<String, Error> {
+        let parts = &self.0.parts;
+        let control = self.0.control.get()?;
+        let at = Opening { now, ids: parts.ids.as_ref(), zone: parts.zone.as_ref(), control: control.as_ref() };
+        let item = NewItem {
+            kind: ItemKind::Notice,
+            producer: CARD_PRODUCER.to_owned(),
+            routine_id: Some(routine_id.to_owned()),
+            run_id: Some(run_id.to_owned()),
+            // One such item per page, however many fallbacks follow.
+            subject_key: Some(format!("redesign:{surface_id}")),
+            title: format!("{title} needs a redesign"),
+            summary:
+                "Two runs in a row could not fill this page, so they were shown plainly. Ask Eos to change the page."
+                    .to_owned(),
+            payload: json!({"view": {"surfaceId": surface_id}, "reason": "page_redesign"}),
+            by_hand: false,
+        };
+        let item = open_in(tx, out, &at, item)?;
+        tracing::info!(item_id = %item.id, surface = %surface_id, "a page waits for a redesign");
+        Ok(item.id)
+    }
+
     fn heard<'a>(&'a self, item_id: &'a str) -> BoxFuture<'a, String> {
         Box::pin(async move { told(self.wait(item_id).await) })
     }

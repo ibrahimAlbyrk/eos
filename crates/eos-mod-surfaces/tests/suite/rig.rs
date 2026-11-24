@@ -14,7 +14,10 @@ use eos_runtime::module::Module;
 use eos_runtime::router::{AllPluginsOn, BoxFuture};
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_surface::{Field, IssueKind, IssueStatus, Level, MadeBy, Place, Role, Type, VersionStatus};
-use eos_testkit::{FakeActionGate, FakeClock, FakeSettings, FakeViewCards, SeqIds, TempStore};
+use eos_testkit::{
+    FakeActionGate, FakeClock, FakeSettings, FakeSurfaceImages, FakeTimeZone, FakeUserProfileStore, FakeViewCards,
+    SeqIds, TempStore,
+};
 use serde_json::{Value, json};
 
 pub(crate) struct Rig {
@@ -25,6 +28,7 @@ pub(crate) struct Rig {
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) gate: Arc<FakeActionGate>,
     pub(crate) cards: Arc<FakeViewCards>,
+    pub(crate) images: Arc<FakeSurfaceImages>,
     /// Every call the test's actions heard, in order.
     pub(crate) heard: Arc<Mutex<Vec<ActionCall>>>,
 }
@@ -80,6 +84,15 @@ impl Rig {
         let gate = Arc::new(FakeActionGate::new(ActionDecision::Run));
         let heard = Arc::new(Mutex::new(Vec::new()));
         let cards = Arc::new(FakeViewCards::new().hearing("The user answered: Ship it"));
+        let images = Arc::new(
+            FakeSurfaceImages::new()
+                .with("https://example.com/replays.jpg", &"a".repeat(64))
+                .with("/runs/rn-1/chart.png", &"b".repeat(64)),
+        );
+        let profile = Arc::new(FakeUserProfileStore::default());
+        let mut me = eos_domain::user_profile::empty_user_profile();
+        me.identity.call_name = "Ibrahim".into();
+        eos_core::store::UserProfileStore::put(profile.as_ref(), me).expect("a profile");
         let module = Arc::new(SurfacesModule::new(SurfacesParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -88,12 +101,15 @@ impl Rig {
             actions: kernel.actions.clone(),
             gate: gate.clone(),
             cards: cards.clone(),
+            images: images.clone(),
+            zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
+            profile,
         }));
         let probe = Arc::new(ProbeModule(heard.clone()));
         let runtime = Runtime::build(kernel, vec![module.clone(), probe], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, settings, clock, gate, cards, heard }
+        Self { runtime, module, temp, settings, clock, gate, cards, images, heard }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
@@ -105,6 +121,19 @@ impl Rig {
         let status = response.status;
         let bytes = response.body.collect().await.expect("a body");
         (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    }
+
+    /// A route that answers text: its status, headers and body.
+    pub(crate) async fn fetch(
+        &self,
+        router: &eos_runtime::router::Router,
+        path: &str,
+    ) -> (u16, Vec<(String, String)>, String) {
+        let response = router.handle(Request::new(Method::Get, path, Caller::DASHBOARD)).await;
+        let status = response.status;
+        let headers = response.headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let bytes = response.body.collect().await.expect("a body");
+        (status, headers, String::from_utf8_lossy(&bytes).into_owned())
     }
 
     pub(crate) async fn ask(&self, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

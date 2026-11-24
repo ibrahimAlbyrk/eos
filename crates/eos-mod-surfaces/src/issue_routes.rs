@@ -1,7 +1,8 @@
 //! `GET /api/surfaces/:id/issues?before=&limit=` (newest first) and
 //! `GET /api/surfaces/:id/issues/:issueId`. A View issue answers the View and
 //! the ids of its bound actions, never their argument templates: the frame
-//! names a bound action, the core fills it.
+//! names a bound action, the core fills it. With plain reading on, a Page
+//! issue also answers its fallback View (`plain`).
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_surface::IssueKind;
+use eos_surface::render::fallback::fallback_view;
 use serde_json::{Value, json};
 
 use crate::SurfacesParts;
@@ -60,10 +62,18 @@ pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {
     let one = RouteDef::get("/api/surfaces/{id}/issues/{issueId}", move |req: Request| {
         let (at, id, issue_id) = (at.clone(), param(&req, "id"), param(&req, "issueId"));
         async move {
-            let found = at.store.read(move |tx| tx.surface_issues().find(&issue_id)).await?;
-            let issue =
-                found.filter(|i| i.surface_id == id).ok_or_else(|| ApiError::NotFound("issue not found".into()))?;
-            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body: shown_body(&issue) }))
+            let found =
+                at.store.read(move |tx| Ok((tx.surface_issues().find(&issue_id)?, tx.surfaces().find(&id)?))).await?;
+            let (Some(issue), Some(surface)) = found else { return Err(ApiError::NotFound("issue not found".into())) };
+            if issue.surface_id != surface.id {
+                return Err(ApiError::NotFound("issue not found".into()));
+            }
+            let mut body = shown_body(&issue);
+            // Plain reading shows any page through the fallback, in Eos's look.
+            if issue.kind == IssueKind::Page && crate::settings::reading(&at).await?.plain {
+                body["plain"] = fallback_view(&surface.title, None, &body["data"]);
+            }
+            Ok(Response::json(200, &SurfaceIssue { issue: issue_row(&issue), body }))
         }
     })
     .access(Access::ui_token().phone_user(Tier::Read));

@@ -8,8 +8,10 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-domain.workspace = true
 eos-genui.workspace = true
 eos-runtime.workspace = true
 eos-surface.workspace = true

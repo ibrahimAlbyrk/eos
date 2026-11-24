@@ -68,6 +68,7 @@ impl SurfaceAuthoring for FakeSurfaceAuthoring {
 pub struct FakeViewCards {
     opened: Mutex<Vec<eos_core::surface::ViewCard>>,
     answered: Mutex<Vec<(String, String)>>,
+    redesigns: Mutex<Vec<String>>,
     answer: Mutex<String>,
 }
 
@@ -84,6 +85,11 @@ impl FakeViewCards {
 
     pub fn opened(&self) -> Vec<eos_core::surface::ViewCard> {
         self.opened.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// The surfaces a "needs a redesign" item was opened for.
+    pub fn redesigns(&self) -> Vec<String> {
+        self.redesigns.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
     /// Each answer, as (item id, what was pressed).
@@ -114,5 +120,98 @@ impl eos_core::surface::ViewCards for FakeViewCards {
         let pair = (item_id.to_owned(), pressed.to_owned());
         self.answered.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(pair);
         Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn redesign_in(
+        &self,
+        _tx: &dyn eos_core::store::Tx,
+        _out: &mut eos_core::store::Outbox,
+        _now: i64,
+        _routine_id: &str,
+        _run_id: &str,
+        surface_id: &str,
+        _title: &str,
+    ) -> Result<String, Error> {
+        let mut redesigns = self.redesigns.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        redesigns.push(surface_id.to_owned());
+        Ok(format!("ny-redesign-{}", redesigns.len()))
+    }
+}
+
+/// Surface images over memory: an image source the test names gets the
+/// hash it names (`"https://x/a.jpg" → "aa…"`); any other fails as
+/// unreachable. Every intake and collection recorded.
+#[derive(Debug, Default)]
+pub struct FakeSurfaceImages {
+    known: Mutex<std::collections::HashMap<String, String>>,
+    taken: Mutex<Vec<(String, String)>>,
+    collected: Mutex<Vec<(String, Vec<String>)>>,
+}
+
+impl FakeSurfaceImages {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// `src` (a URL, or a run file's path) is an image with this hash.
+    pub fn with(self, src: &str, hash: &str) -> Self {
+        self.known.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(src.to_owned(), hash.to_owned());
+        self
+    }
+
+    /// Each intake, as (surface, source).
+    pub fn taken(&self) -> Vec<(String, String)> {
+        self.taken.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    pub fn collected(&self) -> Vec<(String, Vec<String>)> {
+        self.collected.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+}
+
+impl eos_core::surface::SurfaceImages for FakeSurfaceImages {
+    fn intake<'a>(
+        &'a self,
+        surface_id: &'a str,
+        src: eos_core::surface::ImageSource,
+    ) -> BoxFuture<'a, Result<eos_core::surface::ImageRef, eos_core::surface::ImageFailure>> {
+        let key = match src {
+            eos_core::surface::ImageSource::Url(url) => url,
+            eos_core::surface::ImageSource::RunFile(path) => path.display().to_string(),
+        };
+        self.taken.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((surface_id.to_owned(), key.clone()));
+        let found = self.known.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&key).cloned();
+        let answer = found
+            .map(|hash| eos_core::surface::ImageRef {
+                hash,
+                content_type: "image/jpeg".into(),
+                width: 800,
+                height: 450,
+                bytes: 4,
+            })
+            .ok_or(eos_core::surface::ImageFailure::Unreachable);
+        Box::pin(std::future::ready(answer))
+    }
+
+    fn read<'a>(
+        &'a self,
+        _surface_id: &'a str,
+        hash: &'a str,
+        _max_width: Option<u32>,
+    ) -> BoxFuture<'a, Result<Option<eos_core::surface::StoredImage>, Error>> {
+        let known = self.known.lock().unwrap_or_else(std::sync::PoisonError::into_inner).values().any(|h| h == hash);
+        let image = known.then(|| eos_core::surface::StoredImage {
+            content_type: "image/jpeg".into(),
+            body: bytes::Bytes::from_static(b"JPEG"),
+        });
+        Box::pin(std::future::ready(Ok(image)))
+    }
+
+    fn collect<'a>(&'a self, surface_id: &'a str, keep: &'a [String]) -> BoxFuture<'a, Result<u64, Error>> {
+        self.collected
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push((surface_id.to_owned(), keep.to_vec()));
+        Box::pin(std::future::ready(Ok(0)))
     }
 }

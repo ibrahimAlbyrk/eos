@@ -24,6 +24,8 @@ const PLACES: [&str; 2] = ["result", "question"];
 const QUESTION: &str = "question";
 
 pub(crate) struct ViewIssues {
+    pub(crate) parts: Arc<crate::SurfacesParts>,
+    pub(crate) fills: Arc<crate::fill::Fills>,
     pub(crate) store: Arc<dyn Store>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: Arc<dyn Ids>,
@@ -164,5 +166,9 @@ impl SurfaceTools for ViewIssues {
                 None => Ok(line),
             }
         })
+    }
+
+    fn fill_page<'a>(&'a self, worker_id: &'a str, data: Value) -> BoxFuture<'a, Result<String, Error>> {
+        crate::fill::fill_page(&self.parts, &self.fills, worker_id, data)
     }
 }

@@ -1,7 +1,7 @@
-//! The surface tool of a routine run's sessions: `return_view` hands a View
-//! back for a routine whose result is one. The surfaces feature
-//! ([`SurfaceTools`]) checks it and stores it as an issue; the View, its
-//! data and its bindings never reach a log.
+//! The surface tools of a routine run's sessions: `return_view` hands a View
+//! back for a routine whose result is one, `fill_page` the data of a Page.
+//! The surfaces feature ([`SurfaceTools`]) checks each and stores it as an
+//! issue; the View, the data and the bindings never reach a log.
 
 use std::sync::Arc;
 
@@ -36,6 +36,26 @@ impl Handler for ReturnView {
     }
 }
 
+struct FillPage(Arc<dyn SurfaceTools>);
+
+#[derive(Deserialize)]
+struct FillArgs {
+    data: Option<Value>,
+}
+
+impl Handler for FillPage {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            let FillArgs { data } = args(input)?;
+            match self.0.fill_page(call.self_id, data.unwrap_or(Value::Null)).await {
+                Ok(line) => Ok(Output::text(line)),
+                Err(Error::Validation(problems)) => Err(Failure(problems)),
+                Err(other) => Err(other.into()),
+            }
+        })
+    }
+}
+
 pub(crate) fn specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
     vec![Spec::new(
         "return_view",
@@ -45,6 +65,15 @@ pub(crate) fn specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
             ("bindings", record().optional().describe("For each `send` action of the view: {action, args}, the direct action it runs and its argument template.")),
         ]),
         ReturnView(tools.clone()),
+    )
+    .always_load(),
+    Spec::new(
+        "fill_page",
+        object(vec![(
+            "data",
+            record().optional().describe("The page's data, fitting its contract; left out to read the contract and a sample."),
+        )]),
+        FillPage(tools.clone()),
     )
     .always_load()]
 }

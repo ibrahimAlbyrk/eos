@@ -401,6 +401,10 @@ pub const SURFACE_VERSIONS: Route = Route::new("surfaceVersions", "/api/surfaces
 pub const SURFACE_VERSION: Route = Route::new("surfaceVersion", "/api/surfaces/:id/versions/:version", &[Get]).added();
 pub const SURFACE_ISSUES: Route = Route::new("surfaceIssues", "/api/surfaces/:id/issues", &[Get]).added();
 pub const SURFACE_ISSUE: Route = Route::new("surfaceIssue", "/api/surfaces/:id/issues/:issueId", &[Get]).added();
+pub const SURFACE_ISSUE_DOCUMENT: Route =
+    Route::new("surfaceIssueDocument", "/api/surfaces/:id/issues/:issueId/document", &[Get]).added();
+pub const SURFACE_ISSUE_MAIL: Route =
+    Route::new("surfaceIssueMail", "/api/surfaces/:id/issues/:issueId/mail", &[Get]).added();
 pub const SURFACE_STATE: Route = Route::new("surfaceState", "/api/surfaces/:id/state", &[Get, Put]).added();
 pub const SETTINGS_SURFACES: Route = Route::new("settingsSurfaces", "/api/settings/surfaces", &[Get, Put]).added();
 pub const ACTIONS: Route = Route::new("actions", "/api/actions", &[Get]).added();
@@ -775,6 +779,8 @@ pub const ROUTES: &[Route] = &[
     SURFACE_VERSION,
     SURFACE_ISSUES,
     SURFACE_ISSUE,
+    SURFACE_ISSUE_DOCUMENT,
+    SURFACE_ISSUE_MAIL,
     SURFACE_STATE,
     SETTINGS_SURFACES,
     ACTIONS,

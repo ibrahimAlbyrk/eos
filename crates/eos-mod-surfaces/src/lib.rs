@@ -6,8 +6,13 @@
 //! - `GET /api/surfaces/:id/issues?before=&limit=`, `…/issues/:issueId`: the
 //!   answers its routine's runs gave, newest first; a View issue is made by a
 //!   run's `return_view` ([`SurfacesModule::tools`]);
+//! - `GET /api/surfaces/:id/issues/:issueId/document?mode=phone|share` and
+//!   `…/mail`: a page issue with no script, for the phone or a file to
+//!   share, and as the mail it is sent as ([`SurfacesModule::render`]);
 //! - `GET`/`PUT /api/surfaces/:id/state?scope=`: its small saved state, for
 //!   the whole surface or one of its issues, announced on `surfaces:state`;
+//! - on the raw-content origin ([`SurfacesModule::raw_routes`]), a page
+//!   issue drawn in its frame, its images and the page probe's documents;
 //! - `GET`/`PUT /api/settings/surfaces`: how surfaces read on this Mac, kept
 //!   in `settings.json` under keys only that route writes;
 //! - `GET /api/actions`, `POST /api/actions/run`, `GET /api/actions/records/:id`:
@@ -28,8 +33,12 @@ mod action_routes;
 mod authoring;
 mod builtins;
 mod dispatch;
+mod export;
+mod fill;
 mod issue_routes;
 mod issues;
+mod page;
+mod raw;
 mod records;
 mod routes;
 mod settings;
@@ -49,6 +58,7 @@ use eos_runtime::router::RouteDef;
 
 pub use authoring::SurfaceAuthor;
 use dispatch::{DispatchParts, Dispatcher};
+pub use raw::ProbeDocs;
 
 pub const SURFACES_CHANGE: Topic<SurfacesChange> = Topic::new("surfaces:change");
 pub const SURFACES_ISSUE: Topic<SurfacesIssue> = Topic::new("surfaces:issue");
@@ -68,6 +78,12 @@ pub struct SurfacesParts {
     pub gate: Arc<dyn ActionGate>,
     /// Needs you's items for returned Views.
     pub cards: Arc<dyn eos_core::surface::ViewCards>,
+    /// The images of page issues, under `surfaces/<id>/img/`.
+    pub images: Arc<dyn eos_core::surface::SurfaceImages>,
+    /// The reader's zone: `issue.date` and times read in it.
+    pub zone: Arc<dyn eos_core::os::TimeZone>,
+    /// The reader's profile, for `issue.reader`.
+    pub profile: Arc<dyn eos_core::store::UserProfileStore>,
 }
 
 impl std::fmt::Debug for SurfacesParts {
@@ -79,6 +95,8 @@ impl std::fmt::Debug for SurfacesParts {
 pub struct SurfacesModule {
     parts: Arc<SurfacesParts>,
     dispatcher: Arc<Dispatcher>,
+    probe_docs: Arc<ProbeDocs>,
+    fills: Arc<fill::Fills>,
 }
 
 impl std::fmt::Debug for SurfacesModule {
@@ -97,12 +115,30 @@ impl SurfacesModule {
             gate: parts.gate.clone(),
             cards: parts.cards.clone(),
         }));
-        SurfacesModule { parts: Arc::new(parts), dispatcher }
+        let probe_docs = Arc::new(ProbeDocs::new(parts.clock.clone(), parts.ids.clone()));
+        SurfacesModule { parts: Arc::new(parts), dispatcher, probe_docs, fills: Arc::default() }
+    }
+
+    /// The raw-content origin's routes: pages, their images, probe documents.
+    pub fn raw_routes(&self) -> Vec<RouteDef> {
+        raw::routes(&self.parts, &self.probe_docs)
+    }
+
+    /// Page issues drawn for the mail channel.
+    pub fn render(&self) -> Arc<dyn eos_core::surface::SurfaceRender> {
+        Arc::new(export::MailRender(self.parts.clone()))
+    }
+
+    /// Where the page probe's documents are held.
+    pub fn probe_docs(&self) -> Arc<ProbeDocs> {
+        self.probe_docs.clone()
     }
 
     /// What a run's sessions call `return_view` through.
     pub fn tools(&self) -> Arc<dyn SurfaceTools> {
         Arc::new(issues::ViewIssues {
+            parts: self.parts.clone(),
+            fills: self.fills.clone(),
             store: self.parts.store.clone(),
             clock: self.parts.clock.clone(),
             ids: self.parts.ids.clone(),
@@ -126,6 +162,7 @@ impl Module for SurfacesModule {
     fn routes(&self) -> Vec<RouteDef> {
         let mut out = routes::all(&self.parts);
         out.extend(issue_routes::all(&self.parts));
+        out.extend(export::routes(&self.parts));
         out.extend(settings::all(&self.parts));
         out.extend(action_routes::all(&self.parts, &self.parts.actions, &self.dispatcher));
         out

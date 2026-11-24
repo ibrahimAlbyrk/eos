@@ -266,7 +266,14 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             control: routines.control(),
         })),
         cards: Arc::new(cx.run_questions.clone()),
+        images: Arc::new(eos_store_files::surface_images::FileSurfaceImages::new(
+            cx.paths.join("surfaces"),
+            cx.media.media.clone(),
+        )),
+        zone: Arc::new(crate::host::HostTimeZone),
+        profile: cx.notes.profile.profile.clone(),
     }));
+    cx.raw_routes.add(surfaces.raw_routes());
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> =
         crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer, &routines, &memory, &surfaces)?;
