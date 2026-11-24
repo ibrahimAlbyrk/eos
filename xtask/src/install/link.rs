@@ -1,7 +1,8 @@
 //! The `eos` command on the PATH: `<bin dir>/eos` links to this checkout's
 //! launcher (`scripts/eos`). A link to another Eos launcher (another checkout,
-//! or the TypeScript app's `manager/bin/eos`) is replaced; anything else
-//! there is left alone.
+//! the TypeScript app's `manager/bin/eos`, or an app's own command in
+//! `Contents/Helpers/eos`, which the launcher forwards to) is replaced; anything
+//! else there is left alone.
 
 use std::fs;
 use std::io;
@@ -11,6 +12,8 @@ use std::path::{Path, PathBuf};
 pub(crate) const LAUNCHER_MARKER: &str = "eos-launcher";
 /// Where the TypeScript app's launcher lived in its checkout.
 const TYPESCRIPT_LAUNCHER: &str = "manager/bin/eos";
+/// Where an app keeps its own `eos` command (the Settings link points there).
+const APP_COMMAND: &str = "Contents/Helpers/eos";
 
 /// What was found at `<bin dir>/eos` and done about it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,9 +31,9 @@ pub(crate) fn bin_dir(env: Option<PathBuf>, home: Option<&Path>) -> Option<PathB
     env.filter(|dir| !dir.as_os_str().is_empty()).or_else(|| home.map(|home| home.join(".local/bin")))
 }
 
-/// Whether `target` is a launcher of this command, or the TypeScript app's.
+/// Whether `target` is a launcher of this command, an app's own command, or the TypeScript app's.
 fn is_launcher(target: &Path) -> bool {
-    if target.ends_with(TYPESCRIPT_LAUNCHER) {
+    if target.ends_with(TYPESCRIPT_LAUNCHER) || target.ends_with(APP_COMMAND) {
         return true;
     }
     fs::read_to_string(target).is_ok_and(|text| text.contains(LAUNCHER_MARKER))
@@ -130,6 +133,16 @@ mod tests {
         assert_eq!(ensure(&rig.bin, &rig.launcher).expect("links"), Linked::Replaced(old));
         assert_eq!(target(&rig), rig.launcher);
         assert!(!rig.bin.join(".eos.next").exists());
+    }
+
+    #[test]
+    fn an_apps_own_command_is_replaced_by_the_launcher_that_forwards_to_it() {
+        let rig = rig();
+        fs::create_dir_all(&rig.bin).expect("bin");
+        let helper = rig.root.join("Applications/Eos.app/Contents/Helpers/eos");
+        std::os::unix::fs::symlink(&helper, rig.bin.join("eos")).expect("the app's link");
+        assert_eq!(ensure(&rig.bin, &rig.launcher).expect("links"), Linked::Replaced(helper));
+        assert_eq!(target(&rig), rig.launcher);
     }
 
     #[test]

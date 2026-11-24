@@ -130,4 +130,9 @@ pub trait ShellHost: Send + Sync + 'static {
     fn set_login_item(&self, on: bool) -> LoginItem;
     /// Opens System Settings › General › Login Items.
     fn open_login_items_settings(&self);
+    /// Where the app's `eos` command is and where its link goes; `None` for an app that owns
+    /// no door (a dev or test run) or ships no command.
+    fn cli_command(&self) -> Option<crate::cli_link::CliCommand> {
+        None
+    }
 }

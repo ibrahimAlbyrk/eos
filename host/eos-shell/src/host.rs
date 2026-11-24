@@ -185,6 +185,17 @@ impl ShellHost for Host {
             login::open_settings();
         }
     }
+
+    fn cli_command(&self) -> Option<eos_bridge::cli_link::CliCommand> {
+        if !self.doors {
+            return None;
+        }
+        // `Contents/MacOS/Eos` → `Contents/Helpers/eos`.
+        let exe = std::env::current_exe().ok()?;
+        let helper = exe.parent()?.parent()?.join("Helpers/eos");
+        let home = PathBuf::from(std::env::var_os("HOME")?);
+        helper.is_file().then(|| eos_bridge::cli_link::CliCommand { helper, bin_dir: home.join(".local/bin"), home })
+    }
 }
 
 /// The user's Downloads folder: where a saved export and a browser view's download go.

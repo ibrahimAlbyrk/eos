@@ -21,7 +21,7 @@ use crate::migrate::{Marker, Seed};
 use crate::panel::{Flag, Panel};
 use crate::transport::{Req, Service, Sink};
 use crate::urlspace::{self, Route};
-use crate::{doors, script, token};
+use crate::{cli_link, doors, script, token};
 
 /// What the bridge is built from.
 pub struct Parts {
@@ -286,7 +286,7 @@ impl Bridge {
                     self.refuse(&sink, 403, "ui token required")
                 };
             }
-            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM) => {}
+            ("POST", _) | ("GET" | "PUT", LOGIN_ITEM) | ("GET", CLI_COMMAND) => {}
             _ => return self.refuse(&sink, 405, "method not allowed"),
         }
         // Everything else acts on this Mac: the dashboard itself only.
@@ -295,12 +295,13 @@ impl Bridge {
         }
         let body: Value = serde_json::from_slice(&req.body).unwrap_or(Value::Null);
         let Some(me) = self.me.upgrade() else { return };
-        let (path, put) = (path.to_string(), req.method == "PUT");
+        let (path, put, req_is_post) = (path.to_string(), req.method == "PUT", req.method == "POST");
         // Off the request thread: bridges reach into the window and the views.
         self.rt.spawn(async move {
             // The doors answer their own shape; every other bridge answers `{value}`.
             let (outcome, bare) = match path.as_str() {
                 LOGIN_ITEM => (me.login_item(put, &body).await, true),
+                CLI_COMMAND => (me.cli_command(req_is_post).await, true),
                 _ => (me.bridge(&path, body).await, false),
             };
             match outcome {
@@ -473,6 +474,28 @@ impl Bridge {
         }))
     }
 
+    /// `GET` says where the `eos` command is (`{available, installed, path, onPath}`), `POST`
+    /// puts it on the PATH by `cli_link`'s rules and answers the same, with `problem` when it
+    /// left the place alone.
+    async fn cli_command(&self, install: bool) -> Outcome {
+        let Some(command) = self.host.cli_command() else { return Ok(json!({ "available": false })) };
+        let problem = if install {
+            let command = command.clone();
+            self.rt
+                .spawn_blocking(move || cli_link::install(&command).err())
+                .await
+                .map_err(|_| Refusal(500, "bridge failed"))?
+        } else {
+            None
+        };
+        let mut state = cli_link::state(&command);
+        state["available"] = json!(true);
+        if let Some(problem) = problem {
+            state["problem"] = json!(problem);
+        }
+        Ok(state)
+    }
+
     async fn hosts_call(&self, verb: &str, body: &Value) -> Outcome {
         let Some(hosts) = self.hosts.get() else {
             return match verb {
@@ -579,6 +602,8 @@ impl Service for Bridge {
 
 /// The bridge of the Start at login door (`/_shell/doors/login-item`).
 const LOGIN_ITEM: &str = "doors/login-item";
+/// The bridge of the `eos` command on the PATH (`/_shell/doors/cli`).
+const CLI_COMMAND: &str = "doors/cli";
 
 /// What the page hears when a file could not be written.
 pub(crate) const SAVE_FAILED: &str = "The file could not be saved in Downloads.";

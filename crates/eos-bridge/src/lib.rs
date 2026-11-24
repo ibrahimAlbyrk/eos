@@ -12,6 +12,7 @@ pub mod assets;
 mod bridge;
 pub mod chromium;
 pub mod cli;
+pub mod cli_link;
 pub mod core;
 pub mod dashboard_life;
 #[cfg(feature = "dev-run")]
