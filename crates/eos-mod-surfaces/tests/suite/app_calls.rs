@@ -216,3 +216,21 @@ async fn eos_writes_the_line_of_access_under_an_app() {
          this project."
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_app_speaks_only_for_its_own_routine_and_never_answers_with_anothers_record() {
+    let (rig, _) = in_use().await;
+    // A press of the dashboard's, by its client id.
+    let (_, pressed) = rig
+        .ask(Method::Post, "/api/actions/run", Some(json!({"actionId": "probe.global", "clientId": "c-shared"})))
+        .await;
+    assert_eq!(pressed["status"], "done", "{pressed}");
+
+    let args = json!({"item": "https://example.com/a", "routineId": "rt-other", "surfaceId": "sf-other"});
+    let body = json!({"version": 1, "name": "probe.with", "arguments": args, "clientId": "c-shared"});
+    let (_, answer) = rig.ask(Method::Post, CALL, Some(body)).await;
+    assert_ne!(answer["result"]["recordId"], pressed["recordId"], "an App read the dashboard's record: {answer}");
+    let heard = rig.heard.lock().expect("heard").clone();
+    let mine = heard.iter().find(|call| call.action_id == "probe.with").expect("the App's call");
+    assert_eq!((mine.routine_id.as_deref(), mine.origin.as_str()), (Some("rt-1"), "app"));
+}

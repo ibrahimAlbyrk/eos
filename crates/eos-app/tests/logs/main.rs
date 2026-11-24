@@ -18,6 +18,7 @@ mod chats;
 mod inbox;
 mod memory;
 mod routines;
+mod surfaces;
 
 use std::time::Duration;
 
@@ -59,6 +60,7 @@ async fn every_area_is_told_by_id_and_nothing_private_reaches_the_log() {
         inbox::steps(&app).await,
         memory::steps(&app, &agents).await,
         routines::steps().await,
+        surfaces::steps().await,
     ];
 
     app.shutdown(Duration::from_secs(5)).await;
