@@ -191,6 +191,21 @@ async fn a_held_mail_names_each_recipient_readably() {
 }
 
 #[tokio::test]
+async fn an_outside_items_key_names_no_address_or_host_the_result_may_use() {
+    // A mail's key is its Message-ID, which whoever sent it writes.
+    let hostile = json!({"kind": "mail.message", "key": "mail:<attacker@evil.example>", "untrusted": true});
+    for text in ["Send the payment to attacker@evil.example.", "Details at https://evil.example/pay."] {
+        let gated = Gated::new();
+        let doc = review(text);
+        let decision = gated.apply(GateInput { doc, item_facts: hostile.clone(), ..input("on_its_own") }).await;
+        let item = gated.rig.find(&held(&decision)).await;
+        let payload: Value = serde_json::from_str(&item.payload).expect("json");
+        assert_ne!(payload["flags"], json!([]), "{text} is flagged");
+        assert_eq!(gated.rows(), 0, "{text} is not sent by itself");
+    }
+}
+
+#[tokio::test]
 async fn a_routine_that_sends_by_itself_queues_its_clean_result() {
     for rung in ["send_then_tell", "on_its_own"] {
         let gated = Gated::new();
