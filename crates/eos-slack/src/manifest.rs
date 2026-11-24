@@ -38,6 +38,12 @@ fn flag() -> Value {
     json!({ "type": "boolean" })
 }
 
+/// A flag the message's sender chooses: whether they mention the user,
+/// write in a direct message or answer in a thread. No grant rests on it (D63).
+fn chosen_flag() -> Value {
+    json!({ "type": "boolean", "untrusted": true })
+}
+
 fn list(items: Value) -> Value {
     json!({ "type": "array", "items": items })
 }
@@ -81,8 +87,8 @@ fn item() -> Value {
         json!({
             "key": text(), "event": text(), "title": outside(), "text": outside(), "url": text(), "updatedAt": int(),
             "facts": object(json!({
-                "conversation": text(), "from": text(), "fromMe": flag(), "mentionsMe": flag(), "isDm": flag(),
-                "inThread": flag(),
+                "conversation": text(), "from": text(), "fromMe": flag(), "mentionsMe": chosen_flag(),
+                "isDm": chosen_flag(), "inThread": chosen_flag(),
             }), &[]),
             "data": object(json!({ "text": outside(), "userName": outside(), "threadTs": text() }), &[]),
         }),
