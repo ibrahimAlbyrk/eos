@@ -41,6 +41,17 @@ pub struct CreateRoutineRequest {
 
 impl Validate for CreateRoutineRequest {}
 
+/// `POST /api/routines/:id/copy`: "start another like this", a project's
+/// copy with a brief of its own.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyRoutineRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief: Option<String>,
+}
+
+impl Validate for CopyRoutineRequest {}
+
 /// `PUT /api/routines/:id/blueprint`: a new version from the one the editor
 /// started from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

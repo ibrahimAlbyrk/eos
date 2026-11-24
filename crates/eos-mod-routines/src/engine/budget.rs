@@ -146,6 +146,13 @@ pub(crate) fn watch_usage(engine: &Arc<Engine>) {
     *Engine::locked(&engine.usage) = Some(subscription);
 }
 
+/// What booking a run's spend came to.
+enum Booked {
+    Working(Spending),
+    /// A project run that spent the day's budget, paused till tomorrow.
+    Paused(String),
+}
+
 /// A working run that just spent, with what it has spent in all.
 struct Spending {
     run: StoredRun,
@@ -176,11 +183,22 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
             if !matches!(run.state, RunState::Running | RunState::Checking) {
                 return Ok(None);
             }
+            if super::project::pause_at_day_cap_in(&job, tx, out, &run, &day, cap_usd)? {
+                return Ok(Some(Booked::Paused(run.id)));
+            }
             let (cost, caps) = (cost_in(tx, &run.id)?, caps_of(tx, &run)?);
-            Ok(Some(Spending { run, cost, caps }))
+            Ok(Some(Booked::Working(Spending { run, cost, caps })))
         })
         .await?;
-    let Some(Spending { run, cost, caps: Some(caps) }) = spending else { return Ok(()) };
+    let spending = match spending {
+        Some(Booked::Paused(run_id)) => {
+            super::steer::quiet(engine, &run_id).await;
+            return Ok(());
+        }
+        Some(Booked::Working(spending)) => spending,
+        None => return Ok(()),
+    };
+    let Spending { run, cost, caps: Some(caps) } = spending else { return Ok(()) };
     match budget(cost, caps.usd) {
         Budget::Within => Ok(()),
         Budget::WrapUp => {

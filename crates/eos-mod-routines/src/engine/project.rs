@@ -4,15 +4,19 @@
 //! back to work on the next one, until the last. The run's progress counts
 //! the milestones done. Each milestone starts a new round of results, so
 //! its check has its own two rounds; a version kept meanwhile is taken up at
-//! the next milestone, and the team is told so (01 G5).
+//! the next milestone, and the team is told so (01 G5). A project has no
+//! cap per run: once its routine or all routines spent the day's budget it
+//! pauses, and the next day it goes on. Its sessions idle for half an hour
+//! are suspended; a message brings them back.
 
 use std::sync::Arc;
 
+use eos_contracts::WorkerState;
 use eos_contracts::{Blueprint, Milestone, RoutineKind};
 use eos_core::Error;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::numbers::Outcome;
-use eos_domain::routine::run::{RunState, Station};
+use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
 
 use super::{Engine, move_run, note};
@@ -155,4 +159,165 @@ pub(crate) fn brief_text(blueprint: &Blueprint) -> Option<String> {
         project.base_branch,
         milestones.join("\n")
     ))
+}
+
+/// What a project run's lead hears when a new day lets it work again.
+const NEW_DAY: &str = "A new day: the routine's budget lets this run work again. Carry on where you left off.";
+/// A project's sessions idle this long are suspended; any message revives them.
+pub(crate) const IDLE_SUSPEND_MS: i64 = 30 * 60 * 1000;
+
+/// Whether the routine of `run`, or every routine together, has spent
+/// what it may spend on `day`.
+fn day_spent_in(tx: &dyn Tx, blueprint: &Blueprint, run: &StoredRun, day: &str, cap_usd: f64) -> Result<bool, Error> {
+    let spent = super::budget::spent_in(tx, day)?;
+    Ok(spent.of_routine(&run.routine_id) >= blueprint.limits.per_day_usd.0 || spent.total >= cap_usd)
+}
+
+/// A project run at work that has spent the day's budget is paused until
+/// the next day, with one notice (01 §4.10). True when it was paused; its
+/// sessions are the caller's to quiet once the job has committed.
+pub(crate) fn pause_at_day_cap_in(
+    engine: &Arc<Engine>,
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    run: &StoredRun,
+    day: &str,
+    cap_usd: f64,
+) -> Result<bool, Error> {
+    let Some(blueprint) = blueprint_in(tx, run)? else { return Ok(false) };
+    if !day_spent_in(tx, &blueprint, run, day, cap_usd)? {
+        return Ok(false);
+    }
+    let now = engine.clock.now_ms();
+    let routine_spent = super::budget::spent_in(tx, day)?.of_routine(&run.routine_id) >= blueprint.limits.per_day_usd.0;
+    let paused = RunMove { state: RunState::Paused, station: run.station, reason: Some(Reason::DayCap), at: now };
+    move_run(tx, out, run, paused)?;
+    super::budget::day_cap_notice_in(tx, out, engine, routine_spent.then_some(run.routine_id.as_str()), now)?;
+    tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a project run spent the day's budget and paused");
+    Ok(true)
+}
+
+/// The project runs paused at the day's budget that the day now allows,
+/// back at work: answers each one's lead to revive and tell.
+pub(crate) fn resume_new_day_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    day: &super::budget::Day,
+    now: i64,
+) -> Result<Vec<(String, String)>, Error> {
+    let mut resumed = Vec::new();
+    for run in tx.runs().paused_for(Reason::DayCap)? {
+        let Some(blueprint) = blueprint_in(tx, &run)? else { continue };
+        if day_spent_in(tx, &blueprint, &run, &day.day, day.cap_usd)? {
+            continue;
+        }
+        let work = RunMove { state: RunState::Running, station: Some(Station::Work), reason: None, at: now };
+        move_run(tx, out, &run, work)?;
+        tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a project run went on in a new day");
+        if let Some(lead) = run.lead_id {
+            resumed.push((run.id, lead));
+        }
+    }
+    Ok(resumed)
+}
+
+/// Revives and tells the leads [`resume_new_day_in`] answered.
+pub(crate) async fn tell_resumed(engine: &Engine, resumed: Vec<(String, String)>) {
+    for (run_id, lead) in resumed {
+        let revived = if engine.sessions.is_live(&lead) { Ok(()) } else { engine.sessions.revive(&lead).await };
+        if let Err(error) = revived.and(note(engine, &lead, &run_id, NEW_DAY).await) {
+            tracing::warn!(run_id, %error, "a project run's lead could not be told of the new day");
+        }
+    }
+}
+
+/// Whether a session of `run` may be suspended when idle: any while the
+/// result waits for the user or goes out; while the run works, only a
+/// specialist, since a lead or a checker that stops then counts as one that
+/// crashed.
+fn may_rest(run: &StoredRun, worker_id: &str, agent: bool) -> bool {
+    match run.state {
+        RunState::WaitingForUser | RunState::Delivering => true,
+        RunState::Running => agent && run.lead_id.as_deref() != Some(worker_id),
+        _ => false,
+    }
+}
+
+/// Suspends the idle sessions of project runs that showed no activity for
+/// [`IDLE_SUSPEND_MS`]: a session in a turn is left alone, and a message to
+/// a suspended one brings it back.
+pub(crate) async fn suspend_idle(engine: &Engine) {
+    let now = engine.clock.now_ms();
+    let launches: Vec<(String, String, bool)> = Engine::locked(&engine.launches)
+        .iter()
+        .map(|(worker, launch)| (worker.clone(), launch.run_id.clone(), launch.agent_key.is_some()))
+        .filter(|(worker, _, _)| engine.sessions.is_live(worker))
+        .collect();
+    if launches.is_empty() {
+        return;
+    }
+    let last: Vec<Option<i64>> = {
+        let activity = Engine::locked(&engine.activity);
+        launches.iter().map(|(_, run_id, _)| activity.get(run_id).copied()).collect()
+    };
+    let idle = engine.store.read(move |tx| {
+        let mut idle = Vec::new();
+        for ((worker_id, run_id, agent), last) in launches.into_iter().zip(last) {
+            let Some(run) = tx.runs().find(&run_id)? else { continue };
+            if !may_rest(&run, &worker_id, agent) || blueprint_in(tx, &run)?.is_none() {
+                continue;
+            }
+            let quiet_since = last.unwrap_or(run.updated_at).max(run.updated_at);
+            let resting = tx.workers().find(&worker_id)?.is_some_and(|worker| worker.state == WorkerState::Idle);
+            if resting && now - quiet_since >= IDLE_SUSPEND_MS {
+                idle.push(worker_id);
+            }
+        }
+        Ok(idle)
+    });
+    let idle = match idle.await {
+        Ok(idle) => idle,
+        Err(error) => {
+            tracing::warn!(%error, "the project runs' sessions could not be read");
+            return;
+        }
+    };
+    for worker_id in idle {
+        match engine.sessions.suspend(&worker_id, "routine_idle").await {
+            Ok(()) => tracing::info!(worker_id, "an idle project session was suspended"),
+            Err(error) => tracing::debug!(worker_id, %error, "an idle project session was not suspended"),
+        }
+    }
+}
+
+/// What the lead hears when the user starts a project that already runs,
+/// without a note.
+const STARTED_AGAIN: &str = "The user started this project again. Say where it stands, then carry on.";
+
+/// A hand start of a project routine whose run is under way is a message to
+/// its team (01 G10): the user's note, or that they started it again. None
+/// for any other start.
+pub(crate) async fn hand_start_in_flight(
+    engine: &Engine,
+    new: &eos_core::routine::NewRun,
+) -> Result<Option<Vec<eos_core::routine::RunCreated>>, Error> {
+    if new.origin != eos_core::routine::RunOrigin::Hand {
+        return Ok(None);
+    }
+    let routine_id = new.routine_id.clone();
+    let live = engine
+        .store
+        .read(move |tx| {
+            for run in tx.runs().live_of(&routine_id)? {
+                if run.lead_id.is_some() && blueprint_in(tx, &run)?.is_some() {
+                    return Ok(Some(run));
+                }
+            }
+            Ok(None)
+        })
+        .await?;
+    let Some(run) = live else { return Ok(None) };
+    let text = new.input.note.clone().unwrap_or_else(|| STARTED_AGAIN.to_owned());
+    super::steer::message(engine, &run.id, &text).await?;
+    Ok(Some(vec![eos_core::routine::RunCreated { id: run.id, state: RunState::Running, not_before: None }]))
 }

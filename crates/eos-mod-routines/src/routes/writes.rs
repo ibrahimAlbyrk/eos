@@ -7,7 +7,9 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{BlueprintRefused, CreateRoutineRequest, KeepVersionRequest, RoutineStateRequest, VersionAuthor};
+use eos_contracts::{
+    BlueprintRefused, CopyRoutineRequest, CreateRoutineRequest, KeepVersionRequest, RoutineStateRequest, VersionAuthor,
+};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{Request, Response};
 use eos_runtime::router::RouteDef;
@@ -59,7 +61,10 @@ fn blueprint_routes(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let copying = engine.clone();
     let copy = RouteDef::post("/api/routines/{id}/copy", move |req: Request| {
         let engine = copying.clone();
-        async move { Ok(answer(engine::copy(&engine, &param(&req, "id")).await?, true)) }
+        async move {
+            let body: CopyRoutineRequest = req.parse()?;
+            Ok(answer(engine::copy(&engine, &param(&req, "id"), body.brief).await?, true))
+        }
     });
     [create, blueprint, restore, copy].into_iter().map(|route| route.access(Access::ui_token())).collect()
 }

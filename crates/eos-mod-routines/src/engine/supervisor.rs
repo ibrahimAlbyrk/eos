@@ -10,7 +10,8 @@
 //! headroom or the battery is low; one of a routine at the rung Ask waits
 //! for the user's yes (`handoffs`). Nothing leaves the queue while the user
 //! has stopped everything. Each turn of the loop also holds working runs to
-//! their time and suspends the architects that went idle.
+//! their time, suspends the architects and project sessions that went idle,
+//! and lets project runs paused at the day's budget go on in a new day.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,7 +23,7 @@ use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 
 use super::control::confirmed_in;
-use super::{Engine, brief, budget, handoffs, move_run};
+use super::{Engine, brief, budget, handoffs, move_run, project};
 use crate::routes::{readable, showing_version};
 
 /// The longest the supervisor sleeps without being woken.
@@ -60,10 +61,11 @@ async fn supervise(engine: Arc<Engine>) {
         let now = engine.clock.now_ms();
         let (job, day) = (engine.clone(), budget::day(&engine));
         let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, &day, low, now)).await {
-            Ok(Pass { next_due, left }) => {
+            Ok(Pass { next_due, left, resumed }) => {
                 for run_id in left {
                     brief::start_lead(&engine, &run_id).await;
                 }
+                project::tell_resumed(&engine, resumed).await;
                 next_due.map_or(IDLE_WAIT_MS, |at| (at - now).clamp(1, IDLE_WAIT_MS))
             }
             Err(error) => {
@@ -73,6 +75,7 @@ async fn supervise(engine: Arc<Engine>) {
         };
         let wait = if budget::tick(&engine).await { wait.min(WORKING_WAIT_MS) } else { wait };
         crate::architect::sweep(&engine).await;
+        project::suspend_idle(&engine).await;
         crate::retention::due(&engine);
         crate::suggest::due(&engine);
         tokio::select! {
@@ -99,6 +102,8 @@ struct Allowed {
 struct Pass {
     next_due: Option<i64>,
     left: Vec<String>,
+    /// Project runs a new day let go on, with their leads.
+    resumed: Vec<(String, String)>,
 }
 
 /// One pass over the queue.
@@ -111,8 +116,9 @@ fn pass(
     now: i64,
 ) -> Result<Pass, Error> {
     if tx.inbox_halt().get()?.on {
-        return Ok(Pass { next_due: None, left: Vec::new() });
+        return Ok(Pass { next_due: None, left: Vec::new(), resumed: Vec::new() });
     }
+    let resumed = project::resume_new_day_in(tx, out, day, now)?;
     let autostart = engine.autostart;
     let spent = budget::spent_in(tx, &day.day)?;
     let mut busy: HashMap<String, i64> = tx.runs().working()?.into_iter().collect();
@@ -170,7 +176,7 @@ fn pass(
             left.push(run.id);
         }
     }
-    Ok(Pass { next_due, left })
+    Ok(Pass { next_due, left, resumed })
 }
 
 /// Archived and deleted routines start nothing; a paused one only what the

@@ -39,6 +39,9 @@ pub(crate) fn priority(origin: &RunOrigin) -> i64 {
 }
 
 pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCreated>, StartError> {
+    if let Some(told) = super::project::hand_start_in_flight(engine, &new).await? {
+        return Ok(told);
+    }
     ready(engine, &new).await?;
     let now = engine.clock.now_ms();
     let request = new.client_request_id.clone();
