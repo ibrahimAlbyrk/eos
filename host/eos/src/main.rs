@@ -307,6 +307,7 @@ fn start_core(
         }),
         sweep_leftovers: real_data,
         relay: Some(eos_app::relay()),
+        hook_client: Some(eos_app::hook_client()),
         keychain: Some(eos_app::keychain()),
         github: Some(
             eos_app::github()

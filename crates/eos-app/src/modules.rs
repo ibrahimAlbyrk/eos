@@ -117,6 +117,8 @@ pub(crate) struct Context {
     pub(crate) sweep_leftovers: bool,
     /// What this run may do as the user beyond this computer.
     pub(crate) reach: crate::reach::Reach,
+    /// How the relay's hook inbox is reached, when the host handed it in.
+    pub(crate) hook_client: Option<eos_relay::HookClient>,
     pub(crate) terminals: Terminal,
     /// The phone link. Built ahead of the rest: the app hands it the router afterwards.
     pub(crate) remote: Arc<eos_mod_remote::RemoteModule>,
@@ -411,7 +413,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             ids: cx.ids.clone(),
             zones: Arc::new(crate::host::HostZoneRules),
             sources: cx.reach.signal_sources(cx.signal_sources.clone()),
-            hooks: cx.reach.hook_inbox(|| hook_inbox(cx)),
+            hooks: cx.hook_client.as_ref().and_then(|client| cx.reach.hook_inbox(|| hook_inbox(cx, client))),
             health: cx.capabilities.clone(),
             runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
             intake: routines.intake(),
@@ -497,12 +499,9 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
 
 /// The hook inbox on the phone link's relay, under the identity kept in
 /// `remote/hooks.json`.
-fn hook_inbox(cx: &Context) -> Arc<dyn eos_core::net::hooks::HookInbox> {
+fn hook_inbox(cx: &Context, client: &eos_relay::HookClient) -> Arc<dyn eos_core::net::hooks::HookInbox> {
     let config = cx.config.clone();
-    // The relay is the one the user's own phone link names: no guard for agent-written URLs.
-    let http = eos_kit_net::http_client(&eos_kit_net::ClientOptions::new("Eos")).unwrap_or_default();
-    Arc::new(eos_relay::RelayHookInbox::new(
-        http,
+    Arc::new(client.inbox(
         Arc::new(move || config.current().remote.relay.as_ref().map(|relay| relay.url.clone())),
         Arc::new(eos_store_files::remote::RemoteFiles::new(cx.paths.join("remote"))),
     ))
