@@ -115,7 +115,7 @@ describe("the Eos is stopped band", () => {
 });
 
 describe("a Resume refused until recipients are confirmed", () => {
-  it("shows the core's text and the recipients on the paused band, with Review the change", async () => {
+  it("says in the lead that it waits for recipients, with the core's text, the recipients, Review the change and Resume under", async () => {
     const toast = vi.spyOn(notify, "error").mockImplementation(() => {});
     const t = recording(async () => ({ ok: false, status: 409, body: REFUSAL }));
     await at(`eos:/routines/${MAIL}`, t);
@@ -123,7 +123,8 @@ describe("a Resume refused until recipients are confirmed", () => {
     expect(t.send).toHaveBeenCalledWith("PUT", ROUTES.routineState(MAIL), { state: "active" });
     expect(toast).not.toHaveBeenCalled();
     const html = draw();
-    expect(html).toContain(`<div class="eos-band eos-band--warn" role="status"><div class="eos-refusal" role="alert"><span class="eos-band__text">${REFUSAL.error}</span>${RECIPIENTS}</div><button type="button" class="eos-btn">Resume</button>`);
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--warn" role="status">Paused until you confirm who it sends to.</p>');
+    expect(html).toContain(`<div class="eos-refusal" role="alert"><span class="eos-band__text">${REFUSAL.error}</span>${RECIPIENTS}</div><div class="eos-rlead__acts"><button type="button" class="eos-btn">Resume</button>`);
     expect(html).not.toContain("Paused after three failed runs in a row.");
 
     applyEosEvent("routine:change", { routineId: MAIL, reason: "state", row: { ...routinePaused.routine, state: "active", pausedReason: undefined } });
