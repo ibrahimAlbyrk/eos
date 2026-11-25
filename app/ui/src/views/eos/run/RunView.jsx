@@ -9,6 +9,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { DocView } from "../needs/results/ResultView.jsx";
 import { RoutinePage } from "../routine/RoutinePage.jsx";
+import { splitItemNumber } from "../routine/RoutineRuns.jsx";
 import { RunCost } from "./RunCost.jsx";
 import { RunMemory } from "./RunMemory.jsx";
 import { Interruptions, RunStations } from "./RunStations.jsx";
@@ -170,22 +171,28 @@ export function RunView({ id }) {
   const item = detail && itemLine(detail.input);
   const trail = [
     run ? { label: routine?.name ?? "Routine", location: `eos:/routines/${encodeURIComponent(run.routineId)}` } : { label: "Eos", location: "eos:/" },
-    { label: item ? `Run on ${item}` : "Run" },
+    { label: item ? `Run on ${splitItemNumber(item).number ?? item}` : "Run" },
   ];
   const chip = run && stateChip(run, now);
   return (
     <main className="eos-screen">
-      <EosHeader trail={trail}>
-        {run && (
+      <EosHeader
+        trail={trail}
+        mark={run && (
           <>
             <span className="eos-chip">{originLine(run.origin)}</span>
             <span className={chip.tone ? `eos-status eos-status--${chip.tone}` : "eos-status"}>{chip.text}</span>
-            {PAUSABLE.has(run.state) && <button type="button" className="eos-btn" onClick={() => void pauseRun(id)}>Pause</button>}
+          </>
+        )}
+      >
+        {run && (
+          <>
+            {PAUSABLE.has(run.state) && <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void pauseRun(id)}>Pause</button>}
             {run.state === "paused" && run.reason === "user" && (
               <button type="button" className="eos-btn eos-btn--primary" onClick={() => void resumeRun(id)}>Resume</button>
             )}
             {STOPPABLE.has(run.state) && (
-              <button type="button" className="eos-btn" disabled={Boolean(stopping[id])} onClick={() => void stopRun(id)}>
+              <button type="button" className="eos-btn eos-btn--ghost eos-btn--stop" disabled={Boolean(stopping[id])} onClick={() => void stopRun(id)}>
                 {stopping[id] ? "Stopping…" : "Stop"}
               </button>
             )}

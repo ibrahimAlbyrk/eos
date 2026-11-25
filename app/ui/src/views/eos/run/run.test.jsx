@@ -105,9 +105,9 @@ describe("the run view", () => {
   it("draws a queued run with its breadcrumb, origin and state, Stop and no team", async () => {
     const html = await screen("queued01");
     expect(html).toContain('<button type="button" class="eos-crumb">PR Review</button>');
-    expect(html).toContain('<h1 class="eos-title">Run on #471 Pool the combo particles</h1>');
+    expect(html).toContain('<h1 class="eos-title">Run on #471</h1><span class="eos-chip">Started by hand</span>');
     expect(html).toContain('<span class="eos-chip">Started by hand</span><span class="eos-status">Queued</span>');
-    expect(html).toContain(">Stop</button>");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--ghost eos-btn--stop">Stop</button>');
     expect(html).toContain("Waiting to start on #471 Pool the combo particles.");
     expect(states(html)).toEqual(["todo", "todo", "todo", "todo", "todo"]);
     expect(html).not.toContain('class="eos-team"');
