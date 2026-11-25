@@ -58,6 +58,7 @@ async function at(location, transport) {
 }
 
 const draw = () => renderToStaticMarkup(<EosMain />);
+const LISTED = '<ul class="eos-recipients" aria-label="Recipients to confirm"><li>@sam</li><li>billing@acme.io</li></ul>';
 const RECIPIENTS = '<ul class="eos-recipients" aria-label="Recipients to confirm"><li>@sam</li><li>billing@acme.io</li></ul><button type="button" class="eos-btn eos-btn--primary">Review the change</button>';
 
 beforeEach(() => {
@@ -124,7 +125,7 @@ describe("a Resume refused until recipients are confirmed", () => {
     expect(toast).not.toHaveBeenCalled();
     const html = draw();
     expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--warn" role="status">Paused until you confirm who it sends to.</p>');
-    expect(html).toContain(`<div class="eos-refusal" role="alert"><span class="eos-band__text">${REFUSAL.error}</span>${RECIPIENTS}</div><div class="eos-rlead__acts"><button type="button" class="eos-btn">Resume</button>`);
+    expect(html).toContain(`<div class="eos-refusal" role="alert"><span class="eos-band__text">${REFUSAL.error}</span>${LISTED}</div><div class="eos-rlead__acts"><button type="button" class="eos-btn eos-btn--primary">Review the change</button><button type="button" class="eos-btn">Resume</button>`);
     expect(html).not.toContain("Paused after three failed runs in a row.");
 
     applyEosEvent("routine:change", { routineId: MAIL, reason: "state", row: { ...routinePaused.routine, state: "active", pausedReason: undefined } });

@@ -144,6 +144,20 @@ const failedPr = (s) => prWith(s, (d) => {
   const ended = d.runs.filter((r) => r !== failed && at(r) < at(failed) && ["done", "cancelled", "failed"].includes(r.state));
   return { ...d, runs: [failed, ...ended], routine: { ...d.routine, lastRun: failed, activeRuns: 0 } };
 });
+// PR Review held by another Mac: there, and away since the day before.
+const heldPr = (awaySince) => (s) => ({
+  ...s,
+  [ROUTES.runners]: { deviceId: "mbp", devices: [{ deviceId: "air", name: "MacBook Air", seenAt: Date.now() - 60 * 1000, awaySince, routines: [PR] }], confirmedAt: Date.now() },
+});
+// Resume of the paused routine refused until two new recipients are confirmed.
+const unconfirmedResume = {
+  sends: async () => ({ ok: false, status: 409, body: {
+    error: "Two recipients are new since this routine last ran. Confirm them before it sends again.",
+    code: "recipients_unconfirmed",
+    recipients: [{ id: "c-maya", label: "Maya Lindqvist (Slack)" }, { id: "c-release", label: "#release-notes (Slack)" }],
+  } }),
+  then: () => [...document.querySelectorAll(".eos-rlead__acts button")].find((b) => b.textContent === "Resume")?.click(),
+};
 const archivedPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => ["done", "cancelled", "failed"].includes(r.state)), routine: { ...d.routine, state: "archived", activeRuns: 0, lastRun: d.runs.find((r) => r.state === "done") } }));
 
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
@@ -174,6 +188,9 @@ export const GALLERY_STATES = [
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
   { id: "routine-quiet", label: "Routine · nothing running, no week yet", location: `eos:/routines/${PR}`, reads: quietPr },
   { id: "routine-failed", label: "Routine · its last run failed", location: `eos:/routines/${PR}`, reads: failedPr },
+  { id: "routine-held", label: "Routine · runs on another Mac", location: `eos:/routines/${PR}`, reads: heldPr(undefined) },
+  { id: "routine-held-away", label: "Routine · its Mac is away", location: `eos:/routines/${PR}`, reads: heldPr(Date.now() - 26 * 60 * 60 * 1000) },
+  { id: "routine-unconfirmed", label: "Routine · Resume waits for recipients", location: `eos:/routines/${routinePaused.routine.id}`, ...unconfirmedResume },
   { id: "routine-archived", label: "Routine · archived", location: `eos:/routines/${PR}`, reads: archivedPr },
   { id: "routine-runs", label: "Routine · Runs", location: `eos:/routines/${PR}?tab=runs` },
   { id: "routine-signals", label: "Routine · Signals", location: `eos:/routines/${PR}?tab=signals` },
