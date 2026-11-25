@@ -116,7 +116,7 @@ export function HomeScreen({ clock = Date.now }) {
         status={routines === null ? (listFailed ? "failed" : "loading") : home.offline ? "offline" : null}
         needs={needs}
         next={next}
-        caption={[hello(new Date(now).getHours(), home.name), needLine(waiting.length)].filter(Boolean).join(" ")}
+        caption={<>{hello(new Date(now).getHours(), home.name)}{needLine(waiting.length) && <> <span className="eos-field__need">{needLine(waiting.length)}</span></>}</>}
         handled={home.handled ? handledLine(home.handled, now, lastSeen) : null}
         inputRef={inputRef}
         now={now}

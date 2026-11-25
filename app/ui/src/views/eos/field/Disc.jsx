@@ -3,9 +3,10 @@ import { RoutineGlyph } from "../routines/RoutineGlyph.jsx";
 
 // One routine on the field (HomeField.dc.html, RunInput.dc.html): its disc,
 // sized by how much it does and ringed by what it needs, its name and status
-// under it, and a small arrow that opens its page. A click picks it for the
+// under it, how many of its items wait as a badge, and a small arrow that
+// opens its page (it takes the badge's place on hover). A click picks it for the
 // input; a file or link dropped on it starts a run (D40).
-export const Disc = forwardRef(function Disc({ place, delay = 0, row, status, picked, dim, focusable, onPick, onOpen, onDrop, onFocus }, ref) {
+export const Disc = forwardRef(function Disc({ place, delay = 0, row, status, needs = 0, picked, dim, focusable, onPick, onOpen, onDrop, onFocus }, ref) {
   const [over, setOver] = useState(false);
   const tierClass = row.kind === "project" ? "eos-disc--project" : `eos-disc--t${place.tier}`;
   const classes = ["eos-disc", tierClass, place.compact && "eos-disc--compact", picked && "eos-disc--picked", over && "eos-disc--over"].filter(Boolean).join(" ");
@@ -28,7 +29,10 @@ export const Disc = forwardRef(function Disc({ place, delay = 0, row, status, pi
         onClick={onPick}
         onFocus={onFocus}
       >
-        <span className="eos-disc__face"><RoutineGlyph icon={row.icon} name={row.name} size={Math.round(d * 0.21)} part="eos-disc" /></span>
+        <span className="eos-disc__face">
+          <RoutineGlyph icon={row.icon} name={row.name} size={Math.round(d * 0.21)} part="eos-disc" />
+          {needs > 0 && <span className="eos-disc__count" aria-hidden="true">{needs}</span>}
+        </span>
         <span className="eos-disc__label" aria-hidden="true">
           <span className="eos-disc__name">{row.name}</span>
           <span className="eos-disc__status">{picked ? "Picked" : status}</span>
