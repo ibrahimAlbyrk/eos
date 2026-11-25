@@ -15,6 +15,7 @@ const READS = {
   [ROUTES.signalsSettings]: { keepAwakeForSchedules: false },
   [ROUTES.settingsAttention]: { quietOn: true, quietFrom: "22:00", quietTo: "08:00", digests: ["09:00", "17:00"], interrupts: "urgent" },
   [ROUTES.memorySettings]: { learning: true, reminders: false },
+  [ROUTES.settingsSurfaces]: { textScale: 115, contrast: "normal", plain: false },
   [ROUTES.eosHalt]: { on: false },
 };
 
@@ -49,7 +50,7 @@ describe("Settings › Eos", () => {
     await Promise.all([loadEosSettings(), loadHalt()]);
     const html = renderToStaticMarkup(<EosSettings />);
     const groups = [...html.matchAll(/stg-group__title">([^<]+)</g)].map((m) => m[1]);
-    expect(groups).toEqual(["Routines", "What interrupts you", "Memory", "Remote", "Privacy", "Stop"]);
+    expect(groups).toEqual(["Routines", "What interrupts you", "Memory", "Pages", "Remote", "Privacy", "Stop"]);
     expect(row(html, "Daily limit for all routines")).toContain('value="5"');
     expect(row(html, "Keep the Mac awake for schedules")).toContain('aria-checked="false"');
     expect(row(html, "What may interrupt")).toContain('<option value="urgent" selected="">');
@@ -57,6 +58,9 @@ describe("Settings › Eos", () => {
     expect(row(html, "Quiet hours")).toContain('value="22:00"');
     expect(row(html, "Learning")).toContain('aria-checked="true"');
     expect(row(html, "Reminders")).toContain('aria-checked="false"');
+    expect(row(html, "Text size")).toContain('<option value="115" selected="">115 %</option>');
+    expect(row(html, "More contrast")).toContain('aria-checked="false"');
+    expect(row(html, "Plain reading")).toContain('aria-checked="false"');
     expect(row(html, "What leaves the Mac")).toContain("Text inside pull requests, mails or web pages never becomes a note.");
     expect(row(html, "Forget everything learned")).toContain(">Forget everything</button>");
     expect(row(html, "Export what was learned")).toContain(">Export</button>");
@@ -78,15 +82,18 @@ describe("Settings › Eos", () => {
     await changeEosSetting("memory", { learning: false });
     await changeEosSetting("signals", { keepAwakeForSchedules: true });
     await changeEosSetting("attention", { interrupts: "none" });
+    await changeEosSetting("surfaces", { contrast: "more" });
     expect(send.mock.calls).toEqual([
       ["PUT", ROUTES.routinesSettings, { dayBudgetUsd: 8 }],
       ["PUT", ROUTES.memorySettings, { learning: false, reminders: false }],
       ["PUT", ROUTES.signalsSettings, { keepAwakeForSchedules: true }],
       ["PUT", ROUTES.settingsAttention, { ...READS[ROUTES.settingsAttention], interrupts: "none" }],
+      ["PUT", ROUTES.settingsSurfaces, { ...READS[ROUTES.settingsSurfaces], contrast: "more" }],
     ]);
     const html = renderToStaticMarkup(<EosSettings />);
     expect(row(html, "Daily limit for all routines")).toContain('value="8"');
     expect(row(html, "Learning")).toContain('aria-checked="false"');
+    expect(row(html, "More contrast")).toContain('aria-checked="true"');
   });
 
   it("forgets everything learned with an undo, sends a test notification, and stops everything", async () => {

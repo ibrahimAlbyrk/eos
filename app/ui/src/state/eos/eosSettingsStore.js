@@ -14,11 +14,12 @@ const AREAS = {
   signals: { path: ROUTES.signalsSettings },
   attention: { path: ROUTES.settingsAttention },
   memory: { path: ROUTES.memorySettings },
+  surfaces: { path: ROUTES.settingsSurfaces },
 };
 
 // area → its settings, null until read. forgotten: how many notes the last
 // "Forget everything" forgot, until undone.
-const EMPTY = { routines: null, signals: null, attention: null, memory: null, forgotten: null };
+const EMPTY = { routines: null, signals: null, attention: null, memory: null, surfaces: null, forgotten: null };
 let state = EMPTY;
 const subs = new Set();
 
