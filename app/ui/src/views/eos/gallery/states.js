@@ -15,6 +15,7 @@ import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
 import drafts from "./sample/blueprint-drafts.json";
 import versionBodies from "./sample/blueprint-version-bodies.json";
+import { NEEDS_STATES } from "./needsStates.js";
 import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
 const PAPER = paper.surface.id;
@@ -160,6 +161,11 @@ const unconfirmedResume = {
 };
 const archivedPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => ["done", "cancelled", "failed"].includes(r.state)), routine: { ...d.routine, state: "archived", activeRuns: 0, lastRun: d.runs.find((r) => r.state === "done") } }));
 
+// The draft answered five minutes before the gallery opened, last of all.
+const answered = (s) => {
+  const item = s[ROUTES.inboxItem("ib-8m2n6b0v4c1x")].item;
+  return { ...empty, items: [{ ...item, state: "answered", updatedAt: Date.now() - 5 * 60 * 1000 }] };
+};
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
 // { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline",
@@ -172,11 +178,12 @@ export const GALLERY_STATES = [
   { id: "home-error", label: "Home · cannot read", location: "eos:/", answer: "error" },
   { id: "home-offline", label: "Home · reconnecting", location: "eos:/", answer: "offline" },
   { id: "needs", label: "Needs you", location: "eos:/needs" },
-  { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty }) },
+  { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty, [`${ROUTES.inbox}?state=answered`]: answered(s) }) },
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },
   { id: "need-offline", label: "Needs you · a draft, reconnecting", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}`, answer: "offline" },
   { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
   { id: "need-view-plain", label: "Needs you · a View with no facts or aside, from outside text", location: `eos:/needs/${decision.item.id}`, reads: withPlainDecision },
+  ...NEEDS_STATES,
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "link-unknown", label: "A link names no routine", location: "eos:/form?routine=release-train&item=v2.4&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },

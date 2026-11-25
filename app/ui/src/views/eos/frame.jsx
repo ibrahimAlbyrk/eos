@@ -101,3 +101,37 @@ export function AskRows({ rows }) {
     </dl>
   );
 }
+
+// A thing named by its glyph (a 16-viewBox path) in a 30 px ring lit in its
+// tone ("active", "ok", "warn", "err").
+export function Ring({ d, tone }) {
+  return (
+    <span className={tone ? `eos-ring eos-ring--${tone}` : "eos-ring"} aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 16 16"><path d={d} /></svg>
+    </span>
+  );
+}
+
+// One fact under a lead: a 13 px line after its tone's 9 px mark ("active",
+// "ok", "warn", "err", "done", or none for a hollow one), then its actions.
+export function Fact({ tone, role, className, children, actions }) {
+  const names = ["eos-fact", tone && `eos-fact--${tone}`, className].filter(Boolean).join(" ");
+  return (
+    <p className={names} role={role}>
+      {children}
+      {actions}
+    </p>
+  );
+}
+
+// A screen whose read failed, said as its lead: what could not be read, that
+// Eos did not answer, in the err tone, and Try again.
+export function FailedLead({ what, retry }) {
+  return (
+    <header className="eos-rlead eos-failed" role="alert">
+      <p className="eos-lead">Couldn&apos;t load {what}.</p>
+      <p className="eos-rlead__now eos-rlead__now--err">Eos did not answer this time.</p>
+      <div className="eos-rlead__acts"><button type="button" className="eos-btn" onClick={retry}>Try again</button></div>
+    </header>
+  );
+}

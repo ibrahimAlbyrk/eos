@@ -98,6 +98,7 @@ describe("the Needs-you list", () => {
     const html = at("eos:/needs");
     expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
     expect(html).toContain('<p class="eos-lead">Five things need you.</p>');
+    expect(html).toContain('<p class="eos-rlead__now">A draft to send, three questions and a problem.</p>');
     expect(groups(html)).toEqual(["To check and send", "Questions", "Problems", "Later"]);
     expect(titles(html)).toEqual([
       "Review of #470 Fix the login",
@@ -109,7 +110,10 @@ describe("the Needs-you list", () => {
     const draft = row("Review of #470 Fix the login");
     expect(draft).toContain('<span class="eos-needs-row__routine">PR Review</span>');
     expect(draft).toContain('<span class="eos-needs-row__summary">Two findings, one of them blocking.</span>');
-    expect(draft).toContain('<button type="button" class="eos-btn eos-btn--primary">Review</button><button type="button" class="eos-btn eos-btn--quiet">Later</button>');
+    expect(draft).toContain('<button type="button" class="eos-btn">Review</button><button type="button" class="eos-btn eos-btn--quiet">Later</button>');
+    expect(draft).toContain('<span class="eos-ring" aria-hidden="true">');
+    expect(row("Allow Bash?")).toContain('<span class="eos-ring eos-ring--active" aria-hidden="true">');
+    expect(row("Mail Triage is paused")).toContain('<span class="eos-ring eos-ring--warn" aria-hidden="true">');
     expect(row("Allow Bash?")).toContain(">Decide</button>");
     expect(row("Allow Bash?")).not.toContain(">Later<");
     expect(row("Mail Triage is paused")).toContain('<span class="eos-needs-row__routine">Mail Triage</span>');
@@ -170,10 +174,11 @@ describe("the Needs-you list", () => {
       [ROUTES.inbox]: { items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} }, agentsWaiting: 0 },
       [`${ROUTES.inbox}?state=answered`]: { items: [answered], counts: inbox.counts, agentsWaiting: 0 },
     });
-    expect(at("eos:/needs")).toContain('<p class="eos-empty__title">Nothing needs you.</p>');
+    expect(at("eos:/needs")).toContain('<p class="eos-first__ask">Nothing needs you.</p>');
+    expect(at("eos:/needs")).toContain('<h2 id="eos-needs-what" class="eos-label">What waits here</h2>');
     const { loadLastAnswered } = await import("../../../state/eos/inboxStore.js");
     await loadLastAnswered();
-    expect(at("eos:/needs")).toContain('<span class="eos-needs-last"> Last: Review of #470 Fix the login, 5m ago.</span>');
+    expect(at("eos:/needs")).toContain('<p class="eos-fact eos-fact--done eos-needs-last">Last answered: Review of #470 Fix the login, 5m ago.</p>');
   });
 
   it("draws many items, loading blocks, and a failed read in words", async () => {
