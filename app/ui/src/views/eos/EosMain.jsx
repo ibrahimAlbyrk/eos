@@ -8,6 +8,7 @@ import { EosHeader } from "./nav/EosHeader.jsx";
 import { NeedsItemScreen } from "./needs/NeedsItemScreen.jsx";
 import { NeedsYouList } from "./needs/NeedsYouList.jsx";
 import { RoutinePage } from "./routine/RoutinePage.jsx";
+import { RoutinesScreen } from "./routines/RoutinesScreen.jsx";
 import { RunView } from "./run/RunView.jsx";
 import { SurfaceScreen } from "./surface/SurfaceScreen.jsx";
 import { parseLocation, useEosLocation } from "./nav/eosNav.js";
@@ -50,6 +51,7 @@ export function EosMain() {
   if (location?.screen === "form") return <><HomeScreen /><FormArrival key={JSON.stringify(location)} location={location} /></>;
   if (location?.screen === "needs") return <NeedsYouList />;
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
+  if (location?.screen === "routines") return <RoutinesScreen />;
   if (location?.screen === "new-routine") return <NewRoutine />;
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
   if (location?.screen === "version") return <RoutinePage key={location.routineId} id={location.routineId} tab="blueprint" version={location.version} />;

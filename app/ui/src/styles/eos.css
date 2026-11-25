@@ -360,3 +360,56 @@
     --line: #333;
   }
 }
+
+/* ── All routines ─────────────────────────────────────────────────────────── */
+.eos-routines { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; container-type: inline-size; }
+.eos-routines > .eos-note, .eos-routines > .eos-skeleton { align-self: stretch; }
+.eos-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-mute); }
+.eos-dot--ok { background: var(--ok); }
+.eos-dot--active { background: var(--accent); }
+.eos-dot--warn { background: var(--warn); }
+.eos-dot--err { background: var(--err); }
+/* Wide tables scroll inside their card, never the page. */
+.eos-rtable-wrap { align-self: stretch; padding: 6px 8px; overflow-x: auto; }
+.eos-rtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); color: var(--fg-mid); white-space: nowrap; }
+.eos-rtable th, .eos-rtable td { padding: 11px 12px; text-align: left; font-weight: 400; vertical-align: middle; }
+.eos-rtable tbody tr + tr > * { border-top: 1px solid var(--line); }
+.eos-rtable thead th { padding-top: 8px; padding-bottom: 8px; }
+.eos-rtable__sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.eos-rtable__sort:hover, [aria-sort] > .eos-rtable__sort { color: var(--fg-mid); }
+.eos-rtable__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--fg-strong);
+  cursor: pointer;
+}
+.eos-rtable__name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.eos-rtable__line { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--fg-dim); }
+.eos-rtable__last { display: inline-flex; align-items: center; gap: 7px; }
+.eos-rtable__num { text-align: right; font-variant-numeric: tabular-nums; }
+th.eos-rtable__num .eos-rtable__sort { text-align: right; }
+.eos-rtable__none { color: var(--fg-dim2); }
+.eos-rtable__act { width: 1%; text-align: right; }
+/* Narrow: the kind, the week's cost and the freedom step aside so the Run
+   button stays in view; the routine's page has them. */
+@container (max-width: 860px) {
+  .eos-rtable__wide { display: none; }
+  .eos-rtable th, .eos-rtable td { padding-left: 9px; padding-right: 9px; }
+}
