@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from "react";
 import {
-  changeEosSetting, exportLearned, forgetAllLearned, loadEosSettings, sendTestPush, undoForgetAll, useEosSettings,
+  changeEosSetting, exportLearned, forgetAllLearned, loadEosSettings, sendTestPush, tidyMemoryNow, undoForgetAll, useEosSettings,
 } from "../state/eos/eosSettingsStore.js";
 import { ensureHaltLoaded, resumeEos, stopEos, useHalt } from "../state/eos/haltStore.js";
 import { ToggleControl } from "./controls.jsx";
@@ -125,6 +125,15 @@ function StartAtLogin({ doors }) {
   );
 }
 
+function TidyNow() {
+  const [line, setLine] = useState(null);
+  return (
+    <Row label="Tidy memory" description={line ?? "Eos tidies what it learned every night. Tidy it now instead."}>
+      <button type="button" className="m-btn" onClick={async () => setLine((await tidyMemoryNow()) ?? line)}>Tidy now</button>
+    </Row>
+  );
+}
+
 function PushTest() {
   const [line, setLine] = useState(null);
   return (
@@ -201,6 +210,7 @@ export function EosSettings() {
         <Group title="Memory">
           <Switch area="memory" settings={memory} field="learning" label="Learning" description="Eos writes down what your corrections and the work's outcomes teach it." />
           <Switch area="memory" settings={memory} field="reminders" label="Reminders" description="Agents are reminded of what Eos learned, in every chat and every run." />
+          <TidyNow />
         </Group>
       )}
       {surfaces && (
