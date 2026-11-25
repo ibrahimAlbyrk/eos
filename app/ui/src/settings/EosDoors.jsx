@@ -30,14 +30,48 @@ export function commandLine(command) {
   return `eos is on your PATH, at ${command.path}.`;
 }
 
-function Row({ label, description, children }) {
+// One setting on a hairline: its name, what it does (in its `tone` when it
+// waits on the user or just happened), then its control at the right.
+export function Row({ label, description, tone, children }) {
   return (
     <div className="stg-row">
       <div className="stg-row__text">
         <div className="stg-row__label">{label}</div>
-        {description && <div className="stg-row__desc">{description}</div>}
+        {description && <div className={tone ? `stg-row__desc eos-stg__desc--${tone}` : "stg-row__desc"}>{description}</div>}
       </div>
       {children}
+    </div>
+  );
+}
+
+// A few choices side by side (Eos's segmented choice), one checked; arrows
+// move between them as in any radio group.
+export function Choice({ label, options, value, onChange }) {
+  const at = options.findIndex((o) => o.value === value);
+  const keys = (e) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = options[(Math.max(at, 0) + step + options.length) % options.length];
+    onChange(next.value);
+    e.currentTarget.querySelectorAll("[role=radio]")[options.indexOf(next)]?.focus();
+  };
+  return (
+    <div className="eos-seg eos-stg__choice" role="radiogroup" aria-label={label} onKeyDown={keys}>
+      {options.map((o, i) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          tabIndex={i === (at < 0 ? 0 : at) ? 0 : -1}
+          title={o.line}
+          className="eos-seg__opt"
+          onClick={() => { if (o.value !== value) onChange(o.value); }}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -49,10 +83,8 @@ export function ShortcutRow({ doors }) {
   const choose = async (accelerator) => setShortcut(await doors.setShortcut(accelerator).catch(() => shortcut));
   const offered = SHORTCUTS.includes(shortcut.accelerator) ? SHORTCUTS : [shortcut.accelerator, ...SHORTCUTS];
   return (
-    <Row label="Quick input shortcut" description={shortcutLine(shortcut)}>
-      <select aria-label="Quick input shortcut" value={shortcut.accelerator} onChange={(e) => void choose(e.target.value)}>
-        {offered.map((a) => <option key={a} value={a}>{shortcutWords(a)}</option>)}
-      </select>
+    <Row label="Quick input shortcut" tone={shortcut.problem || !shortcut.held ? "warn" : undefined} description={shortcutLine(shortcut)}>
+      <Choice label="Quick input shortcut" options={offered.map((a) => ({ value: a, label: shortcutWords(a) }))} value={shortcut.accelerator} onChange={(a) => void choose(a)} />
     </Row>
   );
 }
@@ -67,8 +99,8 @@ export function AccessibilityRow({ doors }) {
   useEffect(() => { doors.accessibility?.().then(setAccess, () => {}); }, [doors]);
   if (!access?.available) return null;
   return (
-    <Row label="Read the selection" description={accessLine(access.trusted)}>
-      {!access.trusted && <button type="button" className="m-btn" onClick={() => void doors.openAccessibilitySettings().catch(() => {})}>Open Settings</button>}
+    <Row label="Read the selection" tone={access.trusted ? undefined : "warn"} description={accessLine(access.trusted)}>
+      {!access.trusted && <button type="button" className="eos-btn" onClick={() => void doors.openAccessibilitySettings().catch(() => {})}>Open Settings</button>}
     </Row>
   );
 }
@@ -79,8 +111,8 @@ export function CommandRow({ doors }) {
   if (!command?.available) return null;
   const install = async () => setCommand(await doors.installCommand().catch(() => command));
   return (
-    <Row label="The eos command" description={commandLine(command)}>
-      {!command.installed && <button type="button" className="m-btn" onClick={() => void install()}>Add to PATH</button>}
+    <Row label="The eos command" tone={command.problem ? "warn" : undefined} description={commandLine(command)}>
+      {!command.installed && <button type="button" className="eos-btn" onClick={() => void install()}>Add to PATH</button>}
     </Row>
   );
 }

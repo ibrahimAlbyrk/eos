@@ -8,6 +8,7 @@ import { holdEosNavInMemory } from "../nav/eosNav.js";
 import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
 import { RunSheet } from "../runform/RunSheet.jsx";
 import { QuickStage } from "./QuickStage.jsx";
+import { SettingsStage } from "./SettingsStage.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import { holdNetwork } from "./holdNetwork.js";
 import { samplePageUrl } from "./samplePages.js";
@@ -209,13 +210,13 @@ function pick(id) {
 // footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
-  const quick = stateOf(state).quick;
-  if (quick) {
+  const { quick, settings } = stateOf(state);
+  if (quick || settings) {
     return (
       <UiProvider>
         <div className="app eos-mode">
           <GalleryBar current={state} onPick={pick} />
-          <QuickStage quick={quick} />
+          {quick ? <QuickStage quick={quick} /> : <SettingsStage settings={settings} />}
         </div>
       </UiProvider>
     );
