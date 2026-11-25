@@ -28,7 +28,7 @@ function RunNow({ routine }) {
   const { hosted } = useRunSheet();
   if (hosted === 0 || !RUNNABLE.has(routine.state)) return null;
   return (
-    <button type="button" className="eos-btn eos-btn--primary" onClick={(e) => openRunSheet({ routineId: routine.id, anchor: e.currentTarget })}>
+    <button type="button" className="eos-btn eos-btn--ghost" onClick={(e) => openRunSheet({ routineId: routine.id, anchor: e.currentTarget })}>
       Run now
     </button>
   );
@@ -37,7 +37,7 @@ function RunNow({ routine }) {
 // Pause for an active routine, Resume for a paused or archived one.
 function PauseResume({ routine }) {
   if (routine.state === "active") {
-    return <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "paused")}>Pause</button>;
+    return <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void setRoutineState(routine.id, "paused")}>Pause</button>;
   }
   if (routine.state === "paused" || routine.state === "archived") {
     return <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>;
@@ -93,13 +93,19 @@ export function RoutinePage({ id, tab, version }) {
   const projectRun = milestones && routine?.lastRun?.kind === "project" ? routine.lastRun : null;
   return (
     <main className="eos-screen">
-      <EosHeader trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? "Routine" }]}>
-        {routine && (
+      <EosHeader
+        trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? "Routine" }]}
+        mark={routine && (
           <>
             <StatusChip routine={routine} />
             {milestones?.length > 0 && projectRun && (
               <span className="eos-chip">{stepLabel(doneCount(projectRun, milestones.length), milestones.length)}</span>
             )}
+          </>
+        )}
+      >
+        {routine && (
+          <>
             <RunNow routine={routine} />
             <PauseResume routine={routine} />
             <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }))}>Change it</button>

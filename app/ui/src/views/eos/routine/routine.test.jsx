@@ -11,6 +11,7 @@ import { UiProvider } from "../../../state/ui.jsx";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { fileName, menuActions } from "./RoutineMenu.jsx";
+import { RunRow, splitItemNumber } from "./RoutineRuns.jsx";
 import { pausedLine } from "./words.js";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
@@ -88,7 +89,7 @@ describe("the routine page", () => {
     let html = await page(`eos:/routines/${PR}`);
     expect(html).toContain('<button type="button" class="eos-crumb">Routines</button>');
     expect(html).toContain('<h1 class="eos-title">PR Review</h1>');
-    expect(html).toContain('<h1 class="eos-title">PR Review</h1><div class="eos-head__side"><span class="eos-status eos-status--active">3 waiting</span>');
+    expect(html).toContain('<h1 class="eos-title">PR Review</h1><span class="eos-status eos-status--active">3 waiting</span><div class="eos-head__side"><button type="button" class="eos-btn eos-btn--ghost">Pause</button>');
     expect(html).toContain(">Pause</button>");
     expect(html).toContain(">Change it</button>");
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false" aria-label="More for PR Review">⋯</button>');
@@ -96,7 +97,7 @@ describe("the routine page", () => {
 
     registerHost();
     html = draw();
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run now</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--ghost">Run now</button>');
   });
 
   it("says what starts the routine under its summary, and no longer that triggers wait", async () => {
@@ -154,7 +155,7 @@ describe("the routine page", () => {
     expect(now).toContain("#470 Rework shop carousel paging");
     expect(now).toContain(">Open the run</button>");
     expect(now).not.toContain("Fix the login");
-    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><p class="eos-better__base">First week, 40%</p>');
+    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__bars" role="img" aria-label="First week 40%, this week 86%">');
   });
 
   it("lists every run on the Runs tab with a filter by origin, and the blueprint's slots on the Blueprint tab", async () => {
@@ -304,5 +305,17 @@ describe("the routine page's writes", () => {
     expect(transport.send).toHaveBeenLastCalledWith("DELETE", ROUTES.routine(PR), undefined);
     expect(eosLocation()).toBe("eos:/");
     expect(rowState(PR)).toBeUndefined();
+  });
+});
+
+describe("a run's row", () => {
+  it("stands the item's number in its own column and draws its state in its tone", () => {
+    expect(splitItemNumber("#470 Fix the login")).toEqual({ number: "#470", title: "Fix the login" });
+    expect(splitItemNumber("Fix the login")).toEqual({ number: null, title: "Fix the login" });
+    expect(splitItemNumber(undefined)).toEqual({ number: null, title: "Run" });
+    const waiting = runs.find((d) => d.run.state === "waiting_for_user").run;
+    const html = renderToStaticMarkup(<RunRow run={waiting} now={waiting.createdAt} />);
+    expect(html).toContain('<span class="eos-run-row__num">#468</span><span class="eos-run-row__title">Speed up the loader</span>');
+    expect(html).toContain('<span class="eos-run-row__state eos-run-row__state--active">Waiting for you</span><span class="eos-run-row__cost">$0.41</span>');
   });
 });

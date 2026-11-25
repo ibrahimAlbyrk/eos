@@ -46,7 +46,13 @@ function GettingBetter({ stats }) {
     <section className="eos-routine__section eos-routine__better" aria-label="Getting better">
       <h2 className="eos-label">Getting better</h2>
       <p className="eos-better__share"><span className="eos-better__pct">{pct(stats.sentUnedited7d)}</span> sent without a single edit this week</p>
-      {stats.baselineFirstWeek != null && <p className="eos-better__base">First week, {pct(stats.baselineFirstWeek)}</p>}
+      {stats.baselineFirstWeek != null && (
+        <div className="eos-better__bars" role="img" aria-label={`First week ${pct(stats.baselineFirstWeek)}, this week ${pct(stats.sentUnedited7d)}`}>
+          <span className="eos-better__bar" style={{ height: pct(Math.max(stats.baselineFirstWeek, 0.04)) }} />
+          <span className="eos-better__bar eos-better__bar--now" style={{ height: pct(Math.max(stats.sentUnedited7d, 0.04)) }} />
+          <span className="eos-better__axis" aria-hidden="true"><span>first week, {pct(stats.baselineFirstWeek)}</span><span>this week</span></span>
+        </div>
+      )}
     </section>
   );
 }
