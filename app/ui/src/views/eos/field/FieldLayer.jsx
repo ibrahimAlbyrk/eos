@@ -190,7 +190,7 @@ export function FieldLayer({ routines, needs, next, caption, handled, status = n
         </div>
       )}
       <div className="eos-field__notice" aria-live="polite">
-        {status === "failed" ? <LoadFailed what="routines" retry={() => void refreshRoutines()} /> : outcome && <OutcomeLine outcome={outcome} again={() => void acts.again()} />}
+        {status === "failed" ? <LoadFailed inline what="routines" retry={() => void refreshRoutines()} /> : outcome && <OutcomeLine outcome={outcome} again={() => void acts.again()} />}
       </div>
       <p className="eos-field__legend eos-field__fx">
         {shown === "field" ? "The closer a routine sits to the centre, the sooner it needs you. Its size shows how much it does." : "Click a routine to give it something. Its arrow opens its page."}
