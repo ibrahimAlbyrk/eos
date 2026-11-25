@@ -31,6 +31,8 @@ import "./apps.css";
 // resolves to its result (a chat's App has none: tools/call is not found).
 // askEveryTime: every link and message is confirmed, with no "Always" — a
 // routine's App may show outside data, which a URL could carry away.
+// bare: the screen around the frame already names the App and says where it
+// runs, so the chrome keeps only its tools, the chip and Save as page.
 
 const svg = (children, size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
@@ -66,7 +68,7 @@ function declaredHeight(height) {
 
 export function AppFrame({
   viewId, title, html, height, summary, onSend, onCall,
-  onOpenLink, onOpenPanel, live = null, project = null, mode = "inline", pending = false, askEveryTime = false,
+  onOpenLink, onOpenPanel, live = null, project = null, mode = "inline", pending = false, askEveryTime = false, bare = false,
 }) {
   const ui = useUi();
   const browserKey = useBrowserSessionKey();
@@ -311,13 +313,13 @@ export function AppFrame({
 
   const hasSource = typeof html === "string" && html.trim() !== "";
   const runnable = !pending && hasSource;
-  const className = ["gv-app", panel && "is-panel", fullscreen && "is-fullscreen", filled && "is-filled"].filter(Boolean).join(" ");
+  const className = ["gv-app", panel && "is-panel", fullscreen && "is-fullscreen", filled && "is-filled", bare && "is-bare"].filter(Boolean).join(" ");
 
   return (
     <section ref={rootRef} className={className} aria-label={title ? `App: ${title}` : "App"}>
       <header className="gv-app-head">
-        <span className="gv-app-pill">{LOCK}APP · SANDBOXED</span>
-        <span className="gv-app-title" title={title}>{title || "App"}</span>
+        {bare ? null : <span className="gv-app-pill">{LOCK}APP · SANDBOXED</span>}
+        {bare ? null : <span className="gv-app-title" title={title}>{title || "App"}</span>}
         <span className="gv-app-tools">
           <button type="button" className="gv-app-icon" aria-label="Reload app" title="Reload"
             disabled={!runnable} onClick={reload}>{RELOAD}</button>
@@ -357,9 +359,11 @@ export function AppFrame({
       ) : null}
 
       <footer className="gv-app-foot">
-        <span className="gv-app-note">
-          {always ? "Runs in an isolated sandbox · no network" : "Runs in an isolated sandbox · no network · sends nothing without your OK"}
-        </span>
+        {bare ? null : (
+          <span className="gv-app-note">
+            {always ? "Runs in an isolated sandbox · no network" : "Runs in an isolated sandbox · no network · sends nothing without your OK"}
+          </span>
+        )}
         {always ? (
           <button type="button" className="gv-app-trust" onClick={askAgain} title="Messages and links from this app go through without asking">
             Sends without asking · Ask again
