@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { notify } from "../../../lib/notify.js";
-import { loadIssue, loadPage, loadVersion, pickIssue, reshape, sendFeedback, usePages } from "../../../state/eos/pageStore.js";
+import { loadIssue, loadPage, loadVersion, pickIssue, reshape, usePages } from "../../../state/eos/pageStore.js";
 import { ensurePinsLoaded } from "../../../state/eos/pinsStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
-import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
-import { EmptyState } from "../frame.jsx";
+import { DevRunNote } from "../capabilities/parts.jsx";
+import { Fact, FailedLead } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { PageDataEditor } from "../needs/editors/PageDataEditor.jsx";
@@ -14,27 +13,10 @@ import { IssueBody } from "./IssueBody.jsx";
 import { PinButton } from "./PinButton.jsx";
 import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
-import { TellBar } from "./TellBar.jsx";
+import { PageEnding } from "./PageEnding.jsx";
+import { PageFirst, PageGone, PageLoading } from "./PageStates.jsx";
 import { AppSurface } from "./AppSurface.jsx";
-import { olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
-
-// "Good issue" and "Not today": said once per issue.
-function Verdict({ issueId }) {
-  const [said, setSaid] = useState(null);
-  useEffect(() => setSaid(null), [issueId]);
-  const say = async (verdict) => {
-    const r = await sendFeedback(issueId, verdict);
-    if (r.ok) setSaid(verdict);
-    else notify.error(r.error, { title: "Eos did not hear that" });
-  };
-  if (said) return <span className="eos-page__said" role="status">{said === "good" ? "Noted: a good issue." : "Noted: not today."}</span>;
-  return (
-    <>
-      <button type="button" className="eos-btn eos-btn--pill" onClick={() => void say("good")}>Good issue</button>
-      <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void say("not_today")}>Not today</button>
-    </>
-  );
-}
+import { olderDesignLine, todayDesignLine } from "./words.js";
 
 // eos:/surfaces/<id>?issue=<n>&mode=reshape&button=&index= — a routine's Page: the issue in
 // Eos's dark frame as a light sheet, earlier issues in the design each was
@@ -94,7 +76,12 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   }
 
   // A page reads as one sheet: the default measure, so the header's words
-  // and the sheet share their edges.
+  // and the sheet share their edges. Above the sheet only what the reader
+  // must know first (an older layout, a layout that no longer fits); under
+  // it, on a hairline, what to do with this issue and with the layout.
+  const shown = row ? issues[row.id] : null;
+  const designed = surface?.currentVersion != null;
+  const toReshape = () => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq, mode: "reshape" }));
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
@@ -103,25 +90,17 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
         )}
         {!reshaping && surface && (
           <>
-            <EarlierIssues page={page} row={row} />
-            <PinButton surface={surface} />
-            {surface.currentVersion != null && (
-              <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq, mode: "reshape" }))}>
-                Change the page
-              </button>
-            )}
-            {row?.kind === "page" && issues[row.id]?.body?.data && (
-              <button type="button" className="eos-btn eos-btn--quiet" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>Edit</button>
-            )}
             {row?.kind === "page" && <ShareMenu surface={surface} row={row} />}
+            <PinButton surface={surface} />
+            {designed && !surface.needsRedesign && <button type="button" className="eos-btn" onClick={toReshape}>Change the page</button>}
           </>
         )}
       </EosHeader>
       <div className="eos-body eos-page">
         {devRun && <DevRunNote />}
-        {page?.failed === "gone" && <p className="eos-note">This page is no longer here.</p>}
-        {page?.failed === "error" && <LoadFailed what="this page" retry={() => void loadPage(surfaceId)} />}
-        {!page && <Loading blocks={4} />}
+        {page?.failed === "gone" && <PageGone />}
+        {page?.failed === "error" && <FailedLead what="this page" retry={() => void loadPage(surfaceId)} />}
+        {!page && <PageLoading />}
         {surface && reshaping && (
           <div className="eos-page__column eos-reshape">
             <ReshapeMode surface={surface} row={row} />
@@ -130,51 +109,52 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
         {surface && !reshaping && (
           <div className="eos-page__column">
             {surface.needsRedesign && (
-              <div className="eos-band eos-band--warn" role="status">
-                <span className="eos-band__text">Its last issues did not fit the layout, so they came as plain cards. The page needs a new design.</span>
-                <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, mode: "reshape" }))}>Change the page</button>
-              </div>
+              <Fact tone="warn" role="status" className="eos-page__fact" actions={<button type="button" className="eos-btn" onClick={toReshape}>Change the page</button>}>
+                <span>Its last issues did not fit the layout, so they came as plain cards. The page needs a new design.</span>
+              </Fact>
             )}
             {older && (
-              <div className="eos-page__older" role="status">
+              <Fact role="status" className="eos-page__fact" actions={shown?.fitsCurrent === true && (
+                <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setTodayDesign((t) => !t)}>
+                  {todayDesign ? "Show in its own design" : "Show in today's design"}
+                </button>
+              )}>
                 <span>{todayDesign ? todayDesignLine(row, surface.currentVersion) : olderDesignLine(row)}</span>
-                {issues[row.id]?.fitsCurrent === true && (
-                  <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setTodayDesign((t) => !t)}>
-                    {todayDesign ? "Show in its own design" : "Show in today's design"}
-                  </button>
-                )}
-              </div>
+              </Fact>
             )}
-            {!row && page.issues && (
-              <EmptyState title="No issue yet">
-                The first one comes with the routine&apos;s next run.
-                {surface.currentVersion != null && " Its design is ready: say below what to change before it prints."}
-              </EmptyState>
-            )}
+            {!row && page.issues && <PageFirst maker={maker} />}
             {row && (
               <IssueBody
                 key={row.id}
                 linked={linked}
                 surface={surface}
                 row={row}
-                shown={issues[row.id]}
+                shown={shown}
                 maker={maker}
                 version={todayDesign ? surface.currentVersion : undefined}
+                tools={<EarlierIssues page={page} row={row} />}
               />
             )}
-            {editing && issues[row.id]?.issue && (
-              <section className="eos-card eos-page__edit" aria-label="Edit this issue">
-                <PageDataEditor key={row.id} surfaceId={surfaceId} issue={issues[row.id].issue} data={issues[row.id].body.data} />
+            {(row || designed) && (
+              <PageEnding
+                row={row}
+                verdict={row && !row.trial && row.status === "ready"}
+                edit={row?.kind === "page" && shown?.body?.data ? { on: editing, toggle: () => setEditing((e) => !e) } : null}
+                version={surface.currentVersion}
+                note={current?.meta?.note}
+                onTell={designed ? tell : null}
+                first={!row}
+              />
+            )}
+            {editing && shown?.issue && (
+              <section className="eos-page__edit" aria-labelledby="eos-page-words">
+                <div className="eos-section__head">
+                  <h2 id="eos-page-words" className="eos-label">Its words</h2>
+                  <span className="eos-section__aside">Kept as you leave a field</span>
+                </div>
+                <PageDataEditor key={row.id} surfaceId={surfaceId} issue={shown.issue} data={shown.body.data} />
               </section>
             )}
-            {current?.meta?.note && <p className="eos-page__design-note"><span className="eos-label">Design note</span> {current.meta.note}</p>}
-            {surface.currentVersion != null && (
-              <div className="eos-page__below">
-                <TellBar label="Tell Eos what to change about this page" onSend={tell} />
-                {row && !row.trial && row.status === "ready" && <Verdict issueId={row.id} />}
-              </div>
-            )}
-            {surface.currentVersion != null && <p className="eos-page__note">{PAGE_NOTE}</p>}
           </div>
         )}
       </div>

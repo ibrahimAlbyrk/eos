@@ -89,7 +89,10 @@ describe("the page screen", () => {
     expect(html).toContain('aria-pressed="true">Pinned to Home</button>');
     expect(html).toContain(">Change the page</button>");
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Share</button>');
-    expect(html).toContain(">Earlier issues</button>");
+    expect(html).toContain('aria-label="The issue before"');
+    expect(html).toContain('aria-label="The issue after" disabled=""');
+    expect(html).toContain("Was it a good one?");
+    expect(html).toContain(">Edit its words</button>");
     expect(html).toContain('aria-label="Tell Eos what to change about this page"');
     expect(html).toContain(">Good issue</button>");
     expect(html).toContain("A lead story with a desk column, then three sections.");
@@ -225,7 +228,8 @@ describe("reshape mode", () => {
     setEosTransport(fixtureTransport(withCandidate));
     await loadVersion(SF, 3);
     const html = await screen(`eos:/surfaces/${SF}?mode=reshape`, fixtureTransport(withCandidate));
-    expect(html).toContain("Version 3. Live ops is gone; Tools has the room.");
+    expect(html).toContain("Version 3 is ready.");
+    expect(html).toContain("Live ops is gone; Tools has the room.");
     expect(html).toContain('role="radiogroup" aria-label="Compare versions"');
     expect(html).toContain(">Keep version 3</button>");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Go back to 2</button>');
@@ -258,7 +262,7 @@ describe("reshape mode", () => {
   it("names a part in words, keeps the popover inside the page, and lists what failed once", () => {
     expect(partName("live-ops")).toBe("Live ops");
     expect(popoverPlace({ x: 900, y: 100, width: 80, height: 40 }, 1000, 2000)).toEqual({ left: 672, top: 148 });
-    expect(popoverPlace({ x: 10, y: 1900, width: 80, height: 60 }, 1000, 2000)).toEqual({ left: 10, top: 1742 });
+    expect(popoverPlace({ x: 10, y: 1900, width: 80, height: 60 }, 1000, 2000)).toEqual({ left: 10, top: 1692 });
     const finding = { check: "readable", part: "lead", detail: "text under 12 px" };
     const checks = { probe: [{ widths: [{ findings: [finding] }, { findings: [finding] }] }] };
     expect(failedFindings(checks)).toEqual(["lead: text under 12 px"]);

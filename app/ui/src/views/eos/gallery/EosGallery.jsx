@@ -10,6 +10,8 @@ import { RunSheet } from "../runform/RunSheet.jsx";
 import { QuickStage } from "./QuickStage.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import { holdNetwork } from "./holdNetwork.js";
+import { samplePageUrl } from "./samplePages.js";
+import { api } from "../../../api/client.js";
 import { AboutYouSlot } from "../memory/aboutYouSlot.js";
 import { AboutYouTab } from "../memory/AboutYou.jsx";
 import { aboutYouReads } from "./sample/about-you.js";
@@ -251,6 +253,7 @@ export function startEosGallery(rootEl) {
   const state = stateOf(storedState());
   const held = aboutYouReads(Date.now());
   holdNetwork(globalThis, state.held ? state.held(held) : held);
+  api.surfacePageUrl = samplePageUrl;
   setEosTransport(galleryTransport(state));
   holdEosNavInMemory(state.location);
   holdHomeInMemory();

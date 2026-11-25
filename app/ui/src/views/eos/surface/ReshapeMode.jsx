@@ -95,14 +95,20 @@ export function ReshapeMode({ surface, row }) {
           )}
         </div>
       ) : (
-        <p className="eos-note">The page has no issue to draw yet. Say what to change below; the next issue follows it.</p>
+        <div className="eos-page-ghost">
+          <span className="eos-page-ghost__mast" aria-hidden="true" />
+          <span className="eos-page-ghost__word">No issue to point at yet. Say below what to change; the next issue follows it.</span>
+          <span className="eos-page-ghost__cols" aria-hidden="true"><span /><span /><span /></span>
+        </div>
       )}
-      <TellBar label="Or say what to change about the whole page" onSend={async (text) => {
-        const r = await reshape(id, { baseVersion: base, instruction: text });
-        if (!r.ok) return r;
-        setPointed(null);
-        return r;
-      }} />
+      <div className="eos-reshape__tell">
+        <TellBar label="Or say what to change about the whole page" onSend={async (text) => {
+          const r = await reshape(id, { baseVersion: base, instruction: text });
+          if (!r.ok) return r;
+          setPointed(null);
+          return r;
+        }} />
+      </div>
     </>
   );
 }

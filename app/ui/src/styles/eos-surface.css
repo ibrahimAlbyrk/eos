@@ -4,44 +4,121 @@
    tokens; inside the frame the page keeps its own. */
 
 /* ── The page screen ──────────────────────────────────────────────────────── */
-.eos-page { align-items: center; padding-top: 28px; }
-.eos-page__column { width: 100%; display: flex; flex-direction: column; gap: 16px; }
+/* The sheet is the screen's one object. Above it a quiet strip (who made it,
+   which issue, the way to the ones before and after); under it, on a
+   hairline, what to do with this issue and with the layout. The frame's
+   document pads its sheet by 32 px on a ground the colour of Eos's own, so
+   the frame runs 32 px into the gutter and the sheet keeps the measure's
+   edges. */
+/* A page's sheet is at most 1000 px (the frame's 1064 less its padding), so
+   the page screen's measure is the sheet's. */
+.eos-screen:has(> .eos-page) { --eos-measure: 1000px; }
+.eos-page { align-items: center; }
+.eos-page > .eos-skeleton, .eos-page > .eos-rlead { align-self: stretch; }
+.eos-page__column { width: 100%; display: flex; flex-direction: column; gap: 20px; container-type: inline-size; }
 .eos-head .eos-btn--quiet:hover, .eos-page .eos-btn--quiet:hover { background: var(--chip); }
 .eos-head .eos-btn--quiet[aria-pressed="true"] { color: var(--fg-strong); }
-.eos-btn--pill { height: 36px; }
 
 .eos-frame--page { background: none; box-shadow: none; margin: 0; }
-.eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 12px; font-size: var(--text-sm); }
+.eos-frame--page .eos-frame__strip { position: relative; z-index: 1; align-items: center; min-height: 30px; border: 0; padding: 0 0 4px; font-size: var(--text-sm); }
+.eos-frame--page .eos-frame__maker { color: var(--fg-dim); }
 .eos-frame__detail { color: var(--fg-dim2); }
-.eos-frame--page .eos-frame__content { padding: 0; border-radius: 0; background: none; }
-.eos-frame--page .eos-frame__eos { border: 0; padding: 12px 2px 0; }
+.eos-frame--page .eos-frame__content { margin: -16px -32px 0; padding: 0; border-radius: 0; background: none; }
+.eos-frame--page .eos-frame__eos { border: 0; padding: 4px 0 0; }
 .eos-page-frame {
   display: block;
   width: 100%;
   border: 0;
-  border-radius: 6px;
-  background: #eceae4; /* the sheet's own paper while it loads */
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  background: none;
+  color-scheme: dark;
 }
-.eos-page-frame.is-pointing { box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--accent); }
 
-.eos-page__older {
-  display: flex;
-  flex-wrap: wrap;
+/* Which issue: the line opens the menu of issues, the arrows step. */
+.eos-issues { display: inline-flex; align-items: center; gap: 2px; margin-right: -7px; }
+.eos-issues__line { font-size: var(--text-sm); color: var(--fg-dim2); }
+.eos-issues__pick {
+  display: inline-flex;
   align-items: center;
-  gap: 8px 12px;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
   font-size: var(--text-sm);
-  color: var(--fg-dim);
+  color: var(--fg-mid);
+  cursor: pointer;
+  transition: background-color calc(140ms * var(--k, 1)) var(--ease), color calc(140ms * var(--k, 1)) var(--ease);
 }
-.eos-page__design-note { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-page__design-note .eos-label { margin-right: 8px; }
-.eos-page__below { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
-.eos-page__below .eos-tell { flex: 1 1 360px; min-width: 0; }
-.eos-page__said { font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-page__note { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-page__issues { max-height: 320px; overflow-y: auto; }
+.eos-issues__pick svg, .eos-issues__step svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.eos-issues__pick svg { color: var(--fg-dim2); }
+.eos-issues__pick:hover, .eos-issues__pick[aria-expanded="true"] { background: var(--raised); color: var(--fg-strong); }
+.eos-issues__step { width: 28px; height: 28px; }
+.eos-issues__step:disabled { opacity: 0.4; }
+.eos-page__issues { min-width: 220px; max-height: 320px; overflow-y: auto; }
 .eos-menu__item[aria-current="true"] { color: var(--fg-strong); background: var(--chip); }
 .eos-menu__item--more { color: var(--fg-dim); }
+
+/* What the reader must know before the sheet: a fact with its mark. */
+.eos-page__fact { padding-bottom: 4px; }
+.eos-page__fact > span { max-width: 62ch; }
+
+/* Under the sheet: this issue, then the layout, each a label on a hairline;
+   side by side where there is room, the layout taking the wider part. */
+.eos-page-end {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.75fr);
+  gap: 32px 56px;
+  margin-top: 28px;
+}
+.eos-page-end--layout { grid-template-columns: minmax(0, 1fr); max-width: 680px; }
+.eos-page-end__part { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.eos-page-end__part > * { max-width: 100%; }
+.eos-page-end__part > .eos-tell { align-self: stretch; margin-top: 4px; }
+.eos-page-end__label { align-self: stretch; display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.eos-page-end__ver { color: var(--fg-dim2); letter-spacing: 0.06em; text-transform: none; }
+.eos-page-end__ask { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
+.eos-page-end__note { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--fg); text-wrap: pretty; }
+.eos-page-end .eos-actions { align-items: center; }
+.eos-page-end .eos-btn { height: 32px; padding: 0 16px; }
+.eos-page__note { margin: 0; max-width: 62ch; font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
+@container (max-width: 720px) {
+  .eos-page-end { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A page's words to fix: a label with when changes keep, then the fields. */
+.eos-page__edit { display: flex; flex-direction: column; gap: 20px; padding-top: 28px; }
+.eos-page__edit > .eos-section__head { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+
+/* No issue yet: a first step, then the sheet as a ghost in hairlines. */
+.eos-page-first { padding-top: 24px; }
+.eos-page-first__title { margin: 0; font-size: 32px; font-weight: 400; line-height: 1.25; letter-spacing: -0.02em; color: var(--fg-strong); }
+.eos-page-first > .eos-rlead__now { margin-top: -12px; }
+.eos-page-ghost {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-height: 360px;
+  margin-top: 12px;
+  padding: 36px 44px 44px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px dashed var(--fg-faint);
+}
+.eos-page-ghost__mast { height: 44px; border-top: 2px solid var(--line); border-bottom: 1px solid var(--line); }
+.eos-page-ghost__word { align-self: center; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; color: var(--fg-dim2); max-width: 48ch; line-height: 1.6; }
+.eos-page-ghost__cols { flex: 1; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 28px; }
+.eos-page-ghost__cols > span { border-top: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0 22px, color-mix(in srgb, var(--line) 70%, transparent) 22px 23px); }
+
+/* The sheet as it is read. */
+.eos-page-loading { gap: 0; }
+.eos-page-loading .eos-skeleton__label { width: 180px; margin: 11px 0 24px; }
+.eos-page-loading__sheet { height: 620px; border-radius: 6px; background: var(--raised); }
+
+.eos-page-gone { padding-top: 24px; }
+.eos-page-gone > .eos-rlead__now { margin-top: -12px; }
 
 /* The line to tell Eos what to change: Home's input in small. */
 .eos-tell { display: flex; flex-direction: column; gap: 6px; }
@@ -101,32 +178,28 @@
 .eos-page-link__line { font-size: var(--text-sm); color: var(--fg-dim); }
 
 /* ── Reshape mode ─────────────────────────────────────────────────────────── */
-.eos-reshape__bar {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  min-height: 36px;
-  font-size: var(--text-sm);
-  color: var(--fg);
+/* Leads as an object's page: what to do now, or where the change stands,
+   then the way a change goes as stations; the sheet in point mode; the
+   whole-page line stays in view at the foot. */
+.eos-reshape { gap: 28px; }
+.eos-reshape__lead { padding-top: 8px; }
+.eos-reshape__lead > .eos-rlead__now { margin-top: -12px; font-size: 17px; line-height: 1.5; letter-spacing: 0; font-weight: 400; color: var(--fg-dim); }
+.eos-reshape__lead > .eos-rlead__now--err { color: var(--fg-dim); }
+.eos-reshape__lead .eos-rlead__now--err::before { top: 0.55em; }
+.eos-reshape__lead .eos-beat { margin-top: 18px; }
+.eos-reshape__lead .eos-seg { margin-left: 8px; }
+.eos-reshape__findings { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); max-width: 640px; }
+.eos-reshape__findings li { display: flex; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); color: var(--fg); }
+.eos-reshape__findings li::before { content: ""; flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--err); transform: translateY(1px); }
+.eos-reshape__page { position: relative; margin: -16px -32px 0; }
+.eos-reshape__tell {
+  position: sticky;
+  bottom: -56px;
+  z-index: 4;
+  margin: -8px 0 -56px;
+  padding: 32px 0 56px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 32px);
 }
-.eos-reshape__hint { color: var(--fg-dim); }
-.eos-reshape__bar--kept { color: var(--ok); }
-.eos-reshape__text { min-width: 0; }
-.eos-reshape__gap { flex: 1; }
-.eos-reshape__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: eos-pulse 1.6s ease-in-out infinite;
-}
-@keyframes eos-pulse { 50% { opacity: 0.35; } }
-@media (prefers-reduced-motion: reduce) { .eos-reshape__dot { animation: none; } }
-.eos-reshape__bar--failed { box-shadow: inset 2px 0 0 var(--err); padding-left: 12px; }
-.eos-reshape__findings { flex-basis: 100%; margin: 0; padding-left: 18px; color: var(--fg-dim); }
-.eos-reshape__page { position: relative; }
 
 .eos-point {
   position: absolute;
@@ -137,21 +210,27 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 16px 16px 14px;
   border-radius: 14px;
   background: var(--raised);
   box-shadow: var(--sh-modal);
+  --line: var(--chip);
+  animation: eos-ask-in calc(200ms * var(--k, 1)) var(--ease) both;
 }
-.eos-point__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .eos-point { animation: eos-ask-shade 120ms linear both; } }
+.eos-point__label { margin: 0; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.eos-point__name { margin: -4px 0 2px; font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
 .eos-point__say {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 4px 4px 12px;
-  border-radius: 18px;
-  background: var(--panel);
+  border-radius: 10px;
+  background: var(--bg);
   box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow calc(140ms * var(--k, 1)) var(--ease);
 }
+.eos-point__say:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
 .eos-point__input {
   flex: 1;
   min-width: 0;
@@ -163,18 +242,23 @@
   font-size: var(--text-sm);
   color: var(--fg);
 }
+.eos-mode .eos-point__input:focus-visible { outline: 0; }
 .eos-point__input::placeholder { color: var(--fg-dim2); }
 .eos-point__send { width: 28px; height: 28px; }
-.eos-point__picks { display: flex; flex-wrap: wrap; gap: 6px; }
-.eos-point__picks .eos-btn { height: 28px; padding: 0 11px; }
+.eos-point__picks { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); }
+.eos-point__picks + .eos-point__picks { padding-top: 6px; border-top: 0; margin-top: -6px; }
+.eos-point__kind { width: 52px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-point__pick { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; }
+.eos-point__pick:hover:not(:disabled) { background: var(--chip); color: var(--fg-strong); }
+.eos-point__pick:disabled { opacity: 0.45; cursor: default; }
+.eos-point__pick--remove { margin-left: auto; color: var(--err); }
+.eos-point__pick--remove:hover:not(:disabled) { color: var(--err); }
 
 /* ── Editing a page issue's marked fields ─────────────────────────────────── */
 /* Under the page, on the page's ground: a label and a hairline, each field a
    mono label over a well, a list's rows on hairlines with their moves quiet
    at the right. */
 .eos-page-edit { display: flex; flex-direction: column; gap: 22px; }
-.eos-page__edit { display: flex; flex-direction: column; gap: 20px; padding-top: 36px; }
-.eos-page__edit > .eos-section__head { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .eos-page-edit .eos-edit__field { gap: 10px; }
 .eos-page-edit .eos-edit__label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
 .eos-page-edit .eos-edit__line, .eos-page-edit .eos-edit__text {
