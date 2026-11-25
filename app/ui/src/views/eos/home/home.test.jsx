@@ -60,7 +60,7 @@ describe("Eos › Home", () => {
   it("typical: the day's arc, the greeting with its counts, chips, three cards, the away list and the learned line", async () => {
     await loaded(fixtureTransport(reads()));
     const html = draw();
-    expect(html).toContain('role="img" aria-label="Today so far: six runs, two of them waiting for you. Two more are scheduled."');
+    expect(html).toContain('role="img" aria-label="Today so far: six runs, two of them waiting for you. One more is scheduled."');
     expect(html).toContain('<h1 class="eos-greeting">Good morning, Ada.<br/><span class="eos-greeting__dim">Eos handled 31 things overnight.</span> <span class="eos-greeting__need">Five need you.</span></h1>');
     expect(html).toContain("Review my pull requests");
     expect(html.match(/<article class="eos-home-card">/g)).toHaveLength(3);
