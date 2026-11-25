@@ -1,7 +1,7 @@
 //! Picking runs up again after Eos stopped (01 §4.6, G4, G39), after the
 //! sessions' boot reconcile and once the run sessions' launches are read
 //! again. A queued run waits, unless its time is more than a day past
-//! (`skipped: too_late`). A running run is picked up once: its lead is
+//! (`skipped: too_late`, with one notice). A running run is picked up once: its lead is
 //! told Eos restarted (its session comes back on the message); the second
 //! time the run fails as `interrupted`. A checking run's lead is held again
 //! and its check starts over with a new checker. Waiting, delivering and
@@ -12,14 +12,19 @@
 use std::sync::Arc;
 
 use eos_core::Error;
-use eos_core::store::{RunMove, StoredRun, Tx};
+use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
+use eos_domain::inbox::ItemKind;
 use eos_domain::routine::run::{Reason, RunState, Station};
+use eos_inbox::{NewItem, Opening, notice_in};
 use serde_json::json;
 
+use super::control::Control;
 use super::{Engine, brief, budget, check, fail, move_run, note};
 
 /// A queued run more than this late is skipped.
 const TOO_LATE_MS: i64 = 24 * 60 * 60 * 1000;
+/// The subject of the notice that runs were skipped as too late.
+const TOO_LATE: &str = "too_late";
 pub(crate) const INTERRUPTED: &str = "interrupted";
 pub(crate) const RESUMED: &str = "resumed";
 const RESTARTED: &str = "Eos restarted while this run was working. Carry on where you left off, then call \
@@ -41,7 +46,8 @@ pub(crate) async fn recover(engine: &Arc<Engine>) -> Result<(), Error> {
         return Ok(());
     }
     let now = engine.clock.now_ms();
-    let picks = engine.store.write(move |tx, out| recount_and_pick(tx, out, now)).await?;
+    let at = engine.clone();
+    let picks = engine.store.write(move |tx, out| recount_and_pick(tx, out, &at, now)).await?;
     for (run, pick) in picks {
         let id = run.id.as_str();
         tracing::info!(run_id = id, state = run.state.as_str(), "a run was found working after a restart");
@@ -68,12 +74,22 @@ pub(crate) async fn recover(engine: &Arc<Engine>) -> Result<(), Error> {
 
 /// One write: late queued runs skipped, every working run's spend recounted,
 /// each interruption put on its timeline, and what to do with each run.
-fn recount_and_pick(tx: &dyn Tx, out: &mut eos_core::store::Outbox, now: i64) -> Result<Vec<(StoredRun, Pick)>, Error> {
+fn recount_and_pick(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    engine: &Arc<Engine>,
+    now: i64,
+) -> Result<Vec<(StoredRun, Pick)>, Error> {
+    let mut late = 0;
     for run in tx.runs().queued()? {
         if run.not_before.is_some_and(|at| now - at > TOO_LATE_MS) {
-            let late = RunMove { state: RunState::Skipped, station: None, reason: Some(Reason::TooLate), at: now };
-            move_run(tx, out, &run, late)?;
+            let skip = RunMove { state: RunState::Skipped, station: None, reason: Some(Reason::TooLate), at: now };
+            move_run(tx, out, &run, skip)?;
+            late += 1;
         }
+    }
+    if late > 0 {
+        too_late_notice_in(tx, out, engine, late, now)?;
     }
     let mut picks = Vec::new();
     for run in tx.runs().at_work()? {
@@ -99,4 +115,27 @@ fn recount_and_pick(tx: &dyn Tx, out: &mut eos_core::store::Outbox, now: i64) ->
         picks.push((run, pick));
     }
     Ok(picks)
+}
+
+/// One notice for the runs a launch skipped as more than a day late.
+fn too_late_notice_in(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, late: usize, now: i64) -> Result<(), Error> {
+    let control = Control(engine.clone());
+    let at = Opening { now, ids: engine.ids.as_ref(), zone: engine.zone.as_ref(), control: &control };
+    let title = match late {
+        1 => "A run set for later was skipped".to_owned(),
+        n => format!("{n} runs set for later were skipped"),
+    };
+    let item = NewItem {
+        kind: ItemKind::Notice,
+        producer: "routines".into(),
+        routine_id: None,
+        run_id: None,
+        subject_key: Some(TOO_LATE.into()),
+        title,
+        summary: "Eos was closed for more than a day after they were due.".into(),
+        payload: json!({}),
+        by_hand: false,
+    };
+    tracing::info!(runs = late, "queued runs were skipped as too late");
+    notice_in(tx, out, &at, item).map(drop)
 }
