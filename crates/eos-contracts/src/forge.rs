@@ -283,6 +283,19 @@ pub struct CapabilityProposal {
     /// The published package it runs, when it is code from elsewhere.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<ProposedSource>,
+    /// The installed version it would replace: only a repair of that
+    /// capability proposes one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replaces: Option<ProposedUpdate>,
+}
+
+/// The installed version a proposal replaces, and what the new one may do
+/// that it could not, in plain words.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposedUpdate {
+    pub version: String,
+    pub widens: Vec<String>,
 }
 
 /// The published package a proposed capability runs, as Eos checked it.

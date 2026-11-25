@@ -7,12 +7,13 @@
 
 use eos_contracts::{
     CapabilityProposal, ForgeBuild, ForgeOption, ForgeReview, LiveTest, ProposedAction, ProposedField, ProposedReach,
-    ProposedRoutine, ProposedSource, ProposedTests,
+    ProposedRoutine, ProposedSource, ProposedTests, ProposedUpdate,
 };
 use eos_core::Error;
 use eos_core::forge::ForgeStage;
 use eos_core::routine::{StepResult, SubmittedResult, SystemStepCall};
 use eos_core::store::StoredCapabilityVersion;
+use eos_domain::capability::manifest::Manifest;
 use eos_domain::inbox::ItemKind;
 use eos_inbox::{NewItem, Opening, open_in};
 use serde::{Deserialize, Serialize};
@@ -86,8 +87,7 @@ pub(crate) async fn step(steps: &ForgeSteps, call: &SystemStepCall) -> Result<St
     }
     let waiting = call.input.options.get("routine").and_then(Value::as_str).map(str::to_owned);
     let proposal = proposal_of(run_id, &built, &tested, reviewed.review, way);
-    let manifest_json = serde_json::to_string(&built.manifest).map_err(Error::storage)?;
-    match open(steps, call, proposal, waiting, manifest_json).await? {
+    match open(steps, call, proposal, waiting, built.manifest.clone()).await? {
         Ok(item_id) => Ok(StepResult::Done(SubmittedResult {
             kind: "nothing".into(),
             headline: format!("{} {} waits for your answer in Needs you", built.manifest.name, built.manifest.version),
@@ -184,7 +184,70 @@ fn proposal_of(
         routines: Vec::new(),
         limits,
         source,
+        replaces: None,
     }
+}
+
+/// What `new` may do that the installed `old` could not: each host, app,
+/// file, secret and action it adds, and each action that counts for more.
+fn widens(old: &Manifest, new: &Manifest) -> Vec<String> {
+    let mut lines = Vec::new();
+    let added = |was: &[String], now: &[String]| -> Vec<String> {
+        now.iter().filter(|item| !was.contains(item)).cloned().collect()
+    };
+    for (what, was, now) in [
+        ("Reaches", &old.reach.hosts, &new.reach.hosts),
+        ("Sends Apple Events to", &old.reach.apple_events, &new.reach.apple_events),
+        ("Reads", &old.reach.files_read, &new.reach.files_read),
+    ] {
+        lines.extend(added(was, now).into_iter().map(|item| format!("{what} {item}")));
+    }
+    let names = |m: &Manifest| m.secrets.iter().map(|s| s.name.clone()).collect::<Vec<_>>();
+    for name in added(&names(old), &names(new)) {
+        let label = new.secrets.iter().find(|s| s.name == name).map_or(name.clone(), |s| s.label.clone());
+        lines.push(format!("Needs the secret {label}"));
+    }
+    for action in &new.actions {
+        match old.actions.iter().find(|was| was.name == action.name) {
+            None => {
+                lines.push(format!("Can {} ({})", action.summary, json!(action.class).as_str().unwrap_or_default()))
+            }
+            Some(was) if was.class != action.class => lines.push(format!(
+                "{} counts as {} where it counted as {}",
+                action.summary,
+                json!(action.class).as_str().unwrap_or_default(),
+                json!(was.class).as_str().unwrap_or_default()
+            )),
+            Some(_) => {}
+        }
+    }
+    lines
+}
+
+/// Whether the package may take its id: never a built-in's, and an
+/// installed capability's only in a repair of that capability. The version
+/// it replaces, with what the new one adds; or why it may not.
+fn replaced(
+    tx: &dyn eos_core::store::Tx,
+    id: &str,
+    repair: Option<&str>,
+    new: &Manifest,
+) -> Result<Result<Option<ProposedUpdate>, String>, Error> {
+    let Some(install) = tx.capability_installs().find(id)? else { return Ok(Ok(None)) };
+    if install.origin == "builtin" {
+        return Ok(Err(format!("It names {id}, a capability built into Eos: a package takes an id of its own.")));
+    }
+    if repair != Some(id) {
+        return Ok(Err(format!("It names {id}, a capability you have already: only a repair of {id} may replace it.")));
+    }
+    let Some(version) = install.active_version else { return Ok(Ok(None)) };
+    let old =
+        tx.capability_versions().find(id, &version)?.and_then(|row| serde_json::from_str(&row.manifest_json).ok());
+    let widens = old.map_or_else(
+        || vec!["Eos could not read what the installed version may do.".to_owned()],
+        |old| widens(&old, new),
+    );
+    Ok(Ok(Some(ProposedUpdate { version, widens })))
 }
 
 /// Records the version as proposed and opens its item, in one job; the
@@ -194,8 +257,10 @@ async fn open(
     call: &SystemStepCall,
     mut proposal: CapabilityProposal,
     waiting: Option<String>,
-    manifest_json: String,
+    manifest: Manifest,
 ) -> Result<Result<String, String>, Error> {
+    let manifest_json = serde_json::to_string(&manifest).map_err(Error::storage)?;
+    let repair = call.input.options.get("capability").and_then(Value::as_str).map(str::to_owned);
     let (ids, zone, control) = (steps.ids.clone(), steps.zone.clone(), steps.control()?);
     let (run_id, routine_id, now) = (call.run_id.clone(), call.routine_id.clone(), steps.clock.now_ms());
     steps
@@ -207,6 +272,10 @@ async fn open(
                 proposal.routines.push(ProposedRoutine { id: routine.id, name: routine.name });
             }
             let (id, version) = (proposal.capability_id.clone(), proposal.version.clone());
+            match replaced(tx, &id, repair.as_deref(), &manifest)? {
+                Ok(replaces) => proposal.replaces = replaces,
+                Err(why) => return Ok(Err(why)),
+            }
             match tx.capability_versions().find(&id, &version)? {
                 None => tx.capability_versions().insert(&StoredCapabilityVersion {
                     capability_id: id.clone(),
