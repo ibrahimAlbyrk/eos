@@ -45,6 +45,10 @@ export function linkText(location) {
   return `eos://run/${location.routine}${q ? `?${q}` : ""}`;
 }
 
+// The link with a break offered before each of its settings, so a long one
+// wraps where a setting starts instead of inside a word.
+const breakable = (link) => link.split(/(?=[?&])/).map((piece, i) => <span key={i} className="eos-linkdialog__piece">{piece}</span>);
+
 const optionLabel = (routine, key) => routine.options?.find((o) => o.key === key)?.label ?? valueWord(key);
 
 const home = () => openLocation(buildLocation({ screen: "home" }));
@@ -90,7 +94,7 @@ export function LinkDialog({ location, routine }) {
         </>
       )}
     >
-      <div className="eos-linkdialog__link">{linkText(location)}</div>
+      <div className="eos-linkdialog__link">{breakable(linkText(location))}</div>
       {rows && <AskRows rows={rows} />}
       {refused && <p className="eos-ask__wrong" role="alert">{refused}</p>}
     </Dialog>

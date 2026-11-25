@@ -140,7 +140,9 @@
 /* ── A link's dialog (RunOutside: "A link wants to start a run") ──────────── */
 /* A link that asks to start a run: where it came from, the question in a
    sentence, the link as written, what it sets on hairlines, Cancel before Run. */
-.eos-linkdialog__link { margin-top: 16px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.6; color: var(--fg-mid); overflow-wrap: anywhere; }
+.eos-linkdialog__link { margin-top: 16px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.6; color: var(--fg-mid); }
+/* Each setting of the link is one piece: it wraps between settings, inside one only when it is longer than the line. */
+.eos-linkdialog__piece { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 
 /* ── A routine's run in a chat (RunLinkCard) ──────────────────────────────── */
 .run-link-card {
