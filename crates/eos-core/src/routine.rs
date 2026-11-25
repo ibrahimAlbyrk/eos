@@ -330,6 +330,12 @@ pub trait RunIntake: Send + Sync {
         after_seq: i64,
         limit: i64,
     ) -> Result<Vec<FinishedRun>, Error>;
+    /// Cancels as `moved` the queued runs triggers started for routines
+    /// another computer holds now; answers how many. A run the user started
+    /// stays: it runs where they asked.
+    fn moved_away(&self, _tx: &dyn Tx, _out: &mut Outbox, _routine_ids: &[String]) -> Result<usize, Error> {
+        Ok(0)
+    }
 }
 
 /// What starts a routine's runs, from its head version.
