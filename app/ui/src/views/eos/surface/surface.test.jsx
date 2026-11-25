@@ -9,6 +9,7 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { eosTargetLocation, openableLink, pageMessage } from "./PageRenderer.jsx";
 import { shareName } from "./ShareMenu.jsx";
+import { ReplacePin } from "./PinButton.jsx";
 import { followLiveParts } from "./useLiveParts.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { partName, popoverPlace } from "./PointPopover.jsx";
@@ -205,6 +206,21 @@ describe("pins", () => {
     expect(pinsNow().ids).toEqual(["a", "b", "c"]);
     await replacePin("b", "d");
     expect(transport.send.mock.calls.at(-1)).toEqual(["PUT", ROUTES.surfacePins, { surfaceIds: ["a", "d", "c"] }]);
+  });
+
+  it("asks which pinned page a fourth replaces, each named by its tile, Cancel first and Replace once one is picked", () => {
+    const tiles = [{ surfaceId: "a", title: "Build Watch", headline: "No failed builds", level: "page" }, { surfaceId: "b", title: "Mail Triage", headline: "Two to answer", level: "view" }];
+    const ask = (picked) => renderToStaticMarkup(<ReplacePin surface={{ id: "d", title: "Morning Paper" }} ids={["a", "b", "c"]} tiles={tiles} initial={picked} onClose={() => {}} />);
+    const html = ask(null);
+    expect(html).toContain("Which page does Morning Paper replace?");
+    expect(html).toContain("Home holds three pages, and all three are pinned.");
+    expect(html.match(/role="radio"/g)).toHaveLength(3);
+    expect(html).toContain("Build Watch</span><span class=\"eos-ask__pick-line\">No failed builds");
+    expect(html).toContain("A pinned page");
+    expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf(">Replace<"));
+    expect(html).toMatch(/disabled=""[^>]*>Replace</);
+    expect(ask("b")).toMatch(/aria-checked="true"[^>]*><span class="eos-ask__pick-mark" aria-hidden="true"><\/span><span class="eos-ask__pick-text"><span class="eos-ask__pick-name">Mail Triage/);
+    expect(ask("b")).not.toMatch(/disabled=""[^>]*>Replace</);
   });
 });
 

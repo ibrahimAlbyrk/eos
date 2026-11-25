@@ -37,4 +37,10 @@ export const CHROME_STATES = [
   { id: "pin-full", label: "Page · pinning a fourth", location: `eos:/surfaces/${PAPER}`, reads: homeFull,
     sends: async () => ({ ok: false, status: 409, body: { error: "full" } }),
     then: pressIn(".eos-head__side button", (b) => b.textContent === "Pin to Home") },
+  { id: "pin-full-picked", label: "Page · pinning a fourth, one picked", location: `eos:/surfaces/${PAPER}`, reads: homeFull,
+    sends: async () => ({ ok: false, status: 409, body: { error: "full" } }),
+    then: () => {
+      pressIn(".eos-head__side button", (b) => b.textContent === "Pin to Home")();
+      setTimeout(pressIn(".eos-ask__pick-row", (b) => b.textContent.startsWith("Mail Triage")), 300);
+    } },
 ];
