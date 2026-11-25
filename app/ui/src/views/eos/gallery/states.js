@@ -232,6 +232,16 @@ const sheeting = {
   repeat: sheetRefused({ ok: false, status: 409, body: { existingRunId: "rn-shown01" } }),
 };
 
+// What the shortcut holds when the user selected text and a link in Safari.
+const QUICK_SELECTION = {
+  source: "shortcut",
+  app: "Safari",
+  parts: [
+    { kind: "text", text: "Shader variant stripping cuts the build by a third, with the numbers below" },
+    { kind: "url", url: "https://example.com/shaders" },
+  ],
+};
+
 // The draft answered five minutes before the gallery opened, last of all.
 const answered = (s) => {
   const item = s[ROUTES.inboxItem("ib-8m2n6b0v4c1x")].item;
@@ -259,6 +269,11 @@ export const GALLERY_STATES = [
   ...NEEDS_STATES,
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "link-unknown", label: "A link names no routine", location: "eos:/form?routine=release-train&item=v2.4&from=link" },
+  { id: "quick", label: "Quick panel · opened empty", location: "eos:/", quick: {} },
+  { id: "quick-selection", label: "Quick panel · holding a selection", location: "eos:/", quick: { item: QUICK_SELECTION } },
+  { id: "quick-dock", label: "Quick panel · a file dropped on the Dock", location: "eos:/", quick: { item: { source: "dock", app: null, parts: [{ kind: "file", path: "/Users/ada/build-report-1182.txt" }] } } },
+  { id: "quick-access", label: "Quick panel · Accessibility not allowed", location: "eos:/", quick: { trusted: false } },
+  { id: "quick-offer", label: "Quick panel · Start at login offered", location: "eos:/", quick: { item: QUICK_SELECTION, offered: false } },
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routines-loading", label: "Routines · loading", location: "eos:/routines", answer: "loading" },
   { id: "routines-error", label: "Routines · cannot read", location: "eos:/routines", answer: "error" },

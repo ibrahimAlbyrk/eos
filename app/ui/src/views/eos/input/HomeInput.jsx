@@ -21,7 +21,7 @@ const editable = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT
 
 // The line under the card: a refusal of the last act, the run the routine
 // token starts, or the intent line.
-function UnderLine({ h }) {
+function UnderLine({ h, idleHint }) {
   if (h.acts.outcome) return <OutcomeLine outcome={h.acts.outcome} again={() => h.enter()} />;
   if (h.line) {
     return (
@@ -34,7 +34,7 @@ function UnderLine({ h }) {
       </div>
     );
   }
-  return <IntentLine intent={h.intent} byId={h.byId} onMenu={() => h.onChange("/")} />;
+  return <IntentLine intent={h.intent} byId={h.byId} onMenu={() => h.onChange("/")} idleHint={idleHint} />;
 }
 
 // The Home input (Main.dc.html, RunInput.dc.html, RunIntent.dc.html): the
@@ -45,7 +45,7 @@ function UnderLine({ h }) {
 // candidates; then the runs it started and the tasks done once. Entering
 // Home never focuses it (08 G10): a click or `/` does. The text survives
 // leaving Home.
-export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held, door }) {
+export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held, door, idleHint }) {
   const cardRef = useRef(null);
   const ownRef = useRef(null);
   const inputRef = givenRef ?? ownRef;
@@ -118,7 +118,7 @@ export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held,
           </div>
         )}
       </div>
-      <UnderLine h={h} />
+      <UnderLine h={h} idleHint={idleHint} />
       <CandidateList
         title={routine ? `Open ${label ?? "item"}s` : "Your routines"}
         rows={h.rows}
