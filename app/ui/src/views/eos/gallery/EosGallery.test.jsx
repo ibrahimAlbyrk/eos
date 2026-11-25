@@ -5,7 +5,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
 import { eosLocation, openLocation, _resetEosNav } from "../nav/eosNav.js";
 import routines from "./sample/routines.json";
-import { EosGallery, galleryTransport, playTransition, SLOW_K, startEosGallery } from "./EosGallery.jsx";
+import { galleryTransport, playTransition, SLOW_K, startEosGallery } from "./EosGallery.jsx";
 import { GALLERY_STATE_KEY, GALLERY_STATES, stateOf } from "./states.js";
 import { parseLocation } from "../nav/eosNav.js";
 import { _resetField, useField } from "../field/fieldStore.js";
