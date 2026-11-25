@@ -13,6 +13,9 @@ import routineDetail from "./sample/routine-detail.json";
 import routineDraft from "./sample/routine-draft.json";
 import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
+import drafts from "./sample/blueprint-drafts.json";
+import versionBodies from "./sample/blueprint-version-bodies.json";
+import { makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
 const PAPER = paper.surface.id;
 // Mail Triage's View that asks two things, arrived ten minutes before the
@@ -32,9 +35,47 @@ function withPlainDecision(s) {
   return { ...withDecision(s), [issue]: { issue: decision.issue, body: { ...body, untrusted: true } } };
 }
 
+// Docs Review, being made, at each point of its making: the architect writing
+// its first blueprint, and the blueprint ready after a trial on two items.
+const DOCS = routineDraft.routine.id;
+const DOCS_DRAFT = ROUTES.routineDraft(DOCS);
+const writingDocs = (s) => ({
+  ...s,
+  [DOCS_DRAFT]: { ...drafts[DOCS], status: "working", question: undefined, choices: [], draftVersionId: undefined, changed: [] },
+  [ROUTES.routineVersions(DOCS)]: [],
+});
+const trial = (id, itemTitle, headline) => ({
+  id, routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline, itemTitle, needsUser: false, costUsd: 0.18, workMs: 64000,
+  createdAt: Date.now() - 9 * 60 * 1000, startedAt: Date.now() - 9 * 60 * 1000, endedAt: Date.now() - 8 * 60 * 1000,
+});
+const readyDocs = (s) => ({
+  ...s,
+  [DOCS_DRAFT]: {
+    ...drafts[DOCS], status: "ready", question: undefined, choices: [],
+    trialRuns: [trial("rn-dtrial000001", "Fix broken links in the setup guide", "Two comments, one of them blocking"), trial("rn-dtrial000002", "Rename the CLI flags in the reference", "Nothing a reader is told changes")],
+  },
+});
+// A hand edit of Docs Review the rules refused, naming its Which and Goes to.
+const refusedEdit = {
+  sends: async () => ({ ok: false, status: 400, body: { error: "the blueprint does not meet its rules", issues: [
+    { path: ["which", "ask"], message: "a question needs a model to ask it", severity: "error" },
+    { path: ["goesTo", 1], message: "a channel needs its Slack sign-in", severity: "error" },
+  ] } }),
+  then: () => {
+    const body = versionBodies[DOCS][0];
+    void saveBlueprint(DOCS, body.id, body.blueprint);
+  },
+};
+// Three architects at work when a fourth routine is asked for.
+const crowded = {
+  sends: async () => ({ ok: false, status: 409, body: { error: "too many architects are at work; finish or leave one first", code: "architects_busy", drafts: [{ id: DOCS, name: "Docs Review" }] } }),
+  then: () => void makeRoutine("Tell me when the build breaks"),
+};
+
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
-// { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline" }
+// { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline",
+//   sends?: how writes answer instead of the refusal, then?: what the user did once it drew }
 export const GALLERY_STATES = [
   { id: "home", label: "Home · typical", location: "eos:/" },
   { id: "home-empty", label: "Home · nothing waiting", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.inbox]: empty, [RUNS_PATH]: { runs: [] }, [ROUTES.surfaceTiles]: { tiles: [] } }) },
@@ -49,13 +90,19 @@ export const GALLERY_STATES = [
   { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
   { id: "need-view-plain", label: "Needs you · a View with no facts or aside, from outside text", location: `eos:/needs/${decision.item.id}`, reads: withPlainDecision },
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
+  { id: "link-unknown", label: "A link names no routine", location: "eos:/form?routine=release-train&item=v2.4&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routines-empty", label: "Routines · none yet", location: "eos:/routines", reads: (s) => ({ ...s, [ROUTES.routines]: [] }) },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
   { id: "routine-making", label: "Routine · being made, the architect asking", location: `eos:/routines/${routineDraft.routine.id}?tab=blueprint` },
   { id: "routine-change", label: "Routine · a change to look at", location: `eos:/routines/${routinePaused.routine.id}?tab=blueprint` },
+  { id: "routine-writing", label: "Routine · being made, the architect writing", location: `eos:/routines/${DOCS}`, reads: writingDocs },
+  { id: "routine-ready", label: "Routine · being made, tried and ready", location: `eos:/routines/${DOCS}`, reads: readyDocs },
+  { id: "routine-refused", label: "Routine · being made, an edit refused", location: `eos:/routines/${DOCS}`, ...refusedEdit },
+  { id: "version-old", label: "Routine · an earlier version", location: `eos:/routines/${routinePaused.routine.id}/versions/1` },
   { id: "new-routine", label: "New routine", location: "eos:/routines/new" },
+  { id: "new-routine-crowded", label: "New routine · three architects at work", location: "eos:/routines/new", ...crowded },
   { id: "routine-error", label: "Routine · cannot read", location: `eos:/routines/${routineDetail.routine.id}`, answer: "error" },
   { id: "run", label: "Run", location: `eos:/runs/${runDetail.run.id}` },
   { id: "run-running", label: "Run · working", location: "eos:/runs/rn-running01" },

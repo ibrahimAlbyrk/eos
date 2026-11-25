@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadFreedom, useFreedom } from "../../../state/eos/freedomStore.js";
+import { RowLabel, rowClass } from "./SlotRow.jsx";
 
 // The Freedom row: how far a result goes without the user, as a radiogroup
 // of 03's rungs. The user may pick any rung (G30); raising a routine that
@@ -70,7 +71,9 @@ function StreakLine({ routineId }) {
 
 // `onApply` takes the new Freedom slot; without it the ladder is read-only.
 // With `routineId`, the line under it says how near the next offer is.
-export function FreedomLadder({ blueprint, onApply, changed = false, routineId }) {
+// `state` is the row's mark (SlotRow); a blueprint with no Freedom yet says
+// what it is for (`hint`) instead of a ladder.
+export function FreedomLadder({ blueprint, onApply, state = "filled", hint, routineId }) {
   const [asking, setAsking] = useState(null);
   const rung = blueprint.freedom?.rung ?? "draft";
   const pick = (value) => {
@@ -79,11 +82,21 @@ export function FreedomLadder({ blueprint, onApply, changed = false, routineId }
     if (question) setAsking({ value, question });
     else onApply(withRung(blueprint.freedom, value));
   };
+  if (blueprint.freedom === undefined && (state === "writing" || state === "empty")) {
+    return (
+      <div className={rowClass(state)}>
+        <RowLabel label="Freedom" state={state} />
+        <dd className="eos-bp-row__value">
+          <span className="eos-bp-row__hint">{state === "writing" && <span className="eos-bp-row__bar" aria-hidden="true" />}{hint}</span>
+        </dd>
+      </div>
+    );
+  }
   return (
-    <div className={changed ? "eos-bp-row eos-bp-row--changed" : "eos-bp-row"}>
-      <dt className="eos-bp-row__label">Freedom{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
+    <div className={rowClass(state === "empty" ? "filled" : state)}>
+      <RowLabel label="Freedom" state={state} />
       <dd className="eos-bp-row__value">
-        <div className="eos-seg" role="radiogroup" aria-label="How much Eos may do on its own">
+        <div className="eos-seg eos-bp-ladder" role="radiogroup" aria-label="How much Eos may do on its own">
           {RUNGS.map((r) => (
             <button
               key={r.value}

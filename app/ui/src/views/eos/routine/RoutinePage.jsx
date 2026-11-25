@@ -87,7 +87,10 @@ export function RoutinePage({ id, tab, version }) {
 
   const detail = details[id];
   const routine = detail?.routine ?? list?.find((r) => r.id === id);
-  const shown = tabOf(tab);
+  // A routine being made is its blueprint and its architect: it has no runs,
+  // signals or notes yet to show in tabs.
+  const making = routine?.state === "draft";
+  const shown = making ? "blueprint" : tabOf(tab);
   const now = Date.now();
   const milestones = milestonesOf(detail);
   // A project's run is its page (08 G27): its newest run.
@@ -109,7 +112,7 @@ export function RoutinePage({ id, tab, version }) {
           <>
             <RunNow routine={routine} />
             <PauseResume routine={routine} />
-            <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }))}>Change it</button>
+            {!making && <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }))}>Change it</button>}
             <RoutineMenu routine={routine} />
           </>
         )}
@@ -124,12 +127,15 @@ export function RoutinePage({ id, tab, version }) {
             <HolderLine routine={routine} />
             {routine.state === "paused" && <PausedBand routine={routine} refusal={unconfirmed[id]} />}
             {routine.state !== "paused" && routine.lastRun?.state === "failed" && <FailedBand run={routine.lastRun} />}
-            <div>
-              <p className="eos-routine__summary">{routine.summary}</p>
-              {routine.triggerLine && <p className="eos-routine__line">{routine.triggerLine}</p>}
-            </div>
-            <RoutineTabs routineId={id} tab={shown} />
-            <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
+            {making && <BlueprintTab detail={detail} version={version} />}
+            {!making && (
+              <div>
+                <p className="eos-routine__summary">{routine.summary}</p>
+                {routine.triggerLine && <p className="eos-routine__line">{routine.triggerLine}</p>}
+              </div>
+            )}
+            {!making && <RoutineTabs routineId={id} tab={shown} />}
+            {!making && <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
               {shown === "overview" && view && (
                 <section className="eos-routine__section" aria-label="What it made last">
                   <SurfaceCard card={view} routineName={routine.name} />
@@ -142,7 +148,7 @@ export function RoutinePage({ id, tab, version }) {
               {shown === "signals" && <SignalList routineId={id} />}
               {shown === "blueprint" && <BlueprintTab detail={detail} version={version} />}
               {shown === "learned" && <LearnedFromWork routineId={id} />}
-            </div>
+            </div>}
           </>
         )}
       </div>

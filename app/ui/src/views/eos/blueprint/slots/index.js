@@ -28,6 +28,16 @@ export const SLOTS = [
   { key: "goesTo", label: "Goes to", parts: (bp) => goesToParts(bp.goesTo, bp.makes) },
 ];
 
+// A slot that says nothing yet: not written, or written with nothing in it
+// (a result never described, a way of working with no step or check).
+export function slotIsEmpty(key, bp) {
+  const value = bp?.[key];
+  if (value === undefined || value === null) return true;
+  if (key === "makes") return !value.description;
+  if (key === "how") return !(value.steps?.length || value.checks?.length);
+  return false;
+}
+
 // The slot keys whose values differ between two blueprints.
 export function changedSlots(a, b) {
   const keys = [...SLOTS.map((s) => s.key), "freedom"];

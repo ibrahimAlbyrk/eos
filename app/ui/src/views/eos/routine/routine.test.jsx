@@ -194,7 +194,7 @@ describe("the routine page", () => {
     const blueprint = await page(`eos:/routines/${MAIL}?tab=blueprint`);
     expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Signals", "Blueprint*", "Learned"]);
     expect(blueprint).toContain('aria-label="Conversation with the architect"');
-    expect([...blueprint.matchAll(/<dt class="eos-bp-row__label">([^<]*)</g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
+    expect([...blueprint.matchAll(/<dt class="eos-bp-row__label"><span class="eos-bp-row__dot" aria-hidden="true"><\/span><span class="eos-bp-row__name">([^<]*)</g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
     expect(blueprint).not.toContain("Runs when you start it");
   });
 

@@ -153,6 +153,9 @@ export const SAMPLE_READS = {
   [ROUTES.signalsRoutines]: homeNext(Date.now()),
 };
 
+// When a state's user acts: once its screen has drawn.
+const AFTER_DRAWN_MS = 500;
+
 // How long a reconnecting state draws its samples before it reads again.
 const RECONNECT_AFTER_MS = 600;
 
@@ -226,7 +229,8 @@ export function EosGallery({ state = "home" }) {
 export function galleryTransport(state) {
   if (state.answer === "loading") return loadingTransport;
   if (state.answer === "error") return failingTransport;
-  const samples = fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
+  const read = fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
+  const samples = state.sends ? { ...read, send: state.sends } : read;
   return state.answer === "offline" ? offlineTransport(samples) : samples;
 }
 
@@ -240,5 +244,6 @@ export function startEosGallery(rootEl) {
   createRoot(rootEl).render(<EosGallery state={state.id} />);
   // Reconnecting: once the screen has drawn, Home and Needs you read again
   // and hear nothing.
+  if (state.then) setTimeout(state.then, AFTER_DRAWN_MS);
   if (state.answer === "offline") setTimeout(() => { void refreshHome(); void refreshInbox(); }, RECONNECT_AFTER_MS);
 }

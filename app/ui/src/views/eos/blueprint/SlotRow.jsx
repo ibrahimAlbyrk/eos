@@ -66,29 +66,59 @@ function grouped(parts) {
   return groups;
 }
 
+// The words a slot's state is named by beside its label; filled and empty
+// say nothing, the mark and the line say it.
+const STATE_WORD = { changed: "Changed", needs: "Needs you" };
+
+// A row's class and its label's head: the mark on the blueprint's spine, the
+// slot's name, and the word of its state. `state` is one of "empty"
+// (nothing said yet), "writing" (the architect is at work), "filled",
+// "changed" (differs from the version it is compared with) and "needs" (a
+// finding of the core's names it).
+export const rowClass = (state) => `eos-bp-row eos-bp-row--${state}`;
+
+export function RowLabel({ label, state }) {
+  return (
+    <dt className="eos-bp-row__label">
+      <span className="eos-bp-row__dot" aria-hidden="true" />
+      <span className="eos-bp-row__name">{label}</span>
+      {STATE_WORD[state] && <span className="eos-bp-row__mark">{STATE_WORD[state]}</span>}
+    </dt>
+  );
+}
+
 // A row of the blueprint card: the slot's name and its words. With `onApply`
 // each value opens its own small editor, and a value chosen there
-// becomes the slot's new value. `changed` marks a slot that differs from
-// the version it is compared with; `preview` goes under its words.
-export function SlotRow({ label, parts, onApply, changed = false, preview }) {
+// becomes the slot's new value. `preview` goes under its words. A slot
+// with nothing in it yet (`parts` null) says what it is for (`hint`)
+// instead; while the architect writes, that line waits under a bar.
+// `issues` are what the core's rules found wrong in this slot.
+export function SlotRow({ label, parts, onApply, state = "filled", preview, hint, issues = [] }) {
   const [open, setOpen] = useState(null);
-  const editable = Boolean(onApply);
-  const shown = editable ? parts : readOnly(parts);
+  const editable = Boolean(onApply) && parts !== null;
+  const shown = parts === null ? [] : editable ? parts : readOnly(parts);
   const opened = editable && parts.find((p) => typeof p === "object" && p.key === open);
   const done = (value) => {
     setOpen(null);
     if (value !== undefined) onApply(opened.apply(value));
   };
   return (
-    <div className={changed ? "eos-bp-row eos-bp-row--changed" : "eos-bp-row"}>
-      <dt className="eos-bp-row__label">{label}{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
+    <div className={rowClass(state)}>
+      <RowLabel label={label} state={state} />
       <dd className="eos-bp-row__value">
+        {parts === null && (
+          <span className="eos-bp-row__hint">
+            {state === "writing" && <span className="eos-bp-row__bar" aria-hidden="true" />}
+            {hint}
+          </span>
+        )}
         {grouped(shown).map((group, n) => {
           const drawn = group.map((p, i) => (
             <Part key={typeof p === "object" && p.key ? p.key : `${n}.${i}`} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
           ));
           return group.length > 1 ? <span key={n} className="eos-bp-keep">{drawn}</span> : drawn;
         })}
+        {issues.length > 0 && <ul className="eos-bp-row__issues">{issues.map((line) => <li key={line}>{line}</li>)}</ul>}
         {opened && <PartEditor part={opened} done={done} />}
         {preview}
       </dd>

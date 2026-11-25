@@ -3,20 +3,21 @@
    cards under it, and the version menu and comparison. Text keeps eos.css's
    contrast floor: never dimmer than --fg-dim2 on the dark grounds. */
 
-.eos-bp { container: eos-bp / inline-size; }
-.eos-bp__cols { display: flex; align-items: flex-start; gap: 28px; }
+.eos-bp { container: eos-bp / inline-size; display: flex; flex-direction: column; gap: 32px; }
+.eos-bp__lead { padding-top: 8px; }
+.eos-bp__cols { display: flex; align-items: flex-start; gap: 40px; }
 /* As tall as the card beside it, so the input sits under the conversation
    and stays in sight at the window's foot while the card scrolls. */
 .eos-bp-chat {
-  flex: 1 1 340px;
-  max-width: 400px;
+  flex: 0 1 320px;
+  min-width: 260px;
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-height: 420px;
 }
-.eos-bp__side { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.eos-bp__side { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
 
 /* ── Conversation ─────────────────────────────────────────────────────────── */
 .eos-bp-bubble {
@@ -34,40 +35,67 @@
 .eos-bp-reply strong, .eos-bp-reply b { font-weight: 600; color: var(--fg-strong); }
 .eos-bp-reply p { margin: 0 0 6px; }
 .eos-bp-reply p:last-child { margin-bottom: 0; }
-.eos-bp-checks { display: flex; flex-direction: column; gap: 7px; }
-.eos-bp-check { display: flex; align-items: center; gap: 9px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-checks { display: flex; flex-direction: column; gap: 8px; }
+.eos-bp-check { display: flex; align-items: center; gap: 10px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-bp-check svg { flex: none; color: var(--ok); }
-.eos-bp-question { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: var(--r-card); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
+/* The architect at work: a lit mark that breathes, and what it does. */
+.eos-bp-working { display: flex; align-items: center; gap: 10px; margin: 0; font-size: var(--text-sm); color: var(--fg-mid); }
+.eos-bp-working::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: eos-bp-breathe calc(1600ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite;
+}
+/* The one question: needs the user, so it is the column's one card, its
+   tone the accent's edge. */
+.eos-bp-question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
 .eos-bp-question .eos-label { margin: 0; font-size: var(--text-xs); color: var(--fg-dim); letter-spacing: 0; text-transform: none; font-family: inherit; }
-.eos-bp-question .eos-actions { margin-top: 8px; }
-.eos-bp-question__text { font-size: var(--text-base); font-weight: 600; color: var(--fg-strong); }
+.eos-bp-question .eos-actions { margin-top: 10px; }
+.eos-bp-question__text { font-size: var(--text-md); line-height: 1.45; font-weight: 500; color: var(--fg-strong); }
 .eos-bp-question__text p { margin: 0; }
-/* Names the column so its first words sit level with the card's top. */
-.eos-bp-chat__label { margin: 22px 0 -4px; }
+.eos-bp-question__text strong { font-weight: 600; }
+/* Names the column, level with the card's top. */
+.eos-bp-chat__label { margin: 0 0 4px; }
 .eos-bp-chat__hint { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--fg-dim); }
 .eos-bp-chat__fill { flex: 1; }
 .eos-bp-say { position: sticky; bottom: 16px; background: var(--pop); }
 
 /* ── Card ─────────────────────────────────────────────────────────────────── */
-.eos-bp-card { display: flex; flex-direction: column; gap: 16px; padding: 22px 26px 20px; }
-.eos-bp-card__head { display: flex; align-items: center; gap: 10px; }
-.eos-bp-card__version { font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-bp-card__title { display: flex; align-items: center; gap: 14px; }
+/* The blueprint as one object: its name at the top, then its eight slots
+   hung on one spine. Each slot's mark says its state as the run's stations
+   do: filled solid, empty hollow on a dashed line, being written lit and
+   breathing, changed lit, needing the user ringed with a halo. */
+.eos-bp-card { container: eos-bp-card / inline-size; display: flex; flex-direction: column; padding: 28px 32px 28px; border-radius: 16px; }
+.eos-bp-card__title { display: flex; align-items: flex-start; gap: 16px; padding-bottom: 20px; }
 .eos-bp-card__words { flex: 1; min-width: 0; }
+.eos-bp-card__head { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 2px; }
+.eos-bp-card__version { font-size: var(--text-sm); color: var(--fg-dim2); }
 .eos-bp-card__icon {
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: #8ab9f0;
 }
 .eos-bp-card__glyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .eos-bp-card__letter { font-size: 16px; font-weight: 600; }
-.eos-bp-card__name { margin: 0; font-size: var(--text-3xl); line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; color: var(--fg-strong); }
-.eos-bp-card__sentence { margin: 2px 0 0; font-size: var(--text-base); color: var(--fg-dim); }
+.eos-bp-card__name { margin: 0; font-size: 24px; line-height: 1.3; font-weight: 500; letter-spacing: -0.01em; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-bp-card__sentence { margin: 4px 0 0; font-size: var(--text-base); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 .eos-bp-headvalue {
   padding: 0;
   border: 0;
@@ -81,25 +109,129 @@
 .eos-bp-headvalue:hover { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 4px; }
 
 .eos-bp-rows { margin: 0; display: flex; flex-direction: column; }
-.eos-bp-row { display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 12px 0; border-top: 1px solid var(--line); }
-.eos-bp-row--changed { box-shadow: inset 2px 0 0 var(--accent); padding-left: 10px; }
+.eos-bp-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  column-gap: 16px;
+  padding: 16px 0 16px 28px;
+}
+/* The row's hairline starts after the spine, so the marks hang free. */
+.eos-bp-row::after { content: ""; position: absolute; top: 0; left: 28px; right: 0; border-top: 1px solid var(--line); }
+/* The spine: solid where the blueprint is said, dashed where it is not yet. */
+.eos-bp-row::before { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; border-left: 1px solid var(--fg-mute); }
+.eos-bp-row:first-child::before { top: 29px; }
+.eos-bp-row:last-child::before { bottom: auto; height: 29px; }
+.eos-bp-row--empty::before, .eos-bp-row--writing::before { border-left-style: dashed; border-left-color: var(--fg-faint); }
+.eos-bp-row__dot {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 25px;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--fg-dim2);
+  background: var(--fg-dim2);
+}
+.eos-bp-row--empty .eos-bp-row__dot { border-color: var(--fg-faint); background: var(--panel); }
+.eos-bp-row--writing .eos-bp-row__dot { border-color: var(--accent); background: var(--panel); animation: eos-bp-wait calc(1800ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+.eos-bp-row--changed .eos-bp-row__dot { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-bp-row--needs .eos-bp-row__dot { border: 2px solid var(--accent); background: var(--panel); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-bp-row--writing:nth-child(2) .eos-bp-row__dot { animation-delay: calc(150ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(3) .eos-bp-row__dot { animation-delay: calc(300ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(4) .eos-bp-row__dot { animation-delay: calc(450ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(5) .eos-bp-row__dot { animation-delay: calc(600ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(6) .eos-bp-row__dot { animation-delay: calc(750ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(7) .eos-bp-row__dot { animation-delay: calc(900ms * var(--k, 1)); }
+.eos-bp-row--writing:nth-child(8) .eos-bp-row__dot { animation-delay: calc(1050ms * var(--k, 1)); }
+
 .eos-bp-row__label {
-  flex: 0 0 84px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 4px;
+  align-items: flex-start;
+  gap: 2px;
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
+  line-height: 26px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg-dim2);
 }
-.eos-bp-row__mark { font-family: inherit; letter-spacing: 0; text-transform: none; color: var(--accent); }
-.eos-bp-row__value { flex: 1 1 320px; min-width: 0; margin: 0; font-size: var(--text-base); line-height: 1.9; color: var(--fg); }
-.eos-bp-row__value--empty { color: var(--fg-dim2); }
+.eos-bp-row--filled .eos-bp-row__label, .eos-bp-row--changed .eos-bp-row__label, .eos-bp-row--needs .eos-bp-row__label { color: var(--fg-dim); }
+.eos-bp-row__mark { font-family: var(--font-ui); font-size: var(--text-xs); line-height: 1.4; letter-spacing: 0; text-transform: none; color: var(--accent); }
+.eos-bp-row__value { min-width: 0; margin: 0; font-size: var(--text-base); line-height: 1.9; color: var(--fg); }
 .eos-bp-row__note { margin: 8px 0 0; color: var(--fg-dim); }
 .eos-bp-break { display: block; height: 6px; }
+/* What the core's rules found wrong in a slot, under its words. */
+.eos-bp-row__issues { margin: 6px 0 0; padding: 0; list-style: none; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-mid); }
+.eos-bp-row__issues li::first-letter { text-transform: uppercase; }
+/* What a slot is for, where it says nothing yet. */
+.eos-bp-row__hint { display: flex; flex-direction: column; gap: 6px; padding-top: 3px; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim2); }
+.eos-bp-row__bar { display: block; width: 46%; height: 10px; margin-top: 5px; border-radius: 5px; background: var(--raised); animation: eos-bp-bar calc(1800ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+.eos-bp-row:nth-child(even) .eos-bp-row__bar { width: 62%; }
+.eos-bp-row:nth-child(3n) .eos-bp-row__bar { width: 34%; }
+/* A blueprint that just arrived fills its slots one after another. */
+.eos-bp--making .eos-bp-row--filled .eos-bp-row__value { animation: eos-bp-in calc(420ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; }
+.eos-bp--making .eos-bp-row--filled:nth-child(2) .eos-bp-row__value { animation-delay: calc(40ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(3) .eos-bp-row__value { animation-delay: calc(80ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(4) .eos-bp-row__value { animation-delay: calc(120ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(5) .eos-bp-row__value { animation-delay: calc(160ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(6) .eos-bp-row__value { animation-delay: calc(200ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(7) .eos-bp-row__value { animation-delay: calc(240ms * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled:nth-child(8) .eos-bp-row__value { animation-delay: calc(280ms * var(--k, 1)); }
+
+@keyframes eos-bp-wait {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent); }
+}
+@keyframes eos-bp-bar { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes eos-bp-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+@keyframes eos-bp-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Narrow card: the slot's name over its words, the spine kept. */
+@container eos-bp-card (max-width: 520px) {
+  .eos-bp-row { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .eos-bp-card__title { flex-wrap: wrap; }
+  .eos-bp-card__head { order: 3; flex-basis: 100%; padding-left: 60px; }
+}
+
+/* Freedom as a ladder of four rungs on one line, as the stations are
+   drawn: the rungs below the chosen one solid, the chosen one lit, the
+   rungs above it dashed and hollow. */
+.eos-bp-ladder { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; max-width: 560px; padding: 0; border-radius: 0; background: none; }
+.eos-bp-ladder .eos-seg__opt {
+  position: relative;
+  height: auto;
+  padding: 24px 12px 2px 0;
+  border-radius: 0;
+  background: none;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--fg-dim);
+}
+.eos-bp-ladder .eos-seg__opt::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 9px;
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--fg-faint);
+  background: var(--panel);
+}
+.eos-bp-ladder .eos-seg__opt:not(:last-child)::after { content: ""; position: absolute; left: 13px; right: 4px; top: 13px; border-top: 1px dashed var(--fg-faint); }
+.eos-bp-ladder .eos-seg__opt:has(~ [aria-checked="true"])::before { border-color: var(--fg-dim2); background: var(--fg-dim2); }
+.eos-bp-ladder .eos-seg__opt:has(~ [aria-checked="true"])::after { border-top-style: solid; border-top-color: var(--fg-dim2); }
+.eos-bp-ladder .eos-seg__opt[aria-checked="true"] { background: none; color: var(--fg-strong); font-weight: 500; }
+.eos-bp-ladder .eos-seg__opt[aria-checked="true"]::before { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-bp-ladder .eos-seg__opt:not([aria-disabled]):hover { color: var(--fg-strong); }
+.eos-bp-ladder .eos-seg__opt[aria-disabled] { cursor: default; }
 
 /* A value the user can change: a small chip inside the sentence. */
 .eos-bp-value {
@@ -207,31 +339,68 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-bp-input--glob { font-family: var(--font-mono); }
 .eos-bp-wrong { margin: 0; font-size: var(--text-xs); color: var(--err); }
 
-.eos-bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-top: 16px; border-top: 1px solid var(--line); }
-.eos-bp-actions .eos-btn { height: 36px; padding: 0 16px; font-size: var(--text-base); }
-.eos-bp-actions__cost { margin-left: auto; font-size: var(--text-sm); color: var(--fg-dim); }
+/* The ending under the slots: where it stands, the one step, the others
+   quiet, the cost as a footnote. */
+.eos-bp-end { display: flex; flex-direction: column; gap: 16px; margin-top: 4px; padding-top: 24px; border-top: 1px solid var(--line); }
+.eos-bp-end__line { margin: 0; max-width: 60ch; font-size: var(--text-base); line-height: 1.55; color: var(--fg-mid); text-wrap: pretty; }
+.eos-bp-end__cost { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 6px; }
+.eos-bp-actions .eos-btn { height: 36px; padding: 0 18px; font-size: var(--text-base); }
+.eos-bp-actions .eos-btn--primary { margin-right: 6px; }
 .eos-bp-issues { margin: 6px 0 0; padding-left: 18px; width: 100%; }
 
 /* ── Versions ───────────────────────────────────────────────────────────── */
-.eos-bp-versions { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
-.eos-bp-versions:hover { color: var(--fg-strong); }
-.eos-bp-versions__menu { left: 0; right: auto; min-width: 280px; }
-.eos-bp-compare { width: 100%; border-collapse: collapse; font-size: var(--text-sm); color: var(--fg); }
-.eos-bp-compare th, .eos-bp-compare td { padding: 10px 12px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
-.eos-bp-compare thead th, .eos-bp-compare tbody th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+/* The version line at the card's top right: quiet words that open the menu. */
+.eos-bp-versions { height: 28px; margin: -4px -10px 0 0; padding: 0 10px; border: 0; border-radius: var(--r-pill); background: none; font: inherit; font-size: var(--text-sm); color: var(--fg-dim2); cursor: pointer; white-space: nowrap; transition: background 140ms cubic-bezier(.2, .8, .2, 1), color 140ms cubic-bezier(.2, .8, .2, 1); }
+.eos-bp-versions:hover, .eos-bp-versions[aria-expanded="true"] { background: var(--row-on); color: var(--fg-strong); }
+.eos-bp-versions__menu { left: auto; right: -10px; min-width: 300px; max-width: 380px; padding: 6px; }
+.eos-bp-versions__item { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 9px 12px 10px; text-align: left; }
+.eos-bp-versions__item[aria-checked="true"] { background: var(--row-on); }
+.eos-bp-versions__top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.eos-bp-versions__num { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-bp-versions__state { font-size: var(--text-xs); color: var(--accent); }
+.eos-bp-versions__line { font-size: var(--text-xs); line-height: 1.45; color: var(--fg-dim); }
+
+/* Compare: each part that differs, this version beside the one in use. */
+.eos-bp-compare-wrap { display: flex; flex-direction: column; gap: 12px; }
+.eos-bp-compare-wrap .eos-label { display: flex; justify-content: space-between; gap: 16px; margin: 0; }
+.eos-bp-compare__count { font-family: var(--font-ui); font-size: var(--text-xs); letter-spacing: 0; text-transform: none; color: var(--fg-dim2); }
+.eos-bp-compare { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-sm); line-height: 1.55; color: var(--fg); }
+.eos-bp-compare th, .eos-bp-compare td { padding: 12px 16px 12px 0; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.eos-bp-compare tr:last-child th, .eos-bp-compare tr:last-child td { border-bottom: 1px solid var(--line); }
+.eos-bp-compare thead th { padding-top: 0; border-top: 0; font-family: var(--font-ui); font-size: var(--text-xs); letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--fg-dim2); }
+.eos-bp-compare thead th:first-child { width: 104px; }
+.eos-bp-compare tbody th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim); }
+.eos-bp-compare tbody td:nth-child(2) { color: var(--fg-strong); }
+.eos-bp-compare tbody td:nth-child(3) { color: var(--fg-dim); }
 
 /* ── Trials ───────────────────────────────────────────────────────────────── */
-.eos-bp-trials { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-.eos-bp-trial { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
-.eos-bp-trial__item { font-size: var(--text-sm); color: var(--fg-strong); }
-.eos-bp-trial__line { font-size: var(--text-xs); color: var(--fg-dim); }
-.eos-bp-trial .eos-link { align-self: flex-start; font-size: var(--text-xs); }
+.eos-bp-trials-wrap { display: flex; flex-direction: column; gap: 12px; }
+.eos-bp-trials-wrap .eos-label { margin: 0; }
+.eos-bp-trials { margin: 0; padding: 0; list-style: none; }
+.eos-bp-trial { display: flex; align-items: center; gap: 14px; min-height: 52px; box-sizing: border-box; padding: 12px 0; border-top: 1px solid var(--line); }
+.eos-bp-trial:last-child { border-bottom: 1px solid var(--line); }
+.eos-bp-trial__mark { flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-faint); }
+.eos-bp-trial--ok .eos-bp-trial__mark { border-color: var(--ok); background: var(--ok); }
+.eos-bp-trial--err .eos-bp-trial__mark { border-color: var(--err); background: var(--err); }
+.eos-bp-trial--active .eos-bp-trial__mark { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-bp-trial__words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eos-bp-trial__item { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-bp-trial__line { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-trial .eos-link { flex: none; font-size: var(--text-sm); }
 
 /* Too narrow for both: the conversation over the card, its input under it. */
 @container eos-bp (max-width: 900px) {
-  .eos-bp__cols { flex-direction: column; align-items: stretch; }
+  .eos-bp__cols { flex-direction: column; align-items: stretch; gap: 28px; }
   .eos-bp-chat { flex-basis: auto; width: 100%; max-width: none; min-height: 0; }
+  .eos-bp-chat__fill { display: none; }
   .eos-bp-say { position: static; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eos-bp-row__dot, .eos-bp-row__bar, .eos-bp-working::before { animation: none !important; }
+  .eos-bp-row--writing .eos-bp-row__dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .eos-bp--making .eos-bp-row__value { animation: eos-appear 120ms linear both !important; opacity: 0; }
 }
 
 /* Slack's channels and people in the Goes-to dialog: a quiet list, the kind at the end. */
