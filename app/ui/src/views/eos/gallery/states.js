@@ -1,7 +1,8 @@
 // The gallery's states (08 §10): each screen in each state it can be in,
 // drawn from the samples. A state names where Eos opens and how the reads
 // answer: the samples, the samples changed, nothing yet (loading), or a
-// refusal (error). Nothing here reaches the core.
+// refusal (error); `held` changes what the app's own held requests answer
+// (About you's memories and dreams). Nothing here reaches the core.
 
 import { ROUTES } from "../../../api/routes.js";
 import { RUNS_PATH } from "../../../state/eos/homeStore.js";

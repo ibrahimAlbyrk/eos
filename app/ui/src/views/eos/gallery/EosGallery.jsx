@@ -249,7 +249,8 @@ export function galleryTransport(state) {
 
 export function startEosGallery(rootEl) {
   const state = stateOf(storedState());
-  holdNetwork(globalThis, aboutYouReads(Date.now()));
+  const held = aboutYouReads(Date.now());
+  holdNetwork(globalThis, state.held ? state.held(held) : held);
   setEosTransport(galleryTransport(state));
   holdEosNavInMemory(state.location);
   holdHomeInMemory();
