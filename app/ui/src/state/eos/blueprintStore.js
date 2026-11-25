@@ -116,9 +116,24 @@ async function saved(id, body) {
   note(id, warnings.length ? { kind: "warnings", text: "Kept, with something to look at.", issues: warnings } : null);
 }
 
+const fromHome = (path) => typeof path === "string" && (path === "~" || path.startsWith("~/"));
+
+// A folder trigger written from "~": the core keeps only absolute paths, so
+// "~" becomes this computer's home before the blueprint is written.
+async function withHomePaths(blueprint) {
+  const on = blueprint?.when?.on;
+  if (!Array.isArray(on) || !on.some((t) => fromHome(t?.folder?.path))) return blueprint;
+  const r = await transport.get(ROUTES.hostInfo);
+  const home = r?.ok && typeof r.body?.home === "string" ? r.body.home.replace(/\/+$/, "") : null;
+  if (!home) return blueprint;
+  const expand = (t) => (fromHome(t?.folder?.path) ? { ...t, folder: { ...t.folder, path: home + t.folder.path.slice(1) } } : t);
+  return { ...blueprint, when: { ...blueprint.when, on: on.map(expand) } };
+}
+
 // A hand edit: a new version from `baseVersionId`. 409: someone changed the
 // routine since; the editor reads it again and says so.
-export async function saveBlueprint(id, baseVersionId, blueprint) {
+export async function saveBlueprint(id, baseVersionId, edited) {
+  const blueprint = await withHomePaths(edited);
   const r = await write("PUT", ROUTES.routineBlueprint(id), { baseVersionId, blueprint }, [400, 409]);
   if (!r) return false;
   if (r.status === 409) {
@@ -132,7 +147,8 @@ export async function saveBlueprint(id, baseVersionId, blueprint) {
 }
 
 // "Fill it by hand": a draft routine from a blueprint; its id, or null.
-export async function createRoutine(blueprint) {
+export async function createRoutine(filled) {
+  const blueprint = await withHomePaths(filled);
   const r = await write("POST", ROUTES.routines, { blueprint }, [400]);
   if (!r) return null;
   if (r.status === 400) return note(NEW, refused(r.body)), null;
