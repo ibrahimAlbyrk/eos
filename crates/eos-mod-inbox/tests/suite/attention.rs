@@ -33,8 +33,10 @@ async fn the_settings_read_their_defaults_round_trip_and_refuse_a_bad_time() {
     assert_eq!(rig.ask(Method::Put, PATH, Some(loud)).await.0, 400);
     assert_eq!(rig.ask(Method::Get, PATH, None).await, (200, mine), "nothing was written");
 
-    // Only the user's own dashboard writes them.
+    // Only the user's own dashboard reads or writes them.
     let agent = rig.ask_as(Caller::UNTRUSTED, Method::Put, PATH, Some(defaults)).await;
+    assert_eq!(agent.0, 403);
+    let agent = rig.ask_as(Caller::UNTRUSTED, Method::Get, PATH, None).await;
     assert_eq!(agent.0, 403);
 }
 
