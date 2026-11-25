@@ -48,7 +48,13 @@
       "startedAt": 1763452802000,
       "endedAt": 1763452986000
     },
-    "triggerLine": "When a pull request opens in acme/game"
+    "triggerLine": "When a pull request opens in acme/game",
+    "stats": {
+      "sentUnedited7d": 0.9,
+      "runs7d": 2,
+      "cost7d": 2.84,
+      "setupUsd": 0.4
+    }
   },
   {
     "id": "rt-7b3m1c9d0e4f",
@@ -85,7 +91,13 @@
     ],
     "runs7d": 7,
     "activeRuns": 1,
-    "triggerLine": "Every day at 05:00"
+    "triggerLine": "Every day at 05:00",
+    "stats": {
+      "sentUnedited7d": 0.9,
+      "runs7d": 7,
+      "cost7d": 0.61,
+      "setupUsd": 0.4
+    }
   },
   {
     "id": "rt-2x8k5n1q6w0r",
@@ -136,6 +148,12 @@
       "createdAt": 1763449200000,
       "startedAt": 1763449201000,
       "endedAt": 1763449222000
+    },
+    "stats": {
+      "sentUnedited7d": 0.9,
+      "runs7d": 3,
+      "cost7d": 0.9,
+      "setupUsd": 0.4
     }
   },
   {
