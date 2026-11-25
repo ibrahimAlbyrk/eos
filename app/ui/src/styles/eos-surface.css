@@ -405,3 +405,8 @@
 .eos-app__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-app__maker { font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-app--panel .eos-app__access { font-size: var(--text-xs); }
+/* The lead names the App and says where it runs, so its frame keeps only the
+   tools at the right of a slim strip and Save as page at the foot. */
+.eos-app .gv-app.is-bare { margin: 0; }
+.eos-app .gv-app.is-bare .gv-app-head { padding: 8px 8px 6px; }
+.eos-app .gv-app.is-bare .gv-app-foot { padding: 8px 12px 12px; }

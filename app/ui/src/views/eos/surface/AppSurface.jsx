@@ -73,12 +73,13 @@ async function promote(surface, title) {
 const LOCK = "M4 7.5h8v5.5H4zM5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2";
 
 // What the App may reach, as Eos wrote it from its manifest: a fact with the
-// lock, never inside the App's frame.
+// lock, never inside the App's frame. A routine's App asks every time, so the
+// fact says so; the frame itself names neither.
 function AccessFact({ line }) {
   return (
     <p className="eos-app__access">
       <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><path d={LOCK} /></svg>
-      <span><strong>Runs in a sandbox.</strong> {line}</span>
+      <span><strong>Runs in a sandbox.</strong> {line} Its links and messages wait for your OK.</span>
     </p>
   );
 }
@@ -140,6 +141,7 @@ export function AppSurface({ surfaceId, inPanel = false }) {
         summary={manifest.summary}
         onCall={onCall}
         askEveryTime
+        bare
         mode={inPanel ? "panel" : "inline"}
       />
       {below && <div className="eos-frame__eos">{below}</div>}

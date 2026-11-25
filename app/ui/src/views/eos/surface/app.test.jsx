@@ -80,7 +80,8 @@ describe("a routine's App", () => {
     setAlwaysSend(`surface-${SF}`, true);
     const html = renderToStaticMarkup(<UiProvider><AppSurface surfaceId={SF} inPanel /></UiProvider>);
     setAlwaysSend(`surface-${SF}`, false);
-    expect(html).toContain("sends nothing without your OK");
+    expect(html).toContain("Its links and messages wait for your OK.");
+    expect(html).not.toContain("Sends without asking");
     expect(html).not.toContain("Ask again");
   });
 
