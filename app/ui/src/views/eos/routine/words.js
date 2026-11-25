@@ -50,6 +50,11 @@ const SOURCE_ERRORS = {
   gone: "What it watched is gone",
   "no-access": "The sign-in may not read it",
   "rate-limited": "Asked to slow down",
+  missing: "Not found on this Mac",
+  "inside-data": "It is inside Eos's own data folder, which Eos does not watch",
+  "too-many": "It holds more than 5,000 entries",
+  "too-many-folders": "More than 20 folders are watched on this Mac",
+  unreadable: "This Mac could not read it",
 };
 
 // Why a source is not working, or nothing when it is.

@@ -119,9 +119,14 @@ describe("what starts a routine", () => {
       { sourceId: "e", kind: "capability", source: "github.pulls", state: "needs-attention", errorKind: "gone" },
       { sourceId: "f", kind: "git", state: "needs-attention", errorKind: "no-access" },
       { sourceId: "g", kind: "after", state: "stopped" },
+      { sourceId: "h", kind: "folder", state: "needs-attention", errorKind: "missing" },
+      { sourceId: "i", kind: "folder", state: "needs-attention", errorKind: "inside-data" },
+      { sourceId: "j", kind: "folder", state: "needs-attention", errorKind: "too-many" },
+      { sourceId: "k", kind: "folder", state: "needs-attention", errorKind: "too-many-folders" },
+      { sourceId: "l", kind: "folder", state: "needs-attention", errorKind: "unreadable" },
     ];
     const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.signalsRoutine(PR)]: { ...status, schedules: [], batch: undefined, sources } }));
-    expect(lines(html, "eos-trigger__name")).toEqual(["github.pulls", "github.pulls", "github.pulls", "A folder", "github.pulls", "A git repository", "Another routine's runs"]);
+    expect(lines(html, "eos-trigger__name")).toEqual(["github.pulls", "github.pulls", "github.pulls", "A folder", "github.pulls", "A git repository", "Another routine's runs", "A folder", "A folder", "A folder", "A folder", "A folder"]);
     expect([...html.matchAll(/eos-trigger__state--(?:ok|warn)">([^<]*)</g)].map((m) => m[1])).toEqual([
       "Off: Polling is off in a development run",
       "Needs you: Needs a sign-in",
@@ -130,6 +135,11 @@ describe("what starts a routine", () => {
       "Needs you: What it watched is gone",
       "Needs you: The sign-in may not read it",
       "Stopped: Nothing reads it any more",
+      "Needs you: Not found on this Mac",
+      "Needs you: It is inside Eos&#x27;s own data folder, which Eos does not watch",
+      "Needs you: It holds more than 5,000 entries",
+      "Needs you: More than 20 folders are watched on this Mac",
+      "Needs you: This Mac could not read it",
     ]);
   });
 
