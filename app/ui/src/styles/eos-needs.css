@@ -139,3 +139,32 @@
    in its own actions. */
 .eos-frame-with-send { display: flex; flex-direction: column; gap: 12px; }
 .eos-frame__send-error { font-size: var(--text-sm); color: var(--err); }
+
+/* A routine's View as SurfaceDecision draws it: a question's lead in bold on
+   its own line over the rest; options as cards side by side; a checklist's
+   items as chips under a plain heading; a form's short fields and its
+   stepper on one line where they fit. Only inside Eos's frame: the kit keeps
+   its own look in a chat. */
+.eos-frame__content .gv-choice { gap: 14px; }
+.eos-frame__content .gv-choice__q:has(strong) { font-size: var(--text-sm); font-weight: 400; color: var(--fg-dim); }
+.eos-frame__content .gv-choice__q strong { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 600; color: var(--fg-strong); }
+.eos-frame__content .gv-choice__opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.eos-frame__content .gv-choice__opt { align-items: flex-start; padding: 14px 16px; line-height: 1.5; }
+.eos-frame__content .gv-choice__mark { margin-top: 2px; }
+
+.eos-frame__content .gv-check { gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
+.eos-frame__content .gv-check__title { font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg-strong); }
+.eos-frame__content .gv-check__count { display: none; }
+.eos-frame__content .gv-check__list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.eos-frame__content .gv-check__list > li + li { border-top: 0; }
+.eos-frame__content .gv-check__item { gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); }
+.eos-frame__content .gv-check__list .is-done .gv-check__item { color: var(--fg-strong); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.eos-frame__content .gv-check__list .is-done .gv-check__item span { text-decoration: none; }
+
+.eos-frame__content .gv-form__fields { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 18px; }
+.eos-frame__content .gv-form__fields > * { flex: 1 1 100%; }
+.eos-frame__content .gv-form__fields > .gv-field:has(input[type="time"]) { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 12px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-frame__content .gv-field input[type="time"] { width: 112px; }
+.eos-frame__content .gv-form__fields > .gv-stepper { justify-content: flex-start; }
+.eos-frame__content .gv-stepper__label { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-frame__content .gv-stepper__ctl { margin-left: 0; }
