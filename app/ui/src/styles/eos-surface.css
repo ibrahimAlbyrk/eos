@@ -5,14 +5,14 @@
 
 /* ── The page screen ──────────────────────────────────────────────────────── */
 .eos-page { align-items: center; padding-top: 28px; }
-.eos-page__column { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 16px; }
-.eos-page__line { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-page__column { width: 100%; display: flex; flex-direction: column; gap: 16px; }
 .eos-head .eos-btn--quiet:hover, .eos-page .eos-btn--quiet:hover { background: var(--chip); }
 .eos-head .eos-btn--quiet[aria-pressed="true"] { color: var(--fg-strong); }
 .eos-btn--pill { height: 36px; }
 
 .eos-frame--page { background: none; box-shadow: none; margin: 0; }
-.eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 8px; }
+.eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 12px; font-size: var(--text-sm); }
+.eos-frame__detail { color: var(--fg-dim2); }
 .eos-frame--page .eos-frame__content { padding: 0; }
 .eos-frame--page .eos-frame__eos { border: 0; padding: 12px 2px 0; }
 .eos-page-frame {
