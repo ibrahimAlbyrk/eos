@@ -101,6 +101,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
     if (id) openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
   };
   const working = draft && WORKING[draft.status];
+  const quiet = !isNew && !making && !draft && said.length === 0 && !note;
   return (
     <section className="eos-bp-chat" aria-label="Conversation with the architect">
       {draft?.purpose && <div className="eos-bp-bubble">{draft.purpose}</div>}
@@ -112,20 +113,23 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
       {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} drafts={note.drafts} />}
       {note?.kind === "refusal" && <p className="eos-note" role="alert">{note.text}</p>}
+      {quiet && <p className="eos-bp-chat__hint">Say what to change. Eos writes a new version beside this one, and nothing changes until you use it.</p>}
       <span className="eos-bp-chat__fill" />
       {making && draft === null ? (
         <p className="eos-note">This routine was made by hand. Change it on the card; once it runs, say what to change here.</p>
       ) : (
-        <form className="eos-bp-say" onSubmit={send}>
+        <form className="eos-tell__bar eos-bp-say" onSubmit={send}>
           <input
             type="text"
-            className="eos-bp-input"
+            className="eos-tell__input"
             aria-label={isNew ? "Describe what Eos should take care of" : "Change the blueprint by describing it"}
             placeholder={isNew ? "Describe what Eos should take care of" : "Change anything by saying it"}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
-          <button type="submit" className="eos-btn eos-btn--primary">Send</button>
+          <button type="submit" className="eos-tell__send" aria-label="Send" disabled={!text.trim()}>
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><path d="M8 12.5v-9M4.5 7L8 3.5 11.5 7" /></svg>
+          </button>
         </form>
       )}
     </section>

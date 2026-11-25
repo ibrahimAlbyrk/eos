@@ -168,7 +168,7 @@
             "text": "Every comment names a line."
           }
         ],
-        "format": "review",
+        "format": "Summary first, then findings by severity, each with its file and line.",
         "checkAgent": true
       },
       "makes": {

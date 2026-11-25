@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   discardDraft, loadDraft, loadVersion, loadVersions, restoreVersion, runTrial, saveBlueprint, startRoutine, useBlueprints,
 } from "../../../state/eos/blueprintStore.js";
+import { useCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { ensureRunsLoaded, useRuns } from "../../../state/eos/runsStore.js";
 import { Loading } from "../capabilities/parts.jsx";
@@ -80,8 +81,8 @@ function untriedByRuns(rows, versionId, shown, trials) {
 
 function Actions({ id, kind, trials, routine, blueprint, untried }) {
   const tried = trials.length > 0;
-  const cost = costLine(routine, blueprint);
-  const trialClass = untried ? "eos-btn eos-btn--primary" : "eos-btn";
+  const cost = costLine(routine, blueprint, useCapabilities().list ?? []);
+  const trialClass = untried ? "eos-btn eos-btn--primary" : "eos-btn eos-btn--ghost";
   const trial = <button type="button" className={trialClass} onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
   return (
     <>
@@ -90,20 +91,20 @@ function Actions({ id, kind, trials, routine, blueprint, untried }) {
         {kind === "newest" && untried && (
           <>
             {trial}
-            <button type="button" className="eos-btn" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
+            <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
           </>
         )}
         {kind === "newest" && !untried && (
           <>
             <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>
-            <button type="button" className="eos-btn" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
+            <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
             {trial}
           </>
         )}
         {kind === "draft" && (
           <>
             <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Use this version</button>
-            <button type="button" className="eos-btn" onClick={() => void discardDraft(id)}>Discard</button>
+            <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void discardDraft(id)}>Discard</button>
             {trial}
           </>
         )}
@@ -170,7 +171,7 @@ export function BlueprintEditor({ detail, versionNumber }) {
     : <span className="eos-bp-card__version">Version {row.number}{suffix}</span>);
 
   return (
-    <div className="eos-bp">
+    <div className="eos-bp"><div className="eos-bp__cols">
       <ArchitectChat routineId={id} draft={draft} said={said[id]} note={notes[id]} making={detail.routine.state === "draft"} />
       <div className="eos-bp__side">
         <Note note={notes[id]} />
@@ -204,6 +205,6 @@ export function BlueprintEditor({ detail, versionNumber }) {
         {old && comparing && version && inUse && <VersionCompare version={version.blueprint} current={inUse.blueprint} routines={list} />}
         {!old && <TrialCards runs={trials} now={Date.now()} />}
       </div>
-    </div>
+    </div></div>
   );
 }

@@ -46,13 +46,25 @@ function scheduleParts(s, put, n) {
   return parts;
 }
 
+// What a capability's trigger is about: the item a run takes when it is
+// that source's ("A pull request is "), else the capability by its name and
+// the source's words ("GitHub pulls: "), never its id.
+function sourceLead(source, { capabilities = [], takes } = {}) {
+  const item = takes?.source === source && takes.label;
+  if (item) return [`${/^[aeiou]/i.test(item) ? "An" : "A"} ${item} is `];
+  const [id, ...rest] = source.split(".");
+  const name = capabilities.find((c) => c.id === id)?.name;
+  return [name ? `${[name, ...rest].join(" ").replace(/[_-]/g, " ")}: ` : `${source}: `];
+}
+
 // The parts of trigger `n`; `put` takes its replacement.
-function triggerParts(t, put, n, routines) {
+function triggerParts(t, put, n, ctx) {
+  const routines = ctx.routines;
   if (t.schedule) return scheduleParts(t.schedule, (schedule) => put({ ...t, schedule }), n);
   if (t.source) {
     const events = { key: `${n}.events`, label: "Events", editor: "text", text: (t.events ?? []).join(" or ") || "any event", value: (t.events ?? []).join(", "), apply: (v) => put({ ...t, events: list(v) }) };
     const scope = Object.entries(t.scope ?? {}).flatMap(([k, v]) => [" in ", { key: `${n}.scope.${k}`, label: k, editor: "text", text: v, value: v, apply: (next) => put({ ...t, scope: { ...t.scope, [k]: next } }) }]);
-    return [`${t.source}: `, events, ...scope];
+    return [...sourceLead(t.source, ctx), events, ...scope];
   }
   if (t.folder) {
     const f = t.folder;
@@ -89,18 +101,24 @@ function triggerParts(t, put, n, routines) {
   return ["A trigger this version cannot read"];
 }
 
+// A trigger after " or " goes on the sentence: "or runs on weekdays".
+function midSentence(parts) {
+  const [first, ...rest] = parts;
+  return typeof first === "string" ? [first.charAt(0).toLowerCase() + first.slice(1), ...rest] : parts;
+}
+
 // A new schedule, on the Mac's zone.
 const NEW_SCHEDULE = () => ({ schedule: { daily: "09:00", days: "weekdays", zone: localZone() } });
 
-export function whenParts(when, { routines } = {}) {
+export function whenParts(when, ctx = {}) {
   const w = when ?? { on: [] };
   const on = w.on ?? [];
   const putAt = (n) => (t) => ({ ...w, on: on.map((old, i) => (i === n ? t : old)) });
   const parts = on.length === 0 ? ["When you run it"] : on.flatMap((t, n) => [
     ...(n > 0 ? [" or "] : []),
-    ...triggerParts(t, putAt(n), n, routines),
+    ...(n > 0 ? midSentence(triggerParts(t, putAt(n), n, ctx)) : triggerParts(t, putAt(n), n, ctx)),
     { key: `${n}.remove`, label: "Remove this trigger", editor: "act", text: "×", apply: () => ({ ...w, on: on.filter((_, i) => i !== n) }) },
   ]);
-  parts.push(" ", { key: "add", label: "Add a schedule", editor: "act", text: "Add a schedule", apply: () => ({ ...w, on: [...on, NEW_SCHEDULE()] }) });
+  parts.push(" ", { key: "add", label: "Add a schedule", editor: "act", text: "Add a schedule", add: true, apply: () => ({ ...w, on: [...on, NEW_SCHEDULE()] }) });
   return parts;
 }

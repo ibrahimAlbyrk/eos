@@ -1,5 +1,7 @@
-// The Who slot: one chip per agent, its name and model; a chip opens the
+// The Who slot: one chip per agent, its name and its model in words; a chip opens the
 // agent's brief and model. A script is said as one.
+
+import { modelName } from "../../../../lib/models.js";
 
 export const MODELS = ["haiku", "sonnet", "opus"];
 
@@ -16,7 +18,7 @@ export function whoParts(who) {
     editor: "agent",
     chip: true,
     text: agent.name,
-    sub: agent.model,
+    sub: agent.model && modelName(agent.model),
     value: { brief: agent.brief ?? "", model: agent.model ?? "sonnet" },
     options: modelOptions(agent.model ?? "sonnet"),
     apply: ({ brief, model }) => ({ ...w, agents: agents.map((a, i) => (i === n ? { ...a, brief, model } : a)) }),

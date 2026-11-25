@@ -1,13 +1,16 @@
 // What the blueprint editor says: the cost line under the card, a refused
 // blueprint's findings, who made a version.
 
+const andList = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
 const usd = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
-// "Uses github. About $0.38 a pull request, stops at $5 a day."
-export function costLine(routine, bp) {
+// "Uses GitHub and Unity docs. About $0.38 a pull request, stops at $5 a
+// day." A capability is named by its name once `capabilities` holds it.
+export function costLine(routine, bp, capabilities = []) {
   const sentences = [];
-  const needs = (bp.needs ?? []).filter((n) => typeof n === "string");
-  if (needs.length) sentences.push(`Uses ${needs.join(", ")}.`);
+  const needs = (bp.needs ?? []).filter((n) => typeof n === "string").map((id) => capabilities.find((c) => c.id === id)?.name ?? id);
+  if (needs.length) sentences.push(`Uses ${andList(needs)}.`);
   const unit = bp.takes?.label && bp.takes.kind !== "none" ? bp.takes.label : "run";
   const each = routine?.usual?.usd != null ? `About ${usd(routine.usual.usd)} a ${unit}` : bp.limits?.perRunUsd != null ? `At most ${usd(bp.limits.perRunUsd)} a run` : null;
   const day = bp.limits?.perDayUsd != null ? `stops at ${usd(bp.limits.perDayUsd)} a day` : null;

@@ -16,7 +16,7 @@ export const SLOTS = [
     label: "Takes",
     parts: (bp) => [textPart("label", "What a run takes", bp.takes?.label, (label) => ({ ...bp.takes, label }), "Nothing named yet")],
   },
-  { key: "when", label: "When", parts: (bp, ctx) => whenParts(bp.when, ctx) },
+  { key: "when", label: "When", parts: (bp, ctx) => whenParts(bp.when, { ...ctx, takes: bp.takes }) },
   { key: "which", label: "Which", parts: (bp) => whichParts(bp.which) },
   { key: "who", label: "Who", parts: (bp) => whoParts(bp.who) },
   { key: "how", label: "How", parts: (bp) => howParts(bp.how) },

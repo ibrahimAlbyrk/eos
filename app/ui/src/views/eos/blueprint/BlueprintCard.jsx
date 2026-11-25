@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ensureCapabilitiesLoaded, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
+import { RoutineGlyph } from "../routines/RoutineGlyph.jsx";
 import { FreedomLadder } from "./FreedomLadder.jsx";
 import { SlotRow } from "./SlotRow.jsx";
 import { TextEditor } from "./slots/editors.jsx";
 import { SLOTS } from "./slots/index.js";
 import { SchedulePreview, WhichPreview } from "./slots/Previews.jsx";
 
-function Glyph() {
+// The routine's own glyph, as the sidebar and the field draw it.
+function Glyph({ icon, name }) {
   return (
     <span className="eos-bp-card__icon" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="5.5" /><circle cx="8" cy="8" r="1.5" /></svg>
+      <RoutineGlyph icon={icon} name={name || "R"} size={19} part="eos-bp-card" />
     </span>
   );
 }
@@ -20,7 +23,7 @@ function HeadText({ as: Tag, className, label, value, empty, put }) {
   return (
     <>
       <Tag className={className}>
-        <button type="button" className="eos-bp-value" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{value || empty}</button>
+        <button type="button" className="eos-bp-headvalue" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{value || empty}</button>
       </Tag>
       {open && (
         <TextEditor
@@ -36,13 +39,15 @@ function HeadText({ as: Tag, className, label, value, empty, put }) {
 }
 
 // The blueprint card: icon, name, sentence, what a run takes and the seven
-// slots. With `onEdit` every underlined value opens its editor and the
+// slots. With `onEdit` every value opens its editor and the
 // changed blueprint goes to `onEdit`; without it the card is read-only.
 // `changed` holds the slot keys to mark; `head` is the card's header line
 // (the version menu), `children` what goes under the slots. With
 // `routineId` the When and Which slots show their previews.
 export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head, routineId, children }) {
   const bp = blueprint ?? {};
+  const capabilities = useCapabilities().list ?? [];
+  useEffect(() => ensureCapabilitiesLoaded(), []);
   const put = (key) => (onEdit ? (value) => onEdit({ ...bp, [key]: value }) : undefined);
   const previews = routineId && {
     when: <SchedulePreview when={bp.when} />,
@@ -52,15 +57,15 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
     <section className="eos-card eos-bp-card" aria-label="Blueprint">
       {head && <div className="eos-bp-card__head">{head}</div>}
       <div className="eos-bp-card__title">
-        <Glyph />
-        <div>
+        <Glyph icon={bp.icon} name={bp.name} />
+        <div className="eos-bp-card__words">
           <HeadText as="h2" className="eos-bp-card__name" label="Name" value={bp.name} empty="Not named yet" put={put("name")} />
           <HeadText as="p" className="eos-bp-card__sentence" label="What it does, in one sentence" value={bp.summary} empty="What it does, in one sentence" put={put("summary")} />
         </div>
       </div>
       <dl className="eos-bp-rows">
         {SLOTS.map((slot) => (
-          <SlotRow key={slot.key} label={slot.label} parts={slot.parts(bp, { routines })} onApply={put(slot.key)} changed={changed.includes(slot.key)} preview={previews?.[slot.key]} />
+          <SlotRow key={slot.key} label={slot.label} parts={slot.parts(bp, { routines, capabilities })} onApply={put(slot.key)} changed={changed.includes(slot.key)} preview={previews?.[slot.key]} />
         ))}
         <FreedomLadder blueprint={bp} onApply={put("freedom")} changed={changed.includes("freedom")} routineId={routineId} />
       </dl>
@@ -73,7 +78,7 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
 export function OutlineCard({ children }) {
   return (
     <section className="eos-card eos-bp-card eos-bp-card--outline" aria-label="Blueprint">
-      <div className="eos-bp-card__title"><Glyph /><div><h2 className="eos-bp-card__name">New routine</h2></div></div>
+      <div className="eos-bp-card__title"><Glyph name="N" /><div className="eos-bp-card__words"><h2 className="eos-bp-card__name">New routine</h2></div></div>
       <dl className="eos-bp-rows">
         {[...SLOTS.map((s) => s.label), "Freedom"].map((label) => (
           <div key={label} className="eos-bp-row"><dt className="eos-bp-row__label">{label}</dt><dd className="eos-bp-row__value eos-bp-row__value--empty">Not set yet</dd></div>
