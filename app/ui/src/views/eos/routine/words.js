@@ -52,7 +52,7 @@ export const sourceStateWord = (state) => SOURCE_STATES[state] ?? state;
 
 const SOURCE_ERRORS = {
   unreachable: "Could not reach it",
-  unauthorized: "Needs a sign-in",
+  unauthorized: "Sign in again",
   gone: "What it watched is gone",
   "no-access": "The sign-in may not read it",
   "rate-limited": "Asked to slow down",
@@ -67,7 +67,7 @@ const SOURCE_ERRORS = {
 export function sourceReason(source) {
   if (source.state === "off") return "Polling is off in a development run";
   if (source.errorKind) return SOURCE_ERRORS[source.errorKind] ?? null;
-  if (source.state === "needs-attention") return "Needs a sign-in";
+  if (source.state === "needs-attention") return "Sign in again";
   if (source.state === "stopped") return "Nothing reads it any more";
   return null;
 }

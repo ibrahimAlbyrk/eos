@@ -148,7 +148,7 @@ describe("what starts a routine", () => {
     expect(lines(html, "eos-trigger__name")).toEqual(["github.pulls", "github.pulls", "github.pulls", "A folder", "github.pulls", "A git repository", "Another routine's runs", "A folder", "A folder", "A folder", "A folder", "A folder"]);
     expect([...html.matchAll(/eos-trigger__state--(?:ok|warn)">([^<]*)</g)].map((m) => m[1])).toEqual([
       "Off: Polling is off in a development run",
-      "Needs you: Needs a sign-in",
+      "Needs you: Sign in again",
       "Trying again later: Asked to slow down",
       "Trying again later: Could not reach it",
       "Needs you: What it watched is gone",
