@@ -1,5 +1,6 @@
 //! A run's lead that goes quiet or whose session dies (01 G16, G39). A lead
-//! that ends its turn without a result is reminded once; the second time
+//! that ends its turn without a result while none of its team works is
+//! reminded once; the second time
 //! the run fails as `no_result`. A lead whose session ends unexpectedly is
 //! resumed once with a message; the second time the run fails as
 //! `crashed`. Both count from the run's own timeline, so a restart forgets
@@ -8,6 +9,7 @@
 
 use std::sync::Arc;
 
+use eos_contracts::WorkerState;
 use eos_core::Error;
 use eos_core::routine::RunRef;
 use eos_core::store::RUN_STATE_EVENT;
@@ -96,6 +98,10 @@ async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
     if super::system::at_step(engine, &run.run_id).await {
         return Ok(false);
     }
+    // Its team still works: their reports come to it as messages.
+    if team_at_work(engine, &run.run_id, worker_id).await? {
+        return Ok(false);
+    }
     if nudged > 0 {
         fail(engine, &run.run_id, Reason::NoResult, None).await?;
         return Ok(false);
@@ -104,6 +110,26 @@ async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
     note(engine, worker_id, &run.run_id, NUDGE).await?;
     tracing::info!(run_id = %run.run_id, worker_id, "a run's lead was reminded to hand in a result");
     Ok(true)
+}
+
+/// Whether another session of the run is starting or in a turn.
+async fn team_at_work(engine: &Engine, run_id: &str, lead_id: &str) -> Result<bool, Error> {
+    let (run_id, lead_id) = (run_id.to_owned(), lead_id.to_owned());
+    engine
+        .store
+        .read(move |tx| {
+            for session in tx.routine_sessions().by_run(&run_id)? {
+                if session.worker_id == lead_id {
+                    continue;
+                }
+                let state = tx.workers().find(&session.worker_id)?.map(|worker| worker.state);
+                if matches!(state, Some(WorkerState::Spawning | WorkerState::Working)) {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        })
+        .await
 }
 
 /// A session ended. A run's lead at work did not mean to: it is resumed

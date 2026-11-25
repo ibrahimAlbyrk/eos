@@ -217,3 +217,33 @@ async fn the_forge_builder_starts_only_in_its_leads_build_folder() {
     assert!(refused.is_err_and(|e| e.to_string().contains("build folder")));
     assert!(bench.agents.started().iter().all(|s| s.parent_id.as_deref() != Some(&lead)), "no builder elsewhere");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lead_whose_team_still_works_is_not_reminded_when_its_turn_ends() {
+    let bench = Bench::new(true);
+    let folder = bench.temp.home.join("scratch/forge-run");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    bench.steps.give_folder(&folder.to_string_lossy());
+    let id = bench.module.builtins().ensure("forge", forge_team()).await.expect("made");
+    let run = bench.start(new_run(&id, RunOrigin::Hand, None)).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    bench.module.tools().start_specialist(&lead, "builder", "Build it.").await.expect("starts");
+    let builder = bench.agents.started().into_iter().find(|s| s.parent_id.as_deref() == Some(&lead)).expect("one");
+    let set = |state: &str| {
+        bench.temp.exec(&format!("UPDATE workers SET state = '{state}' WHERE id = '{}'", builder.worker_id));
+    };
+    let hooks = eos_runtime::idle::IdleHooks::new(eos_runtime::module::Module::idle_hooks(bench.module.as_ref()));
+    let idle = || hooks.run(&lead);
+    let nudges =
+        || bench.temp.count(&format!("SELECT COUNT(*) FROM run_events WHERE run_id = '{run}' AND kind = 'idle_nudge'"));
+
+    set("WORKING");
+    idle().await;
+    idle().await;
+    assert_eq!((nudges(), bench.state(&run)), (0, RunState::Running), "it waits for its builder's report");
+    set("IDLE");
+    idle().await;
+    assert_eq!(nudges(), 1, "reminded once its team is quiet");
+}
