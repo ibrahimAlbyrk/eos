@@ -55,3 +55,14 @@ fn surface_settings_take_only_their_steps() {
     assert!(crate::parse::<SurfaceSettings>(&json!({"textScale": 120, "contrast": "normal", "plain": false})).is_err());
     assert!(crate::parse::<SurfaceSettings>(&json!({"textScale": 100, "contrast": "loud", "plain": false})).is_err());
 }
+
+#[test]
+fn a_view_body_writes_its_facts_and_aside_only_when_it_has_them() {
+    let plain: ViewIssueBody = round_trip(json!({"place": "question", "view": {"title": "Pick"}, "actions": ["go"]}));
+    assert!(plain.facts.is_none() && plain.aside.is_none() && !plain.untrusted);
+    round_trip::<ViewIssueBody>(json!({
+        "place": "question", "view": {"title": "Pick"}, "actions": [],
+        "facts": [{"option": "Through your iPhone", "rows": [{"label": "Cost", "value": "Free"}]}],
+        "aside": [{"title": "Why Eos is asking", "text": "It has no way to reach you."}],
+        "untrusted": true}));
+}

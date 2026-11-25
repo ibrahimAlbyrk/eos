@@ -68,6 +68,7 @@ mod routes;
 mod settings;
 mod sync;
 mod tiles;
+mod view_notes;
 mod wire;
 
 use std::sync::Arc;

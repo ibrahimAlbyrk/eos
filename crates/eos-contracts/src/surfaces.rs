@@ -133,8 +133,7 @@ impl Validate for SurfaceIssueList {}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SurfaceIssue {
     pub issue: SurfaceIssueRow,
-    /// A View: `{view, actions}`, the View as `present` takes it and the ids of
-    /// its bound actions. A Page: its data.
+    /// A View: a [`ViewIssueBody`]. A Page: its data.
     pub body: Value,
     /// A Page made with an older version: whether its data fits the
     /// surface's current version, so it can show in today's design.
@@ -143,6 +142,52 @@ pub struct SurfaceIssue {
 }
 
 impl Validate for SurfaceIssue {}
+
+/// The body of a View issue as `GET /api/surfaces/{id}/issues/{issueId}`
+/// answers it. Eos draws `facts` and `aside` around the View in its own
+/// frame, as plain text: they carry no markup, link or action.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ViewIssueBody {
+    /// `result` or `question`.
+    pub place: Value,
+    /// The View as `present` takes it.
+    pub view: Value,
+    /// The ids of its bound actions.
+    pub actions: Vec<String>,
+    /// The facts of the options of its choices, for each option that has some.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub facts: Option<Vec<OptionFacts>>,
+    /// Short titled notes Eos shows beside the View.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aside: Option<Vec<AsideNote>>,
+    /// Made by a run that read outside text.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub untrusted: bool,
+}
+
+impl Validate for ViewIssueBody {}
+
+/// The facts of one option of a View's choice: `Cost · Free`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct OptionFacts {
+    /// The option's label or value, as the View's choice names it.
+    pub option: String,
+    pub rows: Vec<FactRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct FactRow {
+    pub label: String,
+    pub value: String,
+}
+
+/// A short titled paragraph beside a View: why Eos asks, what the answers
+/// change.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AsideNote {
+    pub title: String,
+    pub text: String,
+}
 
 /// `GET /api/surfaces/{id}/state?scope=` and the body of its `PUT`: a
 /// surface's small saved state, for the whole surface (`scope` empty) or one

@@ -16,6 +16,8 @@ fn view() -> ReturnedView {
         place: "result".into(),
         view: json!({"title": "Overnight", "summary": "Three mails came in.", "ui": "<Text>Three mails</Text>"}),
         bindings: None,
+        facts: None,
+        aside: None,
     }
 }
 

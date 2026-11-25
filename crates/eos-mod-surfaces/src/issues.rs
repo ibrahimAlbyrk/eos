@@ -5,13 +5,16 @@
 //! `surfaces:issue`. A trial run's issue is a trial issue, with no number.
 //! A real run's View opens its Needs-you item in the same job; a question
 //! View waits there for the user's answer and hands it back to the run.
+//! The facts of its options and its notes are kept beside it, and a View of
+//! a run that read outside text is marked so.
 
 use std::sync::Arc;
 
-use eos_contracts::SurfacesIssue;
+use eos_contracts::{AsideNote, OptionFacts, SurfacesIssue};
 use eos_core::store::{Outbox, Store, StoredIssue, Tx};
 use eos_core::surface::{ReturnedView, SurfaceTools, ViewCard, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
+use eos_domain::run_scope::Trust;
 use eos_genui::{ViewValidation, validate_view};
 use eos_runtime::actions::Actions;
 use eos_surface::{Binding, IssueKind, IssueStatus, Level, Problem, format_problems, view_check};
@@ -34,8 +37,16 @@ pub(crate) struct ViewIssues {
     pub(crate) designs: Arc<crate::design::Designs>,
 }
 
-/// Every problem of the View and its bindings, or the bindings.
-fn checked(actions: &Actions, returned: &ReturnedView) -> Result<Vec<Binding>, Vec<Problem>> {
+/// What a returned View holds once checked: its bindings, the facts of its
+/// options and its notes.
+struct Checked {
+    bindings: Vec<Binding>,
+    facts: Option<Vec<OptionFacts>>,
+    aside: Option<Vec<AsideNote>>,
+}
+
+/// Every problem of the View, its bindings, facts and notes, or what it holds.
+fn checked(actions: &Actions, returned: &ReturnedView) -> Result<Checked, Vec<Problem>> {
     let mut problems = Vec::new();
     if !PLACES.contains(&returned.place.as_str()) {
         problems.push(Problem::new("place", "must be result or question"));
@@ -46,18 +57,21 @@ fn checked(actions: &Actions, returned: &ReturnedView) -> Result<Vec<Binding>, V
         return Err(problems);
     }
     let registry = actions.registry();
-    match view_check(&returned.view, returned.bindings.as_ref(), |id| registry.action(id).is_some()) {
-        Ok(bindings) if problems.is_empty() => Ok(bindings),
-        Ok(_) => Err(problems),
-        Err(found) => {
-            problems.extend(found);
+    let bindings = view_check(&returned.view, returned.bindings.as_ref(), |id| registry.action(id).is_some());
+    let notes = crate::view_notes::checked(&returned.view, returned.facts.as_ref(), returned.aside.as_ref());
+    match (bindings, notes) {
+        (Ok(bindings), Ok((facts, aside))) if problems.is_empty() => Ok(Checked { bindings, facts, aside }),
+        (bindings, notes) => {
+            problems.extend(bindings.err().into_iter().flatten());
+            problems.extend(notes.err().into_iter().flatten());
             Err(problems)
         }
     }
 }
 
-fn stored_body(returned: &ReturnedView, bindings: &[Binding]) -> Value {
-    let bound: Map<String, Value> = bindings
+fn stored_body(returned: &ReturnedView, checked: &Checked) -> Value {
+    let bound: Map<String, Value> = checked
+        .bindings
         .iter()
         .map(|b| {
             let mut bound = json!({ "action": b.action, "args": b.args });
@@ -67,7 +81,14 @@ fn stored_body(returned: &ReturnedView, bindings: &[Binding]) -> Value {
             (b.view_action.clone(), bound)
         })
         .collect();
-    json!({ "place": returned.place, "view": returned.view, "bindings": bound })
+    let mut body = json!({ "place": returned.place, "view": returned.view, "bindings": bound });
+    if let Some(facts) = &checked.facts {
+        body["facts"] = json!(facts);
+    }
+    if let Some(aside) = &checked.aside {
+        body["aside"] = json!(aside);
+    }
+    body
 }
 
 /// Where an issue is stored, and what it is made with.
@@ -93,6 +114,10 @@ fn store_in(
     let surface = surfaces.into_iter().find(|s| s.level == Level::View);
     let surface = surface
         .ok_or_else(|| Error::Validation("this routine makes no view: hand in the result with submit_result".into()))?;
+    // The View, its facts and notes came from a run that read outside text.
+    if run.trust == Trust::Untrusted {
+        body["untrusted"] = Value::Bool(true);
+    }
     let trial = run.kind == "trial";
     let id = at.ids.surface_issue_id();
     let item_id = if trial {
@@ -139,8 +164,9 @@ fn text_of(value: &Value, otherwise: &str) -> String {
 impl SurfaceTools for ViewIssues {
     fn return_view<'a>(&'a self, worker_id: &'a str, returned: ReturnedView) -> BoxFuture<'a, Result<String, Error>> {
         Box::pin(async move {
-            let bindings = checked(&self.actions, &returned).map_err(|p| Error::Validation(format_problems(&p)))?;
-            let body = stored_body(&returned, &bindings);
+            let checked = checked(&self.actions, &returned).map_err(|p| Error::Validation(format_problems(&p)))?;
+            let body = stored_body(&returned, &checked);
+            let bindings = checked.bindings;
             let (worker, now, ids) = (worker_id.to_owned(), self.clock.now_ms(), self.ids.clone());
             let (cards, question) = (self.cards.clone(), returned.place == QUESTION);
             let (issue, item_id) = self

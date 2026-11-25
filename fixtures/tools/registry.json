@@ -1711,6 +1711,64 @@
       "type": "object",
       "additionalProperties": {},
       "description": "For each `send` action of the view: {action, args}, the direct action it runs and its argument template."
+     },
+     "facts": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "option": {
+         "type": "string",
+         "description": "The option's label or value, as the view's Choice names it."
+        },
+        "rows": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "label": {
+            "type": "string"
+           },
+           "value": {
+            "type": "string"
+           }
+          },
+          "required": [
+           "label",
+           "value"
+          ],
+          "additionalProperties": false
+         },
+         "description": "Up to three short label and value pairs."
+        }
+       },
+       "required": [
+        "option",
+        "rows"
+       ],
+       "additionalProperties": false
+      },
+      "description": "Facts Eos shows in the cards of a Choice's options, in plain text."
+     },
+     "aside": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "title": {
+         "type": "string"
+        },
+        "text": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "title",
+        "text"
+       ],
+       "additionalProperties": false
+      },
+      "description": "Up to two short titled paragraphs Eos shows beside the view, in plain text."
      }
     },
     "required": [

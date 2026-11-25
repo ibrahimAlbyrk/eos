@@ -50,6 +50,11 @@ pub struct ReturnedView {
     pub view: serde_json::Value,
     /// `{viewActionId: {action, args}}`: what each `send` runs.
     pub bindings: Option<serde_json::Value>,
+    /// `[{option, rows: [{label, value}]}]`: the facts Eos draws in the
+    /// cards of a choice's options.
+    pub facts: Option<serde_json::Value>,
+    /// `[{title, text}]`: the notes Eos draws beside the View.
+    pub aside: Option<serde_json::Value>,
 }
 
 /// The surface tools of a run's sessions.

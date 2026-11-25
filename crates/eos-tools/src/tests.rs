@@ -91,7 +91,11 @@ impl eos_core::surface::SurfaceTools for RunCalls {
             let problems = "view.ui: is required\nbindings.go: binds no send action of the view".to_owned();
             return Box::pin(std::future::ready(Err(eos_core::Error::Validation(problems))));
         }
-        self.0.lock().expect("calls").push(format!("view {worker_id} {} {}", view.place, view.view));
+        let beside: String = [("facts", &view.facts), ("aside", &view.aside)]
+            .iter()
+            .filter_map(|(name, value)| value.as_ref().map(|v| format!(" {name} {v}")))
+            .collect();
+        self.0.lock().expect("calls").push(format!("view {worker_id} {} {}{beside}", view.place, view.view));
         Box::pin(std::future::ready(Ok("issue si-000000000001 · 0 bound actions".to_owned())))
     }
 
@@ -604,6 +608,19 @@ async fn a_run_hands_back_a_view_and_reads_every_problem_at_once() {
     let elsewhere =
         call(&bench.tool("run-lead", "return_view"), "w-lead", serde_json::json!({"place": "aside", "view": {}})).await;
     assert!(elsewhere.is_error, "{}", elsewhere.text);
+    // The facts of its options and its notes go to the surfaces beside the View, each fact
+    // as its label and value only.
+    let decision = serde_json::json!({"place": "result", "view": {"title": "Pick"},
+        "facts": [{"option": "Free", "rows": [{"label": "Cost", "value": "None", "href": "https://evil.example"}]}],
+        "aside": [{"title": "Why", "text": "Because."}]});
+    let returned = call(&bench.tool("run-lead", "return_view"), "w-lead", decision).await;
+    assert!(!returned.is_error, "{}", returned.text);
+    assert_eq!(
+        bench.runs.0.lock().expect("calls").last().map(String::as_str),
+        Some(
+            r#"view w-lead result {"title":"Pick"} facts [{"option":"Free","rows":[{"label":"Cost","value":"None"}]}] aside [{"title":"Why","text":"Because."}]"#
+        )
+    );
 }
 
 #[tokio::test]
