@@ -83,7 +83,7 @@ export function EosMemoryScreen({ tab = "work", note }) {
           AboutYouTab ? <AboutYouTab query={query} /> : <p className="eos-note">About you shows in the app.</p>
         ) : (
           <div className={note ? "eos-mem-columns eos-mem-columns--open" : "eos-mem-columns"}>
-            <LearnedFromWork summary={summary} query={query} selected={note} onClearSearch={() => setQuery("")} />
+            <LearnedFromWork summary={summary} query={query} selected={note} onClearSearch={() => setQuery("")} withKey={!note} />
             {note && <NoteDetail key={note} id={note} />}
           </div>
         )}

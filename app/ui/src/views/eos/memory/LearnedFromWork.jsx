@@ -123,10 +123,39 @@ function NothingYet() {
   );
 }
 
+// How to read a row, beside the list while no note is open: the state marks,
+// the strength marks and who taught it, said once so the rows stay bare.
+const KEY_STATES = [
+  ["trying", "Trying it", "New. Eos reads it where it fits and watches whether it helps."],
+  ["firm", "Firm", "It helped often enough to hold."],
+  ["cooling", "Cooling", "It has not come back for a while and fades unless it does."],
+];
+
+export function NoteKey() {
+  return (
+    <aside className="eos-mem-key" aria-label="How to read a note">
+      <h2 className="eos-label">How to read a note</h2>
+      <ul className="eos-mem-key__list">
+        {KEY_STATES.map(([state, title, line]) => (
+          <li key={state} className="eos-mem-key__item">
+            <span className={`eos-mem-mark eos-mem-mark--${state}`} aria-hidden="true" />
+            <span className="eos-mem-key__text"><span className="eos-mem-key__title">{title}</span><span className="eos-mem-key__line">{line}</span></span>
+          </li>
+        ))}
+        <li className="eos-mem-key__item eos-mem-key__item--strength">
+          <StrengthBar strength={0.6} />
+          <span className="eos-mem-key__text"><span className="eos-mem-key__title">Strength</span><span className="eos-mem-key__line">How often it came back and helped.</span></span>
+        </li>
+      </ul>
+      <p className="eos-mem-key__foot">Open a note to see what taught it, when it comes back and whether it helped.</p>
+    </aside>
+  );
+}
+
 // Eos › Memory › Learned from work: the notes Eos learned, filtered, searched
 // and grouped by scope; a row opens its detail beside the list. With
 // `routineId` it holds that routine's notes only (its Learned tab).
-export function LearnedFromWork({ summary, query = "", selected, routineId, onClearSearch }) {
+export function LearnedFromWork({ summary, query = "", selected, routineId, onClearSearch, withKey = false }) {
   const { pages, pagesFailed } = useNotes();
   const { list: routines } = useRoutines();
   const [chosen, setScope] = useState();
@@ -193,9 +222,12 @@ export function LearnedFromWork({ summary, query = "", selected, routineId, onCl
 
   const bare = page && page.notes.length === 0 && !narrowed;
   return (
-    <div className="eos-mem-learned">
-      {!bare && <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />}
-      {body}
-    </div>
+    <>
+      <div className="eos-mem-learned">
+        {!bare && <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />}
+        {body}
+      </div>
+      {withKey && page?.notes.length > 0 && <NoteKey />}
+    </>
   );
 }

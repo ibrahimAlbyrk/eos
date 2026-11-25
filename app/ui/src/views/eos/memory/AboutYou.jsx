@@ -101,8 +101,10 @@ export function AboutYouTab({ query = "" }) {
 
   if (page === "log") {
     return (
-      <div className="mem-view__inner eos-mem-about">
-        <button type="button" className="eos-link" onClick={() => setMemoryPage("memory")}>Back to About you</button>
+      <div className="mem-view__inner eos-mem-about eos-mem-log">
+        <div className="eos-mem-about__bar">
+          <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setMemoryPage("memory")}>Back to About you</button>
+        </div>
         <h2 className="eos-label">Dream log</h2>
         <DreamLog />
       </div>
