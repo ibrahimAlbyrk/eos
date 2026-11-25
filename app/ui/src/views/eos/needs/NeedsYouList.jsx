@@ -59,7 +59,7 @@ function Row({ item, routineName, current }) {
       <span className="eos-actions">
         <button type="button" className="eos-btn eos-btn--primary" onClick={open}>{primaryAction(item.kind)}</button>
         {item.state === "open" && !isShownOnly(item.id) && (
-          <button type="button" className="eos-btn" onClick={() => void laterInboxItem(item.id)}>Later</button>
+          <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void laterInboxItem(item.id)}>Later</button>
         )}
       </span>
     </li>
@@ -71,7 +71,7 @@ function ViewItem({ item, routineName }) {
     <div className="eos-needs-view">
       <ItemView item={item} routineName={routineName} />
       <span className="eos-actions eos-needs-view__aside">
-        <button type="button" className="eos-btn" onClick={() => void laterInboxItem(item.id)}>Later</button>
+        <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void laterInboxItem(item.id)}>Later</button>
       </span>
     </div>
   );
