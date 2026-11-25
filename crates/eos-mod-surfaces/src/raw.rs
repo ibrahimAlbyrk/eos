@@ -27,10 +27,12 @@ use crate::routes::param;
 /// How long a probe document stays.
 const PROBE_DOC_MS: i64 = 60_000;
 
+/// A held document, the policy it is served under, and until when.
+type Held = (String, Option<&'static str>, i64);
+
 /// Documents the page probe loads, by a token nobody can guess.
 pub struct ProbeDocs {
-    /// Each document, the policy it is served under, and until when.
-    docs: Mutex<HashMap<String, (String, Option<&'static str>, i64)>>,
+    docs: Mutex<HashMap<String, Held>>,
     clock: Arc<dyn Clock>,
     ids: Arc<dyn Ids>,
 }
