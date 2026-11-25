@@ -70,7 +70,21 @@ const runDetail = later(runDetailSample, runsBy);
 // PR Review's source last looked four minutes before the gallery opened; its
 // triggers and signals move with it.
 const signalsBy = Date.now() - 4 * MIN - triggerStatusSample[routineDetail.routine.id].sources[0].lastPollAt;
-const triggerStatus = later(triggerStatusSample, signalsBy);
+// PR Review's schedule runs on weekdays at 05:00: its last and next times are
+// the weekdays at 05:00 around the moment the gallery opens.
+function weekdayAt5(from, step) {
+  const d = new Date(from);
+  d.setHours(5, 0, 0, 0);
+  if (step > 0 ? d.getTime() <= from : d.getTime() > from) d.setDate(d.getDate() + step);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + step);
+  return d.getTime();
+}
+const onWeekdays = (status) => ({
+  ...status,
+  schedules: status.schedules.map((sc) => ({ ...sc, nextAt: weekdayAt5(Date.now(), 1), lastAt: weekdayAt5(Date.now(), -1) })),
+});
+const shiftedStatus = later(triggerStatusSample, signalsBy);
+const triggerStatus = { ...shiftedStatus, [routineDetail.routine.id]: onWeekdays(shiftedStatus[routineDetail.routine.id]) };
 const signals = later(signalsSample, signalsBy);
 
 // PR Review's week, so its page shows how it gets better.
