@@ -57,7 +57,7 @@ pub struct ArchitectRequest {
     /// The project folder the routine works on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
-    /// The model of its architect and its agents; the user's default when
+    /// The model its architect's session runs at; the user's default when
     /// absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
