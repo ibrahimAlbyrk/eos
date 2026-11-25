@@ -36,6 +36,9 @@ pub const PACKAGE_MAX_BYTES: u64 = 50 * 1024 * 1024;
 /// code's own state, which nothing here touches; and
 /// `<id>/<version>.partial/` while a version installs. Nothing is deleted:
 /// what goes, goes to the trash.
+/// A package's files: each one's path inside it and its bytes.
+pub type PackageFiles = Vec<(String, Vec<u8>)>;
+
 pub trait CapabilityFiles: Send + Sync {
     /// Copies the package in `package_dir` in as `<id>/<version>/`: into
     /// `<id>/<version>.partial/` first, renamed only when the copy's hash is
@@ -55,13 +58,13 @@ pub trait CapabilityFiles: Send + Sync {
     /// another computer, kept only when it hashes to `hash`.
     fn install_files<'a>(
         &'a self,
-        files: Vec<(String, Vec<u8>)>,
+        files: PackageFiles,
         id: &'a str,
         version: &'a str,
         hash: &'a str,
     ) -> BoxFuture<'a, Result<(), Error>>;
     /// The installed package's files: relative path and bytes, sorted.
-    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>>;
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<PackageFiles, Error>>;
     /// Moves `<id>/<version>/` to the trash.
     fn remove<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The installed package's hash (`eos_domain::capability::hash`).
