@@ -274,6 +274,7 @@ impl RoutinesModule {
             progress: Mutex::new(HashMap::new()),
             launches: Mutex::new(HashMap::new()),
             held: Mutex::new(std::collections::HashSet::new()),
+            starting: Mutex::new(std::collections::HashSet::new()),
             gate,
             config,
             tasks: tokio::runtime::Handle::try_current().ok(),

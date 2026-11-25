@@ -82,10 +82,14 @@ async fn team(engine: &Engine, worker_id: &str) -> Result<Team, Error> {
 }
 
 pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task: &str) -> Result<(), Error> {
+    let started_already =
+        || Error::Conflict(format!("{key} was started already: send it more with message_specialist"));
+    // Claimed before the team is read, so a start that finished meanwhile shows in its sessions.
+    let Some(_starting) = Starting::claim(engine, worker_id, key) else { return Err(started_already()) };
     let team = team(engine, worker_id).await?;
     let agent = team.agent(key)?.clone();
     if team.session_of(key).is_some() {
-        return Err(Error::Conflict(format!("{key} was started already: send it more with message_specialist")));
+        return Err(started_already());
     }
     let (run_id, blueprint, input) = (&team.run.run_id, &team.blueprint, &team.input);
     let lead_dir = team.lead_dir.as_deref();
@@ -127,6 +131,27 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
     };
     tracing::info!(run_id = %team.run.run_id, worker_id = %started, agent_key = key, "a specialist started");
     Ok(())
+}
+
+/// One start of a lead's specialist under way. Its session row is written only once the
+/// agent starts, so two starts that both read none would both start it: the second finds the
+/// first's claim. Let go when the start ends, however it ends.
+struct Starting {
+    engine: Arc<Engine>,
+    claim: (String, String),
+}
+
+impl Starting {
+    fn claim(engine: &Arc<Engine>, lead: &str, key: &str) -> Option<Self> {
+        let claim = (lead.to_owned(), key.to_owned());
+        Engine::locked(&engine.starting).insert(claim.clone()).then(|| Self { engine: engine.clone(), claim })
+    }
+}
+
+impl Drop for Starting {
+    fn drop(&mut self) {
+        Engine::locked(&self.engine.starting).remove(&self.claim);
+    }
 }
 
 /// The Forge's builder works only in the build folder its lead was started
