@@ -26,6 +26,7 @@ export const GALLERY_STATES = [
   { id: "needs", label: "Needs you", location: "eos:/needs" },
   { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty }) },
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },
+  { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
