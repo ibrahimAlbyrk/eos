@@ -72,6 +72,30 @@ const crowded = {
   then: () => void makeRoutine("Tell me when the build breaks"),
 };
 
+// A routine file dragged onto New routine, or dropped there: the drop
+// target, the dialog that asks, and a file that is no routine.
+const ROUTINE_FILE = JSON.stringify({ format: 1, routine: { name: "Docs Review" }, versions: [{}, {}, {}] });
+const dragFile = (name, text, kind) => () => {
+  const into = document.querySelector(".eos-new-drop");
+  if (!into) return;
+  const data = new DataTransfer();
+  data.items.add(new File([text], name, { type: "application/json" }));
+  into.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data }));
+  if (kind === "drop") into.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: data }));
+};
+const importing = {
+  dragging: { then: dragFile("docs-review.json", ROUTINE_FILE, "over") },
+  asking: { then: dragFile("docs-review.json", ROUTINE_FILE, "drop") },
+  refused: {
+    sends: async () => ({ ok: false, status: 400, body: { error: "this file was written by a newer Eos" } }),
+    then: () => {
+      dragFile("docs-review.json", ROUTINE_FILE, "drop")();
+      setTimeout(() => [...document.querySelectorAll(".eos-ask button")].find((b) => b.textContent === "Make the draft")?.click(), 300);
+    },
+  },
+  wrong: { then: dragFile("notes.txt", "Buy milk", "drop") },
+};
+
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
 // { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline",
@@ -102,6 +126,10 @@ export const GALLERY_STATES = [
   { id: "routine-refused", label: "Routine · being made, an edit refused", location: `eos:/routines/${DOCS}`, ...refusedEdit },
   { id: "version-old", label: "Routine · an earlier version", location: `eos:/routines/${routinePaused.routine.id}/versions/1` },
   { id: "new-routine", label: "New routine", location: "eos:/routines/new" },
+  { id: "import-dragging", label: "New routine · a routine file dragged over", location: "eos:/routines/new", ...importing.dragging },
+  { id: "import-asking", label: "New routine · a routine file asks first", location: "eos:/routines/new", ...importing.asking },
+  { id: "import-refused", label: "New routine · a routine file refused", location: "eos:/routines/new", ...importing.refused },
+  { id: "import-wrong", label: "New routine · a file that is no routine", location: "eos:/routines/new", ...importing.wrong },
   { id: "new-routine-crowded", label: "New routine · three architects at work", location: "eos:/routines/new", ...crowded },
   { id: "routine-error", label: "Routine · cannot read", location: `eos:/routines/${routineDetail.routine.id}`, answer: "error" },
   { id: "run", label: "Run", location: `eos:/runs/${runDetail.run.id}` },

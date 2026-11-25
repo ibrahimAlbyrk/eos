@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { createRoutine, NEW, useBlueprints } from "../../../state/eos/blueprintStore.js";
-import { importRoutine, useRoutines } from "../../../state/eos/routinesStore.js";
+import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { BlueprintCard } from "./BlueprintCard.jsx";
+import { FILE_ICON, ImportDialog, readChosen } from "./ImportRoutine.jsx";
 import { NewRoutineStart } from "./NewRoutineStart.jsx";
 import { Note } from "./BlueprintEditor.jsx";
 import { HAND_BLUEPRINT } from "./words.js";
@@ -11,25 +12,44 @@ import { HAND_BLUEPRINT } from "./words.js";
 // eos:/routines/new (⌘N). First one question in the reading measure: what
 // should Eos take care of; the words make the routine with its architect at
 // work. "Fill it by hand" opens the blueprint card, every value editable,
-// and Make it creates the routine as a draft. "From a file" makes a draft
-// of a routine file saved on any Mac.
+// and Make it creates the routine as a draft. "Open a routine file", or a
+// file dropped anywhere on the screen, asks in a dialog before it makes a
+// draft of a routine file saved on any Mac.
 export function NewRoutine() {
   const picker = useRef(null);
   const { notes } = useBlueprints();
   const { list } = useRoutines();
   const [blueprint, setBlueprint] = useState(null);
   const note = notes[NEW];
+  const opened = (id) => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
   const make = async () => {
     const id = await createRoutine(blueprint);
-    if (id) openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
+    if (id) opened(id);
   };
+  const [chosen, setChosen] = useState(null);
+  const [dragging, setDragging] = useState(false);
   const fromFile = async (file) => {
     if (!file) return;
-    const id = await importRoutine(await file.text());
-    if (id) openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
+    setChosen(readChosen({ name: file.name, text: await file.text() }));
+    if (picker.current) picker.current.value = "";
   };
+  const carriesFile = (e) => [...(e.dataTransfer?.types ?? [])].includes("Files");
   return (
-    <main className="eos-screen eos-screen--read">
+    <main
+      className="eos-screen eos-screen--read eos-new-drop"
+      onDragOver={(e) => {
+        if (!carriesFile(e)) return;
+        e.preventDefault();
+        if (!dragging) setDragging(true);
+      }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
+      onDrop={(e) => {
+        if (!carriesFile(e)) return;
+        e.preventDefault();
+        setDragging(false);
+        void fromFile(e.dataTransfer.files?.[0]);
+      }}
+    >
       <EosHeader trail={[{ label: "Routines", location: "eos:/routines" }, { label: "New routine" }]}>
         {blueprint && <span className="eos-status">Draft, not running yet</span>}
       </EosHeader>
@@ -57,6 +77,26 @@ export function NewRoutine() {
         )}
         <input ref={picker} type="file" accept=".json,application/json" hidden aria-label="A routine file" onChange={(e) => void fromFile(e.target.files?.[0])} />
       </div>
+      {dragging && (
+        <div className="eos-new__veil" aria-hidden="true">
+          <div className="eos-new__veil-box">
+            <svg width="20" height="20" viewBox="0 0 16 16"><path d={FILE_ICON} /></svg>
+            <p className="eos-new__veil-title">Drop a routine file to open it</p>
+            <p className="eos-new__veil-line">It becomes a draft here. Nothing in it runs until you start it.</p>
+          </div>
+        </div>
+      )}
+      {chosen && (
+        <ImportDialog
+          chosen={chosen}
+          onClose={() => setChosen(null)}
+          onMade={opened}
+          onOther={() => {
+            setChosen(null);
+            picker.current?.click();
+          }}
+        />
+      )}
     </main>
   );
 }

@@ -195,22 +195,49 @@ export async function exportRoutine(id) {
   return null;
 }
 
-// A routine file's text made a draft routine here: nothing in the file sends
-// or earns freedom until the user confirms it on this Mac (L14). The draft's
-// id, or null with the reason said.
-export async function importRoutine(text) {
+// What a routine file's text holds, read before anything is sent: the file,
+// its routine's name and how many versions it carries; null when the text
+// is not a routine file.
+export function readRoutineFile(text) {
   let file;
   try {
     file = JSON.parse(text);
   } catch {
+    return null;
+  }
+  if (!file || typeof file !== "object" || Array.isArray(file)) return null;
+  const name = typeof file.routine?.name === "string" ? file.routine.name : null;
+  const versions = Array.isArray(file.versions) ? file.versions.length : 0;
+  return { file, name, versions };
+}
+
+// A read routine file made a draft routine here: nothing in the file sends
+// or earns freedom until the user confirms it on this Mac (L14). The draft's
+// id, or the core's reason it refused (`error`), said by the caller.
+export async function importRoutineFile(file) {
+  let refused = null;
+  const r = await routineWrite("POST", ROUTES.routinesImport, file, (answer) => {
+    refused = answer?.body?.error ?? "Eos could not read this routine file.";
+    return true;
+  });
+  const row = r?.body?.row;
+  if (typeof row?.id !== "string") return { error: refused ?? "Eos could not read this routine file." };
+  putRoutineRow(row);
+  return { id: row.id };
+}
+
+// A routine file's text made a draft routine here; the draft's id, or null
+// with the reason said.
+export async function importRoutine(text) {
+  const read = readRoutineFile(text);
+  if (!read) {
     notify.error("This is not a routine file.", { title: "Routine" });
     return null;
   }
-  const r = await routineWrite("POST", ROUTES.routinesImport, file);
-  const row = r?.body?.row;
-  if (typeof row?.id !== "string") return null;
-  putRoutineRow(row);
-  return row.id;
+  const done = await importRoutineFile(read.file);
+  if (done.id) return done.id;
+  notify.error(done.error, { title: "Routine" });
+  return null;
 }
 
 // GET candidates: what the run form offers to run on, newest first; empty
