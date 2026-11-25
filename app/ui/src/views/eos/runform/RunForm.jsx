@@ -43,18 +43,19 @@ function Outcome({ outcome, routine, details, now, runAgain }) {
       </div>
     );
   }
-  return <p className="eos-note eos-runform__problem" role="alert">{refusalText(outcome)}</p>;
+  return <p className="eos-ask__wrong eos-runform__problem" role="alert">{refusalText(outcome)}</p>;
 }
 
 // Why a start was refused, in words (not a repeat: that one asks).
 export const refusalText = (outcome) =>
   (outcome.devRun ? DEV_RUN_TEXT : outcome.dayCap ? DAY_CAP_TEXT : outcome.offline ? OFFLINE_TEXT : outcome.error);
 
-// The run form (08 §4.7) over runFormModel: the item, the options, a note,
-// where the result goes, when, the estimate and Run ⌘↵. `layout` is "sheet"
+// The run form (08 §4.7) over runFormModel: where it was asked from and the
+// routine, the item in a well, then the options, a note, where the result
+// goes and when on hairlines, the estimate, Cancel and Run ⌘↵. `layout` is "sheet"
 // (with its title) or "inline" (inside another screen). Starting waits for
 // the core; a started run opens its run view.
-export function RunForm({ routine, blueprint, form, setForm, layout, door, chat, againOf, autoFocus, onStarted }) {
+export function RunForm({ routine, blueprint, form, setForm, layout, door, chat, againOf, autoFocus, onStarted, onCancel }) {
   const { accounts } = useAccounts();
   const { details } = useRuns();
   const [estimate, setEstimate] = useState(null);
@@ -124,40 +125,47 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, chat,
       onKeyDown={(e) => { if (holdsEnter(e)) e.preventDefault(); }}
     >
       {layout === "sheet" && (
-        <div>
+        <header className="eos-runform__head">
+          <p className="eos-ask__from">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d={PLAY} /></svg>
+            {againOf ? "Run it again" : "Run by hand"}
+          </p>
           <h1 className="eos-runform__title">Run {routine.name}</h1>
           {routine.summary && <p className="eos-runform__summary">{routine.summary}</p>}
-        </div>
+        </header>
       )}
       {takesItems(routine.takes) && (
         <CandidateCombobox routineId={routine.id} takes={routine.takes} form={form} setForm={(next) => change(next)} autoFocus={autoFocus} />
       )}
-      {inline.map(option)}
+      <div className="eos-runform__rows">
+        {inline.map(option)}
+        {showMore && more.map(option)}
+        <div className="eos-runform__row">
+          <label className="eos-runform__label" htmlFor="runform-note">Note</label>
+          <input id="runform-note" type="text" className="eos-runform__input" placeholder="For this run only" value={form.note} onChange={(e) => change({ note: e.target.value })} />
+        </div>
+        <div className="eos-runform__row">
+          <span className="eos-runform__label" id="runform-result">Result</span>
+          <div className="eos-seg" role="radiogroup" aria-labelledby="runform-result">
+            {RESULTS.map((r) => (
+              <button key={r.value} type="button" role="radio" aria-checked={form.result === r.value} className="eos-seg__opt" onClick={() => change({ result: r.value })}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <LaterPicker at={form.at} now={now} onChange={(at) => change({ at })} />
+      </div>
       {more.length > 0 && (
         <button type="button" className="eos-link eos-runform__more" aria-expanded={showMore} onClick={() => setShowMore(!showMore)}>
-          {showMore ? "Fewer options" : "More options"}
+          {showMore ? "Fewer options" : `${more.length === 1 ? "One more option" : `${more.length} more options`}`}
         </button>
       )}
-      {showMore && more.map(option)}
-      <div className="eos-runform__field">
-        <label className="eos-runform__label" htmlFor="runform-note">Note for this run</label>
-        <input id="runform-note" type="text" className="eos-runform__input" value={form.note} onChange={(e) => change({ note: e.target.value })} />
-      </div>
-      <div className="eos-runform__row">
-        <span className="eos-runform__label" id="runform-result">Result</span>
-        <div className="eos-seg" role="radiogroup" aria-labelledby="runform-result">
-          {RESULTS.map((r) => (
-            <button key={r.value} type="button" role="radio" aria-checked={form.result === r.value} className="eos-seg__opt" onClick={() => change({ result: r.value })}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <LaterPicker at={form.at} now={now} onChange={(at) => change({ at })} />
-      {problem && <p className="eos-note eos-runform__problem" role="alert">{problem}</p>}
+      {problem && <p className="eos-ask__wrong eos-runform__problem" role="alert">{problem}</p>}
       <Outcome outcome={outcome} routine={routine} details={details} now={now} runAgain={() => void run(true)} />
       <div className="eos-runform__foot">
         <span className="eos-runform__estimate">{line}</span>
+        {onCancel && <button type="button" className="eos-btn eos-btn--ghost" onClick={onCancel}>Cancel</button>}
         <button type="submit" className="eos-btn eos-btn--primary" disabled={starting}>
           {starting ? "Starting…" : "Run"} <span className="eos-needs-key">{shortcutLabel("mod+return")}</span>
         </button>
@@ -165,3 +173,5 @@ export function RunForm({ routine, blueprint, form, setForm, layout, door, chat,
     </form>
   );
 }
+
+const PLAY = "M5 3.5v9l7-4.5z";

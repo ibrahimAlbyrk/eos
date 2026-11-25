@@ -71,6 +71,7 @@ function OpenSheet({ request, routine, blueprint }) {
           chat={request.chat}
           againOf={request.againOf}
           autoFocus
+          onCancel={close}
           onStarted={() => {
             kept.delete(routine.id);
             close();

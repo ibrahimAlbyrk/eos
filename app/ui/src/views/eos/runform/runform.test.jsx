@@ -70,17 +70,19 @@ describe("the run sheet", () => {
     await loadRoutine(PR.id);
     const html = sheet();
     const order = [
+      "Run by hand</p>",
       '<h1 class="eos-runform__title">Run PR Review</h1>',
       "Reviews each new pull request",
       'for="runform-item">Pull request</label>',
       'role="combobox"',
       "Empty takes the latest",
       'id="runform-opt-depth"',
-      ">Note for this run</label>",
+      '>Note</label><input id="runform-note" type="text" class="eos-runform__input" placeholder="For this run only"',
       'id="runform-result">Result</span>',
       ">As usual</button>", ">Ask before sending</button>", ">Show me only</button>",
       'id="runform-when">When</span>',
       ">Now</button>", ">Later ▾</button>",
+      ">Cancel</button>",
       ">Run <span",
     ];
     const at = order.map((part) => html.indexOf(part));

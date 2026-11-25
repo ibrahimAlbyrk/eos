@@ -119,7 +119,8 @@ export function CandidateCombobox({ routineId, takes, form, setForm, autoFocus }
               className="eos-runform__option"
               onMouseDown={(e) => { e.preventDefault(); choose(item); }}
             >
-              <span className="eos-runform__mono">{chipLabel(item)}</span> {itemName(item)}
+              <span className="eos-runform__mono">{chipLabel(item)}</span>
+              <span className="eos-runform__optname">{itemName(item)}</span>
             </li>
           ))}
         </ul>
