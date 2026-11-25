@@ -88,11 +88,16 @@ async fn a_schedule_that_ran_over_half_an_hour_late_shows_on_its_line_and_offers
     let hourly = json!({"schedule": {"every": 60, "days": "all", "zone": "UTC"}});
     blueprint["when"]["on"].as_array_mut().expect("triggers").push(hourly);
     let routine = make(&app, blueprint).await;
-    let next_at = || async { triggers(&app, &routine).await["schedules"][0]["nextAt"].as_i64() };
-    eventually("the schedule is armed", || async { next_at().await.is_some() }).await;
+    // The scheduler's own row: the route computes a next slot before it.
+    let armed_next = || async {
+        let id = routine.clone();
+        let rows = app.store().read(move |tx| tx.signal_schedules().of_routine(&id)).await.expect("reads");
+        rows.first().and_then(|row| row.next_at)
+    };
+    eventually("the scheduler arms the schedule", || async { armed_next().await.is_some() }).await;
 
     // The Mac slept through the slot and woke 40 minutes after it.
-    let slot = next_at().await.expect("a slot");
+    let slot = armed_next().await.expect("a slot");
     fakes.clock.set(slot + 40 * 60_000);
     app.woke(Duration::from_secs(0));
     eventually("the slot fires late", || async {
