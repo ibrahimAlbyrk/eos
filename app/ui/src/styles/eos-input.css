@@ -218,3 +218,25 @@
 .eos-once__status { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-once__result { max-height: 360px; overflow: auto; font-size: var(--text-sm); }
 .eos-once__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* The Home input's freedom, project and model pills (Main.dc.html). */
+.eos-home-pill {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eos-home-pill:hover:not(:disabled),
+.eos-home-pill[aria-expanded="true"] { background: var(--row-on); }
+.eos-home-pill:disabled { cursor: default; }
+.eos-home-pill__glyph { flex: none; fill: none; stroke: var(--fg-dim); stroke-width: 1.5; stroke-linejoin: round; }
+.eos-intent__menu--end { left: auto; right: 0; }

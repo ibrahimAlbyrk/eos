@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CandidateList, LIST_ID } from "./CandidateList.jsx";
+import { HomePills } from "./HomePills.jsx";
 import { InlineOptions } from "./InlineOptions.jsx";
 import { IntentLine } from "./IntentLine.jsx";
 import { LiveRunLines } from "./LiveRunLines.jsx";
@@ -38,7 +39,8 @@ function UnderLine({ h }) {
 
 // The Home input (Main.dc.html, RunInput.dc.html, RunIntent.dc.html): the
 // things handed to Eos and the text, or a routine token with its item slot;
-// the controls row (Attach and send, or the token's options and Run); the
+// the controls row (Attach, the freedom, project and model pills and send,
+// or the token's options and Run); the
 // line that says what Enter will do; the `/` menu or the token's
 // candidates; then the runs it started and the tasks done once. Entering
 // Home never focuses it (08 G10): a click or `/` does. The text survives
@@ -109,7 +111,7 @@ export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held,
                 e.target.value = "";
               }}
             />
-            <span className="eos-input__gap" />
+            <HomePills intent={h.intent.chosen?.intent} choices={h.choices} setChoices={h.setChoices} />
             <button type="button" className="eos-input__send" aria-label="Send" disabled={!h.canSend} onClick={h.enter}>
               <Icon d="M8 12.5v-9M4.5 7L8 3.5 11.5 7" size={14} width={1.8} />
             </button>
