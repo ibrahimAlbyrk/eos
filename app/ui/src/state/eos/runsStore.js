@@ -134,6 +134,15 @@ export async function stopRun(id) {
   set({ stopping: without(state.stopping, id) });
 }
 
+// Pauses a run at work or at its check; Resume brings its lead back.
+export async function pauseRun(id) {
+  if (await runWrite(ROUTES.runPause(id))) await loadRun(id);
+}
+
+export async function resumeRun(id) {
+  if (await runWrite(ROUTES.runResume(id))) await loadRun(id);
+}
+
 // The user's words to the run's team; true when they reached it.
 export function messageRun(id, text) {
   return runWrite(ROUTES.runMessage(id), { text });

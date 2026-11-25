@@ -4,7 +4,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRunLive, applyRunActivity, retain } from "../../../state/eos/runLiveStore.js";
-import { _resetRuns, loadRun, loadRunResult, messageRun, stopRun } from "../../../state/eos/runsStore.js";
+import { _resetRuns, loadRun, loadRunResult, messageRun, pauseRun, resumeRun, stopRun } from "../../../state/eos/runsStore.js";
 import { _resetRunSheet, registerHost, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -226,6 +226,27 @@ describe("the run view's writes", () => {
     await stopping;
     expect(transport.get).toHaveBeenLastCalledWith(ROUTES.run("rn-running01"));
     expect(renderToStaticMarkup(<EosMain />)).toContain(">Stop</button>");
+  });
+
+  it("Pause pauses a working run, and a run the user paused offers Resume", async () => {
+    const transport = recording();
+    let html = await screen("running01", transport);
+    expect(html).toContain(">Pause</button>");
+    expect(html).not.toContain(">Resume</button>");
+    await pauseRun("rn-running01");
+    expect(transport.send).toHaveBeenCalledWith("POST", ROUTES.runPause("rn-running01"), undefined);
+    expect(transport.get).toHaveBeenLastCalledWith(ROUTES.run("rn-running01"));
+
+    const paused = { ...byId.paused01, run: { ...byId.paused01.run, reason: "user" } };
+    const read = fixtureTransport({ ...reads, [ROUTES.run(paused.run.id)]: paused });
+    const resumed = { get: vi.fn(read.get), send: vi.fn(async () => ({ ok: true, status: 200, body: { ok: true } })) };
+    html = await screen("paused01", resumed);
+    expect(html).toContain("Paused. You paused it.");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Resume</button>');
+    expect(html).not.toContain(">Pause</button>");
+    await resumeRun(paused.run.id);
+    expect(resumed.send).toHaveBeenCalledWith("POST", ROUTES.runResume(paused.run.id), undefined);
+    expect(await screen("paused01")).not.toContain(">Resume</button>");
   });
 
   it("Tell the team sends the words to the run, and a dev run says so instead of failing", async () => {
