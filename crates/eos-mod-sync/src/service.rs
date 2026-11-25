@@ -162,8 +162,14 @@ impl SyncService {
         if lock(&self.inner).session.is_some() {
             return;
         }
-        if let Some(identity) = self.deps.identities.load() {
-            self.open(identity);
+        match self.deps.identities.load() {
+            Some(identity) => self.open(identity),
+            // The leases wait for this answer before anything is acted on.
+            None => {
+                if let Some(leases) = &self.deps.leases {
+                    leases.attach(None);
+                }
+            }
         }
     }
 

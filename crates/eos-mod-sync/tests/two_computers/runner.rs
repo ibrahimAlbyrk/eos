@@ -160,7 +160,12 @@ async fn a_routine_with_no_lease_read_is_held_by_nobody_while_shared_and_here_wh
     air.pull().await;
     assert_eq!(air.runner.confirmed_at(), Some(1_000));
 
-    let alone = VaultRunner::new("solo", Arc::new(|| "SOLO".into()), TempStore::new().store.clone(), clock.clone());
+    let alone =
+        Arc::new(VaultRunner::new("solo", Arc::new(|| "SOLO".into()), TempStore::new().store.clone(), clock.clone()));
+    assert_eq!(alone.holder("rt-1"), Holder::Unknown, "nothing is known before sync says whether it is on");
+    assert!(alone.shared(), "so nothing is acted on before a read");
+    LeaseSinkOf(alone.clone()).attach(None);
+    assert!(!alone.shared());
     assert_eq!(alone.holder("rt-1"), Holder::Here { epoch: 0 });
     alone.adopt("rt-1").await.unwrap();
     assert_eq!(alone.holder("rt-1"), Holder::Here { epoch: 1 });

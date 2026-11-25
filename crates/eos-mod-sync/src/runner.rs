@@ -5,8 +5,10 @@
 //! so of two computers claiming one routine at once exactly one wins.
 //!
 //! The view lives in memory and in `signal_runners`, so a restart starts
-//! from what was last read. While no vault is open, a routine with no lease
-//! is held here and a claim moves it only on this computer.
+//! from what was last read. Until sync says whether a vault is open, the
+//! view counts as shared and unread, so nothing is acted on before a read.
+//! While no vault is open, a routine with no lease is held here and a claim
+//! moves it only on this computer.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -42,6 +44,8 @@ struct Device {
 #[derive(Default)]
 struct View {
     vault: Option<LeaseVault>,
+    /// Whether sync has said if a vault is open since the app started.
+    attached: bool,
     leases: HashMap<String, Lease>,
     devices: HashMap<String, Device>,
     confirmed_at: Option<i64>,
@@ -250,6 +254,7 @@ impl LeaseSink for LeaseSinkOf {
         if vault.is_none() {
             view.confirmed_at = None;
         }
+        view.attached = true;
         view.vault = vault;
     }
 
@@ -287,7 +292,7 @@ impl Runner for VaultRunner {
             Some(lease) if lease.holder == self.device_id => Holder::Here { epoch: lease.epoch },
             Some(lease) => Holder::Elsewhere { device_id: lease.holder.clone(), epoch: lease.epoch },
             // A routine that came through sync waits for its lease.
-            None if view.vault.is_some() => Holder::Unknown,
+            None if view.vault.is_some() || !view.attached => Holder::Unknown,
             None => Holder::Here { epoch: 0 },
         }
     }
@@ -410,7 +415,8 @@ impl Runner for VaultRunner {
     }
 
     fn shared(&self) -> bool {
-        locked(&self.view).vault.is_some()
+        let view = locked(&self.view);
+        view.vault.is_some() || !view.attached
     }
 
     fn hourly_elsewhere(&self, routine_id: &str) -> Option<(i64, Vec<i64>)> {
