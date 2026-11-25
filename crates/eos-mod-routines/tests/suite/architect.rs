@@ -291,3 +291,27 @@ async fn the_drafts_view_names_its_architect_and_a_draft_without_one_refuses_wit
         routes.post(&format!("/api/routines/{routine}/draft/message"), json!({"text": "Hello"})).await;
     assert_eq!((status, &refused["code"]), (409, &json!("no_architect")), "{refused}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_architect_still_live_after_a_restart_is_counted_and_suspended_once_idle() {
+    use eos_runtime::module::Module;
+    let routes = Routes::new();
+    let (_, architect) = routes.made("Review my pull requests").await;
+    let bench = &routes.bench;
+    bench.module.stop().await;
+
+    let restarted = bench.another_module();
+    restarted.after_ready().await.expect("starts");
+    assert_ne!(routes.worker_state(&architect).await, WorkerState::Suspended);
+    bench.clock.advance(31 * 60 * 1000);
+    bench.eventually(|| !bench.sleeper.pending().is_empty()).await;
+    assert!(bench.sleeper.wake());
+    for _ in 0..200 {
+        if routes.worker_state(&architect).await == WorkerState::Suspended {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(routes.worker_state(&architect).await, WorkerState::Suspended, "idle, so suspended");
+    restarted.stop().await;
+}

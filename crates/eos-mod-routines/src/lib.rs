@@ -452,6 +452,7 @@ impl Module for RoutinesModule {
             // A halt switched on before Eos quit ends the runs it would pick up.
             engine::hear_halt(&self.engine).await?;
             engine::recover(&self.engine).await?;
+            architect::rejoin(&self.engine).await?;
             engine::hear_answers(&self.engine).await;
             engine::start_supervisor(&self.engine);
             Ok(())
