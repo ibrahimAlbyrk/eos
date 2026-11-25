@@ -5,7 +5,7 @@
 //! the milestones done. Each milestone starts a new round of results, so
 //! its check has its own two rounds; a version kept meanwhile is taken up at
 //! the next milestone, and the team is told so (01 G5). A project has no
-//! cap per run: once its routine or all routines spent the day's budget it
+//! cap per run, only the caps a milestone names (the Forge's research): once its routine or all routines spent the day's budget it
 //! pauses, and the next day it goes on. Its sessions idle for half an hour
 //! are suspended; a message brings them back.
 
@@ -96,7 +96,9 @@ pub(crate) fn advance_in(
     let Some(next) = current(&blueprint, &moved).cloned() else { return Ok(false) };
     let round = run.attempt + 1;
     tx.runs().set_attempt(&run.id, round)?;
-    let began = json!({"key": next.key, "attempt": round}).to_string();
+    // What the run spent so far: a milestone's own caps count from here.
+    let cost = super::budget::cost_in(tx, &run.id)?;
+    let began = json!({"key": next.key, "attempt": round, "costUsd": cost}).to_string();
     tx.runs().append_event(&run.id, now, MILESTONE_BEGAN, Some(&began))?;
     let work = RunMove { state: RunState::Running, station: Some(Station::Work), reason: None, at: now };
     move_run(tx, out, run, work)?;
