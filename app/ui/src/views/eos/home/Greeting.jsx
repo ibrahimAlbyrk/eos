@@ -12,7 +12,7 @@ export function Greeting({ name, now, lastSeen, handled, needs, firstRun }) {
         <span className="eos-greeting__dim">{FIRST_RUN_LINE}</span>
       ) : (
         <>
-          <span className="eos-greeting__dim">{handledLine(handled, now, lastSeen)}</span>
+          {handled != null && <span className="eos-greeting__dim">{handledLine(handled, now, lastSeen)}</span>}
           {need && <> <span className="eos-greeting__need">{need}</span></>}
         </>
       )}

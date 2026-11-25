@@ -124,6 +124,13 @@ describe("Eos › Home", () => {
     expect(draw()).toContain("Couldn&#x27;t load runs. <button");
   });
 
+  it("cannot read: the greeting claims nothing about what was handled", async () => {
+    await loaded({ get: async () => ({ ok: false, status: 500, body: {} }), send: async () => ({ ok: false, status: 500, body: {} }) });
+    const html = draw();
+    expect(html).toContain("Good morning");
+    expect(html).not.toContain("Nothing new");
+  });
+
   it("offline: what was read stays, and Home says it is reconnecting", async () => {
     await loaded(fixtureTransport(reads()));
     setEosTransport({ get: () => Promise.reject(new Error("down")), send: () => Promise.reject(new Error("down")) });
