@@ -29,6 +29,8 @@ import "./apps.css";
 // mode "inline" | "panel"; pending (still being written — no frame yet);
 // onCall(name, args) relays an App surface's tools/call to the core and
 // resolves to its result (a chat's App has none: tools/call is not found).
+// askEveryTime: every link and message is confirmed, with no "Always" — a
+// routine's App may show outside data, which a URL could carry away.
 
 const svg = (children, size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
@@ -64,7 +66,7 @@ function declaredHeight(height) {
 
 export function AppFrame({
   viewId, title, html, height, summary, onSend, onCall,
-  onOpenLink, onOpenPanel, live = null, project = null, mode = "inline", pending = false,
+  onOpenLink, onOpenPanel, live = null, project = null, mode = "inline", pending = false, askEveryTime = false,
 }) {
   const ui = useUi();
   const browserKey = useBrowserSessionKey();
@@ -75,7 +77,8 @@ export function AppFrame({
   const [generation, setGeneration] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [ask, setAsk] = useState(null); // { id, text } — a ui/message waiting for the user
-  const [always, setAlways] = useState(() => isAlwaysSend(viewId));
+  const [alwaysChosen, setAlways] = useState(() => isAlwaysSend(viewId));
+  const always = alwaysChosen && !askEveryTime;
   const [saved, setSaved] = useState({ state: "idle", pageId: null });
 
   const rootRef = useRef(null);
@@ -350,7 +353,7 @@ export function AppFrame({
       </div>
 
       {ask ? (
-        <ConfirmChip key={ask.id} kind={ask.kind} text={ask.text} onSend={sendAsked} onDismiss={dismissAsked} onAlways={alwaysAsked} />
+        <ConfirmChip key={ask.id} kind={ask.kind} text={ask.text} onSend={sendAsked} onDismiss={dismissAsked} onAlways={askEveryTime ? undefined : alwaysAsked} />
       ) : null}
 
       <footer className="gv-app-foot">

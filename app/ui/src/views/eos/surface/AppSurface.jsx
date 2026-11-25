@@ -128,6 +128,7 @@ export function AppSurface({ surfaceId, inPanel = false }) {
             height={manifest.height}
             summary={manifest.summary}
             onCall={onCall}
+            askEveryTime
             mode={inPanel ? "panel" : "inline"}
           />
           {below && <div className="eos-frame__eos">{below}</div>}
