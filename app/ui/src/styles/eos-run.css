@@ -84,7 +84,7 @@
    The way behind is solid, the way ahead dashed to the next run; the line
    runs on into the gutter past both ends and fades there, marks stay in
    the measure. */
-.eos-beat { --bleed: min(var(--eos-frame-x), 160px); margin: 22px calc(-1 * var(--bleed)) 0; }
+.eos-beat { --bleed: var(--eos-bleed); margin: 22px calc(-1 * var(--bleed)) 0; }
 .eos-beat__line {
   margin: 0;
   padding: 0 var(--bleed);
