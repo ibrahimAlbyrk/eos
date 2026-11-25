@@ -27,6 +27,12 @@
   flex-direction: column;
 }
 .eos-screen--read { --eos-measure: 760px; }
+/* The gutter in pixels, for a part that runs on into it and fades there (a
+   beat). Registered as a length so it resolves on the body, against the
+   screen, and reaches nested parts as pixels. */
+@property --eos-bleed { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.eos-screen { container-type: inline-size; }
+.eos-body { --eos-bleed: min(160px, max(clamp(24px, 4cqw, 56px), calc((100cqw - var(--eos-measure)) / 2))); }
 .eos-screen--wide { --eos-measure: 1240px; }
 
 /* The header rides on .pane-head (native drag strip, title-bar insets); its
