@@ -220,6 +220,8 @@ pub(crate) struct Bench {
     pub(crate) home: TempHome,
     /// The relay's hook inbox; none unless the test gives one.
     pub(crate) inbox: Option<Arc<FakeHookInbox>>,
+    /// Who holds each routine: this computer alone unless the test says.
+    pub(crate) runner: Arc<dyn eos_core::signals::Runner>,
 }
 
 impl Bench {
@@ -244,6 +246,7 @@ impl Bench {
             watcher: FakeWatcher::new(),
             home: TempHome::new(),
             inbox: None,
+            runner: Arc::new(SoloRunner::new("dev-1")),
         }
     }
 
@@ -258,7 +261,7 @@ impl Bench {
             sources: self.sources.clone(),
             hooks: self.inbox.clone().map(|inbox| inbox as Arc<dyn eos_core::net::hooks::HookInbox>),
             health: self.health.clone(),
-            runner: Arc::new(SoloRunner::new("dev-1")),
+            runner: self.runner.clone(),
             intake,
             directory: self.directory.clone(),
             control: Arc::new(FakeRoutineControl::new()),

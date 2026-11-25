@@ -50,6 +50,7 @@ mod after;
 mod ask;
 mod awake;
 mod batch;
+mod holding;
 mod ingest;
 mod limits;
 mod local;
@@ -94,6 +95,7 @@ use crate::scheduler::Scheduler;
 
 pub use ask::{ASK_CACHE_MS, ASK_TIMEOUT_MS, ASKS_AT_ONCE, ASKS_PER_DAY, FACTS_TEXT_MAX, UNSORTED_AFTER_MS};
 pub use awake::OFFER_LATE_MS;
+pub use holding::FIRST_READ_WAIT_MS;
 pub use local::{FOLDER_ENTRIES_MAX, FOLDER_LISTING_MS, FOLDER_SETTLE_MS, FOLDERS_MAX, GIT_PATHS_MAX};
 pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
@@ -175,7 +177,8 @@ impl std::fmt::Debug for SignalsParts {
 }
 
 /// What starts a pass of the scheduler at once.
-const KICKS: [&str; 4] = [SYSTEM_WAKE, "routine:change", "run:change", INBOX_HALT];
+/// `sync:change` follows each pass of sync, which reads the leases.
+const KICKS: [&str; 5] = [SYSTEM_WAKE, "routine:change", "run:change", INBOX_HALT, "sync:change"];
 
 pub struct SignalsModule {
     parts: SignalsParts,
@@ -198,7 +201,7 @@ impl SignalsModule {
         let router = Arc::new(Router {
             store: parts.store.clone(),
             clock: parts.clock.clone(),
-            runner: parts.runner.clone(),
+            holding: Arc::new(holding::Holding::new(parts.runner.clone(), parts.clock.clone())),
             intake: parts.intake.clone(),
             directory: parts.directory.clone(),
             sources: parts.sources.clone(),
@@ -255,7 +258,6 @@ impl SignalsModule {
             sleeper: parts.sleeper.clone(),
             ids: parts.ids.clone(),
             zones: parts.zones.clone(),
-            runner: parts.runner.clone(),
             router: router.clone(),
             polls: polls.clone(),
             local,
@@ -367,6 +369,7 @@ impl Module for SignalsModule {
                 let resumed = topic == INBOX_HALT && event.payload_as::<HaltState>().is_ok_and(|halt| !halt.on);
                 if topic == SYSTEM_WAKE || resumed {
                     scheduler.polls.woke();
+                    scheduler.router.holding.woke();
                     scheduler.awake.woke.store(true, Ordering::SeqCst);
                 }
                 scheduler.kick.notify_one();
@@ -419,7 +422,7 @@ impl Module for SignalsModule {
 /// What runs between `after_ready` and `stop`.
 struct Running {
     tasks: Vec<JoinHandle<()>>,
-    _kicks: [Subscription; 4],
+    _kicks: [Subscription; 5],
     /// The watchers' changes to the folders and branches read here.
     _local: [Subscription; 2],
     /// The user's answers to the signals' notices.

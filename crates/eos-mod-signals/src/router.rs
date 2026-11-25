@@ -27,7 +27,7 @@ use eos_core::os::TimeZone;
 use eos_core::routine::{
     Admission, AdmitOutcome, AdmitRefusal, RoutineControl, RoutineDirectory, RoutineTriggers, RunIntake,
 };
-use eos_core::signals::{Holder, Runner, SignalSources};
+use eos_core::signals::SignalSources;
 use eos_core::store::{Outbox, Store, StoredSignal, StoredSignalRoute, StoredSignalSource, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::signals::decision::Decision;
@@ -39,6 +39,7 @@ use eos_inbox::Opening;
 use tokio::sync::Notify;
 
 use crate::SIGNALS_CHANGE;
+use crate::holding::{Holding, Place};
 use crate::limits::{fits_in, notice_over_limit_in, stale_in, supersede_in};
 use crate::{after, ask, batch, local};
 
@@ -167,7 +168,7 @@ pub(crate) fn run_in(
 pub(crate) struct Router {
     pub(crate) store: Arc<dyn Store>,
     pub(crate) clock: Arc<dyn Clock>,
-    pub(crate) runner: Arc<dyn Runner>,
+    pub(crate) holding: Arc<Holding>,
     pub(crate) intake: Arc<dyn RunIntake>,
     pub(crate) directory: Arc<dyn RoutineDirectory>,
     /// What says which events end their subject.
@@ -190,7 +191,7 @@ pub(crate) struct Router {
 
 /// What one signal's routing needs inside its write.
 pub(crate) struct Routing {
-    runner: Arc<dyn Runner>,
+    holding: Arc<Holding>,
     pub(crate) intake: Arc<dyn RunIntake>,
     pub(crate) autostart: bool,
     pub(crate) now: i64,
@@ -272,12 +273,23 @@ impl Routing {
         let source = tx.signal_sources().find(&signal.signal.source_id)?;
         let facts: Facts =
             signal.signal.facts_json.as_deref().and_then(|json| serde_json::from_str(json).ok()).unwrap_or_default();
-        let held = |routine: &&RoutineTriggers| matches!(self.runner.holder(&routine.id), Holder::Here { .. });
-        let takers = routines
+        let matching: Vec<(&RoutineTriggers, Place)> = routines
             .iter()
             .filter(|routine| source.as_ref().is_some_and(|source| takes(routine, source, &signal.signal.kind, &facts)))
-            .filter(held);
-        for routine in takers {
+            .map(|routine| (routine, self.holding.place(&routine.id)))
+            .collect();
+        // A routine whose holder is not known yet keeps the signal waiting.
+        if matching.iter().any(|(_, place)| *place == Place::Waiting) {
+            return Ok(());
+        }
+        for (routine, place) in matching {
+            if place == Place::Elsewhere {
+                // Kept so a move here can take it up; the baseline of a source is no one's work.
+                if !baseline {
+                    self.record_in(tx, out, routine, &signal, (Decision::Elsewhere, None, None))?;
+                }
+                continue;
+            }
             let decided = if baseline {
                 (Decision::Baseline, None, None)
             } else {
@@ -410,7 +422,7 @@ impl Router {
 
     pub(crate) fn routing(&self) -> Routing {
         Routing {
-            runner: self.runner.clone(),
+            holding: self.holding.clone(),
             intake: self.intake.clone(),
             autostart: self.autostart,
             now: self.clock.now_ms(),
@@ -427,7 +439,7 @@ impl Router {
         if !self.autostart {
             return;
         }
-        let held = |routine: &&RoutineTriggers| matches!(self.runner.holder(&routine.id), Holder::Here { .. });
+        let held = |routine: &&RoutineTriggers| self.holding.acts(&routine.id);
         let batching = routines.iter().filter(|routine| routine.when.batch.is_some()).filter(held);
         for routine in batching.filter(|routine| routine.state == RoutineState::Active) {
             let (intake, closing, now) = (self.intake.clone(), routine.clone(), self.clock.now_ms());

@@ -90,6 +90,20 @@ impl RunIntake for Intake {
     ) -> Result<Vec<FinishedRun>, Error> {
         tx.runs().finished_after(routine_id, after_seq, limit)
     }
+
+    fn moved_away(&self, tx: &dyn Tx, out: &mut Outbox, routine_ids: &[String]) -> Result<usize, Error> {
+        let now = self.0.clock.now_ms();
+        let mut moved = 0;
+        for run in tx.runs().queued()? {
+            if !routine_ids.contains(&run.routine_id) || run.origin != "trigger" {
+                continue;
+            }
+            let cancelled = RunMove { state: RunState::Cancelled, station: None, reason: Some(Reason::Moved), at: now };
+            move_run(tx, out, &run, cancelled)?;
+            moved += 1;
+        }
+        Ok(moved)
+    }
 }
 
 pub(crate) struct Directory(pub(crate) Arc<Engine>);

@@ -25,7 +25,6 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use eos_contracts::{RoutineState, Schedule, Trigger};
 use eos_core::os::ZoneRules;
 use eos_core::routine::RoutineTriggers;
-use eos_core::signals::{Holder, Runner};
 use eos_core::store::{NewSignal, Outbox, Store, StoredSignalSchedule, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::routine::blueprint::hash;
@@ -57,7 +56,6 @@ pub(crate) struct Scheduler {
     pub(crate) sleeper: Arc<dyn Sleeper>,
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) zones: Arc<dyn ZoneRules>,
-    pub(crate) runner: Arc<dyn Runner>,
     pub(crate) router: Arc<Router>,
     pub(crate) polls: Arc<Polls>,
     /// The folders and branches on this computer.
@@ -108,11 +106,9 @@ impl Scheduler {
             return Ok(None);
         }
         let routines = self.router.directory.triggers().await?;
-        let held: Vec<Arc<RoutineTriggers>> = routines
-            .into_iter()
-            .filter(|routine| matches!(self.runner.holder(&routine.id), Holder::Here { .. }))
-            .map(Arc::new)
-            .collect();
+        self.router.holding.settle(&routines, &self.store, &self.router.intake).await;
+        let held: Vec<Arc<RoutineTriggers>> =
+            routines.into_iter().filter(|routine| self.router.holding.acts(&routine.id)).map(Arc::new).collect();
         let mut next: Option<i64> = None;
         let mut late: Option<(String, i64)> = None;
         let catch_up = self.awake.catch_up();
