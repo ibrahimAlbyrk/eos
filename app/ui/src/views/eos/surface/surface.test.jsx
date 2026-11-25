@@ -88,8 +88,7 @@ describe("the page screen", () => {
     expect(html).toContain('<section class="eos-frame eos-frame--page" aria-label="Made by Morning Paper">');
     expect(html).toContain('aria-pressed="true">Pinned to Home</button>');
     expect(html).toContain(">Change the page</button>");
-    expect(html).toContain(">Mail preview</button>");
-    expect(html).toContain(">Save as a file</button>");
+    expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Share</button>');
     expect(html).toContain(">Earlier issues</button>");
     expect(html).toContain('aria-label="Tell Eos what to change about this page"');
     expect(html).toContain(">Good issue</button>");
@@ -324,6 +323,6 @@ describe("a page issue as a PDF", () => {
     expect(await printIssue(SF, "si-1", "en-US")).toEqual({ ok: true, path: "/x/si-1.pdf" });
     expect(transport.send.mock.calls[0]).toEqual(["POST", ROUTES.surfaceIssuePdf(SF, "si-1"), { paper: "letter" }]);
     const html = await screen(`eos:/surfaces/${SF}`);
-    expect(html).toContain(">Save as PDF</button>");
+    expect(html).toContain(">Share</button>");
   });
 });

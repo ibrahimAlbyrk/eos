@@ -18,9 +18,10 @@ function save(html, name) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-// The issue taken out of the frame: the mail as it would be sent (one column,
-// shown in a frame that runs nothing), a PDF shown in Finder once printed,
-// and one .html file to share (D31).
+// Share: the issue taken out of the frame, from one menu so the header keeps
+// to one line: the mail as it would be sent (one column, shown in a frame
+// that runs nothing), a PDF shown in Finder once printed, and one .html file
+// to share (D31).
 export function ShareMenu({ surface, row }) {
   const [mail, setMail] = useState(null);
   const showMail = async () => {
@@ -41,11 +42,32 @@ export function ShareMenu({ surface, row }) {
     if (html) save(html, shareName(surface.title, row.seq));
     else notify.error("The file could not be made.", { title: "Save as a file" });
   };
+  const [open, setOpen] = useState(false);
+  const items = [
+    { label: "Mail preview", run: showMail },
+    { label: printing ? "Printing…" : "Save as PDF", run: pdf, busy: printing },
+    { label: "Save as a file", run: share },
+  ];
+  const choose = (item) => {
+    setOpen(false);
+    void item.run();
+  };
   return (
     <>
-      <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void showMail()}>Mail preview</button>
-      <button type="button" className="eos-btn eos-btn--quiet" disabled={printing} onClick={() => void pdf()}>{printing ? "Printing…" : "Save as PDF"}</button>
-      <button type="button" className="eos-btn" onClick={() => void share()}>Save as a file</button>
+      <span className="eos-menu-wrap">
+        <button type="button" className="eos-btn eos-btn--quiet" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {printing ? "Printing…" : "Share"}
+        </button>
+        {open && (
+          <ul className="eos-menu" role="menu" onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
+            {items.map((item) => (
+              <li key={item.label} role="none">
+                <button type="button" role="menuitem" className="eos-menu__item" disabled={item.busy} onClick={() => choose(item)}>{item.label}</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </span>
       {mail && (
         <div className="eos-sheet-overlay" role="presentation" onClick={() => setMail(null)}>
           <div className="eos-sheet eos-mail-preview" role="dialog" aria-label="Mail preview" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Escape") setMail(null); }}>
