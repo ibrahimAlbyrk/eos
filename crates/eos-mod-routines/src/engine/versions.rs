@@ -386,6 +386,9 @@ pub(crate) fn add_in(tx: &dyn Tx, out: &mut Outbox, added: Added<'_>) -> Result<
     if routine.name != prepared.blueprint.name {
         tx.routines().set_name(routine_id, &prepared.blueprint.name, now)?;
     }
+    if routine.kind != prepared.blueprint.kind {
+        tx.routines().set_kind(routine_id, prepared.blueprint.kind, now)?;
+    }
     tracing::info!(routine_id, version_id, author = ?author, "a routine got a new version");
     announce(tx, out, routine_id, RoutineChangeReason::Version, now, patterns)?;
     Ok(kept)

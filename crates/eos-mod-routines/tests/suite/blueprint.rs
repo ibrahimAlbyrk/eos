@@ -182,6 +182,17 @@ async fn a_new_version_is_kept_from_the_head_and_a_stale_base_is_refused() {
     assert_eq!(status, 409, "the head moved on since");
     assert_eq!(routes.versions(&routine).len(), 2);
     assert_eq!(routes.keep("rt-missing", &head, blueprint(1)).await.0, 404);
+
+    let mut project = blueprint(2);
+    project["kind"] = json!("project");
+    project["takes"] = json!({"kind": "none", "label": "nothing", "placeholder": "", "empty": "none", "many": false});
+    project["when"] = json!({"on": []});
+    project["makes"] = json!({"kind": "report", "description": "What was built."});
+    project["project"] = json!({"repo": "/tmp/game", "baseBranch": "main", "brief": "Build the game's app.",
+        "milestones": [{"key": "login", "title": "The login screen", "doneWhen": "a user can sign in"}]});
+    let head = routes.versions(&routine).last().expect("the head").id.clone();
+    let (status, saved) = routes.keep(&routine, &head, project).await;
+    assert_eq!((status, saved["row"]["kind"].as_str()), (200, Some("project")), "{saved}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
