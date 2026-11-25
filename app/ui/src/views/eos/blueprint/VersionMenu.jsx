@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { authorWord, versionDate } from "./words.js";
 
@@ -12,6 +13,7 @@ export function versionLine(row) {
 // choosing the version in use goes back to the editor.
 export function VersionMenu({ routineId, rows, shown, inUseId, suffix = "" }) {
   const [open, setOpen] = useState(false);
+  const wrapRef = useMenuDismiss(open, () => setOpen(false));
   const choose = (row) => {
     setOpen(false);
     openLocation(row.id === inUseId
@@ -19,7 +21,7 @@ export function VersionMenu({ routineId, rows, shown, inUseId, suffix = "" }) {
       : buildLocation({ screen: "version", routineId, version: row.number }));
   };
   return (
-    <span className="eos-menu-wrap">
+    <span className="eos-menu-wrap" ref={wrapRef}>
       <button type="button" className="eos-bp-card__version eos-bp-versions" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         Version {shown.number}{suffix} ▾
       </button>

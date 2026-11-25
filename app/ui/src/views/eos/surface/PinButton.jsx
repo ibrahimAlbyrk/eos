@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { notify } from "../../../lib/notify.js";
 import { PIN_SLOTS, pin, replacePin, unpin, usePins } from "../../../state/eos/pinsStore.js";
 
@@ -7,6 +8,7 @@ import { PIN_SLOTS, pin, replacePin, unpin, usePins } from "../../../state/eos/p
 export function PinButton({ surface }) {
   const { ids, tiles } = usePins();
   const [replacing, setReplacing] = useState(false);
+  const wrapRef = useMenuDismiss(replacing, () => setReplacing(false));
   if (ids === null) return null;
   const pinned = ids.includes(surface.id);
   const toggle = async () => {
@@ -21,7 +23,7 @@ export function PinButton({ surface }) {
   };
   const titleOf = (id) => tiles?.find((t) => t.surfaceId === id)?.title ?? "A pinned page";
   return (
-    <span className="eos-menu-wrap">
+    <span className="eos-menu-wrap" ref={wrapRef}>
       <button type="button" className="eos-btn eos-btn--quiet" aria-pressed={pinned} onClick={() => void toggle()}>
         {pinned ? "Pinned to Home" : "Pin to Home"}
       </button>

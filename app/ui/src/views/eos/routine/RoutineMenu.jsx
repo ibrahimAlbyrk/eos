@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { copyRoutine, deleteRoutine, exportRoutine, setRoutineState } from "../../../state/eos/routinesStore.js";
 import { openLocation } from "../nav/eosNav.js";
 
@@ -40,12 +41,13 @@ export function menuActions(routine) {
 
 export function RoutineMenu({ routine }) {
   const [open, setOpen] = useState(false);
+  const wrapRef = useMenuDismiss(open, () => setOpen(false));
   const choose = (action) => {
     setOpen(false);
     void action.run();
   };
   return (
-    <span className="eos-menu-wrap">
+    <span className="eos-menu-wrap" ref={wrapRef}>
       <button
         type="button"
         className="eos-btn"

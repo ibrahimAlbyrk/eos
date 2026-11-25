@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { loadEarlierIssues } from "../../../state/eos/pageStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { issueLabel } from "./words.js";
@@ -7,6 +8,7 @@ import { issueLabel } from "./words.js";
 // opens in the design it was made with.
 export function EarlierIssues({ page, row }) {
   const [open, setOpen] = useState(false);
+  const wrapRef = useMenuDismiss(open, () => setOpen(false));
   const numbered = (page.issues ?? []).filter((i) => i.seq != null);
   if (numbered.length < 2 && !page.more) return null;
   const pick = (issue) => {
@@ -14,7 +16,7 @@ export function EarlierIssues({ page, row }) {
     openLocation(buildLocation({ screen: "surface", surfaceId: page.surface.id, issue: issue.seq }));
   };
   return (
-    <span className="eos-menu-wrap">
+    <span className="eos-menu-wrap" ref={wrapRef}>
       <button type="button" className="eos-btn eos-btn--quiet" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         Earlier issues
       </button>
