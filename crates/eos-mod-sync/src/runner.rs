@@ -121,7 +121,12 @@ impl VaultRunner {
     fn take_lease(&self, routine_id: &str, seq: u64, record: &Value) -> bool {
         let (Some(holder), Some(epoch)) = (record["holder"].as_str(), record["epoch"].as_i64()) else { return false };
         let mut view = locked(&self.view);
-        let newer = view.leases.get(routine_id).is_none_or(|known| known.seq < seq || known.epoch < epoch);
+        // The epoch never goes back: an older record put back in the vault
+        // under a new sequence is stale. A lease known only here (seq 0)
+        // yields to the vault's record.
+        let newer = view.leases.get(routine_id).is_none_or(|known| {
+            known.seq == 0 || seq == 0 || known.epoch < epoch || (known.epoch == epoch && known.seq < seq)
+        });
         if newer {
             let (from, to) = (view.leases.get(routine_id).map(|l| l.epoch), epoch);
             if from.is_some_and(|from| from != to) {
