@@ -15,7 +15,8 @@ const TABS = [
 ];
 
 // eos:/memory?tab=about|work&note=<id> (08 §4.10): what Eos knows about the
-// user. About you is the Agents Memory body; Learned from work is what Eos
+// user. One search in the header looks through either tab, so the header
+// stays the same height on both. About you is the Agents Memory body; Learned from work is what Eos
 // wrote down from corrections and outcomes, with one note open beside it.
 export function EosMemoryScreen({ tab = "work", note }) {
   const { summary, devRun } = useNotes();
@@ -30,9 +31,7 @@ export function EosMemoryScreen({ tab = "work", note }) {
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Memory" }]}>
-        {tab === "work" && (
-          <input className="eos-mem-search" type="search" aria-label="Search memory" placeholder="Search memory" value={query} onChange={(e) => setQuery(e.target.value)} />
-        )}
+        <input className="eos-mem-search" type="search" aria-label="Search memory" placeholder="Search memory" value={query} onChange={(e) => setQuery(e.target.value)} />
       </EosHeader>
       <div className="eos-body">
         {devRun && <DevRunNote />}
@@ -53,7 +52,7 @@ export function EosMemoryScreen({ tab = "work", note }) {
           ))}
         </nav>
         {tab === "about" ? (
-          AboutYouTab ? <AboutYouTab /> : <p className="eos-note">About you shows in the app.</p>
+          AboutYouTab ? <AboutYouTab query={query} /> : <p className="eos-note">About you shows in the app.</p>
         ) : (
           <div className="eos-mem-columns">
             <LearnedFromWork summary={summary} query={query} selected={note} />

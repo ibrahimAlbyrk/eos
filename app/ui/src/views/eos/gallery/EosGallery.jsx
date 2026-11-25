@@ -9,6 +9,9 @@ import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
 import { RunSheet } from "../runform/RunSheet.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import { holdNetwork } from "./holdNetwork.js";
+import { AboutYouSlot } from "../memory/aboutYouSlot.js";
+import { AboutYouTab } from "../memory/AboutYou.jsx";
+import { aboutYouReads } from "./sample/about-you.js";
 import routines from "./sample/routines.json";
 import routineDetail from "./sample/routine-detail.json";
 import routinePaused from "./sample/routine-paused.json";
@@ -173,7 +176,7 @@ function pick(id) {
 
 // Eos's columns in the app's grid, the sidebar sliding out for the field as
 // EosView does, and the run sheet App hosts, inside the app's UI context that
-// a View draws in. The chrome around them (the mode switcher, the account
+// a View draws in, with Memory's About you as the app hands it in. The chrome around them (the mode switcher, the account
 // footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
@@ -184,7 +187,7 @@ export function EosGallery({ state = "home" }) {
         <aside className="side">
           <div className="side-island side-island--agents"><EosSidebarRows /></div>
         </aside>
-        <section className="center"><EosMain /></section>
+        <section className="center"><AboutYouSlot.Provider value={AboutYouTab}><EosMain /></AboutYouSlot.Provider></section>
         <RunSheet />
       </div>
     </UiProvider>
@@ -193,7 +196,8 @@ export function EosGallery({ state = "home" }) {
 
 // The #eos-gallery page (main.jsx): Eos drawn from sample JSON. It never calls
 // the core: every read answers from a sample, every write is refused, and the
-// app's own requests are held on the page. It
+// app's own requests are held on the page, its memory reads answered from a
+// sample. It
 // opens in the state last picked in this tab (Home at first) and leaves where
 // the user's own Eos opens untouched.
 // The transport a gallery state reads through.
@@ -205,7 +209,7 @@ export function galleryTransport(state) {
 
 export function startEosGallery(rootEl) {
   const state = stateOf(storedState());
-  holdNetwork();
+  holdNetwork(globalThis, aboutYouReads(Date.now()));
   setEosTransport(galleryTransport(state));
   holdEosNavInMemory(state.location);
   holdHomeInMemory();

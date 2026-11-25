@@ -5,7 +5,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
 import { eosLocation, openLocation, _resetEosNav } from "../nav/eosNav.js";
 import routines from "./sample/routines.json";
-import { galleryTransport, playTransition, SLOW_K, startEosGallery } from "./EosGallery.jsx";
+import { EosGallery, galleryTransport, playTransition, SLOW_K, startEosGallery } from "./EosGallery.jsx";
 import { GALLERY_STATE_KEY, GALLERY_STATES, stateOf } from "./states.js";
 import { parseLocation } from "../nav/eosNav.js";
 import { _resetField, useField } from "../field/fieldStore.js";
@@ -13,6 +13,7 @@ import { ENTER_MS } from "../field/transition.js";
 import paper from "./sample/paper.json";
 import decision from "./sample/surface-decision.json";
 import { holdNetwork } from "./holdNetwork.js";
+import { aboutYouReads } from "./sample/about-you.js";
 
 const rendered = [];
 vi.mock("react-dom/client", () => ({
@@ -114,6 +115,25 @@ describe("#eos-gallery", () => {
     expect(answer.status).toBe(503);
     expect(await answer.json()).toEqual({ error: "the gallery calls no core" });
     expect(new page.EventSource("http://127.0.0.1:7400/stream").readyState).toBe(2);
+  });
+
+  it("answers the app's memory reads from a sample, so About you draws, and refuses a write to them", async () => {
+    const page = {};
+    holdNetwork(page, aboutYouReads(Date.now()));
+    const read = await page.fetch("http://127.0.0.1:7400/api/user-memories");
+    expect(read.status).toBe(200);
+    const { memories } = await read.json();
+    expect(memories.some((m) => m.status === "suggested")).toBe(true);
+    expect(memories.some((m) => m.scope.kind === "project")).toBe(true);
+    expect((await page.fetch("http://127.0.0.1:7400/api/user-memories", { method: "POST", body: "{}" })).status).toBe(503);
+  });
+
+  it("hands About you in, as the app does", () => {
+    vi.stubGlobal("sessionStorage", { getItem: (k) => (k === GALLERY_STATE_KEY ? "memory-about" : null), setItem: () => {} });
+    startEosGallery({});
+    const html = renderToStaticMarkup(rendered[0]);
+    expect(html).toContain(">Add memory</button>");
+    expect(html).not.toContain("About you shows in the app.");
   });
 
   it("opens in the state picked last, and offers the states, Play and Slow", () => {

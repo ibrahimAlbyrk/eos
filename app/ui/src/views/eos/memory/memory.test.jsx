@@ -105,6 +105,13 @@ describe("Eos › Memory › About you", () => {
     expect(at("eos:/memory?tab=about", () => <p>today's memories</p>)).toContain("<p>today&#x27;s memories</p>");
     expect(at("eos:/memory?tab=about")).toContain("About you shows in the app.");
   });
+
+  it("keeps the header's one search on both tabs and hands its words to the body", async () => {
+    await loaded();
+    const html = at("eos:/memory?tab=about", ({ query }) => <p>searching “{query}”</p>);
+    expect(html).toContain('aria-label="Search memory"');
+    expect(html).toContain("searching “”");
+  });
 });
 
 describe("the notes store", () => {

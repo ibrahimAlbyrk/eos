@@ -91,11 +91,11 @@ export function AboutYou({ query, adding, onAddDone }) {
   );
 }
 
-// Eos › Memory › About you: the memories with a search and "Add memory", or
-// the dream log the journal opens. Leaving it goes back to the memories.
-export function AboutYouTab() {
+// Eos › Memory › About you: the memories, searched by the screen's own search,
+// with "Add memory", or the dream log the journal opens. Leaving it goes back
+// to the memories.
+export function AboutYouTab({ query = "" }) {
   const page = useMemoryPage();
-  const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   useEffect(() => () => setMemoryPage("memory"), []);
 
@@ -111,7 +111,6 @@ export function AboutYouTab() {
   return (
     <div className="mem-view__inner eos-mem-about">
       <div className="eos-mem-about__bar">
-        <input className="eos-mem-search" aria-label="Search memories" placeholder="Search memories" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button type="button" className="eos-btn" onClick={() => setAdding(true)}>Add memory</button>
       </div>
       <AboutYou query={query} adding={adding} onAddDone={() => setAdding(false)} />
