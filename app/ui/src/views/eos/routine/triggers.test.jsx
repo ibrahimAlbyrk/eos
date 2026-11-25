@@ -10,6 +10,7 @@ import {
   _resetSignals, addSourcePush, loadSchedulePreview, loadSignals, loadTriggerStatus, loadWhichPreview, replaySignals, setSignalFilter,
 } from "../../../state/eos/signalsStore.js";
 import { notify } from "../../../lib/notify.js";
+import { _resetCapabilities, refreshCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { localZone } from "../blueprint/slots/when.js";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -22,6 +23,9 @@ import inbox from "../gallery/sample/inbox.json";
 import triggerStatus from "../gallery/sample/trigger-status.json";
 import signals from "../gallery/sample/signals.json";
 
+// This Mac is on London time, so the Istanbul schedule is in another zone
+// wherever the tests run.
+vi.mock("../blueprint/slots/when.js", async (actual) => ({ ...(await actual()), localZone: () => "Europe/London" }));
 vi.mock("../../../api/client.js", () => ({ api: { setStreamFocus: async () => ({ ok: true, body: { live: [] } }) } }));
 
 const PR = routineDetail.routine.id;
@@ -66,6 +70,7 @@ const lines = (html, cls) => [...html.matchAll(new RegExp(`class="${cls}">([^<]*
 
 beforeEach(() => {
   globalThis.localStorage = stubStorage();
+  _resetCapabilities();
   _resetRoutines();
   _resetInbox();
   _resetSignals();
@@ -108,6 +113,20 @@ describe("what starts a routine", () => {
     setEosTransport(fixtureTransport({ ...reads, [ROUTES.signalsRoutine(PR)]: same }));
     await loadTriggerStatus(PR);
     expect(draw()).not.toContain("time; you are on");
+  });
+
+  it("gives no zone hint when the schedule's zone is this Mac's own", async () => {
+    const london = { ...status, schedules: [{ ...status.schedules[0], zone: "Europe/London" }] };
+    expect(await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.signalsRoutine(PR)]: london }))).not.toContain("time; you are on");
+  });
+
+  it("names a capability's source by the capability", async () => {
+    const caps = [{ id: "github", name: "GitHub" }];
+    const transport = fixtureTransport({ ...reads, [ROUTES.capabilities]: caps });
+    setEosTransport(transport);
+    await refreshCapabilities();
+    const html = await page(`eos:/routines/${PR}`, transport);
+    expect(html).toContain('<span class="eos-trigger__name">GitHub: pulls</span>');
   });
 
   it("says each source's state and why", async () => {

@@ -31,8 +31,14 @@ const SOURCE_KINDS = {
   "push-inbox": "Items sent to it",
 };
 
-// A source by what it reads: a capability's source (`github.pulls`), or its kind.
-export const sourceName = (source) => source.source ?? SOURCE_KINDS[source.kind] ?? source.kind;
+// A source by what it reads: a capability's source by the capability's name
+// and the action's words (`github.pulls` → "GitHub: pulls"), or its kind.
+export function sourceName(source, capabilities = []) {
+  if (!source.source) return SOURCE_KINDS[source.kind] ?? source.kind;
+  const [id, ...action] = source.source.split(".");
+  const name = capabilities.find((c) => c.id === id)?.name;
+  return name && action.length > 0 ? `${name}: ${action.join(" ").replace(/[_-]/g, " ")}` : source.source;
+}
 
 const SOURCE_STATES = {
   active: "Working",
