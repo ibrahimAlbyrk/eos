@@ -88,8 +88,10 @@ describe("the Which slot", () => {
 
   it("says the rules and the question, each value with its editor", () => {
     const parts = whichParts(which);
-    expect(words(parts)).toBe("Items where draft is no and it touches docs/** or not (size is at least 100) and author is one of ana, bo, then it asks: Worth a run?");
+    expect(words(parts)).toBe("Items where it is not a draft and it touches docs/** or not (size is at least 100) and author is one of ana, bo, then it asks: Worth a run?");
     expect(part(parts, "rule.0").editor).toBe("menu");
+    expect(part(parts, "rule.0").options.map((o) => o.label)).toEqual(["a draft", "not a draft"]);
+    expect(words(whichParts({ rule: { fact: "merged", is: true } }))).toMatch(/^Items where it is merged /);
     expect(part(parts, "rule.1.0").editor).toBe("glob");
     expect(part(parts, "rule.1.1.not").check("x")).toBe("A number");
   });
