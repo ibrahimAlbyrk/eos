@@ -91,6 +91,8 @@ impl CapabilityService {
 
     /// Keeps another computer's definition as `available`. A capability
     /// installed here keeps its own version and takes only the settings.
+    /// One new here never inherits the secrets a removed capability left
+    /// under its id; a secret entered while it is available is kept.
     pub async fn synced_apply(&self, id: &str, data: &Value) -> Result<(), Error> {
         let definition: Definition = serde_json::from_value(data.clone()).map_err(refused)?;
         let manifest: Manifest = serde_json::from_value(definition.manifest.clone()).map_err(refused)?;
@@ -107,6 +109,10 @@ impl CapabilityService {
             let mut install = before.clone();
             install.settings_json = settings_json;
             return self.ports.store.write(move |tx, _| tx.capability_installs().put(&install)).await;
+        }
+        if before.is_none() {
+            // What the Keychain keeps under the id here is a removed capability's.
+            self.forget_kept_secrets(&manifest).await?;
         }
         let (id, version, hash) = (id.to_owned(), definition.version.clone(), definition.hash.clone());
         let known = {
@@ -172,9 +178,8 @@ impl CapabilityService {
     }
 
     /// Installs here a capability that arrived from another computer: its
-    /// files must still be the ones it came with, and it needs its secrets
-    /// entered on this computer: a removed capability's kept under its id
-    /// are forgotten.
+    /// files must still be the ones it came with, and it stands where its
+    /// secrets on this computer put it.
     pub async fn install_here(&self, id: &str) -> Result<(), Error> {
         let loaded = self.load_one(id).await?.ok_or_else(|| Error::not_found("capability", id))?;
         if loaded.capability.health.state != HealthState::Available {
@@ -185,8 +190,6 @@ impl CapabilityService {
         if self.ports.files.hash(id, &version).await? != pinned {
             return Err(Error::Rule(format!("{id}: its files are not the ones it came with")));
         }
-        // What the Keychain keeps under the id here is a removed capability's.
-        self.forget_kept_secrets(&loaded.capability.manifest).await?;
         let health = self.fresh_health(&loaded.capability.manifest).await?;
         let (id, now) = (id.to_owned(), self.ports.clock.now_ms());
         self.ports
