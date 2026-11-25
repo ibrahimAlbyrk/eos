@@ -79,7 +79,10 @@ pub(crate) async fn place(
         (AgentWorkspace::Worktree | AgentWorkspace::Shared, _) => {
             let repo = repository(engine, blueprint, input, true).await?;
             let branch = branch_of(run_id, agent_key);
-            let dir = Path::new(&repo.root).join(".eos").join("worktrees").join(&branch);
+            // Under the clone's real path, where git makes the worktree, also when the project
+            // was added through a link.
+            let root = std::fs::canonicalize(&repo.root).unwrap_or_else(|_| Path::new(&repo.root).to_owned());
+            let dir = root.join(".eos").join("worktrees").join(&branch);
             Ok(Place::Worktree {
                 repo: repo.root,
                 branch,
