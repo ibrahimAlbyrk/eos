@@ -16,6 +16,8 @@ import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
 import { LearnedFromWork } from "../memory/LearnedFromWork.jsx";
 import { SignalList } from "./SignalList.jsx";
+import { Triggers } from "./Triggers.jsx";
+import { HowItLearns } from "./WhatItLearned.jsx";
 import { RoutineLead, RoutineLeadGhost } from "./RoutineLead.jsx";
 import { ProjectSteps, doneCount, milestonesOf, stepLabel } from "./ProjectSteps.jsx";
 
@@ -107,9 +109,19 @@ export function RoutinePage({ id, tab, version }) {
               {shown === "overview" && <RoutinePageLink routineId={id} />}
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
-              {shown === "signals" && <SignalList routineId={id} />}
+              {shown === "signals" && (
+                <div className="eos-routine__columns">
+                  <div><SignalList routineId={id} /></div>
+                  <div><Triggers detail={detail} now={now} /></div>
+                </div>
+              )}
               {shown === "blueprint" && <BlueprintTab detail={detail} version={version} />}
-              {shown === "learned" && <LearnedFromWork routineId={id} />}
+              {shown === "learned" && (
+                <div className="eos-routine__columns">
+                  <div><LearnedFromWork routineId={id} /></div>
+                  <div><HowItLearns /></div>
+                </div>
+              )}
             </div>}
           </>
         )}

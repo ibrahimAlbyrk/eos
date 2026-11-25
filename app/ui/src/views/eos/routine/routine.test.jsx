@@ -242,6 +242,9 @@ describe("the routine page", () => {
     expect(tabs(tab)).toEqual(["Overview", "Runs", "Signals", "Blueprint", "Learned*"]);
     expect(tab).toContain('<span class="eos-mem-row__text">Keep the summary under five lines</span>');
     expect(tab).not.toContain(">Everything</button>");
+    expect(tab).toContain('aria-pressed="true">All</button>');
+    expect(tab).toContain('<h2 class="eos-mem-group__name">What it learned from you</h2>');
+    expect(tab).toContain('<h2 class="eos-label">How it learns</h2>');
   });
 
   it("says in its lead why a routine is paused, with Resume and its last run under, and ends its beat at the pause", async () => {

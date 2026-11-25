@@ -141,6 +141,8 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 /* A radiogroup of buttons (role="radio", aria-checked). */
 .eos-seg {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
@@ -155,6 +157,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
   font: inherit;
   font-size: var(--text-sm);
   color: var(--fg-dim);
+  white-space: nowrap;
   cursor: pointer;
 }
 .eos-seg__opt[aria-checked="true"] { background: var(--chip); color: var(--fg-strong); }

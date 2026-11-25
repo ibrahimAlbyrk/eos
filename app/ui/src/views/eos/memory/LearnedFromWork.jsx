@@ -57,6 +57,7 @@ function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
   return (
     <nav className="eos-mem-filters" aria-label="Filter notes">
       {!placed && chip(!scope, "Everything", () => onScope(undefined), "all")}
+      {placed && chip(!kind, "All", () => onKind(undefined), "all", true)}
       {places.map((s) => {
         const value = `${s.level}:${s.key}`;
         return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
@@ -99,7 +100,7 @@ export function LearnedFromWork({ summary, query = "", selected, routineId }) {
         {groups.map((g) => (
           <section key={g.key} className="eos-mem-group" aria-label={g.label}>
             <header className="eos-mem-group__head">
-              <h2 className="eos-mem-group__name">{g.label}</h2>
+              <h2 className="eos-mem-group__name">{routineId ? "What it learned from you" : g.label}</h2>
               <span className="eos-mem-group__count">{g.count ?? g.rows.length}</span>
             </header>
             <ul className="eos-mem-rows">

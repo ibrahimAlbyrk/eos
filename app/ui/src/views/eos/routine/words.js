@@ -106,6 +106,17 @@ export function decisionLine(decision) {
   return decisionWord(decision.decision);
 }
 
+// The tone a decision is drawn in: ran in ok, held back by a limit or a
+// pause in warn, refused in err, the rest plain.
+const TONES = { run: "ok", batched: "ok", "over-limit": "warn", paused: "warn", undecided: "warn", refused: "err" };
+export const decisionTone = (decision) => (decision ? TONES[decision.decision] : undefined);
+
+// The count beside the signal list's label: "4 signals · 1 ran".
+export function signalsCount(rows, routineId) {
+  const ran = rows.filter((s) => s.decisions.some((d) => d.routineId === routineId && (d.decision === "run" || d.decision === "batched"))).length;
+  return `${rows.length} ${rows.length === 1 ? "signal" : "signals"} · ${ran} ran`;
+}
+
 // The filters of the signal list, by decision.
 export const SIGNAL_FILTERS = [
   ["", "All"],

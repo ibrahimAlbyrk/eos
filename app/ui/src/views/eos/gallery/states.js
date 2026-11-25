@@ -176,6 +176,7 @@ export const GALLERY_STATES = [
   { id: "routine-archived", label: "Routine · archived", location: `eos:/routines/${PR}`, reads: archivedPr },
   { id: "routine-runs", label: "Routine · Runs", location: `eos:/routines/${PR}?tab=runs` },
   { id: "routine-signals", label: "Routine · Signals", location: `eos:/routines/${PR}?tab=signals` },
+  { id: "routine-signals-empty", label: "Routine · Signals, nothing came yet", location: `eos:/routines/${PR}?tab=signals`, reads: (s) => ({ ...s, [`${ROUTES.signals}?routine=${PR}`]: [] }) },
   { id: "routine-learned", label: "Routine · Learned", location: `eos:/routines/${PR}?tab=learned` },
   { id: "routine-loading", label: "Routine · loading", location: `eos:/routines/${PR}`, answer: "loading" },
   { id: "routine-making", label: "Routine · being made, the architect asking", location: `eos:/routines/${routineDraft.routine.id}?tab=blueprint` },
