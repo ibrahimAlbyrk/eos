@@ -21,6 +21,8 @@ pub enum SyncDomainName {
     Routine,
     /// Summaries of finished runs, 30 days.
     Run,
+    /// Surfaces' kept designs and saved state.
+    Surface,
 }
 
 impl Validate for SyncDomainName {}

@@ -11,17 +11,11 @@ mod run;
 pub(crate) use routine::RoutineRecords;
 pub(crate) use run::{RUN_SUMMARIES_KEPT_MS, RunRecords, synced_of};
 
-use eos_contracts::RoutineState;
 use eos_core::Error;
 use eos_core::store::StoredRoutine;
 
-use crate::routes::BUILTIN;
-
-/// Whether the routine travels: kept by the user, not Eos's own.
 fn travels(routine: &StoredRoutine) -> bool {
-    routine.origin != BUILTIN
-        && !matches!(routine.state, RoutineState::Draft | RoutineState::Transient)
-        && routine.head_version_id.is_some()
+    routine.travels()
 }
 
 fn refused(what: impl std::fmt::Display) -> Error {

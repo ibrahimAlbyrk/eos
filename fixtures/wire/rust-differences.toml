@@ -413,7 +413,7 @@ reason = "The snapshot's `caps` list `eos` after `focus`, `rows` and `deflate`: 
 [[known]]
 scenario = "*"
 at = "/json/counts/**"
-reason = "Sync's status counts the records of each domain this app syncs. It syncs domains the TypeScript app did not have: `experience` (what Eos learned from work), `routine` (routines and their kept versions) and `run` (summaries of finished runs, 30 days), and the leases of which computer runs each routine, which are not a domain."
+reason = "Sync's status counts the records of each domain this app syncs. It syncs domains the TypeScript app did not have: `experience` (what Eos learned from work), `routine` (routines and their kept versions) and `run` (summaries of finished runs, 30 days), `surface` (surfaces' kept designs and saved state), and the leases of which computer runs each routine, which are not a domain."
 
 # ---- until the work lands ----------------------------------------------------
 
