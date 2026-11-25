@@ -187,6 +187,8 @@
   color: var(--fg);
 }
 .eos-input__text::placeholder { color: var(--fg-dim2); }
+/* The caret and the open field show where focus is; a ring inside the card would box the text. */
+.eos-mode .eos-input__text:focus-visible { outline: none; }
 .eos-input__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .eos-input__gap { flex: 1; }
 .eos-input__icon { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }

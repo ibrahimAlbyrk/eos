@@ -34,6 +34,7 @@
   gap: 10px;
   pointer-events: none;
 }
+.eos-field__need { font-weight: 500; color: var(--fg-strong); }
 .eos-field__handled { font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-field__caption {
   position: absolute;
@@ -139,6 +140,26 @@
 .eos-disc__open svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .eos-disc:hover .eos-disc__open,
 .eos-disc:focus-within .eos-disc__open { opacity: 1; }
+.eos-disc__face { position: relative; }
+.eos-disc__count {
+  position: absolute;
+  top: calc(var(--d) * 0.06 - 4px);
+  right: calc(var(--d) * 0.06 - 4px);
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 22px;
+  text-align: center;
+  color: #0b1018;
+  transition: opacity 120ms ease;
+}
+.eos-disc:hover .eos-disc__count, .eos-disc:focus-within .eos-disc__count { opacity: 0; }
 
 .eos-field__list {
   position: absolute;
@@ -231,6 +252,9 @@
 .eos-mode > .side > * { transition: opacity calc(var(--k) * 320ms) var(--ease); }
 .eos-mode--field > .side { transform: translateX(-100%); }
 .eos-mode--field > .side > * { opacity: 0; }
+/* The app's dawn light behind the sidebar would hang alone in the field's corner. */
+.eos-mode::before { transition: opacity calc(var(--k) * 460ms) var(--ease); }
+.eos-mode--field::before { opacity: 0; }
 
 .eos-home__glow { transition: transform calc(var(--k) * 900ms) var(--ease); }
 .is-field .eos-home__glow { transform: translateY(calc(50vh - 350px)); }

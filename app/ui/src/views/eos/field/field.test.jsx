@@ -64,6 +64,7 @@ describe("the field", () => {
     expect(html).toContain("eos-disc eos-disc--t1");
     expect(html).toContain("Two waiting for you");
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+    expect(html.match(/class="eos-disc__count" aria-hidden="true">2</g)).toHaveLength(1);
   });
 
   it("dims the discs the text is not about, and marks the one picked", () => {

@@ -173,6 +173,7 @@ export function FieldLayer({ routines, needs, next, caption, handled, status = n
               delay={delays[i]}
               row={rows.get(place.id)}
               status={statusOf(discs.find((d) => d.id === place.id))}
+              needs={discs.find((d) => d.id === place.id)?.needs}
               picked={picked === place.id}
               dim={picked ? picked !== place.id : matching.size > 0 && !matching.has(place.id)}
               focusable={i === Math.min(focusAt, order.length - 1)}
