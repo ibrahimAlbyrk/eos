@@ -8,7 +8,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use eos_contracts::{SyncDomainName, SyncPhase};
-use eos_core::net::sync::{OpenVault, SyncAccounts, SyncCrypto, SyncDomain, SyncIdentityStore, SyncStateStore};
+use eos_core::net::sync::{
+    LeaseSink, LeaseVault, OpenVault, SyncAccounts, SyncCrypto, SyncDomain, SyncIdentityStore, SyncStateStore,
+};
 use eos_core::{BoxFuture, Error};
 use eos_domain::sync::{LocalState, SyncIdentity, SyncItem, SyncKeys};
 use eos_mod_sync::{SYNC_CHANGE, SyncService, SyncServiceDeps, Timing};
@@ -131,6 +133,10 @@ struct Bench {
 }
 
 fn bench(relay: Option<&'static str>) -> Bench {
+    bench_with(relay, None)
+}
+
+fn bench_with(relay: Option<&'static str>, leases: Option<Arc<dyn LeaseSink>>) -> Bench {
     let clock = Arc::new(FakeClock::new());
     let kernel = Kernel::new(KernelOptions { clock: clock.clone(), ..KernelOptions::default() });
     let files = Arc::new(MemFiles::default());
@@ -144,7 +150,7 @@ fn bench(relay: Option<&'static str>) -> Bench {
             relay_url: Arc::new(move || relay.map(str::to_owned)),
             device: Arc::new(|| "air".to_owned()),
             timing: Timing::default(),
-            leases: None,
+            leases,
         },
         vec![rows.clone()],
         clock,
@@ -333,4 +339,24 @@ async fn joining_another_account_starts_from_an_empty_index() {
     b.settle().await;
     assert_eq!(b.service.status().counts.get("worker"), Some(&1), "this computer's record went to the new account");
     b.service.stop();
+}
+
+/// What the service told the leases: whether a vault opened, in order.
+#[derive(Default)]
+struct Attached(Mutex<Vec<bool>>);
+
+impl LeaseSink for Attached {
+    fn attach(&self, vault: Option<LeaseVault>) {
+        self.0.lock().unwrap().push(vault.is_some());
+    }
+    fn received(&self, _key: &str, _seq: u64, _record: &Value) {}
+    fn pulled(&self) {}
+}
+
+#[tokio::test]
+async fn starting_with_sync_off_tells_the_leases_no_vault_opens() {
+    let attached = Arc::new(Attached::default());
+    let b = bench_with(Some("wss://relay.example.test/eos"), Some(attached.clone()));
+    b.service.start();
+    assert_eq!(*attached.0.lock().unwrap(), [false], "until then nothing held is acted on");
 }
