@@ -151,6 +151,13 @@ async fn a_listing_after_a_closed_period_finds_what_changed() {
             ("new.pdf".into(), "added".into())
         ]
     );
+    let announced = bench.temp.announced.list().into_iter().filter(|(topic, _)| *topic == "signals:subject");
+    let closed: Vec<String> = announced
+        .map(|(_, payload)| serde_json::from_str::<eos_contracts::SignalSubject>(&payload).expect("a subject"))
+        .filter(|subject| subject.closed)
+        .map(|subject| subject.subject_key)
+        .collect();
+    assert_eq!(closed, [folder.join("gone.pdf").to_string_lossy().into_owned()], "a removed file ends its subject");
     module.stop().await;
 }
 

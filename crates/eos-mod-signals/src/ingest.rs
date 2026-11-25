@@ -15,6 +15,7 @@ use eos_core::signals::{PollPage, SignalSource};
 use eos_core::store::{NewSignal, Outbox, Tx};
 use eos_domain::signals::key::fits;
 
+use crate::local;
 use crate::router::Router;
 use crate::{BACKED_UP, CAUGHT_UP, SIGNALS_SUBJECT};
 
@@ -80,12 +81,15 @@ impl Router {
         }
         self.backed_up.store(false, Ordering::SeqCst);
         let routines = if page.baseline { self.directory.triggers().await? } else { Vec::new() };
-        let source = self.source_of(source_id).await?;
+        let (source, folder) = self.source_of(source_id).await?;
         let (source_id, routing) = (source_id.to_owned(), self.routing());
         let fresh = self
             .store
             .write(move |tx, out| {
-                let closes = |kind: &str| source.as_ref().is_some_and(|source| source.closes(kind));
+                // A file removed from a watched folder ends its subject, as a merge ends a pull request's.
+                let closes = |kind: &str| {
+                    (folder && kind == local::REMOVED) || source.as_ref().is_some_and(|source| source.closes(kind))
+                };
                 let fresh = ingest_in(tx, out, &source_id, &page, routing.now, &closes)?;
                 if page.baseline {
                     for id in &fresh {
@@ -102,9 +106,11 @@ impl Router {
 
 impl Router {
     /// The declared source the row `source_id` reads, if any.
-    async fn source_of(&self, source_id: &str) -> Result<Option<Arc<dyn SignalSource>>, Error> {
+    /// The source a row polls, and whether the row watches a folder.
+    async fn source_of(&self, source_id: &str) -> Result<(Option<Arc<dyn SignalSource>>, bool), Error> {
         let lookup = source_id.to_owned();
         let row = self.store.read(move |tx| tx.signal_sources().find(&lookup)).await?;
-        Ok(row.and_then(|row| row.source).and_then(|name| self.sources.get(&name)))
+        let folder = row.as_ref().is_some_and(|row| row.kind == local::FOLDER);
+        Ok((row.and_then(|row| row.source).and_then(|name| self.sources.get(&name)), folder))
     }
 }
