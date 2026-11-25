@@ -272,6 +272,14 @@ async fn facts_and_notes_past_their_bounds_or_on_no_option_are_refused_with_ever
         refused(tools.return_view("w-lead", decision(json!({}), json!([{"title": "Why", "text": long}]))).await);
     assert!(problems.contains("facts: must be a list of {option, rows}"), "{problems}");
     assert!(problems.contains("aside[0].text: is longer than 300 characters"), "{problems}");
+    // An option named once by its label and once by its value is one option.
+    let mut by_value =
+        decision(json!([{"option": "An SMS provider", "rows": [row]}, {"option": "sms", "rows": [row]}]), json!([]));
+    by_value.view["ui"] = json!(
+        "<Form action=\"confirm\"><Choice bind=\"way\" options={[{\"label\":\"Through your iPhone\",\"value\":\"iphone\"},{\"label\":\"An SMS provider\",\"value\":\"sms\"}]}/></Form>"
+    );
+    let problems = refused(tools.return_view("w-lead", by_value).await);
+    assert!(problems.contains("facts[1].option: has its facts already"), "{problems}");
     // The facts are checked with the rest of the View: one call hears every problem.
     let mut both = decision(json!([{"option": "By pigeon", "rows": [row]}]), json!([]));
     both.bindings = Some(json!({}));
