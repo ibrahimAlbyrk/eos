@@ -174,6 +174,10 @@ button.eos-bp-agent { cursor: pointer; }
 button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-bp-chip__sub { font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-bp-agent .eos-bp-chip__sub { font-family: var(--font-mono); font-size: 11px; }
+.eos-bp-keep {
+  white-space: nowrap;
+}
+
 .eos-bp-act {
   margin: 0 4px;
   padding: 0 8px;

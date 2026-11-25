@@ -141,6 +141,11 @@ describe("a new routine", () => {
     openLocation("eos:/routines/new");
     expect(draw()).toContain("<li>summary: must not be empty</li>");
   });
+
+  it("keeps a remove button on the line of the value it removes", () => {
+    const html = renderToStaticMarkup(<BlueprintCard blueprint={routineDetail.head.blueprint} onEdit={() => {}} />);
+    expect(html).toMatch(/<span class="eos-bp-keep"><button[^>]*>acme\/game<\/button><button type="button" class="eos-bp-act" aria-label="Remove this trigger">×<\/button><\/span>/);
+  });
 });
 
 describe("a routine being made", () => {
