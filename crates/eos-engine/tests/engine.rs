@@ -22,6 +22,9 @@ mod confine;
 mod confine_api;
 #[path = "engine/database.rs"]
 mod database;
+#[cfg(target_os = "macos")]
+#[path = "engine/forge_sandbox.rs"]
+mod forge_sandbox;
 #[path = "engine/isolation.rs"]
 mod isolation;
 #[path = "engine/ports.rs"]

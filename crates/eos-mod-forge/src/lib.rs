@@ -54,10 +54,11 @@ use eos_runtime::router::RouteDef;
 
 pub use answer::LIVE_CALLS_MAX;
 pub use blueprint::{SLUG, blueprint};
+pub use eos_domain::capability::forge_sandbox::{REGISTRY_HOSTS, TOOLCHAIN_READS};
 pub use proposal::{PRODUCER, PROPOSAL_EVENT};
 pub use request::report_event;
 pub use rollback::{ROLLBACK_WITHIN_MS, ROLLED_BACK};
-pub use steps::{ForgeSteps, ForgeStepsParts, PROPOSE_STEP, REGISTRY_HOSTS, TEST_STEP, TOOLCHAIN_READS, build_folder};
+pub use steps::{ForgeSteps, ForgeStepsParts, PROPOSE_STEP, TEST_STEP, build_folder};
 pub use tested::TEST_EVENT;
 
 /// How many capability changes wait for the rollback watch.

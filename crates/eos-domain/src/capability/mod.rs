@@ -7,6 +7,7 @@
 //! action's class is `eos_contracts::ActionClass`, the one Freedom uses.
 
 pub mod check;
+pub mod forge_sandbox;
 pub mod hash;
 pub mod health;
 pub mod manifest;
