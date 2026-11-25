@@ -28,10 +28,18 @@ function settle(press, answer, setAsking) {
   }
 }
 
+// A button an `eos://issue` link named: it is pressed only once the user
+// confirms it here (07 §4.3).
+function linkedAsk(linked) {
+  if (!linked?.button) return null;
+  const press = { button: linked.button, ...(linked.index != null ? { index: linked.index } : {}) };
+  return { linked: press, prompt: `A link asks to press “${linked.button}” on this issue. Press it?` };
+}
+
 // A button pressed inside the page: the core reads the action and its
 // arguments from the issue's own design; Eos asks first below the frame.
-function usePagePress(issueId) {
-  const [asking, setAsking] = useState(null);
+function usePagePress(issueId, linked) {
+  const [asking, setAsking] = useState(() => linkedAsk(linked));
   const [typed, setTyped] = useState("");
   const ask = (next) => {
     setTyped("");
@@ -42,8 +50,9 @@ function usePagePress(issueId) {
     settle(press, await runSurfaceAction(press), ask);
   };
   const confirm = async () => {
-    const { press, token, typeToConfirm } = asking;
+    const { press, token, typeToConfirm, linked: pressLinked } = asking;
     ask(null);
+    if (pressLinked) return act(pressLinked);
     settle(press, await runSurfaceAction({ ...press, confirm: token, ...(typeToConfirm ? { typed } : {}) }), ask);
   };
   const below = asking && (
@@ -60,8 +69,8 @@ function reportRead(surfaceId, issueId, message) {
 
 // The issue as it reads: the page in its frame, or a View when the issue fell
 // back to one or plain reading is on.
-export function IssueBody({ surface, row, shown, maker, version }) {
-  const { act, below } = usePagePress(row.id);
+export function IssueBody({ surface, row, shown, maker, version, linked }) {
+  const { act, below } = usePagePress(row.id, linked);
   const { swaps, onLive } = useLiveParts(surface.id, row.id);
   if (!shown) return <Loading blocks={4} />;
   if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;

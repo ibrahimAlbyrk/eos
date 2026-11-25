@@ -111,6 +111,15 @@ describe("the page screen", () => {
     expect(html).not.toContain("Show in today&#x27;s design");
   });
 
+  it("asks before it presses the button an eos://issue link named, and sends nothing until then", async () => {
+    const transport = recording();
+    const html = await screen(`eos:/surfaces/${SF}?issue=3&button=ask&index=2`, transport);
+    expect(html).toContain('role="alertdialog" aria-label="Eos asks first"');
+    expect(html).toContain("A link asks to press “ask” on this issue. Press it?");
+    expect(transport.send).not.toHaveBeenCalled();
+    expect(await screen(`eos:/surfaces/${SF}?issue=3`)).not.toContain("A link asks to press");
+  });
+
   it("says when the page needs a new design", async () => {
     const tired = { ...reads, [ROUTES.surface(SF)]: { ...paper.surface, needsRedesign: { at: 1 } } };
     const html = await screen(`eos:/surfaces/${SF}`, fixtureTransport(tired));
