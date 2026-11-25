@@ -127,7 +127,7 @@ describe("the run view", () => {
     expect(html).toContain("<dt>Depth</dt><dd>Deep</dd>");
     expect(html).toContain("<dt>Note</dt><dd>This time also look at the shaders.</dd>");
     expect(html).toContain("<dt>Result</dt><dd>Show me only</dd>");
-    expect(html).toContain('<h2 class="eos-label">So far</h2><p class="eos-run-aside__text">3 min and $0.210. A run usually takes 5 min and $0.550.</p>');
+    expect(html).toContain('<h2 class="eos-label">So far</h2><p class="eos-run-aside__text">3 min and $0.21. A run usually takes 5 min and $0.55.</p>');
   });
 
   it("draws a run being checked and one that waits for the user, with the way to its item", async () => {

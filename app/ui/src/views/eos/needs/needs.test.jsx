@@ -200,7 +200,7 @@ describe("a draft", () => {
     expect(html).toContain("Checked before it reached you");
     expect(html).toContain("It passed every check.");
     expect(html).toContain("Who worked on it");
-    expect(html).toContain("In all $0.420");
+    expect(html).toContain("In all $0.42");
   });
 
   it("shows a mail with its recipients locked, and a text", async () => {

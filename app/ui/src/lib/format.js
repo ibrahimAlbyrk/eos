@@ -5,6 +5,14 @@ export function fmtCost(n) {
   return "$" + Number(n).toFixed(n >= 1 ? 2 : 3);
 }
 
+// Money in Eos's words: cents, as its designs write it ("$0.42"); an amount
+// that rounds to nothing says so.
+export function fmtUsd(n) {
+  if (n == null) return "$0.00";
+  if (n > 0 && n < 0.005) return "under $0.01";
+  return "$" + Number(n).toFixed(2);
+}
+
 export function fmtElapsed(ms) {
   if (!ms || ms < 0) return "—";
   const s = Math.floor(ms / 1000);

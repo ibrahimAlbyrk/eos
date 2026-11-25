@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtCost } from "../../../lib/format.js";
+import { fmtUsd } from "../../../lib/format.js";
 import { ensureRunsLoaded, loadMoreRuns, loadRuns, useRuns } from "../../../state/eos/runsStore.js";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -16,7 +16,7 @@ export function RunRow({ run, now }) {
         <span className="eos-run-row__title">{run.itemTitle ?? "Run"}</span>
         <span className="eos-run-row__line">{run.headline ?? ""}</span>
         <span className="eos-run-row__side">{stateChip(run, now).text}</span>
-        <span className="eos-run-row__side">{fmtCost(run.costUsd)}</span>
+        <span className="eos-run-row__side">{fmtUsd(run.costUsd)}</span>
       </button>
     </li>
   );
