@@ -138,6 +138,15 @@ export async function setCapabilityEnabled(id, enabled) {
   if (row) putRow(row);
 }
 
+// Keeps the values typed for its settings (name → value; an empty one clears
+// it) → true once the core took them. The answer is the capability's detail.
+export async function saveCapabilitySettings(id, values) {
+  const detail = await write("PUT", ROUTES.capabilitySettings(id), { values });
+  if (detail?.id !== id) return false;
+  set({ details: { ...state.details, [id]: detail }, list: withRow(state.list, rowOf(detail)) });
+  return true;
+}
+
 // Installs here a capability that arrived from another Mac: it checks its secrets on this one.
 export async function installCapabilityHere(id) {
   const row = await write("POST", ROUTES.capabilityInstallHere(id), {});

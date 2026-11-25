@@ -115,6 +115,7 @@ async fn detail(service: &CapabilityService, store: &Arc<dyn Store>, id: &str) -
                 label: setting.label.clone(),
                 kind: word(&setting.kind),
                 value: capability.settings[&setting.name].as_str().map(str::to_owned),
+                choices: setting.choices.clone(),
             })
             .collect(),
         versions: versions

@@ -105,6 +105,9 @@ pub struct CapabilitySetting {
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
+    /// What a `choice` offers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<String>,
 }
 
 impl Validate for CapabilitySetting {}
