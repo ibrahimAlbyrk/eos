@@ -128,6 +128,7 @@
 @keyframes eos-send-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
   .eos-send-state__line--holding::before, .eos-send-state__drain > span { animation: none; }
+  .eos-send-state__drain > span { transform: scaleX(var(--left, 1)); }
 }
 
 /* A run's ask: the tool and what it counts as, the target in a well. */
