@@ -38,18 +38,31 @@ export function RoutineTabs({ routineId, tab }) {
 }
 
 // Getting better: the share of this week's results sent without an edit,
-// against the first week. Only when the routine's row carries its stats.
+// against the first week and the weeks between. Only when the routine's row
+// carries its stats.
 function GettingBetter({ stats }) {
   if (stats?.sentUnedited7d == null) return null;
   const pct = (share) => `${Math.round(share * 100)}%`;
+  // A week the user judged nothing in keeps its place as a bare line.
+  const bar = (share) => (share == null ? "0%" : pct(Math.max(share, 0.04)));
+  const between = stats.weeksBetween ?? [];
+  const said = [
+    `First week ${pct(stats.baselineFirstWeek)}`,
+    ...between.map((share, i) => {
+      const back = between.length - i;
+      return `${back === 1 ? "last week" : `${back} weeks ago`} ${share == null ? "none judged" : pct(share)}`;
+    }),
+    `this week ${pct(stats.sentUnedited7d)}`,
+  ];
   return (
     <section className="eos-routine__section eos-routine__better" aria-label="Getting better">
       <h2 className="eos-label">Getting better</h2>
       <p className="eos-better__share"><span className="eos-better__pct">{pct(stats.sentUnedited7d)}</span> sent without a single edit this week</p>
       {stats.baselineFirstWeek != null && (
-        <div className="eos-better__bars" role="img" aria-label={`First week ${pct(stats.baselineFirstWeek)}, this week ${pct(stats.sentUnedited7d)}`}>
-          <span className="eos-better__bar" style={{ height: pct(Math.max(stats.baselineFirstWeek, 0.04)) }} />
-          <span className="eos-better__bar eos-better__bar--now" style={{ height: pct(Math.max(stats.sentUnedited7d, 0.04)) }} />
+        <div className="eos-better__bars" role="img" aria-label={said.join(", ")} style={{ gridTemplateColumns: `repeat(${between.length + 2}, 1fr)` }}>
+          <span className="eos-better__bar" style={{ height: bar(stats.baselineFirstWeek) }} />
+          {between.map((share, i) => <span key={i} className="eos-better__bar" style={{ height: bar(share) }} />)}
+          <span className="eos-better__bar eos-better__bar--now" style={{ height: bar(stats.sentUnedited7d) }} />
           <span className="eos-better__axis" aria-hidden="true"><span>first week, {pct(stats.baselineFirstWeek)}</span><span>this week</span></span>
         </div>
       )}

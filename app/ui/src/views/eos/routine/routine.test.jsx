@@ -168,7 +168,14 @@ describe("the routine page", () => {
       [true, "Unity specialist", "reading CarouselPager.cs"],
       [false, "Allocation specialist", "Waiting"],
     ]);
-    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__bars" role="img" aria-label="First week 40%, this week 86%">');
+    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__bars" role="img" aria-label="First week 40%, this week 86%" style="grid-template-columns:repeat(2, 1fr)">');
+  });
+
+  it("draws a bar for each week between the first and this one, a week with nothing judged as a bare line", async () => {
+    const stats = { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, null, 0.79], runs7d: 7, cost7d: 2.1, setupUsd: 0.5 };
+    const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.routine(PR)]: { ...routineDetail, routine: { ...routineDetail.routine, stats } } }));
+    expect(html).toContain('aria-label="First week 40%, 3 weeks ago 55%, 2 weeks ago none judged, last week 79%, this week 86%" style="grid-template-columns:repeat(5, 1fr)"');
+    expect([...html.matchAll(/class="eos-better__bar[^"]*" style="height:([^"]*)"/g)].map((m) => m[1])).toEqual(["40%", "55%", "0%", "79%", "86%"]);
   });
 
   it("lists every run on the Runs tab with a filter by origin, and the blueprint's slots on the Blueprint tab", async () => {
