@@ -110,9 +110,14 @@ fn read(pasteboard: *mut AnyObject) -> Sent {
 mod tests {
     use super::*;
 
+    /// Test threads take turns with the pasteboard server: made at once on parallel threads,
+    /// two private pasteboards once crossed over and one test read the other's content.
+    static PASTEBOARDS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// A pasteboard of this test's own, never the user's: made under a unique name, filled and
-    /// released.
+    /// released, one test at a time.
     fn pasteboard(fill: impl FnOnce(*mut AnyObject)) -> Sent {
+        let _turn = PASTEBOARDS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         // SAFETY: a private pasteboard; `releaseGlobally` takes it off the system after use.
         unsafe {
             let board: *mut AnyObject = msg_send![class!(NSPasteboard), pasteboardWithUniqueName];
