@@ -34,7 +34,7 @@ import memory from "./sample/memory.json";
 import surfaceSample from "./sample/surfaces.json";
 import paper from "./sample/paper.json";
 import decision from "./sample/surface-decision.json";
-import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
+import { at5, HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { notesPath } from "../../../state/eos/notesStore.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
@@ -72,16 +72,9 @@ const runDetail = later(runDetailSample, runsBy);
 const signalsBy = Date.now() - 4 * MIN - triggerStatusSample[routineDetail.routine.id].sources[0].lastPollAt;
 // PR Review's schedule runs on weekdays at 05:00: its last and next times are
 // the weekdays at 05:00 around the moment the gallery opens.
-function weekdayAt5(from, step) {
-  const d = new Date(from);
-  d.setHours(5, 0, 0, 0);
-  if (step > 0 ? d.getTime() <= from : d.getTime() > from) d.setDate(d.getDate() + step);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + step);
-  return d.getTime();
-}
 const onWeekdays = (status) => ({
   ...status,
-  schedules: status.schedules.map((sc) => ({ ...sc, nextAt: weekdayAt5(Date.now(), 1), lastAt: weekdayAt5(Date.now(), -1) })),
+  schedules: status.schedules.map((sc) => ({ ...sc, nextAt: at5(Date.now(), 1, true), lastAt: at5(Date.now(), -1, true) })),
 });
 const shiftedStatus = later(triggerStatusSample, signalsBy);
 const triggerStatus = { ...shiftedStatus, [routineDetail.routine.id]: onWeekdays(shiftedStatus[routineDetail.routine.id]) };

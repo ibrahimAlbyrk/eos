@@ -1,6 +1,6 @@
 // Home's sample reads, drawn around `now` so the horizon always shows a day
 // in progress (Main.dc.html): five runs today, two of them waiting for the
-// user, PR Review and Morning Paper scheduled later, three routines that
+// user, Build Watch next within the half hour, three routines that
 // finished overnight and 31 things handled.
 
 const MIN = 60 * 1000;
@@ -40,10 +40,24 @@ export function homeRuns(now) {
   return runs.filter((r) => r.createdAt <= now).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// The 05:00 after (step 1) or before (step -1) `from`; on weekdays only
+// when asked, as PR Review's schedule runs.
+export function at5(from, step, weekdays = false) {
+  const d = new Date(from);
+  d.setHours(5, 0, 0, 0);
+  if (step > 0 ? d.getTime() <= from : d.getTime() > from) d.setDate(d.getDate() + step);
+  while (weekdays && (d.getDay() === 0 || d.getDay() === 6)) d.setDate(d.getDate() + step);
+  return d.getTime();
+}
+
+// Each routine's next run as its schedule says: PR Review on weekdays at
+// 05:00, Morning Paper every day at 05:00, Build Watch every 30 minutes.
 export function homeNext(now) {
+  const halfHour = 30 * MIN;
   return [
-    { routineId: PR, nextAt: now + 120 * MIN, sourcesOk: true },
-    { routineId: PAPER, nextAt: now + 330 * MIN, sourcesOk: true },
+    { routineId: PR, nextAt: at5(now, 1, true), sourcesOk: true },
+    { routineId: PAPER, nextAt: at5(now, 1), sourcesOk: true },
+    { routineId: BUILD, nextAt: Math.floor(now / halfHour) * halfHour + halfHour, sourcesOk: true },
   ];
 }
 
