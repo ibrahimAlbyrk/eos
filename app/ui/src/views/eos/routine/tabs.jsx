@@ -3,13 +3,14 @@ import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { RightNow } from "./RightNow.jsx";
 import { RunRow } from "./RoutineRuns.jsx";
 import { Triggers } from "./Triggers.jsx";
+import { WhatItLearned } from "./WhatItLearned.jsx";
 
-// The tabs this version has; Learned waits for Memory (P4) and shows Overview.
 export const TABS = [
   { key: "overview", label: "Overview" },
   { key: "runs", label: "Runs" },
   { key: "signals", label: "Signals" },
   { key: "blueprint", label: "Blueprint" },
+  { key: "learned", label: "Learned" },
 ];
 
 export const tabOf = (tab) => (TABS.some((t) => t.key === tab) ? tab : "overview");
@@ -65,8 +66,9 @@ export function OverviewTab({ detail, now }) {
         </section>
       </div>
       <div>
-        <Triggers detail={detail} now={now} />
         <GettingBetter stats={detail.routine.stats} />
+        <WhatItLearned routineId={detail.routine.id} />
+        <Triggers detail={detail} now={now} />
       </div>
     </div>
   );

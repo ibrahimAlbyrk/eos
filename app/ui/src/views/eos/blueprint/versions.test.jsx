@@ -76,7 +76,7 @@ describe("the versions menu", () => {
 describe("an old version", () => {
   it("shows read-only with the slots that differ from the version in use marked", async () => {
     const html = await screen(`eos:/routines/${MAIL}/versions/1`, 1);
-    expect(tabs(html)).toEqual(["Overview", "Runs", "Signals", "Blueprint*"]);
+    expect(tabs(html)).toEqual(["Overview", "Runs", "Signals", "Blueprint*", "Learned"]);
     expect(html).toContain("Version 1 ▾</button>");
     expect(changedRows(html)).toEqual(["How", "Freedom"]);
     expect(html).not.toContain('class="eos-bp-value"');

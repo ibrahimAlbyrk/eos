@@ -18,6 +18,8 @@ import routinePaused from "../gallery/sample/routine-paused.json";
 import runsPage from "../gallery/sample/runs-page.json";
 import runs from "../gallery/sample/runs.json";
 import inbox from "../gallery/sample/inbox.json";
+import memory from "../gallery/sample/memory.json";
+import { _resetNotes, loadNotes } from "../../../state/eos/notesStore.js";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 vi.mock("../../../api/client.js", () => ({ api: { setStreamFocus: async () => ({ ok: true, body: { live: [] } }) } }));
@@ -78,6 +80,7 @@ beforeEach(() => {
 afterEach(() => {
   delete globalThis.localStorage;
   setEosTransport(null);
+  _resetNotes();
 });
 
 describe("the routine page", () => {
@@ -105,8 +108,8 @@ describe("the routine page", () => {
 
   it("shows Overview first: nothing running, the recent runs, and no Getting better without stats", async () => {
     const html = await page(`eos:/routines/${PR}`);
-    expect(tabs(html)).toEqual(["Overview*", "Runs", "Signals", "Blueprint"]);
-    expect(html).not.toContain("Learned");
+    expect(tabs(html)).toEqual(["Overview*", "Runs", "Signals", "Blueprint", "Learned"]);
+    expect(html).not.toContain("What it learned from you");
     expect(html).toContain("Nothing is running.");
     expect(html).toContain('<span class="eos-run-row__title">Fix the login</span>');
     expect(html).not.toContain("Getting better");
@@ -158,7 +161,7 @@ describe("the routine page", () => {
     setEosTransport(fixtureTransport(reads));
     await loadRuns(PR);
     const runsTab = await page(`eos:/routines/${PR}?tab=runs`);
-    expect(tabs(runsTab)).toEqual(["Overview", "Runs*", "Signals", "Blueprint"]);
+    expect(tabs(runsTab)).toEqual(["Overview", "Runs*", "Signals", "Blueprint", "Learned"]);
     expect(runsTab).toContain('<span class="eos-run-row__title">Fix the login</span>');
 
     const mixed = { runs: [...runsPage.runs, { ...runsPage.runs[0], id: "rn-hand", origin: "hand" }] };
@@ -168,14 +171,26 @@ describe("the routine page", () => {
     expect([...draw().matchAll(/role="radio" aria-checked="(?:true|false)" class="eos-seg__opt">([^<]*)</g)].map((m) => m[1])).toEqual(["All", "Triggered", "By hand"]);
 
     const blueprint = await page(`eos:/routines/${MAIL}?tab=blueprint`);
-    expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Signals", "Blueprint*"]);
+    expect(tabs(blueprint)).toEqual(["Overview", "Runs", "Signals", "Blueprint*", "Learned"]);
     expect(blueprint).toContain('aria-label="Conversation with the architect"');
     expect([...blueprint.matchAll(/<dt class="eos-bp-row__label">([^<]*)</g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
     expect(blueprint).not.toContain("Runs when you start it");
   });
 
-  it("shows Overview for the Learned tab, which waits for Memory", async () => {
-    expect(tabs(await page(`eos:/routines/${PR}?tab=learned`))).toEqual(["Overview*", "Runs", "Signals", "Blueprint"]);
+  it("says on Overview what it learned from the user, and holds its notes alone on the Learned tab", async () => {
+    const scoped = `${ROUTES.memoryNotes}?scope=${encodeURIComponent(`routine:${PR}`)}`;
+    const learned = memory.notes.notes.filter((n) => n.scope.key === PR);
+    const withNotes = fixtureTransport({ ...reads, [scoped]: { notes: learned } });
+    setEosTransport(withNotes);
+    await loadNotes(scoped);
+    const overview = await page(`eos:/routines/${PR}`, withNotes);
+    expect(overview).toContain('<h2 class="eos-label">What it learned from you</h2><button type="button" class="eos-link eos-link--quiet">All</button>');
+    expect(overview).toContain('<span class="eos-learned__text">Keep the summary under five lines</span><span class="eos-learned__why">You shortened four before sending.');
+
+    const tab = await page(`eos:/routines/${PR}?tab=learned`, withNotes);
+    expect(tabs(tab)).toEqual(["Overview", "Runs", "Signals", "Blueprint", "Learned*"]);
+    expect(tab).toContain('<span class="eos-mem-row__text">Keep the summary under five lines</span>');
+    expect(tab).not.toContain(">Everything</button>");
   });
 
   it("bands a paused routine with its reason in words, Resume and its last run", async () => {

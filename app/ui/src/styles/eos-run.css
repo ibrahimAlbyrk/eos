@@ -83,6 +83,24 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-routine__columns > * + * { flex: 1 1 300px; max-width: 380px; }
 .eos-routine__now, .eos-routine__better { padding: 20px; border-radius: 16px; background: var(--panel); }
 .eos-routine__section { display: flex; flex-direction: column; gap: 10px; }
+.eos-routine__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.eos-learned { margin: 0; padding: 0; list-style: none; }
+.eos-learned li + li { border-top: 1px solid var(--line); }
+.eos-learned__open {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-learned__text { font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.eos-learned__why { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-learned__open:hover .eos-learned__text { text-decoration: underline; }
 
 .eos-runs { margin: 0; padding: 4px 20px; list-style: none; }
 .eos-runs--flat, .eos-routine__now .eos-runs { padding: 0; }
