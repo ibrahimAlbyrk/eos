@@ -34,12 +34,13 @@ function RunNow({ routine }) {
   );
 }
 
-// Pause for an active routine, Resume for a paused or archived one.
+// Pause for an active routine, Resume for an archived one. A paused
+// routine's Resume is in its band, beside why it paused.
 function PauseResume({ routine }) {
   if (routine.state === "active") {
     return <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void setRoutineState(routine.id, "paused")}>Pause</button>;
   }
-  if (routine.state === "paused" || routine.state === "archived") {
+  if (routine.state === "archived") {
     return <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>;
   }
   return null;
