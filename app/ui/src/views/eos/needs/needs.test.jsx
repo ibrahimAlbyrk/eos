@@ -14,6 +14,8 @@ import { EosMain } from "../EosMain.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { _resetNeedsCursor } from "./NeedsYouList.jsx";
+import { streakLine } from "./StreakLine.jsx";
+import { _resetFreedom, loadFreedom } from "../../../state/eos/freedomStore.js";
 import inbox from "../gallery/sample/inbox.json";
 import inboxItems from "../gallery/sample/inbox-items.json";
 import routines from "../gallery/sample/routines.json";
@@ -76,6 +78,7 @@ async function loaded(paths = reads) {
 }
 
 beforeEach(() => {
+  _resetFreedom();
   _resetInbox();
   _resetRoutines();
   _resetRuns();
@@ -496,6 +499,35 @@ describe("paging", () => {
     await loaded();
     await loadInboxItem("ib-gone00000001");
     expect(at("eos:/needs/ib-gone00000001")).toContain("This is no longer in Needs you.");
+  });
+});
+
+describe("the streak beside a draft's actions", () => {
+  const ROUTINE = detailOf[DRAFT].item.routineId;
+  const freedom = (streak, extra = {}) => ({ routineId: ROUTINE, rung: "draft", grants: [], streak, offer: "none", ...extra });
+
+  it("says how far the routine is from the offer, and nothing when none can come", () => {
+    expect(streakLine(freedom(9))).toBe("Nine in a row went out unedited. One more and Eos will offer to send these on its own, then tell you.");
+    expect(streakLine(freedom(1))).toBe("The last one went out unedited. Nine more and Eos will offer to send these on its own, then tell you.");
+    expect(streakLine(freedom(0))).toBeNull();
+    expect(streakLine(freedom(4, { offer: "never" }))).toBeNull();
+    expect(streakLine(freedom(4, { rung: "on_its_own" }))).toBeNull();
+    expect(streakLine(undefined)).toBeNull();
+  });
+
+  it("reads the routine's Freedom, draws the line, and reads it again on inbox:freedom", async () => {
+    let streak = 9;
+    const t = recording({ ...reads }, undefined);
+    t.get = vi.fn(async (path) => (path === ROUTES.routineFreedom(ROUTINE) ? { ok: true, status: 200, body: freedom(streak) } : fixtureTransport(reads).get(path)));
+    setEosTransport(t);
+    await refreshRoutines();
+    await refreshInbox();
+    await loadInboxItem(DRAFT);
+    await loadFreedom(ROUTINE);
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<span class="eos-needs-streak">Nine in a row went out unedited.');
+    streak = 0;
+    applyEosEvent("inbox:freedom", { routineId: ROUTINE, rung: "draft", streak: 0, offer: "none" });
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).not.toContain("eos-needs-streak"));
   });
 });
 
