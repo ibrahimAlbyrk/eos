@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
+import { fmtTimeAgo } from "../../../lib/format.js";
 import { shortcutLabel } from "../../../lib/platform.js";
 import {
   discardInboxItem, ensureInboxLoaded, keepNextTime, laterInboxItem, loadInboxItem, useInbox,
@@ -137,6 +138,10 @@ export function NeedsItemScreen({ id }) {
         {detail && (
           <div className="eos-needs-item__columns">
             <div className="eos-needs-item__main">
+              <header className="eos-needs-item__head">
+                <p className="eos-label">{nameOf(detail.item.routineId) ?? "Eos"}<span className="eos-needs-item__when">{fmtTimeAgo(detail.item.createdAt)}</span></p>
+                <h2 className="eos-lead">{title}</h2>
+              </header>
               {!open && <Closed detail={detail} refused={refused[id]} />}
               {detail.item.view
                 ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} onSubmitOffer={setViewSubmit} />

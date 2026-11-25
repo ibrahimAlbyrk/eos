@@ -16,6 +16,16 @@ export function groupOf(item) {
   return GROUPS.find((g) => g.kinds?.includes(item.kind))?.id ?? "questions";
 }
 
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+
+// The list's lead: how many wait now; those put aside are counted apart.
+export function needsLead(items) {
+  const open = items.filter((i) => i.state !== "later").length;
+  const later = items.length - open;
+  if (open === 0) return later === 1 ? "One thing waits for later." : `${WORDS[later] ?? later} things wait for later.`;
+  return open === 1 ? "One thing needs you." : `${WORDS[open] ?? open} things need you.`;
+}
+
 // Each kind's primary action in the list; it opens the item, where the
 // answer is given with everything in view.
 const PRIMARY = {

@@ -97,6 +97,7 @@ describe("the Needs-you list", () => {
     await loaded();
     const html = at("eos:/needs");
     expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
+    expect(html).toContain('<p class="eos-lead">Five things need you.</p>');
     expect(groups(html)).toEqual(["To check and send", "Questions", "Problems", "Later"]);
     expect(titles(html)).toEqual([
       "Review of #470 Fix the login",
@@ -169,10 +170,10 @@ describe("the Needs-you list", () => {
       [ROUTES.inbox]: { items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} }, agentsWaiting: 0 },
       [`${ROUTES.inbox}?state=answered`]: { items: [answered], counts: inbox.counts, agentsWaiting: 0 },
     });
-    expect(at("eos:/needs")).toContain('<p class="eos-note">Nothing needs you.</p>');
+    expect(at("eos:/needs")).toContain('<p class="eos-empty__title">Nothing needs you.</p>');
     const { loadLastAnswered } = await import("../../../state/eos/inboxStore.js");
     await loadLastAnswered();
-    expect(at("eos:/needs")).toContain('<p class="eos-needs-last">Last: Review of #470 Fix the login, 5m ago.</p>');
+    expect(at("eos:/needs")).toContain('<span class="eos-needs-last"> Last: Review of #470 Fix the login, 5m ago.</span>');
   });
 
   it("draws many items, loading blocks, and a failed read in words", async () => {
