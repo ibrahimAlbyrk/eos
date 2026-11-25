@@ -45,7 +45,7 @@
 .eos-needs-row__time { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* ── One item ─────────────────────────────────────────────────────────────── */
-.eos-needs-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
+.eos-needs-offline { margin: 0; padding: 12px 32px 0; font-size: var(--text-sm); color: var(--warn); }
 .eos-needs-pager { display: flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-needs-pager > span { margin-right: 8px; font-variant-numeric: tabular-nums; }
 .eos-needs-closed { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }

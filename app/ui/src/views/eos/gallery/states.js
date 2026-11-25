@@ -26,16 +26,18 @@ function withDecision(s) {
 
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
-// { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" }
+// { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline" }
 export const GALLERY_STATES = [
   { id: "home", label: "Home · typical", location: "eos:/" },
   { id: "home-empty", label: "Home · nothing waiting", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.inbox]: empty, [RUNS_PATH]: { runs: [] }, [ROUTES.surfaceTiles]: { tiles: [] } }) },
   { id: "home-first", label: "Home · first run", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.routines]: [], [RUNS_PATH]: { runs: [] }, [ROUTES.inbox]: empty, [ROUTES.signalsRoutines]: [], [ROUTES.surfaceTiles]: { tiles: [] } }) },
   { id: "home-loading", label: "Home · loading", location: "eos:/", answer: "loading" },
   { id: "home-error", label: "Home · cannot read", location: "eos:/", answer: "error" },
+  { id: "home-offline", label: "Home · reconnecting", location: "eos:/", answer: "offline" },
   { id: "needs", label: "Needs you", location: "eos:/needs" },
   { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty }) },
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },
+  { id: "need-offline", label: "Needs you · a draft, reconnecting", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}`, answer: "offline" },
   { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
@@ -77,6 +79,21 @@ export const failingTransport = {
   send: async () => ({ ok: false, status: 403, body: { error: "sample data" } }),
   upload: async () => ({ ok: false, status: 403, body: { error: "sample data" } }),
 };
+
+// Reads the core answers once and then stops answering: every screen first
+// draws the samples, then shows that it is reconnecting when it reads again.
+export function offlineTransport(answering) {
+  const asked = new Set();
+  return {
+    get: (path) => {
+      if (asked.has(path)) return Promise.reject(new Error("no answer"));
+      asked.add(path);
+      return answering.get(path);
+    },
+    send: () => Promise.reject(new Error("no answer")),
+    upload: () => Promise.reject(new Error("no answer")),
+  };
+}
 
 export const GALLERY_STATE_KEY = "eos:galleryState";
 

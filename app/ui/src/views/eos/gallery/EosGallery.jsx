@@ -35,13 +35,14 @@ import surfaceSample from "./sample/surfaces.json";
 import paper from "./sample/paper.json";
 import decision from "./sample/surface-decision.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
-import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
+import { holdHomeInMemory, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { notesPath } from "../../../state/eos/notesStore.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
 import { closeField, openField, setTransitionScale, useField } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
-import { failingTransport, GALLERY_STATES, loadingTransport, stateOf, storedState, storeState } from "./states.js";
+import { failingTransport, GALLERY_STATES, loadingTransport, offlineTransport, stateOf, storedState, storeState } from "./states.js";
+import { refreshInbox } from "../../../state/eos/inboxStore.js";
 
 // Needs you's samples moved so the newest arrived twenty minutes before the
 // gallery opened, the rest as far before it as recorded: times read "20m ago",
@@ -134,6 +135,9 @@ export const SAMPLE_READS = {
   [ROUTES.signalsRoutines]: homeNext(Date.now()),
 };
 
+// How long a reconnecting state draws its samples before it reads again.
+const RECONNECT_AFTER_MS = 600;
+
 // Slow plays the transition this many times longer (08 §10).
 export const SLOW_K = 2.8;
 // How long the field stays open in Play before it leaves again.
@@ -204,7 +208,8 @@ export function EosGallery({ state = "home" }) {
 export function galleryTransport(state) {
   if (state.answer === "loading") return loadingTransport;
   if (state.answer === "error") return failingTransport;
-  return fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
+  const samples = fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
+  return state.answer === "offline" ? offlineTransport(samples) : samples;
 }
 
 export function startEosGallery(rootEl) {
@@ -215,4 +220,7 @@ export function startEosGallery(rootEl) {
   holdHomeInMemory();
   holdHomeDraftInMemory();
   createRoot(rootEl).render(<EosGallery state={state.id} />);
+  // Reconnecting: once the screen has drawn, Home and Needs you read again
+  // and hear nothing.
+  if (state.answer === "offline") setTimeout(() => { void refreshHome(); void refreshInbox(); }, RECONNECT_AFTER_MS);
 }
