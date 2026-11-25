@@ -1,12 +1,17 @@
 //! Where a failure shows (09 §9.4), in the composed app with fakes only: each row's failure
-//! is made happen and the place the user reads it is read through the routes. The holder of a
-//! routine away on another Mac is not here: there is only this Mac until other Macs hold
-//! routines (SG-21).
+//! is made to happen and the place the user reads it is read through the routes.
+//!
+//! Three rows are held elsewhere. A feature that failed to start answers 503 and tells the
+//! user in `isolation`. A dev run's refusal is the shell's (`eos-bridge`'s guard), and the
+//! dashboard's stores turn it into "This is a dev run". A routine's holder away on another
+//! Mac waits for other Macs to hold routines (SG-21). The Settings › Sync line of a full
+//! domain is the sync engine's own count, held in `eos-sync`'s tests; here the notice it opens.
 
 mod runs;
 mod sends;
 mod signals;
 mod surfaces;
+mod system;
 
 use eos_app::App;
 use eos_runtime::http::Method;
