@@ -19,7 +19,10 @@ export function ChecksPanel({ runId }) {
           <ul className="eos-needs-checks">
             {verdict.checks.map((c) => (
               <li key={c.key}>
-                <span className={c.ok ? "eos-status eos-status--ok" : "eos-status eos-status--err"}>{c.ok ? "Passed" : "Failed"}</span>
+                <span className={c.ok ? "eos-needs-checks__mark eos-needs-checks__mark--ok" : "eos-needs-checks__mark eos-needs-checks__mark--err"}>
+                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><path d={c.ok ? "M3.5 8.5l3 3 6-7" : "M4.5 4.5l7 7m0-7l-7 7"} /></svg>
+                  <span className="eos-sr">{c.ok ? "Passed" : "Failed"}</span>
+                </span>
                 <span className="eos-needs-checks__note">{c.note}</span>
               </li>
             ))}
