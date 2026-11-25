@@ -106,6 +106,11 @@ impl MemNoteRepo for SqliteTx<'_> {
     }
 
     fn update(&self, n: &Note, cues: &str, rev: i64) -> Result<(), Error> {
+        // A vector of the old text would find the note by what it no longer says.
+        self.exec(
+            "DELETE FROM mem_vectors WHERE note_rowid IN (SELECT rowid FROM mem_notes WHERE id = ?1 AND text != ?2)",
+            params![n.id, n.text],
+        )?;
         let changed = self.exec(
             "UPDATE mem_notes SET kind = ?2, text = ?3, body = ?4, cues = ?5, trust = ?6, state = ?7, \
              scope_level = ?8, scope_key = ?9, valid_from = ?10, valid_to = ?11, replaced_by = ?12, do_hooks = ?13, \

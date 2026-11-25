@@ -179,6 +179,11 @@ impl Recall {
 
     /// The best `limit` live notes for `cues` that apply to `situation`.
     pub async fn recall(&self, situation: &Situation, cues: &Cues, limit: usize) -> Result<Vec<Recalled>, Error> {
+        // Notes learned or edited since the model loaded get their vectors here, so meaning
+        // finds them without a wake of its own.
+        if let Err(e) = self.embed_missing().await {
+            tracing::warn!(error = %e, "memory: notes waiting for a vector were not embedded");
+        }
         let meaning_hits = match self.query_vector(cues.query.as_deref()).await {
             Some((meaning, vector)) => {
                 meaning.index.read().unwrap_or_else(PoisonError::into_inner).nearest(&vector, MEANING_SEEDS)
