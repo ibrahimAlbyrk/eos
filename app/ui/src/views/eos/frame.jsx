@@ -1,6 +1,10 @@
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
+
 // The shared parts of an Eos screen, drawn with eos.css's frame classes: a
 // section with its label, an empty state that says what a screen is for and
-// offers the one next step, and a band of state across the measure.
+// offers the one next step, a band of state across the measure, and the
+// dialog Eos asks in.
 
 // A labelled part of a screen. `aside` sits at the label's right: a count or
 // a quiet link. `id` names the heading the section is labelled by.
@@ -34,5 +38,66 @@ export function Band({ tone, role, children, action }) {
       <span className="eos-band__text">{children}</span>
       {action}
     </div>
+  );
+}
+
+const never = () => () => {};
+// True in a window, false while drawn to markup: a portal has no server form.
+const useInWindow = () => useSyncExternalStore(never, () => true, () => false);
+
+const FOCUSABLE = "button:not([disabled]), input, textarea, select, [href], [tabindex]:not([tabindex='-1'])";
+
+// Eos's own dialog, over the whole window and outside anything an agent
+// wrote: where the question comes from (`from`, a label after its `icon`
+// path), the question as its title, one `line` of what follows, the
+// `children`, then `actions` (Cancel first, the act last). Escape and the
+// shade call `onClose`; Tab stays inside; the focus goes back to what opened
+// it. Drawn into the body, so no scrolling column or container clips it.
+export function Dialog({ id, from, icon, title, line, role = "dialog", onClose, actions, children, wide }) {
+  const panel = useRef(null);
+  const inWindow = useInWindow();
+  useEffect(() => {
+    const opener = document.activeElement;
+    if (!panel.current?.contains(document.activeElement)) panel.current?.querySelector(FOCUSABLE)?.focus();
+    return () => opener?.focus?.();
+  }, []);
+  const keys = (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
+    if (e.key !== "Tab") return;
+    const all = [...panel.current.querySelectorAll(FOCUSABLE)];
+    const edge = e.shiftKey ? all[0] : all.at(-1);
+    if (all.length && document.activeElement === edge) {
+      e.preventDefault();
+      (e.shiftKey ? all.at(-1) : all[0]).focus();
+    }
+  };
+  const drawn = (
+    <div className="eos-ask-shade" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={panel} className={wide ? "eos-ask eos-ask--wide" : "eos-ask"} role={role} aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={keys}>
+        {from && (
+          <p className="eos-ask__from">
+            {icon && <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d={icon} /></svg>}
+            {from}
+          </p>
+        )}
+        <h2 id={`${id}-title`} className="eos-ask__title">{title}</h2>
+        {line && <p className="eos-ask__line">{line}</p>}
+        {children}
+        {actions && <div className="eos-ask__acts">{actions}</div>}
+      </div>
+    </div>
+  );
+  return inWindow ? createPortal(drawn, document.body) : drawn;
+}
+
+// Facts in a dialog, one row each on hairlines: `rows` of [label, value].
+export function AskRows({ rows }) {
+  return (
+    <dl className="eos-ask__rows">
+      {rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+    </dl>
   );
 }

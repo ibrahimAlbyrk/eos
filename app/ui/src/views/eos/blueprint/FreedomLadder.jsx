@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadFreedom, useFreedom } from "../../../state/eos/freedomStore.js";
+import { AskRows, Dialog } from "../frame.jsx";
 import { RowLabel, rowClass } from "./SlotRow.jsx";
 
 // The Freedom row: how far a result goes without the user, as a radiogroup
@@ -26,23 +27,36 @@ export function freedomQuestion(bp, rung) {
   const current = RUNGS.findIndex((r) => r.value === bp.freedom?.rung);
   const next = RUNGS.findIndex((r) => r.value === rung);
   if (!UNATTENDED.has(rung) || next <= current || !speaksForUser(bp)) return null;
-  return `${bp.name} will ${ACTS[bp.makes?.kind] ?? "send its results"} as you without asking. Allow?`;
+  return `Let ${bp.name} ${ACTS[bp.makes?.kind] ?? "send its results"} as you without asking?`;
 }
 
 // Freedom at `rung`, its grants and unknown keys kept.
 export const withRung = (freedom, rung) => ({ ...freedom, rung });
 
-function Ask({ question, allow, cancel }) {
+const rungLabel = (value) => RUNGS.find((r) => r.value === value)?.label;
+const RISE = "M8 13V3.5M4.5 7L8 3.5 11.5 7";
+
+// Raising Freedom asks first, in Eos's own dialog: the question, the rung
+// it leaves and the one it takes, Cancel first so a stray Enter keeps it.
+function Ask({ question, from, to, allow, cancel }) {
   return (
-    <div className="eos-sheet-overlay" onMouseDown={cancel}>
-      <div className="eos-sheet" role="alertdialog" aria-modal="true" aria-labelledby="eos-bp-freedom-ask" onMouseDown={(e) => e.stopPropagation()}>
-        <p id="eos-bp-freedom-ask" className="eos-sheet__title">{question}</p>
-        <div className="eos-actions">
+    <Dialog
+      id="eos-bp-freedom-ask"
+      role="alertdialog"
+      from="More freedom"
+      icon={RISE}
+      title={question}
+      line="Its results go out without waiting for you. You can lower it again here at any time."
+      onClose={cancel}
+      actions={(
+        <>
+          <button type="button" className="eos-btn eos-btn--ghost" autoFocus onClick={cancel}>Cancel</button>
           <button type="button" className="eos-btn eos-btn--primary" onClick={allow}>Allow</button>
-          <button type="button" className="eos-btn" onClick={cancel}>Cancel</button>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    >
+      <AskRows rows={[["Now", rungLabel(from)], ["After", rungLabel(to)]]} />
+    </Dialog>
   );
 }
 
@@ -115,6 +129,8 @@ export function FreedomLadder({ blueprint, onApply, state = "filled", hint, rout
         {asking && (
           <Ask
             question={asking.question}
+            from={rung}
+            to={asking.value}
             allow={() => {
               onApply(withRung(blueprint.freedom, asking.value));
               setAsking(null);

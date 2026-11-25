@@ -186,11 +186,11 @@ describe("Freedom", () => {
   const pr = { name: "PR Review", makes: { kind: "github.review" }, goesTo: [{ id: "pr", kind: "item_place", channel: "github" }], freedom: { rung: "draft", grants: [{ id: "docs" }] } };
 
   it("asks in Eos's own words before a routine that speaks for the user goes out on its own", () => {
-    expect(freedomQuestion(pr, "send_then_tell")).toBe("PR Review will post reviews as you without asking. Allow?");
-    expect(freedomQuestion(pr, "on_its_own")).toBe("PR Review will post reviews as you without asking. Allow?");
+    expect(freedomQuestion(pr, "send_then_tell")).toBe("Let PR Review post reviews as you without asking?");
+    expect(freedomQuestion(pr, "on_its_own")).toBe("Let PR Review post reviews as you without asking?");
     expect(freedomQuestion(pr, "ask")).toBeNull();
     expect(freedomQuestion({ ...pr, goesTo: [{ id: "me", kind: "me", channel: "notify" }] }, "on_its_own")).toBeNull();
-    expect(freedomQuestion({ ...pr, freedom: { rung: "send_then_tell" } }, "on_its_own")).toBe("PR Review will post reviews as you without asking. Allow?");
+    expect(freedomQuestion({ ...pr, freedom: { rung: "send_then_tell" } }, "on_its_own")).toBe("Let PR Review post reviews as you without asking?");
     expect(freedomQuestion({ ...pr, freedom: { rung: "on_its_own" } }, "send_then_tell")).toBeNull();
   });
 
