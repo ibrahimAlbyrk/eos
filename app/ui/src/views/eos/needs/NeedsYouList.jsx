@@ -3,14 +3,14 @@ import { fmtTimeAgo } from "../../../lib/format.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { ensureInboxLoaded, laterInboxItem, loadLastAnswered, refreshInbox, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
-import { DevRunNote, LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
-import { EmptyState } from "../frame.jsx";
+import { DevRunNote, LoadingRows } from "../capabilities/parts.jsx";
+import { Fact, FailedLead, Ring, Section } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { AgentsWaitingLine } from "./AgentsWaitingLine.jsx";
 import { onControl, plainKey } from "./keys.js";
 import { ItemView } from "./ItemView.jsx";
-import { GROUPS, groupOf, isShownOnly, needsLead, primaryAction } from "./words.js";
+import { GROUPS, groupOf, isShownOnly, itemTone, kindGlyph, needsLead, needsLine, primaryAction } from "./words.js";
 
 export const itemLocation = (id) => `eos:/needs/${encodeURIComponent(id)}`;
 
@@ -41,16 +41,11 @@ export function _resetNeedsCursor() {
   cursor = null;
 }
 
-// A routine's glyph: the first letter of its name.
-function Glyph({ name }) {
-  return <span className="eos-needs-glyph" aria-hidden="true">{(name ?? "Eos").slice(0, 1).toUpperCase()}</span>;
-}
-
 function Row({ item, routineName, current }) {
   const open = () => openLocation(itemLocation(item.id));
   return (
     <li className={current ? "eos-needs-row on" : "eos-needs-row"} aria-current={current ? "true" : undefined}>
-      <Glyph name={routineName} />
+      <Ring d={kindGlyph(item.kind)} tone={itemTone(item)} />
       <button type="button" className="eos-needs-row__main" onClick={open}>
         <span className="eos-needs-row__title">{item.title}</span>
         <span className="eos-needs-row__line">
@@ -60,7 +55,7 @@ function Row({ item, routineName, current }) {
       </button>
       <span className="eos-needs-row__time">{fmtTimeAgo(item.createdAt)}</span>
       <span className="eos-actions">
-        <button type="button" className="eos-btn eos-btn--primary" onClick={open}>{primaryAction(item.kind)}</button>
+        <button type="button" className="eos-btn" onClick={open}>{primaryAction(item.kind)}</button>
         {item.state === "open" && !isShownOnly(item.id) && (
           <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void laterInboxItem(item.id)}>Later</button>
         )}
@@ -87,6 +82,59 @@ function ViewItem({ item, routineName }) {
         <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void laterInboxItem(item.id)}>Later</button>
       </span>
     </div>
+  );
+}
+
+// What waits here, group by group, for a list with nothing in it.
+const WHAT_WAITS = [
+  ["draft", "To check and send", "What your routines made for other people, until you let it go."],
+  ["question", "Questions", "What a run needs from you before it can go on."],
+  ["delivery_problem", "Problems", "A routine that paused, a send that failed, a capability that stopped working."],
+  ["freedom_offer", "Offers", "More freedom a routine has earned, or a capability Eos built for one."],
+];
+
+// Nothing waits: the screen says what it is for, as Home greets, when the
+// last answer was given, and what comes here.
+function NothingWaits({ lastAnswered, agentsWaiting }) {
+  return (
+    <div className="eos-first eos-needs-none">
+      <header className="eos-first__head">
+        <p className="eos-label">Needs you</p>
+        <p className="eos-first__ask">Nothing needs you.</p>
+        <p className="eos-first__dim">What your routines need from you waits here until you answer it.</p>
+      </header>
+      <div className="eos-needs-none__facts">
+        {lastAnswered && <Fact tone="done" className="eos-needs-last">Last answered: {lastAnswered.title}, {fmtTimeAgo(lastAnswered.updatedAt)}.</Fact>}
+        <AgentsWaitingLine count={agentsWaiting} />
+      </div>
+      <Section id="eos-needs-what" label="What waits here">
+        <ul className="eos-needs-what">
+          {WHAT_WAITS.map(([kind, name, line]) => (
+            <li key={kind}>
+              <Ring d={kindGlyph(kind)} />
+              <span className="eos-needs-what__words">
+                <span className="eos-needs-what__name">{name}</span>
+                <span className="eos-needs-what__line">{line}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
+// The list still coming: the lead's shape, then its rows.
+function ListGhost() {
+  return (
+    <>
+      <div className="eos-rlead eos-rlead--ghost eos-needs-head" aria-hidden="true">
+        <span className="eos-skeleton__label" />
+        <span className="eos-rlead__bar" />
+        <span className="eos-rlead__bar eos-rlead__bar--dim" />
+      </div>
+      <LoadingRows />
+    </>
   );
 }
 
@@ -131,22 +179,15 @@ export function NeedsYouList() {
       <EosHeader trail={[{ label: "Needs you" }]} />
       <div className="eos-body eos-needs">
         {devRun && <DevRunNote />}
-        {list === null && (listFailed ? <LoadFailed what="what needs you" retry={() => void refreshInbox()} /> : <LoadingRows />)}
+        {list === null && (listFailed ? <FailedLead what="what needs you" retry={() => void refreshInbox()} /> : <ListGhost />)}
         {list && !empty && (
-          <header className="eos-needs-head">
+          <header className="eos-rlead eos-needs-head">
             <p className="eos-lead">{needsLead(all)}</p>
+            {needsLine(all) && <p className="eos-rlead__now">{needsLine(all)}</p>}
             <AgentsWaitingLine count={list.agentsWaiting} />
           </header>
         )}
-        {empty && (
-          <>
-            <EmptyState title="Nothing needs you.">
-              Drafts to check, questions and problems from your routines wait here until you answer them.
-              {lastAnswered && <span className="eos-needs-last"> Last: {lastAnswered.title}, {fmtTimeAgo(lastAnswered.updatedAt)}.</span>}
-            </EmptyState>
-            <AgentsWaitingLine count={list.agentsWaiting} />
-          </>
-        )}
+        {empty && <NothingWaits lastAnswered={lastAnswered} agentsWaiting={list.agentsWaiting} />}
         {views.length > 0 && (
           <section className="eos-needs-group" aria-label="From your routines">
             <GroupHead label="From your routines" count={views.length} />
