@@ -149,3 +149,21 @@ pub(crate) fn after_sent_in(
     }
     Ok(())
 }
+
+/// An automatic send the user stopped in its hold counts as an undo for the
+/// streak, which starts again from nothing; the routine keeps its Freedom
+/// and the run goes on with the draft the send went back as.
+pub(crate) fn stopped_in(tx: &dyn Tx, row: &StoredDelivery, at: i64) -> Result<(), Error> {
+    let outcome_row = NewOutcome {
+        routine_id: row.routine_id.clone(),
+        run_id: row.run_id.clone(),
+        item_id: None,
+        delivery_id: Some(row.id.clone()),
+        outcome: Outcome::Undone.as_str().to_owned(),
+        rung: row.mode.clone(),
+        at,
+    };
+    tx.inbox_outcomes().insert(&outcome_row)?;
+    tracing::info!(delivery_id = %row.id, run_id = %row.run_id, "an automatic send stopped in its hold counts as undone");
+    Ok(())
+}

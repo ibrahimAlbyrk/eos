@@ -9,7 +9,7 @@ use eos_core::delivery::{ChannelTraits, Idempotency, Undo};
 use eos_domain::inbox::{ItemKind, ItemState};
 use eos_domain::routine::numbers::Outcome;
 use eos_inbox::Error;
-use eos_testkit::OutcomeCall;
+use eos_testkit::{ControlCall, OutcomeCall};
 
 use crate::delivery::Sender;
 use crate::rig::pull_requests;
@@ -119,6 +119,32 @@ async fn an_automatic_send_a_day_old_is_held_as_a_draft_instead() {
     let draft = items.iter().find(|item| item.kind == ItemKind::Draft).expect("held as a draft");
     let waits = OutcomeCall::Held { run_id: "rn-1".into(), item_id: draft.id.clone() };
     assert_eq!(sender.outcomes.calls(), [waits]);
+}
+
+#[tokio::test]
+async fn stopping_an_automatic_send_in_its_hold_counts_as_an_undo_and_keeps_the_routines_freedom() {
+    let sender = Sender::new();
+    for _ in 0..4 {
+        sender.rig.temp.exec(
+            "INSERT INTO inbox_outcomes (routine_id, run_id, outcome, rung, at) \
+             VALUES ('rt-1', 'rn-old', 'sent_unedited', 'draft', 1)",
+        );
+    }
+    assert_eq!(sender.rig.items.freedom("rt-1").await.expect("read").streak, 4);
+    sender.queue("dl-1", "github", "pr", "holding", "auto", sender.rig.clock.now_ms()).await;
+
+    let stopped = sender.rig.items.stop_delivery("dl-1").await.expect("stopped");
+    assert_eq!(stopped.state, "stopped");
+    let view = sender.rig.items.freedom("rt-1").await.expect("read");
+    assert_eq!((view.streak, view.rung), (0, eos_contracts::Rung::Draft), "the streak starts again; the rung stays");
+    let undone = sender.rig.temp.count(
+        "SELECT COUNT(*) FROM inbox_outcomes WHERE delivery_id = 'dl-1' AND outcome = 'undone' AND rung = 'auto'",
+    );
+    assert_eq!(undone, 1);
+    let stepped = sender.rig.control.calls().into_iter().any(|call| matches!(call, ControlCall::StepDown { .. }));
+    assert!(!stepped, "the routine is not stepped down");
+    let ended = sender.outcomes.calls().into_iter().any(|call| matches!(call, OutcomeCall::Finished { .. }));
+    assert!(!ended, "the run goes on with the draft the send went back as");
 }
 
 #[tokio::test]
