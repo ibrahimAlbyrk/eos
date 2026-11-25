@@ -239,6 +239,8 @@ async fn a_lead_whose_team_still_works_is_not_reminded_when_its_turn_ends() {
     let nudges =
         || bench.temp.count(&format!("SELECT COUNT(*) FROM run_events WHERE run_id = '{run}' AND kind = 'idle_nudge'"));
 
+    // The scripted builder's own turn ends first: from then on the test says what it does.
+    bench.agents.settled().await;
     set("WORKING");
     idle().await;
     idle().await;
