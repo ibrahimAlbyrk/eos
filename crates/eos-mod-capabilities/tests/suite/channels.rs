@@ -8,6 +8,7 @@ use eos_core::delivery::{Fresh, Idempotency, Place, Receipt, SendErrorKind, Send
 fn send(key: &str, action: &str, event: &str, pull: u64, sha: &str) -> SendRequest {
     SendRequest {
         key: key.into(),
+        run_id: "rn-1".into(),
         channel: "github".into(),
         action: action.into(),
         target: Target { recipient_id: "pr".into(), place: Place::Item(format!("github:pr:{REPO}#{pull}@{sha}")) },

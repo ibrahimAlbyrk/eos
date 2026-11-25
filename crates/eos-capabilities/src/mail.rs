@@ -121,7 +121,8 @@ pub(crate) fn page_input(to: &str, mail: &MailDocument) -> Value {
 
 impl MailChannel {
     /// The `send_mail` input of the result for `to`.
-    async fn input_for(&self, to: &str, doc: &ResultDoc) -> Result<Value, SendError> {
+    async fn input_for(&self, to: &str, req: &SendRequest) -> Result<Value, SendError> {
+        let doc = &req.body;
         if doc.kind != PAGE_ISSUE {
             let (subject, body) = mail_of(doc).map_err(|_| failure("body"))?;
             if subject.len() + body.len() > MAIL_MAX_BYTES {
@@ -131,7 +132,7 @@ impl MailChannel {
         }
         let (issue_id, pdf) = issue_of(doc).ok_or_else(|| failure("body"))?;
         let render = self.0.render.get().ok_or_else(|| failure("body"))?;
-        let mail = render.mail_document(issue_id, pdf).await.map_err(|error| match error {
+        let mail = render.mail_document(issue_id, &req.run_id, pdf).await.map_err(|error| match error {
             eos_core::Error::NotFound { .. } => failure("issue"),
             _ => SendError { kind: SendErrorKind::Transient, detail_kind: "issue".to_owned() },
         })?;
@@ -147,7 +148,7 @@ impl MailChannel {
             return Err(failure("action"));
         }
         let Place::Address(to) = &req.target.place else { return Err(failure("target")) };
-        let input = self.input_for(to, &req.body).await?;
+        let input = self.input_for(to, req).await?;
         let call = ActionCall {
             capability: MAIL_CHANNEL.to_owned(),
             action: SEND.to_owned(),

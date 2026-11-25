@@ -38,6 +38,7 @@ fn told(place: Place) -> SendRequest {
         Part { key: "body".into(), role: "body".into(), text: "Three mails came in.".into(), meta: Default::default() };
     SendRequest {
         key: "dl-000000000001".into(),
+        run_id: "rn-1".into(),
         channel: "notify".into(),
         action: "tell".into(),
         target: Target { recipient_id: "me".into(), place },

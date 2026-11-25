@@ -38,6 +38,7 @@ fn message(text: &str) -> ResultDoc {
 fn request(key: &str, place: Place, body: ResultDoc) -> SendRequest {
     SendRequest {
         key: key.into(),
+        run_id: "rn-1".into(),
         channel: "slack".into(),
         action: body.action.clone(),
         target: Target { recipient_id: "team".into(), place },
