@@ -8,7 +8,7 @@
 
 /* ── The run ──────────────────────────────────────────────────────────────── */
 .eos-run__columns { display: flex; align-items: flex-start; gap: 32px; }
-.eos-run__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.eos-run__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; container: eos-run-main / inline-size; }
 .eos-run__sentence { margin: 0; font-size: 22px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; }
 .eos-run__shown { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-run__interruptions { margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--fg-dim); }
@@ -29,6 +29,12 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-station--failed { color: var(--fg-strong); box-shadow: inset 0 0 0 1px var(--err); }
 .eos-station--failed span.eos-station__mark { display: inline-block; background: var(--err); }
 .eos-station--stopped { color: var(--fg-mid); }
+/* Too narrow for the stations on one line: they wrap as plain pills, so no
+   joining line starts a row on its own. */
+@container eos-run-main (max-width: 440px) {
+  .eos-station + .eos-station { margin-left: 6px; }
+  .eos-station + .eos-station::before { content: none; }
+}
 
 .eos-run-wrong { display: flex; flex-direction: column; gap: 10px; box-shadow: inset 2px 0 0 var(--err); }
 .eos-run-wrong__reason { margin: 0; font-size: var(--text-base); color: var(--fg); }

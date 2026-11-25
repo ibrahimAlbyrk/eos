@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtTimeAgo, fmtTimeAgoShort, fmtDayStamp, statusFromState } from "./format.js";
+import { fmtTimeAgo, fmtTimeAgoShort, fmtDayStamp, fmtUsd, statusFromState } from "./format.js";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
@@ -83,5 +83,14 @@ describe("fmtDayStamp", () => {
 
   it("adds the year only outside the current one", () => {
     expect(fmtDayStamp(ts, new Date(2027, 0, 1).getTime()).day).toMatch(/2026/);
+  });
+});
+
+describe("fmtUsd", () => {
+  it("writes money in cents, and an amount that rounds to nothing as under a cent", () => {
+    expect(fmtUsd(0.42)).toBe("$0.42");
+    expect(fmtUsd(2)).toBe("$2.00");
+    expect(fmtUsd(0.001)).toBe("under $0.01");
+    expect(fmtUsd(0)).toBe("$0.00");
   });
 });

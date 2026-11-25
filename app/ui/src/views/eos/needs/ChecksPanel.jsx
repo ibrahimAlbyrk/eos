@@ -1,4 +1,4 @@
-import { fmtCost } from "../../../lib/format.js";
+import { fmtUsd } from "../../../lib/format.js";
 import { modelName } from "../../../lib/models.js";
 import { useRuns } from "../../../state/eos/runsStore.js";
 import { ROLES } from "../run/words.js";
@@ -36,11 +36,11 @@ export function ChecksPanel({ runId }) {
           {agents.map((a) => (
             <li key={a.workerId}>
               <span>{a.name ?? ROLES[a.role] ?? a.role}</span>
-              <span className="eos-needs-team__side">{[a.model && modelName(a.model), fmtCost(a.costUsd)].filter(Boolean).join(" · ")}</span>
+              <span className="eos-needs-team__side">{[a.model && modelName(a.model), fmtUsd(a.costUsd)].filter(Boolean).join(" · ")}</span>
             </li>
           ))}
         </ul>
-        <p className="eos-needs-aside__lead">In all {fmtCost(run.run.costUsd)}</p>
+        <p className="eos-needs-aside__lead">In all {fmtUsd(run.run.costUsd)}</p>
       </section>
     </aside>
   );
