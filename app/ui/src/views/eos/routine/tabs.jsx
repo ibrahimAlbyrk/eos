@@ -42,9 +42,9 @@ function GettingBetter({ stats }) {
   if (stats?.sentUnedited7d == null) return null;
   const pct = (share) => `${Math.round(share * 100)}%`;
   return (
-    <section className="eos-routine__section" aria-label="Getting better">
+    <section className="eos-routine__section eos-routine__better" aria-label="Getting better">
       <h2 className="eos-label">Getting better</h2>
-      <p className="eos-better__share">{pct(stats.sentUnedited7d)} sent without a single edit this week</p>
+      <p className="eos-better__share"><span className="eos-better__pct">{pct(stats.sentUnedited7d)}</span> sent without a single edit this week</p>
       {stats.baselineFirstWeek != null && <p className="eos-better__base">First week, {pct(stats.baselineFirstWeek)}</p>}
     </section>
   );
@@ -60,7 +60,7 @@ export function OverviewTab({ detail, now }) {
           {detail.runs.length === 0 ? (
             <p className="eos-note">No runs yet.</p>
           ) : (
-            <ul className="eos-card eos-runs">{detail.runs.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
+            <ul className="eos-runs eos-runs--flat">{detail.runs.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
           )}
         </section>
       </div>

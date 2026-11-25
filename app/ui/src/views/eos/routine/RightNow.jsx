@@ -7,12 +7,12 @@ import { runLocation } from "./RoutineRuns.jsx";
 export function RightNow({ runs, now }) {
   const live = runs.filter((r) => !hasEnded(r));
   return (
-    <section className="eos-routine__section" aria-label="Right now">
+    <section className="eos-routine__section eos-routine__now" aria-label="Right now">
       <h2 className="eos-label">Right now</h2>
       {live.length === 0 ? (
         <p className="eos-note">Nothing is running.</p>
       ) : (
-        <ul className="eos-card eos-runs">
+        <ul className="eos-runs">
           {live.map((r) => {
             const chip = stateChip(r, now);
             return (

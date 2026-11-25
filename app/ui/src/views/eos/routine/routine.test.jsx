@@ -151,7 +151,7 @@ describe("the routine page", () => {
     expect(now).toContain("#470 Rework shop carousel paging");
     expect(now).toContain(">Open the run</button>");
     expect(now).not.toContain("Fix the login");
-    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share">86% sent without a single edit this week</p><p class="eos-better__base">First week, 40%</p>');
+    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><p class="eos-better__base">First week, 40%</p>');
   });
 
   it("lists every run on the Runs tab with a filter by origin, and the blueprint's slots on the Blueprint tab", async () => {
