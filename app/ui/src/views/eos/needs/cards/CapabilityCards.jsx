@@ -1,5 +1,5 @@
 import { CLASSES, stateLine } from "../../capabilities/words.js";
-import { AskRows, Fact } from "../../frame.jsx";
+import { AskRows, Fact, Stations } from "../../frame.jsx";
 
 // What the live test's state says to the user (eos-contracts `LiveTest`).
 const LIVE_WORDS = {
@@ -92,29 +92,11 @@ const LIVE_STOP_WORDS = {
 };
 
 function LiveTest({ state }) {
-  const at = LIVE_AT[state] ?? 0;
   const tone = LIVE_TONES[state];
-  const stop = (i) => {
-    if (i > at) return "eos-beat__stop eos-beat__stop--ahead";
-    if (i < at) return "eos-beat__stop";
-    return `eos-beat__stop eos-beat__stop--newest eos-beat__stop--${tone}${state === "sent" ? " eos-beat__stop--working" : ""}`;
-  };
   return (
     <section className="eos-needs-live" aria-label="One real test">
       <p className="eos-label">One real test before it is yours</p>
-      <div className={at === STATIONS.length - 1 ? "eos-beat eos-beat--ends eos-needs-live__line" : "eos-beat eos-needs-live__line"} aria-hidden="true">
-        <ol className="eos-beat__line">
-          {STATIONS.map((name, i) => (
-            <li key={name} className={stop(i)}>
-              <span className="eos-beat__mark">
-                <span className="eos-beat__dot" />
-                <span className="eos-beat__tag">{name}</span>
-                <span className={i === at ? `eos-beat__word eos-beat__word--${tone}` : "eos-beat__word"}>{(LIVE_STOP_WORDS[state] ?? [])[i] || "\u00a0"}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
+      <Stations names={STATIONS} at={LIVE_AT[state] ?? 0} tone={tone} words={LIVE_STOP_WORDS[state]} working={state === "sent"} className="eos-needs-live__line" />
       <Fact tone={tone} role="status">{LIVE_WORDS[state] ?? state}</Fact>
     </section>
   );

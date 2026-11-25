@@ -1,31 +1,56 @@
 import { useEffect } from "react";
 import { ensureCapabilitiesLoaded, refreshCapabilities, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
+import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
-import { EmptyState, Section } from "../frame.jsx";
+import { EmptyState, FailedLead, Ring, Section } from "../frame.jsx";
 import { numberWord } from "../home/homeWords.js";
-import { DevRunNote, FixButton, LoadFailed, LoadingRows, OfflineNote } from "./parts.jsx";
+import { DevRunNote, FixButton, LoadingRows, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { fixFor, madeOf, stateLine, stateTone, stateWord, usedBy } from "./words.js";
+import { fixFor, formGlyph, madeOf, needsLine, stateLine, stateTone, stateWord, usedByShort } from "./words.js";
 
-// One capability: its name, why it is in its state (when that needs saying)
-// and what it is made of, then its state and the one action that fixes it.
+// One capability: its form's glyph in a ring lit in its state's tone, its
+// name with how it is made, why it is in its state (or what it does), then
+// who uses it, its state in words and the one action that fixes it.
 function CapabilityRow({ row }) {
   const fix = fixFor(row);
-  const facts = [...madeOf(row), row.version && `Version ${row.version}`, usedBy(row)].filter(Boolean);
   const tone = stateTone(row);
   const line = stateLine(row);
+  const off = row.state === "disabled" || row.state === "available";
+  const open = () => openLocation(buildLocation({ screen: "capability", capabilityId: row.id }));
   return (
-    <li className="eos-cap-row">
-      <button type="button" className="eos-cap-row__open" onClick={() => openLocation(buildLocation({ screen: "capability", capabilityId: row.id }))}>
-        <span className="eos-cap-row__name">{row.name}</span>
-        {line && <span className="eos-cap-line">{line}</span>}
-        <span className="eos-cap-row__facts">{facts.join(" · ")}</span>
+    <li className={off ? "eos-cap-row eos-cap-row--off" : "eos-cap-row"}>
+      <Ring d={formGlyph(row)} tone={tone === "ok" ? null : tone} />
+      <button type="button" className="eos-cap-row__open" onClick={open}>
+        <span className="eos-cap-row__title">
+          <span className="eos-cap-row__name">{row.name}</span>
+          <span className="eos-cap-row__facts">{madeOf(row).join(" · ")}</span>
+        </span>
+        {line ? <span className="eos-cap-line">{line}</span> : row.summary && <span className="eos-cap-row__summary">{row.summary}</span>}
       </button>
-      <span className="eos-cap-row__side">
-        <span className={tone ? `eos-status eos-status--${tone}` : "eos-status"}>{stateWord(row)}</span>
-        {fix && <FixButton row={row} fix={fix} />}
-      </span>
+      <span className="eos-cap-row__used">{usedByShort(row)}</span>
+      <span className={tone ? `eos-cap-row__state eos-cap-row__state--${tone}` : "eos-cap-row__state"}>{stateWord(row)}</span>
+      <span className="eos-cap-row__fix">{fix && <FixButton row={row} fix={fix} />}</span>
+    </li>
+  );
+}
+
+// A capability the Forge made and proposes: it waits in Needs you for a yes.
+function ProposalRow({ item }) {
+  const open = () => openLocation(`eos:/needs/${encodeURIComponent(item.id)}`);
+  return (
+    <li className="eos-cap-row eos-cap-row--asks">
+      <Ring d="M8 3v10M3 8h10" tone="active" />
+      <button type="button" className="eos-cap-row__open" onClick={open}>
+        <span className="eos-cap-row__title">
+          <span className="eos-cap-row__name">{item.title}</span>
+          <span className="eos-cap-row__facts">Made by the Forge</span>
+        </span>
+        {item.summary && <span className="eos-cap-row__summary">{item.summary}</span>}
+      </button>
+      <span className="eos-cap-row__used" />
+      <span className="eos-cap-row__state eos-cap-row__state--active">Waits for your yes</span>
+      <span className="eos-cap-row__fix"><button type="button" className="eos-btn" onClick={open}>Look at it</button></span>
     </li>
   );
 }
@@ -52,13 +77,18 @@ export function capabilitiesLead(list) {
 
 // eos:/capabilities: what Eos and its agents can reach, grouped by what they
 // need from the user, each with its state, the one action that fixes a bad
-// state, who uses it and its version.
+// state and who uses it; the Forge's proposals first, waiting for a yes.
 export function CapabilitiesScreen() {
   const { list, listFailed, devRun } = useCapabilities();
-  useEffect(() => ensureCapabilitiesLoaded(), []);
+  const inbox = useInbox();
+  useEffect(() => {
+    ensureCapabilitiesLoaded();
+    ensureInboxLoaded();
+  }, []);
+  const proposals = (inbox.list?.items ?? []).filter((i) => i.kind === "capability_install" && i.state === "open");
 
   let body;
-  if (list === null) body = listFailed ? <LoadFailed what="capabilities" retry={() => void refreshCapabilities()} /> : <LoadingRows />;
+  if (list === null) body = listFailed ? <FailedLead what="capabilities" retry={() => void refreshCapabilities()} /> : <LoadingRows rows={5} />;
   else if (list.length === 0) {
     body = (
       <EmptyState title="Nothing to reach yet">
@@ -68,10 +98,16 @@ export function CapabilitiesScreen() {
   } else {
     body = (
       <>
-        <div>
+        <header className="eos-rlead eos-caps-lead">
+          <p className="eos-label">Capabilities</p>
           <p className="eos-lead">{capabilitiesLead(list)}</p>
-          <p className="eos-lead__sub">What Eos and its agents can reach. Open one to see what it may do and who uses it.</p>
-        </div>
+          <p className="eos-rlead__now">{needsLine(list)}</p>
+        </header>
+        {proposals.length > 0 && (
+          <Section id="eos-caps-asks" label="Waiting for your yes" aside={proposals.length}>
+            <ul className="eos-caps">{proposals.map((item) => <ProposalRow key={item.id} item={item} />)}</ul>
+          </Section>
+        )}
         {GROUPS.map((g) => {
           const rows = list.filter(g.has);
           if (rows.length === 0) return null;

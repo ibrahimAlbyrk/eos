@@ -1,39 +1,37 @@
 import { useEffect, useState } from "react";
 import { cancelSignIn, closeSignIn, openSignInPage, serviceName, startSignIn, useSignIn } from "../../../state/eos/capabilitySignInStore.js";
+import { Dialog, Fact, Stations } from "../frame.jsx";
 import { DEV_RUN_TEXT } from "./parts.jsx";
 
+const KEY_ICON = "M10 6.2a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0zM9.2 8.6l4.3 4.4M11.6 11.1l1.3-1.3";
+
 // The phases that end the attempt: what the sheet says for `name`'s
-// attempt (a failure says the core's reason), and whether it offers another go.
+// attempt (a failure says the core's reason), whether it offers another go,
+// and the tone the station it stopped at is lit in.
 const ENDED = {
-  ready: () => ({ again: false }),
+  ready: () => ({ again: false, tone: "ok" }),
   expired: (name, browser) => ({
     text: browser ? `${name} did not send you back in time.` : "The code ran out before it was entered.",
     again: browser ? "Connect again" : "Get a new code",
+    tone: "warn",
   }),
-  denied: (name) => ({ text: `${name} was told not to let Eos in.`, again: "Try again" }),
+  denied: (name) => ({ text: `${name} was told not to let Eos in.`, again: "Try again", tone: "err" }),
   cancelled: () => ({ text: "Sign-in cancelled.", again: "Start again" }),
   client_id_missing: (name, _browser, id) => ({
     text: `Eos has no ${name} client id, so it cannot start a sign-in. Set ${id}.clientId in Eos's config, then try again.`,
     again: false,
+    tone: "warn",
   }),
   dev_run: () => ({ text: DEV_RUN_TEXT, again: false }),
-  failed: () => ({ again: "Try again" }),
+  failed: () => ({ again: "Try again", tone: "err" }),
 };
 
-// Slack's way: allow Eos on Slack's own page, and Slack sends you back.
-function Browser({ name }) {
-  return (
-    <>
-      <p className="eos-note">Eos opened {name} in your browser. Pick your workspace and press Allow; {name} sends you back here.</p>
-      <p className="eos-note eos-sign-in__quiet">You never type or paste a password or a key.</p>
-      <p className="eos-note" role="status">Waiting for {name}…</p>
-      <div className="eos-actions">
-        <button type="button" className="eos-btn eos-btn--primary" onClick={openSignInPage}>Open {name} again</button>
-        <button type="button" className="eos-btn" onClick={cancelSignIn}>Cancel</button>
-      </div>
-    </>
-  );
-}
+// The way through the service, as stations: GitHub gives a code the user
+// enters on its page; Slack's page asks the user to allow Eos.
+const WAYS = {
+  code: { names: ["Code", "On GitHub", "Signed in"] },
+  browser: { names: ["Opened", "Allow", "Connected"] },
+};
 
 function CopyCode({ code }) {
   const [copied, setCopied] = useState(false);
@@ -43,22 +41,7 @@ function CopyCode({ code }) {
       setTimeout(() => setCopied(false), 1500);
     }).catch(() => {});
   };
-  return <button type="button" className="eos-btn" onClick={copy}>{copied ? "Copied" : "Copy code"}</button>;
-}
-
-function Code({ attempt, name }) {
-  return (
-    <>
-      <p className="eos-note">Eos opened {name} in your browser. Enter this code there.</p>
-      <p className="eos-code" aria-label="Your code">{attempt.userCode}</p>
-      {attempt.phase === "pending" && <p className="eos-note" role="status">Waiting for {name}…</p>}
-      <div className="eos-actions">
-        <button type="button" className="eos-btn eos-btn--primary" onClick={openSignInPage}>Open {name}</button>
-        <CopyCode code={attempt.userCode} />
-        <button type="button" className="eos-btn" onClick={cancelSignIn}>Cancel</button>
-      </div>
-    </>
-  );
+  return <button type="button" className="eos-btn eos-btn--quiet" onClick={copy}>{copied ? "Copied" : "Copy code"}</button>;
 }
 
 function doneLine(attempt, name) {
@@ -67,22 +50,60 @@ function doneLine(attempt, name) {
   return label ? `Signed in to ${name} as ${label}.` : `Signed in to ${name}.`;
 }
 
-function Ended({ attempt, name }) {
-  const { text, again } = ENDED[attempt.phase](name, Boolean(attempt.verificationUri) && !attempt.userCode, attempt.id);
-  const done = attempt.phase === "ready";
-  return (
-    <>
-      <p className="eos-note" role="status">{done ? doneLine(attempt, name) : text ?? attempt.error}</p>
-      <div className="eos-actions">
-        {again && <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startSignIn(attempt.id)}>{again}</button>}
-        <button type="button" className={again ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={closeSignIn}>{done ? "Done" : "Close"}</button>
-      </div>
-    </>
-  );
+// What the dialog asks or says in each phase: its title, its line, where the
+// way stands, the status under it and the actions.
+function view(attempt, name, browser) {
+  const { phase } = attempt;
+  const waiting = phase === "pending";
+  if (phase === "starting") {
+    return {
+      title: browser ? `Opening ${name}…` : `Asking ${name} for a code…`,
+      at: 0, tone: "active", working: true, words: ["Asking", "", ""],
+      acts: [["Cancel", closeSignIn, "quiet"]],
+    };
+  }
+  if (phase === "code" || (waiting && attempt.userCode)) {
+    return {
+      title: `Enter this code on ${name}`,
+      line: `Eos opened ${name} in your browser. Type the code there and press Continue.`,
+      code: attempt.userCode,
+      at: 1, tone: "active", working: true, words: ["", waiting ? `Waiting for ${name}` : "Enter it there", ""],
+      status: waiting ? `Waiting for ${name}…` : null, statusTone: "active",
+      acts: [["Cancel", cancelSignIn, "quiet"], [`Open ${name}`, openSignInPage, "primary"]],
+    };
+  }
+  if (phase === "browser" || waiting) {
+    return {
+      title: `Allow Eos on ${name}`,
+      line: `Eos opened ${name} in your browser. Pick your workspace and press Allow; ${name} sends you back here.`,
+      quiet: "You never type or paste a password or a key.",
+      at: 1, tone: "active", working: true, words: ["", "Press Allow there", ""],
+      // Slack sends the user back by itself: the sheet waits from the start.
+      status: `Waiting for ${name}…`, statusTone: "active",
+      acts: [["Cancel", cancelSignIn, "quiet"], [`Open ${name} again`, openSignInPage, "primary"]],
+    };
+  }
+  const ended = ENDED[phase]?.(name, Boolean(attempt.verificationUri) && !attempt.userCode, attempt.id);
+  if (!ended) return null;
+  const done = phase === "ready";
+  // The way is drawn only when the attempt reached the service.
+  const reached = done || ((phase === "expired" || phase === "denied" || phase === "failed") && Boolean(attempt.verificationUri));
+  return {
+    title: done ? doneLine(attempt, name).replace(/\.$/, "") : `The sign-in to ${name} did not finish`,
+    at: done ? 2 : 1, tone: ended.tone, words: done ? ["", "", "Done"] : ["", "Stopped here", ""],
+    stations: reached,
+    status: done ? doneLine(attempt, name) : ended.text ?? attempt.error,
+    statusTone: done ? "ok" : ended.tone,
+    acts: [
+      [done ? "Done" : "Close", closeSignIn, ended.again ? "quiet" : "primary"],
+      ...(ended.again ? [[ended.again, () => void startSignIn(attempt.id), "primary"]] : []),
+    ],
+  };
 }
 
-// The sign-in sheet, over the Capabilities screens while an attempt is open:
-// a code to type for GitHub, Allow in the browser for Slack.
+// The sign-in dialog, over the Capabilities screens while an attempt is
+// open: a code to type for GitHub, Allow in the browser for Slack, and the
+// way through the service drawn as stations.
 export function SignInSheet() {
   const attempt = useSignIn();
   const open = attempt !== null;
@@ -102,17 +123,33 @@ export function SignInSheet() {
   if (!open) return null;
   const name = serviceName(attempt.id);
   const browser = attempt.id === "slack";
+  const v = view(attempt, name, browser);
+  if (!v) return null;
+  const way = WAYS[browser ? "browser" : "code"];
   return (
-    <div className="eos-sheet-overlay" onMouseDown={closeSignIn}>
-      <div className="eos-sheet" role="dialog" aria-modal="true" aria-labelledby="eos-sign-in-title" onMouseDown={(e) => e.stopPropagation()}>
-        <h2 id="eos-sign-in-title" className="eos-sheet__title">{browser ? `Connect ${name}` : `Sign in to ${name}`}</h2>
-        {attempt.phase === "starting" && (
-          <p className="eos-note" role="status">{browser ? `Opening ${name}…` : `Asking ${name} for a code…`}</p>
+    <Dialog
+      id="eos-sign-in"
+      from={browser ? `Connect ${name}` : `Sign in to ${name}`}
+      icon={KEY_ICON}
+      title={v.title}
+      line={v.line}
+      onClose={closeSignIn}
+      wide
+      actions={v.acts.map(([label, run, kind]) => (
+        <button key={label} type="button" className={`eos-btn eos-btn--${kind}`} onClick={run}>{label}</button>
+      ))}
+    >
+      <div className="eos-sign-in">
+        {v.code && (
+          <div className="eos-code-well">
+            <p className="eos-code" aria-label="Your code">{v.code}</p>
+            <CopyCode code={v.code} />
+          </div>
         )}
-        {(attempt.phase === "code" || (attempt.phase === "pending" && attempt.userCode)) && <Code attempt={attempt} name={name} />}
-        {(attempt.phase === "browser" || (attempt.phase === "pending" && !attempt.userCode)) && <Browser name={name} />}
-        {ENDED[attempt.phase] && <Ended attempt={attempt} name={name} />}
+        {v.quiet && <p className="eos-sign-in__quiet">{v.quiet}</p>}
+        {v.stations !== false && <Stations names={way.names} at={v.at} tone={v.tone ?? "active"} words={v.words} working={v.working} inset />}
+        {v.status && <Fact tone={v.statusTone} role="status">{v.status}</Fact>}
       </div>
-    </div>
+    </Dialog>
   );
 }

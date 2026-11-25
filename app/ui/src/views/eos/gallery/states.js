@@ -16,6 +16,8 @@ import runDetail from "./sample/run-detail.json";
 import drafts from "./sample/blueprint-drafts.json";
 import versionBodies from "./sample/blueprint-version-bodies.json";
 import { NEEDS_STATES } from "./needsStates.js";
+import { MEMORY_STATES } from "./memoryStates.js";
+import { CAPABILITY_STATES } from "./capabilityStates.js";
 import { addHomeRuns, addOnce } from "../../../state/eos/homeRunsStore.js";
 import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
@@ -342,8 +344,10 @@ export const GALLERY_STATES = [
   { id: "memory", label: "Memory", location: "eos:/memory" },
   { id: "memory-note", label: "Memory · a note open", location: `eos:/memory?tab=work&note=${memory.details.find((d) => d.note.text.startsWith("Run lint"))?.note.id ?? memory.details[0].note.id}` },
   { id: "memory-about", label: "Memory · About you", location: "eos:/memory?tab=about" },
+  ...MEMORY_STATES,
   { id: "capabilities", label: "Capabilities", location: "eos:/capabilities" },
   { id: "capabilities-empty", label: "Capabilities · none yet", location: "eos:/capabilities", reads: (s) => ({ ...s, [ROUTES.capabilities]: [] }) },
+  ...CAPABILITY_STATES,
   { id: "page", label: "Page · today's issue", location: `eos:/surfaces/${PAPER}` },
   { id: "page-old", label: "Page · an earlier issue", location: `eos:/surfaces/${PAPER}?issue=1` },
   { id: "page-redesign", label: "Page · needs a new design", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...s, [ROUTES.surface(PAPER)]: { ...paper.surface, needsRedesign: { since: 1 } } }) },
