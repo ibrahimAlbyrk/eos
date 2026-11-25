@@ -125,12 +125,16 @@ impl Delivery {
     }
 
     /// One pass: the unknown sends looked up, then what is due claimed and
-    /// sent, one after another.
+    /// sent, one after another. A row whose write fails leaves the others to
+    /// go on: it stays as it was for the next pass (a claimed one as
+    /// uncertain after a crash), and the pass answers the first such error.
     pub async fn pass(&self) -> Result<(), Error> {
         let now = self.parts.clock.now_ms();
         let uncertain = self.parts.store.read(move |tx| tx.inbox_deliveries().due(UNCERTAIN, now, 20)).await?;
+        let mut first = None;
         for row in uncertain {
-            self.reconcile(row).await?;
+            let id = row.id.clone();
+            kept(&mut first, &id, self.reconcile(row).await);
         }
         self.resume_waiting().await?;
         let outcomes = self.parts.outcomes.clone();
@@ -139,9 +143,10 @@ impl Delivery {
             let attempt = self.attempt(&row).await;
             let id = row.id.clone();
             let outcomes = self.parts.outcomes.clone();
-            self.write(move |tx, out, at| record_in(tx, out, at, outcomes.as_ref(), &id, attempt)).await?;
+            let recorded = self.write(move |tx, out, at| record_in(tx, out, at, outcomes.as_ref(), &id, attempt)).await;
+            kept(&mut first, &row.id, recorded);
         }
-        Ok(())
+        first.map_or(Ok(()), Err)
     }
 
     /// One write job with an [`Opening`] at the time it starts.
@@ -215,5 +220,13 @@ impl Delivery {
             Ok(None) => IDLE_MS,
             Err(_) => AFTER_ERROR_MS,
         }
+    }
+}
+
+/// Keeps the first failed write of a pass, naming the row it was for.
+fn kept(first: &mut Option<Error>, delivery_id: &str, written: Result<(), Error>) {
+    if let Err(error) = written {
+        tracing::warn!(delivery_id, %error, "a delivery's write failed; the others go on");
+        first.get_or_insert(error);
     }
 }
