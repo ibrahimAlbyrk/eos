@@ -8,6 +8,7 @@ import { _resetRunSheet, registerHost } from "../../../state/eos/runSheetStore.j
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { EosMain } from "../EosMain.jsx";
 import { nextWord, sortRows } from "./tableWords.js";
+import { timeAt } from "../routine/words.js";
 import routines from "../gallery/sample/routines.json";
 import inbox from "../gallery/sample/inbox.json";
 
@@ -64,5 +65,9 @@ describe("all routines", () => {
     expect(nextWord(new Date(2026, 10, 25, 14, 30).getTime(), now)).toMatch(/^Today /);
     expect(nextWord(new Date(2026, 10, 26, 7, 30).getTime(), now)).toMatch(/^Tomorrow /);
     expect(nextWord(undefined, now)).toBeNull();
+    // Eos says times on a 24-hour clock, as its designs and the core's own
+    // lines ("weekdays at 05:00") do, whatever the locale.
+    expect(nextWord(new Date(2026, 10, 25, 14, 30).getTime(), now)).toMatch(/^Today 14:30$/);
+    expect(timeAt(new Date(2026, 10, 26, 15, 5).getTime())).toMatch(/ 15:05$/);
   });
 });

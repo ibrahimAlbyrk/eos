@@ -57,7 +57,7 @@ export function scopePhrase(scope, routines) {
 }
 
 const day = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long" });
-const clock = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const clock = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 export const dayOf = (ms) => day.format(new Date(ms));
 export const whenOf = (ms) => clock.format(new Date(ms));

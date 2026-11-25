@@ -16,7 +16,7 @@ const startOfDay = (ms) => new Date(ms).setHours(0, 0, 0, 0);
 // "Today 14:30", "Tomorrow 07:30", else the weekday or the date.
 export function nextWord(at, now) {
   if (at == null) return null;
-  const time = new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const days = Math.round((startOfDay(at) - startOfDay(now)) / DAY);
   if (days <= 0) return `Today ${time}`;
   if (days === 1) return `Tomorrow ${time}`;
