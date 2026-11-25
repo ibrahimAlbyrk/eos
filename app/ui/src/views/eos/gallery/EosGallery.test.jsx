@@ -108,6 +108,16 @@ describe("#eos-gallery", () => {
     expect(renderToStaticMarkup(rendered[0])).toContain('<div class="app eos-mode">');
   });
 
+  it("draws the View that asks with its options' facts and its aside, and the same View without them", async () => {
+    const issue = ROUTES.surfaceIssue(decision.surface.id, decision.issue.id);
+    const full = (await galleryTransport(stateOf("need-view")).get(issue)).body.body;
+    expect(full.facts.map((f) => f.option)).toEqual(["Through your iPhone", "An SMS provider"]);
+    expect(full.aside.map((n) => n.title)).toEqual(["Why Eos is asking", "What your answers change"]);
+    const plain = (await galleryTransport(stateOf("need-view-plain")).get(issue)).body.body;
+    expect([plain.facts, plain.aside, plain.untrusted]).toEqual([undefined, undefined, true]);
+    expect(plain.view).toEqual(full.view);
+  });
+
   it("says PR Review's schedule last and next ran on weekdays at 05:00 around now", async () => {
     const id = routines.find((r) => r.name === "PR Review")?.id ?? routines[0].id;
     const [sc] = (await galleryTransport(stateOf("routine")).get(ROUTES.signalsRoutine(id))).body.schedules;

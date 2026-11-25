@@ -18,9 +18,17 @@
     "view": {
       "title": "Mail Triage needs two answers",
       "summary": "How Eos should reach you by SMS, and which mails are worth one.",
-      "ui": "<Form action=\"confirm\" submit=\"Confirm\"><Choice bind=\"way\" question=\"**How should Eos reach you by SMS?** Eos cannot send SMS yet. It found two ways and can build either.\" options=\"Through your iPhone: free, nothing to set up, works while this Mac is on | An SMS provider: paid per message, needs an account and a key, works from any Mac\"/><Checklist bind=\"from\" title=\"Which mails are worth an SMS?\" items=\"The publisher | App stores | Finance | Anyone I answered this month\"/><Field bind=\"quietFrom\" label=\"Not between\" type=\"time\" default=\"23:00\"/><Field bind=\"quietTo\" label=\"and\" type=\"time\" default=\"07:30\"/><Stepper bind=\"perDay\" label=\"At most a day\" min=\"1\" max=\"20\" default=\"5\"/></Form>",
+      "ui": "<Form action=\"confirm\" submit=\"Confirm\"><Choice bind=\"way\" question=\"**How should Eos reach you by SMS?** Eos cannot send SMS yet. It found two ways and can build either.\" options=\"Through your iPhone | An SMS provider\"/><Checklist bind=\"from\" title=\"Which mails are worth an SMS?\" items=\"The publisher | App stores | Finance | Anyone I answered this month\"/><Field bind=\"quietFrom\" label=\"Not between\" type=\"time\" default=\"23:00\"/><Field bind=\"quietTo\" label=\"and\" type=\"time\" default=\"07:30\"/><Stepper bind=\"perDay\" label=\"At most a day\" min=\"1\" max=\"20\" default=\"5\"/></Form>",
       "actions": { "confirm": { "label": "Confirm", "kind": "send", "text": "confirm", "primary": true } }
     },
-    "actions": ["confirm"]
+    "actions": ["confirm"],
+    "facts": [
+      { "option": "Through your iPhone", "rows": [{ "label": "Cost", "value": "Free" }, { "label": "Setup", "value": "None" }, { "label": "Works", "value": "While this Mac is on" }] },
+      { "option": "An SMS provider", "rows": [{ "label": "Cost", "value": "Per message" }, { "label": "Setup", "value": "An account and a key" }, { "label": "Works", "value": "Always, from any Mac" }] }
+    ],
+    "aside": [
+      { "title": "Why Eos is asking", "text": "Mail Triage sorts your mail but has no way to reach you. Two mails from the publisher are summarised and waiting." },
+      { "title": "What your answers change", "text": "Eos texts only your own number, only for the mails you pick, at most as many a day as you say and never between the times you set." }
+    ]
   }
 }

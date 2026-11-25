@@ -6,6 +6,7 @@ import {
 } from "../../../state/eos/inboxStore.js";
 import { loadRun } from "../../../state/eos/runsStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
+import { useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -15,7 +16,7 @@ import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
 import { StreakLine } from "./StreakLine.jsx";
 import { ItemView } from "./ItemView.jsx";
-import { ViewSubmit } from "./SurfaceCard.jsx";
+import { ViewAside, ViewSubmit } from "./SurfaceCard.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
 import { closedLine, isShownOnly } from "./words.js";
@@ -56,6 +57,7 @@ export function NeedsItemScreen({ id }) {
   const nameOf = (routineId) => routines?.find((r) => r.id === routineId)?.name;
   const detail = details[id];
   const runId = detail?.item.runId;
+  const viewBody = useSurfaces().byIssue[detail?.item.view?.issueId]?.body;
   useEffect(() => {
     ensureInboxLoaded();
     void loadInboxItem(id);
@@ -176,7 +178,9 @@ export function NeedsItemScreen({ id }) {
                 </div>
               )}
             </div>
-            {runId && <ChecksPanel runId={runId} />}
+            {(runId || viewBody?.aside?.length > 0) && (
+              <ChecksPanel runId={runId} lead={viewBody?.aside?.length > 0 ? <ViewAside notes={viewBody.aside} /> : null} />
+            )}
           </div>
         )}
       </div>

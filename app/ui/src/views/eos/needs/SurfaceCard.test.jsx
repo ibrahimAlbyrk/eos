@@ -4,7 +4,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { _resetSurfaces, pressedRow, refreshSurfaces, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { UiProvider } from "../../../state/ui.jsx";
-import { ConfirmBelow, SurfaceCard, typedRight, ViewSubmit } from "./SurfaceCard.jsx";
+import { ConfirmBelow, factsLookup, SurfaceCard, typedRight, ViewAside, ViewSubmit } from "./SurfaceCard.jsx";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 
@@ -140,5 +140,61 @@ describe("a View's form send", () => {
     expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "sending" }} />)).toContain("disabled");
     expect(renderToStaticMarkup(<ViewSubmit offer={ready} disabled />)).toContain("disabled");
     expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "error", reason: "Couldn't send" }} />)).toContain('<span class="eos-frame__send-error" role="alert">Couldn&#x27;t send</span>');
+  });
+});
+
+describe("the facts of a View's options and its aside", () => {
+  const asking = {
+    title: "Mail Triage needs an answer", summary: "How it should reach you.",
+    ui: '<Choice bind="way" question="How should Eos reach you?" options="Through your iPhone | An SMS provider"/>',
+  };
+  const facts = [{ option: "Through your iPhone", rows: [{ label: "Cost", value: "Free" }, { label: "Works", value: "While this Mac is on" }] }];
+  const draw = (body) => renderToStaticMarkup(
+    <UiProvider><SurfaceCard card={{ surface, issue, body: { view: asking, ...body } }} routineName="Mail Triage" /></UiProvider>,
+  );
+
+  it("draws each option's facts in its card, under its label", () => {
+    const html = draw({ facts });
+    const iphone = html.slice(html.indexOf("Through your iPhone") - 200, html.indexOf("An SMS provider"));
+    expect(iphone).toContain('<span class="gv-choice__label">Through your iPhone</span>');
+    expect(iphone).toContain('<span class="gv-choice__fact"><span class="gv-choice__fact-label">Cost</span><span class="gv-choice__fact-value">Free</span></span>');
+    expect(iphone).toContain("While this Mac is on");
+    expect(html).toContain("<span>An SMS provider</span>");
+  });
+
+  it("draws a View without them as it was", () => {
+    const html = draw({});
+    expect(html).not.toContain("gv-choice__facts");
+    expect(html).toContain("<span>Through your iPhone</span>");
+    expect(html).not.toContain("From outside text");
+  });
+
+  it("finds an option's facts by its label or its value", () => {
+    const of = factsLookup([{ option: "sms", rows: [{ label: "Cost", value: "Per message" }] }]);
+    expect(of("An SMS provider", "sms")).toEqual([{ label: "Cost", value: "Per message" }]);
+    expect(of("Through your iPhone", "Through your iPhone")).toBeNull();
+    expect(factsLookup(undefined)).toBeNull();
+    expect(factsLookup([])).toBeNull();
+  });
+
+  it("says in the frame's strip that a run which read outside text made it", () => {
+    expect(draw({ untrusted: true })).toContain('<span class="eos-frame__outside" title="The run read text from outside Eos. Its words show here as written.">From outside text</span>');
+  });
+
+  it("draws the aside's notes as titled plain paragraphs, never as markup, a link or a button", () => {
+    const html = renderToStaticMarkup(<ViewAside notes={[
+      { title: "Why Eos is asking", text: "It has no way to reach you." },
+      { title: "<b>Now</b>", text: '<a href="https://evil.example">here</a> <button>Send</button>' },
+    ]} />);
+    expect(html).toContain('<section class="eos-needs-aside__part"><h2 class="eos-label">Why Eos is asking</h2><p class="eos-needs-aside__text">It has no way to reach you.</p></section>');
+    expect(html).not.toMatch(/<(a|b|button)[ >]/);
+    expect(html).toContain("&lt;a href=");
+    expect(renderToStaticMarkup(<ViewAside notes={[]} />)).toBe("");
+  });
+
+  it("draws a fact that looks like markup as its text", () => {
+    const html = draw({ facts: [{ option: "Through your iPhone", rows: [{ label: "Cost", value: "[Pay](https://evil.example) <button>Go</button>" }] }] });
+    expect(html).toContain("[Pay](https://evil.example) &lt;button&gt;Go&lt;/button&gt;");
+    expect(html).not.toContain('href="https://evil.example"');
   });
 });

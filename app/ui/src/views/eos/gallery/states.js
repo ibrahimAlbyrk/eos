@@ -24,6 +24,14 @@ function withDecision(s) {
   return { ...s, [ROUTES.inbox]: { ...list, items: [item, ...list.items] }, [ROUTES.inboxItem(item.id)]: { item, payload: {} } };
 }
 
+// The same View as a run hands it in without facts or an aside, from a run
+// that read outside text.
+function withPlainDecision(s) {
+  const { facts, aside, ...body } = decision.body; // eslint-disable-line no-unused-vars
+  const issue = ROUTES.surfaceIssue(decision.surface.id, decision.issue.id);
+  return { ...withDecision(s), [issue]: { issue: decision.issue, body: { ...body, untrusted: true } } };
+}
+
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
 // { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline" }
@@ -39,6 +47,7 @@ export const GALLERY_STATES = [
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },
   { id: "need-offline", label: "Needs you · a draft, reconnecting", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}`, answer: "offline" },
   { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
+  { id: "need-view-plain", label: "Needs you · a View with no facts or aside, from outside text", location: `eos:/needs/${decision.item.id}`, reads: withPlainDecision },
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
