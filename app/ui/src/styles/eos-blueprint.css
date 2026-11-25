@@ -73,6 +73,7 @@
 .eos-bp-row__mark { font-family: inherit; letter-spacing: 0; text-transform: none; color: var(--accent); }
 .eos-bp-row__value { flex: 1; min-width: 0; margin: 0; font-size: var(--text-sm); line-height: 1.7; color: var(--fg); }
 .eos-bp-row__value--empty { color: var(--fg-dim2); }
+.eos-bp-row__note { margin: 8px 0 0; color: var(--fg-dim); }
 .eos-bp-break { display: block; height: 4px; }
 
 .eos-bp-value {

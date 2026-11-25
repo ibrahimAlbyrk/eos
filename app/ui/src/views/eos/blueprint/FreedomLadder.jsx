@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadFreedom, useFreedom } from "../../../state/eos/freedomStore.js";
 
 // The Freedom row: how far a result goes without the user, as a radiogroup
 // of 03's rungs. The user may pick any rung (G30); raising a routine that
@@ -44,8 +45,32 @@ function Ask({ question, allow, cancel }) {
   );
 }
 
+// Ten results in a row sent as they were earn an offer of the next rung (03 §4.6).
+const OFFER_AFTER = 10;
+
+// Where the routine stands toward its next offer, from its confirmed Freedom.
+export function streakLine(view) {
+  if (!view || view.rung === "on_its_own") return null;
+  if (view.offer === "never") return "Eos will not offer this routine more freedom.";
+  if (view.offer === "offered") return "Eos offers the next step in Needs you.";
+  if (view.streak > 0) {
+    return `${view.streak} of ${OFFER_AFTER} in a row went out unedited. Eos will offer the next step at ${OFFER_AFTER}.`;
+  }
+  return "Eos will offer the next step once ten in a row go out unedited.";
+}
+
+function StreakLine({ routineId }) {
+  const view = useFreedom().byRoutine[routineId];
+  useEffect(() => {
+    void loadFreedom(routineId);
+  }, [routineId]);
+  const line = streakLine(view);
+  return line && <p className="eos-bp-row__note">{line}</p>;
+}
+
 // `onApply` takes the new Freedom slot; without it the ladder is read-only.
-export function FreedomLadder({ blueprint, onApply, changed = false }) {
+// With `routineId`, the line under it says how near the next offer is.
+export function FreedomLadder({ blueprint, onApply, changed = false, routineId }) {
   const [asking, setAsking] = useState(null);
   const rung = blueprint.freedom?.rung ?? "draft";
   const pick = (value) => {
@@ -73,6 +98,7 @@ export function FreedomLadder({ blueprint, onApply, changed = false }) {
             </button>
           ))}
         </div>
+        {routineId && <StreakLine routineId={routineId} />}
         {asking && (
           <Ask
             question={asking.question}
