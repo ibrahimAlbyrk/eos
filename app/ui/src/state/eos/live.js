@@ -5,6 +5,7 @@
 
 import { applyBlueprintChange, applyTrialChange, resyncBlueprints } from "./blueprintStore.js";
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
+import { applyFreedomChange } from "./freedomStore.js";
 import { applyHalt, resyncHalt } from "./haltStore.js";
 import { applyHomeRunChange, resyncHome } from "./homeStore.js";
 import { applyInboxChange, applyInboxDelivery, resyncInbox } from "./inboxStore.js";
@@ -35,7 +36,7 @@ const HANDLERS = {
   "signals:change": applySignalsChange,
   "inbox:change": applyInboxChange,
   "inbox:delivery": applyInboxDelivery,
-  "inbox:freedom": ignored,
+  "inbox:freedom": applyFreedomChange,
   "inbox:halt": applyHalt,
   "memory:change": applyMemoryChange,
   "memory:recalled": applyMemoryRecalled,

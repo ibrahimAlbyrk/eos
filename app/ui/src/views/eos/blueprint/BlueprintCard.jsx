@@ -62,7 +62,7 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
         {SLOTS.map((slot) => (
           <SlotRow key={slot.key} label={slot.label} parts={slot.parts(bp, { routines })} onApply={put(slot.key)} changed={changed.includes(slot.key)} preview={previews?.[slot.key]} />
         ))}
-        <FreedomLadder blueprint={bp} onApply={put("freedom")} changed={changed.includes("freedom")} />
+        <FreedomLadder blueprint={bp} onApply={put("freedom")} changed={changed.includes("freedom")} routineId={routineId} />
       </dl>
       {children}
     </section>
