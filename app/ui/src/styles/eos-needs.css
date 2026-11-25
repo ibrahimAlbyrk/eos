@@ -107,6 +107,12 @@
 .eos-needs-answer__says { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
 .eos-needs-key { margin-left: 6px; font-family: var(--font-mono); font-size: 11.5px; color: inherit; opacity: 0.6; }
 
+/* A page draft: who it goes to as an envelope's line on a hairline, the
+   page under Eos's line, what can change before it goes under the page. */
+.eos-draft--page { gap: 28px; }
+.eos-page-to { gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.eos-page-to__who { flex: 1 1 auto; display: inline-flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--text-base); color: var(--fg-strong); }
+
 /* A draft on its sheet: the one object here a user acts on whole. */
 .eos-draft { display: flex; flex-direction: column; gap: 18px; }
 .eos-needs-sheet { padding: 28px 32px 30px; border-radius: 16px; background: var(--panel); }
@@ -209,6 +215,17 @@
 .eos-needs-ladder .eos-beat__stop--active .eos-beat__tag { color: var(--fg-strong); }
 .eos-needs-ladder .eos-beat__stop--active .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
 
+/* A capability's live test: its three stations, then what the state means. */
+.eos-needs-live { display: flex; flex-direction: column; gap: 20px; padding-top: 16px; }
+.eos-needs-live > .eos-label { margin: 0; }
+.eos-needs-live + .eos-needs-well { margin-top: 8px; }
+.eos-needs-live .eos-needs-live__line { margin-top: 4px; }
+.eos-beat__stop--ok .eos-beat__dot { border-color: var(--ok); background: var(--ok); }
+.eos-beat__stop--newest.eos-beat__stop--ok .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
+.eos-beat__stop--newest.eos-beat__stop--warn .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 22%, transparent); }
+.eos-beat__stop--newest .eos-beat__tag { color: var(--fg-strong); }
+.eos-needs-live .eos-beat__word--ok { color: var(--ok); }
+
 /* A streak: one mark per send, the one that brings the offer ringed. */
 .eos-needs-streak { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
 .eos-streak { display: inline-flex; align-items: center; gap: 5px; }
@@ -266,16 +283,25 @@
 .eos-needs-team li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .eos-needs-team__side { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 
-/* A routine's View in Needs you: Eos's strip above it, Eos's own asks below. */
-.eos-frame { border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 12px; }
-.eos-frame__strip { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--fg-dim); }
-.eos-frame__maker { flex: 1; }
-.eos-frame__level { padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--fg-mid); }
-.eos-frame__outside { color: var(--fg-dim); }
-.eos-frame__content { padding: 22px 24px 24px; }
-.eos-frame__eos { padding: 12px 16px; border-top: 1px solid var(--line); }
-.eos-frame__ask { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.eos-frame__ask-text { flex: 1; margin: 0; font-size: var(--text-sm); color: var(--fg); }
+/* A routine's View: Eos's line above it on the page's ground (who made it,
+   whether it read outside text, what it can do), the routine's View on a
+   sheet under it, Eos's own asks under the sheet. Eos's words never sit on
+   the routine's ground. */
+.eos-frame { margin: 0; }
+.eos-frame__strip { display: flex; align-items: baseline; gap: 16px; padding: 0 2px 12px; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-frame__maker { flex: 1; min-width: 0; color: var(--fg-dim); }
+.eos-frame__level { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-frame__outside { display: inline-flex; align-items: center; gap: 8px; color: var(--fg-dim); cursor: help; }
+.eos-frame__outside::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--warn); }
+.eos-frame__content { padding: 28px 32px 30px; border-radius: 16px; background: var(--panel); }
+.eos-frame__eos { padding: 16px 0 0; }
+.eos-frame__ask {
+  display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap;
+  padding: 14px 16px 14px 18px; border-radius: 12px; background: var(--raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.eos-frame__ask-text { flex: 1 1 260px; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-strong); }
+.eos-frame__ask .eos-input { flex: 1 1 200px; }
 .eos-needs-view { display: flex; flex-direction: column; gap: 8px; }
 .eos-needs-view__aside { align-self: flex-end; }
 
@@ -289,21 +315,27 @@
    items as chips under a plain heading; a form's short fields and its
    stepper on one line where they fit. Only inside Eos's frame: the kit keeps
    its own look in a chat. */
-.eos-frame__content .gv-choice { gap: 14px; }
-.eos-frame__content .gv-choice__q:has(strong) { font-size: var(--text-sm); font-weight: 400; color: var(--fg-dim); }
-.eos-frame__content .gv-choice__q strong { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 600; color: var(--fg-strong); }
+.eos-frame__content .gv-choice { gap: 16px; }
+.eos-frame__content .gv-choice__q:has(strong) { font-size: var(--text-sm); font-weight: 400; line-height: 1.5; color: var(--fg-dim); }
+.eos-frame__content .gv-choice__q strong { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 500; line-height: 1.4; color: var(--fg-strong); }
 .eos-frame__content .gv-choice__opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.eos-frame__content .gv-choice__opt { align-items: flex-start; padding: 14px 16px; line-height: 1.5; }
+.eos-frame__content .gv-choice__opt { align-items: flex-start; padding: 14px 16px; line-height: 1.5; transition: background-color calc(140ms * var(--k, 1)) var(--ease), box-shadow calc(140ms * var(--k, 1)) var(--ease); }
 .eos-frame__content .gv-choice__mark { margin-top: 2px; }
-.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { padding: 16px; }
-.eos-frame__content .gv-choice__label { font-size: 15px; }
+.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { padding: 16px 18px 18px; row-gap: 14px; }
+.eos-frame__content .gv-choice__label { font-size: 15px; font-weight: 500; }
+/* An option's facts under a hairline, the names in the column's dim. */
+.eos-frame__content .gv-choice__facts { padding-top: 12px; border-top: 1px solid var(--line); grid-template-columns: 64px minmax(0, 1fr); row-gap: 6px; }
+.eos-frame__content .gv-choice__fact-label { color: var(--fg-dim2); }
+.eos-frame__content .gv-choice__opt.is-picked .gv-choice__facts { border-top-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 
-.eos-frame__content .gv-check { gap: 12px; padding-top: 18px; border-top: 1px solid var(--line); }
-.eos-frame__content .gv-check__title { font-family: inherit; font-size: 17px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg-strong); }
+/* Each part of a View after the first stands on a hairline with air above. */
+.eos-frame__content * + .gv-check, .eos-frame__content * + .gv-form { padding-top: 24px; border-top: 1px solid var(--line); }
+.eos-frame__content .gv-check { gap: 14px; }
+.eos-frame__content .gv-check__title { font-family: inherit; font-size: 17px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--fg-strong); }
 .eos-frame__content .gv-check__count { display: none; }
 .eos-frame__content .gv-check__list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .eos-frame__content .gv-check__list > li + li { border-top: 0; }
-.eos-frame__content .gv-check__item { gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); }
+.eos-frame__content .gv-check__item { gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); background: none; box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); }
 .eos-frame__content .gv-check__list .is-done .gv-check__item { color: var(--fg-strong); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 .eos-frame__content .gv-check__list .is-done .gv-check__item span { text-decoration: none; }
 

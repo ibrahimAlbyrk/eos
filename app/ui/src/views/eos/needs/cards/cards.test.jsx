@@ -172,6 +172,9 @@ describe("the other cards", () => {
     const before = await screen("capability_install", at("not_run"));
     expect(buttons(before)).toEqual(["Send a test", "Not now", "Later", "Discard"]);
     expect(before).toContain("Your mobile number");
+    expect(before).toContain('<section class="eos-needs-live" aria-label="One real test">');
+    expect(before).toContain('<li class="eos-beat__stop eos-beat__stop--newest eos-beat__stop--active">');
+    expect(await screen("capability_install", at("not_alerted"))).toContain('<span class="eos-beat__word eos-beat__word--warn">It did not</span>');
     expect(buttons(await screen("capability_install", at("sent")))).toEqual(["Yes, it did", "No", "Not now", "Later", "Discard"]);
     expect(buttons(await screen("capability_install", at("not_alerted")))).toEqual(["Send a test", "Find another way", "Not now", "Later", "Discard"]);
     expect(buttons(await screen("capability_install", at("alerted")))).toEqual(["Install", "Not now", "Later", "Discard"]);
@@ -365,7 +368,7 @@ describe("a page draft", () => {
 
   it("names the page it sends and who it goes to, and is edited on the page, not as text", async () => {
     const html = await screen("draft", page);
-    expect(html).toContain('<span class="eos-chip eos-result__locked">boss@acme.dev</span>');
+    expect(html).toContain('<span class="eos-label">To</span><span class="eos-page-to__who"><span class="eos-result__locked">boss@acme.dev</span>');
     expect(html).not.toContain("The Morning Build</textarea>");
     expect(buttons(html)).not.toContain("Edit");
     expect(buttons(html)[0]).toMatch(/^Send/);

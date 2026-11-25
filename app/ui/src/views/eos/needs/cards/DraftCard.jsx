@@ -63,8 +63,9 @@ function PageTo({ doc }) {
   const to = doc.parts.filter((p) => p.key.startsWith("to:"));
   if (to.length === 0) return null;
   return (
-    <p className="eos-result__to">
-      To {to.map((r) => <span key={r.key} className="eos-chip eos-result__locked">{r.text}</span>)}
+    <p className="eos-result__to eos-page-to">
+      <span className="eos-label">To</span>
+      <span className="eos-page-to__who">{to.map((r) => <span key={r.key} className="eos-result__locked">{r.text}</span>)}</span>
       <span className="eos-result__fixed">Fixed in the blueprint</span>
     </p>
   );

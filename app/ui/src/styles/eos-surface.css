@@ -13,7 +13,7 @@
 .eos-frame--page { background: none; box-shadow: none; margin: 0; }
 .eos-frame--page .eos-frame__strip { border: 0; padding: 0 2px 12px; font-size: var(--text-sm); }
 .eos-frame__detail { color: var(--fg-dim2); }
-.eos-frame--page .eos-frame__content { padding: 0; }
+.eos-frame--page .eos-frame__content { padding: 0; border-radius: 0; background: none; }
 .eos-frame--page .eos-frame__eos { border: 0; padding: 12px 2px 0; }
 .eos-page-frame {
   display: block;
@@ -169,15 +169,39 @@
 .eos-point__picks .eos-btn { height: 28px; padding: 0 11px; }
 
 /* ── Editing a page issue's marked fields ─────────────────────────────────── */
-.eos-page-edit { display: flex; flex-direction: column; gap: 14px; }
-.eos-edit__list { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
-.eos-edit__list > legend { margin-bottom: 6px; }
-.eos-edit__row { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: var(--panel); }
-.eos-edit__row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.eos-edit__row-title { flex: 1 1 200px; min-width: 0; font-size: var(--text-sm); color: var(--fg); }
-.eos-edit__row .eos-btn { height: 26px; padding: 0 10px; }
+/* Under the page, on the page's ground: a label and a hairline, each field a
+   mono label over a well, a list's rows on hairlines with their moves quiet
+   at the right. */
+.eos-page-edit { display: flex; flex-direction: column; gap: 22px; }
+.eos-page__edit { display: flex; flex-direction: column; gap: 20px; padding-top: 36px; }
+.eos-page__edit > .eos-section__head { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.eos-page-edit .eos-edit__field { gap: 10px; }
+.eos-page-edit .eos-edit__label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-page-edit .eos-edit__line, .eos-page-edit .eos-edit__text {
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--fg-strong);
+  transition: border-color calc(140ms * var(--k, 1)) var(--ease);
+}
+.eos-mode .eos-page-edit .eos-edit__line:focus-visible, .eos-mode .eos-page-edit .eos-edit__text:focus-visible { outline: 0; border-color: var(--accent); }
+.eos-page-edit .eos-edit__line[aria-invalid="true"], .eos-page-edit .eos-edit__text[aria-invalid="true"] { border-color: color-mix(in srgb, var(--err) 60%, transparent); }
+.eos-edit__list { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.eos-edit__list > legend { float: left; width: 100%; margin-bottom: 10px; padding: 0; }
+.eos-edit__list > legend + * { clear: both; }
+.eos-edit__row { display: flex; flex-direction: column; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.eos-edit__row:last-child { border-bottom: 1px solid var(--line); }
+.eos-edit__row:has(.eos-edit__field) { padding-bottom: 16px; }
+.eos-edit__row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 28px; }
+.eos-edit__row-title { flex: 1 1 200px; min-width: 0; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-edit__row .eos-actions { gap: 2px; }
+.eos-edit__row .eos-btn { height: 28px; padding: 0 10px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-edit__row .eos-btn:hover:not(:disabled) { color: var(--fg-strong); }
+.eos-edit__row .eos-btn:disabled { color: var(--fg-dim2); opacity: 0.55; }
 .eos-edit__problem { margin: 0; font-size: var(--text-sm); color: var(--err); }
-.eos-page__edit { padding: 18px; }
 
 /* ── Pinned tiles on Home (SurfacePins.dc.html) ───────────────────────────── */
 .eos-pins__head { display: flex; align-items: baseline; gap: 12px; }

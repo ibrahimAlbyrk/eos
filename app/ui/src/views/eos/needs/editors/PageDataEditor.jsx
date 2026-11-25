@@ -46,9 +46,9 @@ function ListField({ field, originals, onSet, onMove, onRemove }) {
             <span className="eos-edit__row-title">{row.label}</span>
             {field.editable && (
               <span className="eos-actions">
-                <button type="button" className="eos-btn" disabled={i === 0} onClick={() => onMove(field.path, i, i - 1)}>Move up</button>
-                <button type="button" className="eos-btn" disabled={i === field.rows.length - 1} onClick={() => onMove(field.path, i, i + 1)}>Move down</button>
-                <button type="button" className="eos-btn" disabled={!canRemove} onClick={() => onRemove(field.path, i)}>Remove</button>
+                <button type="button" className="eos-btn eos-btn--quiet" disabled={i === 0} onClick={() => onMove(field.path, i, i - 1)}>Move up</button>
+                <button type="button" className="eos-btn eos-btn--quiet" disabled={i === field.rows.length - 1} onClick={() => onMove(field.path, i, i + 1)}>Move down</button>
+                <button type="button" className="eos-btn eos-btn--quiet" disabled={!canRemove} onClick={() => onRemove(field.path, i)}>Remove</button>
               </span>
             )}
           </div>
