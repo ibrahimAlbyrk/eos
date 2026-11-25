@@ -246,3 +246,22 @@ async fn a_run_whose_clone_went_after_its_start_fails_as_invalid() {
     assert!(events.iter().any(|e| e.kind == "no_local_clone"));
     assert!(bench.agents.started().is_empty(), "nothing started");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_added_through_a_link_gets_its_worktrees_under_the_clone_s_real_path() {
+    let repo = repo();
+    let link = repo.clone.with_file_name("game-link");
+    std::os::unix::fs::symlink(&repo.clone, &link).expect("a link");
+    let bench = Bench::with_reads(true, reads(&repo));
+    bench.keys.clone_at("git:github.com/acme/game", &link.to_string_lossy());
+    let routine = bench.routine(RoutineState::Active, team_blueprint());
+    let run =
+        bench.start(new_run(&routine, RunOrigin::Hand, Some(pull_request(1)))).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    let worktree = repo.clone.join(format!(".eos/worktrees/eos/run/{run}/editor")).to_string_lossy().into_owned();
+    // Git makes the worktree under the clone's real path: the brief and the run's scope name that one.
+    let brief = specialist(&bench, &lead).prompt.expect("a brief");
+    assert!(brief.contains(&worktree) && !brief.contains("game-link"), "{brief}");
+}
