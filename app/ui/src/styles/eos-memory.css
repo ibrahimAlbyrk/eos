@@ -277,3 +277,67 @@
 .eos-mem-log .mem-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 0 0; text-align: left; }
 .eos-mem-log .mem-empty b { font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
 .eos-mem-log .mem-empty span { max-width: 56ch; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim); }
+
+/* The dream log with nights in it: the nights on hairlines at the left, a
+   mark in each night's tone (done solid, skipped hollow, stopped warn, failed
+   err), the open one lit past its edges with the accent edge; the night
+   itself at the right as a title, its figures on a hairline, then what it
+   read, what did not pass and what was turned down as labelled parts on
+   hairlines. The Agents takeover keeps dream.css's own look. */
+.eos-mem-log .dr-log { flex-wrap: wrap; gap: 40px 56px; padding-top: 4px; }
+.eos-mem-log .dr-log__runs { flex: 1 1 260px; max-width: 320px; gap: 0; border-bottom: 1px solid var(--line); }
+.eos-mem-log .dr-log__run {
+  position: relative;
+  gap: 3px;
+  padding: 12px 0 12px 21px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), box-shadow calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-mem-log .dr-log__run::before { content: ""; position: absolute; left: 0; top: 18px; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim); background: var(--fg-dim); }
+.eos-mem-log .dr-log__run:has(.dr-log__badge--skipped)::before { background: none; border-color: var(--fg-dim2); }
+.eos-mem-log .dr-log__run:has(.dr-log__badge--stopped)::before { background: none; border-color: var(--warn); }
+.eos-mem-log .dr-log__run:has(.dr-log__badge--failed)::before { border-color: var(--err); background: var(--err); }
+.eos-mem-log .dr-log__run:has(.dr-log__badge--running)::before { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-mem-log .dr-log__run:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-mem-log .dr-log__run.is-on { background: var(--raised); box-shadow: -12px 0 0 var(--raised), 12px 0 0 var(--raised); }
+.eos-mem-log .dr-log__run.is-on::after { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+.eos-mem-log .dr-log__run:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eos-mem-log .dr-log__runtop { align-items: baseline; font-size: var(--text-base); color: var(--fg-strong); }
+.eos-mem-log .dr-log__runtop > span:first-child::first-letter { text-transform: uppercase; }
+.eos-mem-log .dr-log__runsub { font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); }
+.eos-mem-log .dr-log__badge { flex: none; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-mem-log .dr-log__badge--stopped { color: var(--warn); }
+.eos-mem-log .dr-log__badge--failed { color: var(--err); }
+
+.eos-mem-log .dr-log__detail { flex: 999 1 520px; gap: 32px; }
+.eos-mem-log .dr-log__head { gap: 6px; }
+.eos-mem-log .dr-log__head h2 { font-size: 24px; line-height: 1.25; font-weight: 500; letter-spacing: -0.01em; }
+.eos-mem-log .dr-log__head h2::first-letter { text-transform: uppercase; }
+.eos-mem-log .dr-log__head span { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.02em; color: var(--fg-dim2); }
+.eos-mem-log .dr-log__reason { display: flex; align-items: center; gap: 10px; margin-top: -16px; font-size: var(--text-sm); color: var(--fg-mid); }
+.eos-mem-log .dr-log__reason::before { content: ""; flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
+.eos-mem-log .dr-log__reason.is-err::before { border-color: var(--err); background: var(--err); }
+/* The night's figures as Did it help draws them: numbers on a hairline. */
+.eos-mem-log .dr-log__stats { grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr)); gap: 16px 24px; padding: 16px 0; border-radius: 0; background: none; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: visible; }
+.eos-mem-log .dr-log__stats span { gap: 4px; padding: 0; box-shadow: none; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-mem-log .dr-log__stats b { font-size: 28px; line-height: 1.1; font-weight: 500; font-variant-numeric: tabular-nums; }
+.eos-mem-log .dr-violet { color: var(--accent) !important; }
+/* A part: its name as a mono label, its hint at the right, rows on hairlines. */
+.eos-mem-log .dr-log__detail > .mem-card { gap: 0; border-bottom: 1px solid var(--line); }
+.eos-mem-log .dr-log__section { align-items: baseline; padding-bottom: 12px; }
+.eos-mem-log .dr-log__section b { font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-mem-log .dr-log__section > span { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-mem-log .dr-log__chat { min-height: 48px; box-sizing: border-box; gap: 16px; padding: 8px 0; border-top: 1px solid var(--line); box-shadow: none; }
+.eos-mem-log .dr-log__chatname { flex: 0 1 200px; font-size: var(--text-sm); color: var(--fg-strong); }
+.eos-mem-log .dr-log__chatname.is-off { color: var(--fg-dim2); }
+.eos-mem-log .dr-log__chatmeta { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-mem-log .dr-log__dropped { align-items: baseline; padding: 11px 0; border-top: 1px solid var(--line); color: var(--fg-mid); }
+.eos-mem-log .dr-log__dropped .mono { font-size: var(--text-xs); color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.eos-mem-log .dr-log__dropped.is-warn, .eos-mem-log .dr-log__dropped.is-warn .mono { color: var(--warn); }
+.eos-mem-log .dr-log__rejected { gap: 3px; padding: 11px 0; border-top: 1px solid var(--line); color: var(--fg); }
+.eos-mem-log .dr-log__rejected > span:last-child { font-size: var(--text-sm); color: var(--fg-dim); }

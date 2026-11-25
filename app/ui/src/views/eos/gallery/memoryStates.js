@@ -5,6 +5,8 @@
 import { ROUTES } from "../../../api/routes.js";
 import { notesPath } from "../../../state/eos/notesStore.js";
 import memory from "./sample/memory.json";
+import { withDreams } from "./sample/about-you.js";
+import { setMemoryPage } from "../../../state/memoryViewStore.js";
 
 const LINT = memory.details.find((d) => d.note.text.startsWith("Run lint")).note.id;
 const SUMMARY = memory.details.find((d) => d.note.text.startsWith("Keep the summary")).note.id;
@@ -100,5 +102,7 @@ export const MEMORY_STATES = [
   { id: "memory-note-edit", label: "Memory · a note being edited", location: note(LINT), then: clickText("Edit") },
   { id: "memory-note-forget", label: "Memory · a note just forgotten", location: note(LINT), ...forgetting },
   { id: "memory-note-forgotten", label: "Memory · a note forgotten a day ago", location: note(LINT), reads: forgotten },
+  { id: "memory-dreams", label: "Memory · About you, the dream log", location: "eos:/memory?tab=about", held: withDreams(Date.now()), then: () => setMemoryPage("log") },
+  { id: "memory-dreams-none", label: "Memory · About you, no dreams yet", location: "eos:/memory?tab=about", then: () => setMemoryPage("log") },
   { id: "memory-note-gone", label: "Memory · a note no longer here", location: note("mn-gone00000001") },
 ];

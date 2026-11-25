@@ -158,6 +158,17 @@ describe("#eos-gallery", () => {
     expect((await page.fetch("http://127.0.0.1:7400/api/user-memories", { method: "POST", body: "{}" })).status).toBe(503);
   });
 
+  it("holds a dream log with nights in it for the state that draws one, and none for the rest", async () => {
+    vi.stubGlobal("sessionStorage", { getItem: (k) => (k === GALLERY_STATE_KEY ? "memory-dreams" : null), setItem: () => {} });
+    startEosGallery({});
+    const { runs, excluded } = await (await globalThis.fetch("http://127.0.0.1:7400/api/dreams")).json();
+    expect(runs.map((r) => r.status)).toEqual(["done", "done", "skipped", "failed"]);
+    expect(excluded).toEqual(["w-3"]);
+    vi.stubGlobal("sessionStorage", { getItem: (k) => (k === GALLERY_STATE_KEY ? "memory-dreams-none" : null), setItem: () => {} });
+    startEosGallery({});
+    expect((await (await globalThis.fetch("http://127.0.0.1:7400/api/dreams")).json()).runs).toEqual([]);
+  });
+
   it("hands About you in, as the app does", () => {
     vi.stubGlobal("sessionStorage", { getItem: (k) => (k === GALLERY_STATE_KEY ? "memory-about" : null), setItem: () => {} });
     startEosGallery({});

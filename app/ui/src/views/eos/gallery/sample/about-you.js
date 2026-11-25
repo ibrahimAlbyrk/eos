@@ -36,3 +36,45 @@ export function aboutYouReads(now) {
     "/projects": { projects: [] },
   };
 }
+
+// Four nights of dreaming, newest first: one that proposed two memories (one
+// still waiting), one that found nothing new, one skipped and one that failed;
+// one chat is kept out of every dream.
+export function dreamRuns(now) {
+  const at = (h) => now - h * HOUR;
+  const night = (id, h, over) => ({
+    id, trigger: "nightly", status: "done", reason: null, startedAt: at(h), finishedAt: at(h - 0.2), model: "opus",
+    chatsRead: 0, observations: 0, candidates: 0, proposed: 0, tokens: 0, dropped: {}, chats: [], rejected: [], ...over,
+  });
+  return [
+    night("dr-n4", 7, {
+      chatsRead: 9, observations: 23, candidates: 2, proposed: 2, tokens: 48_000,
+      dropped: { oneOff: 8, known: 5, declined: 1, weak: 3, secret: 1 },
+      chats: [
+        { workerId: "w-2", name: "design", project: "/Users/sample/studio-site", userTurns: 14, observations: 7 },
+        { workerId: "w-1", name: "planner", project: "/Users/sample/game-client", userTurns: 9, observations: 6 },
+        { workerId: "w-4", name: "shader-fix", project: "/Users/sample/game-client", userTurns: 6, observations: 4 },
+        { workerId: "w-3", name: "tax-forms", project: null, userTurns: 4, observations: 0 },
+      ],
+      rejected: [{ text: "Uses dark mode everywhere.", reason: "Said once, about one screen" }],
+    }),
+    night("dr-n3", 31, { chatsRead: 4, observations: 9, tokens: 21_000, dropped: { known: 6, oneOff: 3 } }),
+    night("dr-n2", 55, { status: "skipped", reason: "Nothing new since the last dream." }),
+    night("dr-n1", 79, { status: "failed", reason: "The model did not answer in time. The next night tries again." }),
+  ];
+}
+
+// About you's reads with Dreaming's log filled in.
+export function withDreams(now) {
+  return (reads) => {
+    const runs = dreamRuns(now);
+    const waiting = { ...reads["/api/user-memories"].memories[0], id: "um-dp1", text: "Wants four or five directions before a design is chosen.", status: "suggested", category: "work-style",
+      source: { kind: "dream", dreamId: "dr-n4", evidence: [] }, proposal: { kind: "new", targets: [], confidence: 3 }, rev: 0 };
+    return {
+      ...reads,
+      "/api/user-memories": { memories: [...reads["/api/user-memories"].memories, waiting] },
+      "/api/dreams/status": { ...reads["/api/dreams/status"], lastRun: runs[0] },
+      "/api/dreams": { runs, excluded: ["w-3"] },
+    };
+  };
+}
