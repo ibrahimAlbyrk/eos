@@ -117,6 +117,22 @@ function FilterChoice({ filter, onChange }) {
   );
 }
 
+// What the list says with nothing under its filter: none at all yet, every
+// one paused (with the way to them), or none in this state.
+function EmptyNote({ filter, list, onShow }) {
+  if (filter === "active" && list.length === 0) {
+    return <p className="eos-side-note">No routines yet.<span className="eos-side-note__more">New routine makes the first one from a sentence.</span></p>;
+  }
+  if (filter === "active" && list.some((r) => r.state === "paused")) {
+    return (
+      <p className="eos-side-note eos-side-note--warn">
+        Every routine is paused. <button type="button" className="eos-link" onClick={() => onShow("paused")}>Show paused</button>
+      </p>
+    );
+  }
+  return <p className="eos-side-note">{FILTERS[filter].empty}</p>;
+}
+
 // The routines under the nav rows, filtered by state, each with its status
 // and a Run button.
 export function RoutineRows({ selectedId }) {
@@ -134,12 +150,15 @@ export function RoutineRows({ selectedId }) {
         <FilterChoice filter={filter} onChange={setFilter} />
       </div>
       {devRun && <DevRunNote />}
+      {list === null && !listFailed && (
+        <div className="eos-skeleton eos-side-loading" aria-busy="true" aria-label="Loading routines"><span /><span /><span /></div>
+      )}
       {list === null && listFailed && (
-        <p className="eos-side-note" role="alert">
+        <p className="eos-side-note eos-side-note--err" role="alert">
           Couldn&apos;t load routines. <button type="button" className="eos-link" onClick={() => void refreshRoutines()}>Try again</button>
         </p>
       )}
-      {list !== null && shown.length === 0 && <p className="eos-side-note">{FILTERS[filter].empty}</p>}
+      {list !== null && shown.length === 0 && <EmptyNote filter={filter} list={list} onShow={setFilter} />}
       {shown.length > 0 && (
         <ul className="eos-side-list">
           {shown.map((r) => <RoutineRow key={r.id} routine={r} waiting={byRoutine[r.id] ?? 0} selected={r.id === selectedId} />)}

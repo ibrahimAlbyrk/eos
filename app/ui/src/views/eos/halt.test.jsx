@@ -81,7 +81,8 @@ describe("the Eos is stopped band", () => {
 
     applyEosEvent("inbox:halt", { on: true, since: SINCE });
     html = draw();
-    expect(html).toContain(`</header><div class="eos-band eos-band--err eos-halt" role="status"><span class="eos-band__text">Eos is stopped since ${timeAt(SINCE)}. No routine runs and nothing is sent until you resume.</span><button type="button" class="eos-btn eos-btn--primary">Resume</button></div>`);
+    expect(html).toContain('</header><div class="eos-halt eos-halt--stopped" role="status">');
+    expect(html).toContain(`<strong>Eos is stopped since ${timeAt(SINCE)}.</strong> No routine runs and nothing is sent until you resume.</p><button type="button" class="eos-btn eos-btn--primary">Resume</button></div>`);
     openLocation(`eos:/routines/${MAIL}`);
     expect(draw()).toContain(STOPPED);
 
@@ -89,7 +90,7 @@ describe("the Eos is stopped band", () => {
     expect(t.send).toHaveBeenCalledWith("POST", ROUTES.eosResume, {});
     html = draw();
     expect(html).not.toContain(STOPPED);
-    expect(html).toContain("Eos runs again. Sends that were stopped wait in Needs you.");
+    expect(html).toContain("<strong>Eos runs again.</strong> Sends that were stopped wait in Needs you.");
     dismissResumed();
     expect(draw()).not.toContain("Eos runs again");
   });
@@ -110,7 +111,7 @@ describe("the Eos is stopped band", () => {
     applyEosEvent("inbox:halt", { on: true });
     expect(await resumeEos()).toBe(false);
     expect(toast).toHaveBeenCalledWith("not allowed", { title: "Eos" });
-    expect(draw()).toContain("Eos is stopped. No routine runs");
+    expect(draw()).toContain("Eos is stopped.</strong> No routine runs");
     toast.mockRestore();
   });
 });

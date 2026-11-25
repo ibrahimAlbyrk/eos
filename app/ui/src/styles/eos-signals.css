@@ -34,7 +34,31 @@
 .eos-bp-preview { margin: 4px 0 0; font-size: var(--text-xs); color: var(--fg-dim); }
 
 /* ── Eos is stopped, and who must be confirmed before a routine resumes ──── */
-.eos-halt { flex: none; margin: 12px var(--eos-frame-x) 0; }
+/* Eos stopped: one line on the raised ground in the measure, a stop mark in
+   the err ring, the fact strong and what it means dim, Resume at the right;
+   the header's hairline takes the err tone while it lasts. Resumed: the ok
+   ring and where the stopped sends wait. It arrives with a 4 px rise. */
+.eos-halt {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 16px var(--eos-frame-x) 0;
+  padding: 10px 12px 10px 12px;
+  border-radius: 14px;
+  background: var(--raised);
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  animation: eos-ask-in calc(220ms * var(--k, 1)) var(--ease) both;
+}
+.eos-halt__mark { background: var(--bg); }
+.eos-halt__words { flex: 1 1 320px; min-width: 0; margin: 0; line-height: 1.5; text-wrap: pretty; }
+.eos-halt__words strong { font-weight: 500; color: var(--fg-strong); }
+.eos-halt .eos-btn { height: 32px; padding: 0 16px; }
+.eos-screen:has(> .eos-halt--stopped) > .eos-head { border-bottom-color: color-mix(in srgb, var(--err) 55%, var(--line)); }
+@media (prefers-reduced-motion: reduce) { .eos-halt { animation: eos-ask-shade 120ms linear both; } }
+@media (prefers-contrast: more) { .eos-halt { box-shadow: inset 0 0 0 1px var(--line); } }
 .eos-refusal { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .eos-refusal .eos-band__text { flex: 1 1 100%; }
 .eos-recipients { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
