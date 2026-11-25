@@ -27,6 +27,8 @@ eos-platform.workspace = true
 eos-store-files.workspace = true
 eos-testkit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true

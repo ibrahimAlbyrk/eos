@@ -6,6 +6,7 @@ mod awake;
 mod batch;
 mod halt;
 mod local;
+mod logs;
 mod matching;
 mod polls;
 mod push;
