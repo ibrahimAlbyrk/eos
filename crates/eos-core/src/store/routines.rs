@@ -30,6 +30,16 @@ pub struct StoredRoutine {
     pub deleted_at: Option<i64>,
 }
 
+impl StoredRoutine {
+    /// Whether it follows the user to their other computers: kept by the
+    /// user, not Eos's own (01 G2, G49).
+    pub fn travels(&self) -> bool {
+        self.origin != "builtin"
+            && !matches!(self.state, RoutineState::Draft | RoutineState::Transient)
+            && self.head_version_id.is_some()
+    }
+}
+
 /// A row of `routine_drafts`: what a routine's architect works on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredDraft {

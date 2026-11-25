@@ -1,6 +1,6 @@
 //! Sync domains over the data that has a service as its one write path: profile
 //! fields, the avatar, memories, pages, what Eos learned from work, and the
-//! records a feature keeps itself (routines and their runs). Each lists the portable form (project
+//! records a feature keeps itself (routines, their runs and their surfaces). Each lists the portable form (project
 //! folders as project keys, no local revisions or chat links) and applies it back
 //! through that service, so open views refresh off the usual change events.
 
@@ -41,6 +41,7 @@ pub(crate) fn push_order(name: SyncDomainName) -> u8 {
         SyncDomainName::Page => 5,
         SyncDomainName::Routine => 7,
         SyncDomainName::Run => 8,
+        SyncDomainName::Surface => 9,
     }
 }
 
@@ -86,6 +87,7 @@ pub(crate) fn from_contribution(
         )),
         "routine" => record(SyncDomainName::Routine)?,
         "run" => record(SyncDomainName::Run)?,
+        "surface" => record(SyncDomainName::Surface)?,
         other => return Err(Error::Rule(format!("no sync domain is called \"{other}\""))),
     })
 }

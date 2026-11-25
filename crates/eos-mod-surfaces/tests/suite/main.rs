@@ -15,3 +15,4 @@ mod reshapes;
 mod retention;
 mod rig;
 mod state;
+mod sync;

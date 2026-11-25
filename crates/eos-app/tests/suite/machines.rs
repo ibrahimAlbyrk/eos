@@ -63,7 +63,10 @@ async fn every_feature_that_contributes_data_syncs_it_to_the_vault() {
     assert_eq!(status, 200);
     // Every domain is there, in the order they are pushed.
     let domains: Vec<&String> = created["counts"].as_object().expect("counts").keys().collect();
-    assert_eq!(domains, ["profile", "avatar", "memory", "template", "worker", "page", "experience", "routine", "run"]);
+    assert_eq!(
+        domains,
+        ["profile", "avatar", "memory", "template", "worker", "page", "experience", "routine", "run", "surface"]
+    );
 
     let (_, key) = json_of(router.handle(Request::new(Method::Get, "/api/sync/key", dashboard.clone())).await).await;
     let identity = parse_sync_key(key["key"].as_str().expect("a key")).expect("a sync key");

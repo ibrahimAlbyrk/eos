@@ -66,6 +66,7 @@ mod reshape;
 mod retention;
 mod routes;
 mod settings;
+mod sync;
 mod tiles;
 mod wire;
 
@@ -73,12 +74,13 @@ use std::sync::Arc;
 
 use eos_contracts::{ActionsRecord, SurfacesChange, SurfacesDesign, SurfacesIssue, SurfacesPins, SurfacesState};
 use eos_core::inbox::ActionGate;
+use eos_core::net::sync::RecordSync;
 use eos_core::store::{Store, UserSettingsStore};
 use eos_core::surface::{DirectActions, SurfaceTools};
 use eos_core::{Clock, Ids};
 use eos_runtime::actions::{ActionDecl, Actions};
 use eos_runtime::bus::{Topic, TopicDecl};
-use eos_runtime::module::{Module, ProtectedSettings};
+use eos_runtime::module::{Module, Opaque, ProtectedSettings, SyncContribution};
 use eos_runtime::router::RouteDef;
 
 pub use authoring::SurfaceAuthor;
@@ -294,6 +296,13 @@ impl Module for SurfacesModule {
 
     fn protected_settings(&self) -> Option<ProtectedSettings> {
         Some(ProtectedSettings { keys: settings::KEYS.to_vec(), via: "PUT /api/settings/surfaces" })
+    }
+
+    /// Kept designs and saved state; the handle is an `Arc<dyn RecordSync>`.
+    fn sync(&self) -> Vec<SyncContribution> {
+        let records: Arc<dyn RecordSync> = Arc::new(sync::SurfaceRecords(self.parts.store.clone()));
+        let handle: Opaque = Arc::new(records);
+        vec![SyncContribution { domain: "surface", handle, change_topic: Some(SURFACES_CHANGE.name()), is_local: None }]
     }
 }
 
