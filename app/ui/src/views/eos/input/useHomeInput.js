@@ -6,6 +6,7 @@ import { comboKey, withChosen } from "../runform/CandidateCombobox.jsx";
 import { billsByRun, takesItems } from "../runform/runFormModel.js";
 import { itemRows, menuRows } from "./CandidateList.jsx";
 import { useIntent } from "./intent/useIntent.js";
+import { NO_CHOICES } from "./homePills.js";
 import { homeForm, tokenLine, withText } from "./runInput.js";
 import { useHomeActs } from "./useHomeActs.js";
 import { useThingIntake } from "./useThingIntake.js";
@@ -32,6 +33,7 @@ export function useHomeInput(cardRef, { held = null, door = "home" } = {}) {
   const [list, setList] = useState(CLOSED);
   const [items, setItems] = useState([]);
   const [focused, setFocused] = useState(false);
+  const [choices, setChoices] = useState(NO_CHOICES);
   const typedAt = useRef(text);
   typedAt.current = text;
 
@@ -61,7 +63,7 @@ export function useHomeInput(cardRef, { held = null, door = "home" } = {}) {
     routineId: picked,
     onAct: (choice, given) => {
       if (choice.intent === "menu") return setHomeDraft("/");
-      void acts.act(choice, given).then((took) => cleared(took, text));
+      void acts.act(choice, { ...given, choices }).then((took) => cleared(took, text));
     },
   });
 
@@ -134,6 +136,8 @@ export function useHomeInput(cardRef, { held = null, door = "home" } = {}) {
     list,
     line,
     plan,
+    choices,
+    setChoices,
     canSend: ready && (routine ? Boolean(line?.enter) || Boolean(changing) : intent.chosen !== null || intent.verdict.kind === "waiting"),
     pick,
     choose,

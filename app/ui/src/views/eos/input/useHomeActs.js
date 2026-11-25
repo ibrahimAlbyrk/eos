@@ -4,6 +4,7 @@ import { addHomeRuns, addOnce } from "../../../state/eos/homeRunsStore.js";
 import { loadRun, startOnce, startRun } from "../../../state/eos/runsStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { optionsOf, startBody } from "../runform/runFormModel.js";
+import { choiceFields, NO_CHOICES } from "./homePills.js";
 import { homeForm } from "./runInput.js";
 
 const blueprintOf = (routineId) => buildLocation({ screen: "routine", routineId, tab: "blueprint" });
@@ -40,8 +41,8 @@ export function useHomeActs(byId, door = "home") {
     return false;
   }
 
-  async function once(text, attachments) {
-    const answer = await startOnce({ text: text || "Do this", attachments, result: "usual", door });
+  async function once(text, attachments, choices) {
+    const answer = await startOnce({ text: text || "Do this", attachments, result: "usual", door, ...choiceFields("once", choices) });
     if (!answer.started) {
       setOutcome(answer);
       return false;
@@ -50,14 +51,15 @@ export function useHomeActs(byId, door = "home") {
     return true;
   }
 
-  async function act(choice, { text, attachments }, form = null) {
+  // `choices`: the Home input's pills, for Make and Once.
+  async function act(choice, { text, attachments, choices = NO_CHOICES }, form = null) {
     setOutcome(null);
     const routine = choice.routineId ? byId.get(choice.routineId) : null;
     switch (choice.intent) {
       case "run":
         return routine ? run(routine, form ?? homeForm(routine, choice.item ?? "")) : false;
       case "make": {
-        const id = await makeRoutine(sentenceOf(text, attachments, door));
+        const id = await makeRoutine(sentenceOf(text, attachments, door), choiceFields("make", choices));
         openLocation(id ? blueprintOf(id) : "eos:/routines/new");
         return true;
       }
@@ -68,7 +70,7 @@ export function useHomeActs(byId, door = "home") {
         return said;
       }
       case "once":
-        return once(text, attachments);
+        return once(text, attachments, choices);
       default:
         return false;
     }

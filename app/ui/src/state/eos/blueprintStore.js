@@ -164,9 +164,9 @@ function remember(id, text) {
 }
 
 // A new routine from what the user wants, its architect at work; its id,
-// or null.
-export async function makeRoutine(sentence) {
-  const r = await write("POST", ROUTES.routinesArchitect, { sentence }, [409]);
+// or null. `choices`: the rung, project and model the Home input's pills set.
+export async function makeRoutine(sentence, choices = {}) {
+  const r = await write("POST", ROUTES.routinesArchitect, { sentence, ...choices }, [409]);
   if (!r) return null;
   if (r.status === 409) return note(NEW, architectRefused(r.body)), null;
   const id = r.body?.row?.id;
