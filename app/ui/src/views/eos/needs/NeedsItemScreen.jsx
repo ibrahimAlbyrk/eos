@@ -148,7 +148,7 @@ export function NeedsItemScreen({ id }) {
                     </button>
                   ))}
                   {stored && detail.item.state === "open" && (
-                    <button type="button" className="eos-btn" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
+                    <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
                   )}
                   {stored && (
                     <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>

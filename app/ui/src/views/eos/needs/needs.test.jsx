@@ -195,7 +195,7 @@ describe("a draft", () => {
     expect(html).toContain('<span class="eos-result__place">src/auth/login.rs:42</span>');
     expect(html).not.toContain("<textarea");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Send<span class="eos-needs-key">');
-    expect(html).toContain(">Later</button>");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Later</button>');
     expect(html).toContain(">Discard</button>");
     expect(html).toContain("Checked before it reached you");
     expect(html).toContain("It passed every check.");
