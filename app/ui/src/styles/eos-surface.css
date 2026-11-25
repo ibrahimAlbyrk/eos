@@ -166,10 +166,10 @@
 .eos-pin-full__title { margin: 4px 10px 0; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
 .eos-pin-full__line { margin: 0 10px 6px; font-size: var(--text-xs); color: var(--fg-dim); }
 
-/* The mail as it will be sent. */
-.eos-mail-preview { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); }
-.eos-mail-preview__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.eos-mail-preview__frame { width: 100%; height: min(70vh, 900px); border: 0; border-radius: 8px; background: #fff; }
+/* The mail as it will be sent: Eos's dialog, wide enough for a mail's
+   column, the mail on its own ground in a frame that runs nothing. */
+.eos-ask:has(> .eos-mail-preview__frame) { width: min(760px, 100%); }
+.eos-mail-preview__frame { display: block; width: 100%; height: min(62vh, 860px); margin-top: 16px; border: 0; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
 
 /* A routine's page, on its routine page. */
 .eos-page-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
