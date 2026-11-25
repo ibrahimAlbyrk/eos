@@ -81,8 +81,8 @@ describe("the routine rows", () => {
       expect(row, name).toContain(dot);
       expect(row, name).toContain(line);
     }
-    expect(html).toContain('role="radiogroup" aria-label="Show routines"');
-    expect(html).toContain('<button type="button" role="radio" aria-checked="true" class="eos-seg__opt">Active</button>');
+    expect(html).toContain('<span class="sb-seclabel__text">Routines</span>');
+    expect(html).toContain('<button type="button" class="sb-seclabel__filter" aria-label="Filter routines" title="Filter routines" aria-haspopup="menu" aria-expanded="false">');
   });
 
   it("show the paused and archived routines under their filter, kept from the last time", async () => {
@@ -92,7 +92,8 @@ describe("the routine rows", () => {
     expect(names(html)).toEqual(["Mail Triage"]);
     expect(rowOf(html, "Mail Triage")).toContain('<span class="eos-side-dot eos-side-dot--warn" aria-hidden="true"></span>');
     expect(rowOf(html, "Mail Triage")).toContain('<span class="eos-side-line eos-side-line--warn">Paused</span>');
-    expect(html).toContain('aria-checked="true" class="eos-seg__opt">Paused</button>');
+    expect(html).toContain('Routines<span class="eos-side-filter__name"> · Paused</span>');
+    expect(html).toContain('<button type="button" class="sb-seclabel__filter on" aria-label="Filter routines"');
 
     localStorage.setItem("eos:sidebarFilter", "archived");
     html = draw();

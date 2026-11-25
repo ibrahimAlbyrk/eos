@@ -298,7 +298,10 @@
   text-align: center;
   color: #0b1018;
 }
-.eos-side-filter { margin: 0 2px 8px; }
+.eos-side-filter { margin-left: auto; display: inline-flex; }
+.eos-side-filter .sb-seclabel__filter { margin-left: 0; }
+.eos-side-filter__menu { top: calc(100% + 6px); left: auto; right: 0; width: 160px; }
+.eos-side-filter__name { color: var(--fg-dim); }
 .eos-side-note { margin: 0; padding: 4px 10px; font-size: var(--text-sm); color: var(--fg-dim2); }
 .eos-side-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 1px; }
 .eos-side-routine { position: relative; display: flex; align-items: center; }

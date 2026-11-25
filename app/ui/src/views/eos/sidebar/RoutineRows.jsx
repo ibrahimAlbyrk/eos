@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { refreshRoutines, undeleteRoutine, useRoutines } from "../../../state/eos/routinesStore.js";
 import { useInbox } from "../../../state/eos/inboxStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
@@ -77,15 +78,42 @@ function RoutineRow({ routine, waiting, selected }) {
   );
 }
 
+// The filter as the design draws it: a quiet icon beside the section's label
+// that opens a menu of the four states. A filter other than Active is named
+// beside the label, so the list never hides what it leaves out.
 function FilterChoice({ filter, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useMenuDismiss(open, () => setOpen(false));
+  const choose = (key) => {
+    setOpen(false);
+    onChange(key);
+  };
   return (
-    <div className="eos-seg eos-side-filter" role="radiogroup" aria-label="Show routines">
-      {Object.entries(FILTERS).map(([key, f]) => (
-        <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => onChange(key)}>
-          {f.label}
-        </button>
-      ))}
-    </div>
+    <span className="eos-menu-wrap eos-side-filter" ref={wrapRef}>
+      <button
+        type="button"
+        className={"sb-seclabel__filter" + (open || filter !== "active" ? " on" : "")}
+        aria-label="Filter routines"
+        title="Filter routines"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M3 4.5h10M5 8h6M7 11.5h2" /></svg>
+      </button>
+      {open && (
+        <ul className="eos-menu eos-side-filter__menu" role="menu" aria-label="Show routines" onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
+          {Object.entries(FILTERS).map(([key, f]) => (
+            <li key={key} role="none">
+              <button type="button" role="menuitemradio" aria-checked={filter === key} className="eos-menu__item" autoFocus={filter === key} onClick={() => choose(key)}>
+                {f.label}
+                <span className={"eos-menu__check" + (filter === key ? " on" : "")} aria-hidden="true">✓</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </span>
   );
 }
 
@@ -101,8 +129,10 @@ export function RoutineRows({ selectedId }) {
   const shown = list?.filter((r) => FILTERS[filter].states.includes(r.state)) ?? [];
   return (
     <section className="agents-section eos-side-routines" aria-label="Routines">
-      <div className="sb-seclabel"><span className="sb-seclabel__text">Routines</span></div>
-      <FilterChoice filter={filter} onChange={setFilter} />
+      <div className="sb-seclabel">
+        <span className="sb-seclabel__text">Routines{filter !== "active" && <span className="eos-side-filter__name"> · {FILTERS[filter].label}</span>}</span>
+        <FilterChoice filter={filter} onChange={setFilter} />
+      </div>
       {devRun && <DevRunNote />}
       {list === null && listFailed && (
         <p className="eos-side-note" role="alert">
