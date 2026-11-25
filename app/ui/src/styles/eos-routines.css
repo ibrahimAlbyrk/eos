@@ -1,0 +1,66 @@
+/* eos-routines.css — Routines with none yet: a first step, said as Home
+   greets; the way from a sentence to a routine as a beat not yet begun;
+   sentences to start from on hairlines. */
+
+.eos-first { display: flex; flex-direction: column; padding-top: 40px; }
+.eos-first__head { display: flex; flex-direction: column; gap: 8px; }
+.eos-first__ask, .eos-first__dim {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.25;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--fg-strong);
+  text-wrap: balance;
+}
+.eos-first__head .eos-label + .eos-first__ask { margin-top: 8px; }
+.eos-first__dim { margin-top: -8px; color: var(--fg-dim2); text-wrap: pretty; }
+.eos-first > .eos-beat { margin-top: 48px; }
+.eos-first > .eos-section { margin-top: 64px; }
+
+/* A beat that has not begun: every stretch of it lies ahead. */
+.eos-beat--ahead .eos-beat__stop::before, .eos-beat--ahead .eos-beat__stop::after {
+  background: repeating-linear-gradient(to right, var(--fg-faint) 0 4px, transparent 4px 8px);
+  opacity: 1;
+}
+.eos-beat--ahead .eos-beat__stop--active .eos-beat__tag { color: var(--fg-strong); }
+.eos-beat--ahead .eos-beat__stop--active .eos-beat__word { color: var(--fg-dim); }
+
+.eos-first__list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.eos-first__list > li { border-bottom: 1px solid var(--line); }
+.eos-first__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), box-shadow calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+/* Lit past the text's edges, so the words keep the column's line. */
+.eos-first__row:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-first__row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eos-first__row .eos-rtable__mark { margin-top: 0; }
+.eos-first__words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.eos-first__say { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-first__line { font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); text-wrap: pretty; }
+.eos-first__go {
+  flex: none;
+  fill: none;
+  stroke: var(--fg-dim2);
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), transform calc(160ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-first__row:hover .eos-first__go, .eos-first__row:focus-visible .eos-first__go { stroke: var(--fg-strong); transform: translateX(3px); }
+.eos-first__row:hover .eos-rtable__mark { color: var(--fg-strong); border-color: var(--border-strong); }
+@media (prefers-reduced-motion: reduce) { .eos-first__row:hover .eos-first__go { transform: none; } }
+.eos-routines > .eos-first { align-self: stretch; }

@@ -4,17 +4,17 @@ import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
-import { EmptyState } from "../frame.jsx";
 import { ComingUp } from "../home/ComingUp.jsx";
 import { comingUp } from "../home/homeWords.js";
 import { RoutineGlyph } from "./RoutineGlyph.jsx";
+import { RoutinesFirst } from "./RoutinesFirst.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
 import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, usd } from "./tableWords.js";
 
 const FILTERS = {
-  active: { label: "Active", states: ["active", "draft"], empty: "No routines yet.", text: "A routine is work Eos does again and again: a review for each pull request, a paper every morning. Say once what to take care of, and it runs when it should." },
+  active: { label: "Active", states: ["active", "draft"], empty: "Nothing active.", text: "Each of your routines is paused or archived. Resume one to have it run again." },
   paused: { label: "Paused", states: ["paused"], empty: "No paused routines.", text: "A routine you pause waits here, with what it learned, until you start it again." },
   archived: { label: "Archived", states: ["archived"], empty: "No archived routines.", text: "A routine you archive keeps its runs and what it learned here, out of the way." },
 };
@@ -125,7 +125,7 @@ export function RoutinesScreen() {
       return { routine, waiting, nextAt: nextOf[routine.id], ...routineStatus(routine, waiting) };
     });
 
-  // No routines at all: no filters to choose, just what routines are for.
+  // No routines at all: no filters to choose, just how one begins.
   const none = list !== null && list.length === 0;
   return (
     <main className={none ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
@@ -135,7 +135,8 @@ export function RoutinesScreen() {
       <div className="eos-body eos-routines">
         {list !== null && (list.length > 0 || filter !== "active") && (
           <header className="eos-routines__head">
-            <p className="eos-lead">{routinesLead(rows)}</p>
+            <p className="eos-lead">{rows.length > 0 ? routinesLead(rows) : FILTERS[filter].empty}</p>
+            {rows.length === 0 && <p className="eos-lead__sub">{FILTERS[filter].text}</p>}
             {filter !== "active" && soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
           </header>
         )}
@@ -147,14 +148,7 @@ export function RoutinesScreen() {
         </div>}
         {list === null && !listFailed && <LoadingRows rows={4} />}
         {list === null && listFailed && <LoadFailed what="routines" retry={() => void refreshRoutines()} />}
-        {list !== null && rows.length === 0 && (
-          <EmptyState
-            title={FILTERS[filter].empty}
-            action={filter === "active" && <button type="button" className="eos-btn" onClick={() => openLocation("eos:/routines/new")}>Make the first one</button>}
-          >
-            {FILTERS[filter].text}
-          </EmptyState>
-        )}
+        {none && <RoutinesFirst />}
         {rows.length > 0 && (
           <div className="eos-rtable-wrap">
             <table className="eos-rtable">

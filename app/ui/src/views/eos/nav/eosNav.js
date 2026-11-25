@@ -50,7 +50,7 @@ function location(fields) {
 
 function routine(id, rest, query) {
   if (id === undefined) return { screen: "routines" };
-  if (id === "new") return rest.length ? null : { screen: "new-routine" };
+  if (id === "new") return rest.length ? null : location({ screen: "new-routine", say: text(query, "say") });
   if (rest.length === 0) return location({ screen: "routine", routineId: id, tab: oneOf(query, "tab", ROUTINE_TABS) });
   if (rest.length === 2 && rest[0] === "versions") return location({ screen: "version", routineId: id, version: count(rest[1]) });
   return null;
@@ -128,7 +128,7 @@ export function buildLocation(l) {
     case "needs": return `${SCHEME}needs`;
     case "need": return `${SCHEME}needs/${segment(l.itemId)}`;
     case "routines": return `${SCHEME}routines`;
-    case "new-routine": return `${SCHEME}routines/new`;
+    case "new-routine": return withQuery(`${SCHEME}routines/new`, [["say", l.say]]);
     case "routine": return withQuery(`${SCHEME}routines/${segment(l.routineId)}`, [["tab", l.tab]]);
     case "version": return `${SCHEME}routines/${segment(l.routineId)}/versions/${l.version}`;
     case "run": return `${SCHEME}runs/${segment(l.runId)}`;

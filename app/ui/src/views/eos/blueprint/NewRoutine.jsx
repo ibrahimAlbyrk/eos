@@ -14,9 +14,10 @@ import { HAND_BLUEPRINT } from "./words.js";
 // work. "Fill it by hand" opens the blueprint card, every value editable,
 // and Make it creates the routine as a draft. "Open a routine file", or a
 // file dropped anywhere on the screen, asks in a dialog before it makes a
-// draft of a routine file saved on any Mac. The drop veil covers the body
+// draft of a routine file saved on any Mac. `say` (from Routines' starter
+// sentences) is written in the input, ready to send. The drop veil covers the body
 // only, so the header still says where the user is.
-export function NewRoutine() {
+export function NewRoutine({ say }) {
   const picker = useRef(null);
   const { notes } = useBlueprints();
   const { list } = useRoutines();
@@ -75,7 +76,7 @@ export function NewRoutine() {
               </BlueprintCard>
             </div>
           ) : (
-            <NewRoutineStart note={note} onHand={() => setBlueprint(HAND_BLUEPRINT)} onFile={() => picker.current?.click()} />
+            <NewRoutineStart say={say} note={note} onHand={() => setBlueprint(HAND_BLUEPRINT)} onFile={() => picker.current?.click()} />
           )}
           <input ref={picker} type="file" accept=".json,application/json" hidden aria-label="A routine file" onChange={(e) => void fromFile(e.target.files?.[0])} />
         </div>
