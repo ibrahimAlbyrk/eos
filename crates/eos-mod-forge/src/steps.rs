@@ -10,12 +10,6 @@ use eos_core::os::{FileSystem, TimeZone};
 use eos_core::routine::{RoutineControl, StepResult, SystemStepCall, SystemSteps};
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Error, Ids};
-use serde_json::json;
-
-/// The hosts the builder's shell reaches without asking: package registries.
-/// Any other host the engine's sandbox asks Eos's gate about.
-pub const REGISTRY_HOSTS: [&str; 6] =
-    ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "crates.io", "static.crates.io", "index.crates.io"];
 
 /// What npm is held to in the build folder. No `.bin` links: Eos takes a
 /// package of plain files and folders only.
@@ -29,42 +23,6 @@ pub const PROPOSE_STEP: &str = "forge.propose";
 /// The build folder of the Forge run `run_id`, in the scratch area.
 pub fn build_folder(scratch: &std::path::Path, run_id: &str) -> PathBuf {
     scratch.join(format!("forge-{run_id}"))
-}
-
-/// What the builder's shell may still read in the user's home folder (L9):
-/// the toolchains it builds with, never their sign-ins (`~/.cargo`'s
-/// credentials, `~/.npmrc`).
-pub const TOOLCHAIN_READS: [&str; 10] = [
-    "~/.cargo/bin",
-    "~/.cargo/registry",
-    "~/.cargo/git",
-    "~/.rustup",
-    "~/.npm",
-    "~/.nvm",
-    "~/.volta",
-    "~/.pyenv",
-    "~/.bun",
-    "~/.deno",
-];
-
-/// The engine's sandbox for every shell command in the build folder: on,
-/// failing when the OS sandbox is missing, never bypassed by a command,
-/// writes held to the folder, the home folder unreadable but for `folder`
-/// and `TOOLCHAIN_READS`, the network to `REGISTRY_HOSTS`, no Apple Events.
-/// The folder's project settings are where the engine reads it; the
-/// builder's own file edits never reach them (its scope).
-fn sandbox_settings(folder: &std::path::Path) -> String {
-    let reads = std::iter::once(folder.to_string_lossy().into_owned()).chain(TOOLCHAIN_READS.map(str::to_owned));
-    let settings = json!({"sandbox": {
-        "enabled": true,
-        "failIfUnavailable": true,
-        "allowUnsandboxedCommands": false,
-        "autoAllowBashIfSandboxed": false,
-        "allowAppleEvents": false,
-        "filesystem": {"denyRead": ["~"], "allowRead": reads.collect::<Vec<_>>()},
-        "network": {"allowedDomains": REGISTRY_HOSTS},
-    }});
-    format!("{settings:#}\n")
 }
 
 /// What the Forge's steps are made of.
@@ -153,7 +111,13 @@ impl ForgeSteps {
 
     async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {
         let folder = self.folder(run_id)?;
-        self.files.write_text(&folder.join(".claude/settings.json"), &sandbox_settings(&folder), true).await?;
+        self.files
+            .write_text(
+                &folder.join(".claude/settings.json"),
+                &eos_domain::capability::forge_sandbox::settings(&folder),
+                true,
+            )
+            .await?;
         // npm reads it from the folder it installs in: a package installed
         // here runs no install script.
         self.files.write_text(&folder.join(".npmrc"), NPM_SETTINGS, true).await?;
