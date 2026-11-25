@@ -11,7 +11,7 @@ import runDetail from "../gallery/sample/run-detail.json";
 import { menuRows } from "./CandidateList.jsx";
 import { HomeInput } from "./HomeInput.jsx";
 import { sheetInput } from "./InlineOptions.jsx";
-import { lineEnded, liveWords, LiveRunLines } from "./LiveRunLines.jsx";
+import { lineEnded, lineTone, liveWords, LiveRunLines } from "./LiveRunLines.jsx";
 import { onceStatus, OnceResults } from "./OnceResult.jsx";
 import { homeForm, slotHint, tokenLine, usualLine, withText } from "./runInput.js";
 
@@ -109,6 +109,8 @@ describe("live lines", () => {
     expect(liveWords("PR Review", waiting, null)).toBe("Done. A draft is in Needs you");
     expect(lineEnded(waiting.run)).toBe(true);
     expect(liveWords("PR Review", { ...runDetail, run: { ...runDetail.run, state: "failed", reason: "timeout" } }, null)).toMatch(/^PR Review failed\./);
+    expect([null, { state: "queued" }, { state: "running" }, waiting.run, { state: "done" }, { state: "failed" }, { state: "cancelled" }].map(lineTone))
+      .toEqual(["queued", "queued", "working", "you", "ok", "err", "ended"]);
   });
 
   it("show three at most and fold the rest; a drop may be stopped for five seconds", async () => {

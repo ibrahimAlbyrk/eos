@@ -8,6 +8,7 @@ import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { runLocation } from "../routine/RoutineRuns.jsx";
 import { resultDoc } from "../run/RunView.jsx";
 import { hasEnded, reasonLine } from "../run/words.js";
+import { lineTone } from "./LiveRunLines.jsx";
 
 // What the card says under its name while there is no result to show.
 export function onceStatus(detail) {
@@ -30,10 +31,11 @@ function Card({ once }) {
   const keep = async () => { if (await keepRoutine(once.routineId)) markOnceKept(once.runId); };
   return (
     <article className="eos-once" aria-label={once.name}>
-      <div className="eos-once__head">
+      <p className="eos-once__from">
+        <span className={`eos-live__dot eos-live__dot--${lineTone(detail?.run)}`} aria-hidden="true" />
         <span className="eos-label">Done once</span>
-        <h3 className="eos-once__name">{once.name}</h3>
-      </div>
+      </p>
+      <h3 className="eos-once__name">{once.name}</h3>
       {status && <p className="eos-once__status" role="status">{status}</p>}
       {done && (result ? <div className="eos-once__result"><DocView doc={resultDoc(result)} /></div> : <Loading blocks={1} />)}
       <div className="eos-once__actions">
@@ -44,7 +46,7 @@ function Card({ once }) {
         ) : (
           <button type="button" className="eos-btn eos-btn--primary" disabled={!done} onClick={() => void keep()}>Keep as a routine</button>
         )}
-        <button type="button" className="eos-link" onClick={() => openLocation(runLocation(once.runId))}>Open the run</button>
+        <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(runLocation(once.runId))}>Open the run</button>
         <span className="eos-input__gap" />
         <button type="button" className="eos-btn eos-btn--quiet" onClick={() => dismissOnce(once.runId)}>Dismiss</button>
       </div>

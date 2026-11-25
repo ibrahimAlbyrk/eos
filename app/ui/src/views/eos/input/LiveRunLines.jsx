@@ -47,14 +47,28 @@ function Line({ line, name, now }) {
     return () => clearTimeout(timer);
   }, [ended, line.runId]);
   const stoppable = !ended && line.stopUntil != null && now < line.stopUntil;
+  const tone = lineTone(detail?.run);
   return (
     <li className={ended ? "eos-live__line eos-live__line--ended" : "eos-live__line"}>
-      <span className={ended ? "eos-live__dot eos-live__dot--ended" : "eos-live__dot"} aria-hidden="true" />
+      <span className={`eos-live__dot eos-live__dot--${tone}`} aria-hidden="true" />
       <span className="eos-live__text">{liveWords(name, detail, activity)}</span>
-      <button type="button" className="eos-link" onClick={() => openLocation(runLocation(line.runId))}>Open the run</button>
-      {stoppable && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void stopRun(line.runId)}>Stop</button>}
+      <span className="eos-live__acts">
+        {stoppable && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void stopRun(line.runId)}>Stop</button>}
+        <button type="button" className="eos-live__open" onClick={() => openLocation(runLocation(line.runId))}>Open the run</button>
+      </span>
     </li>
   );
+}
+
+// The mark's tone: hollow while it waits its turn, breathing while it works,
+// lit when it waits for the user, then how it ended.
+export function lineTone(run) {
+  if (!run || run.state === "queued") return "queued";
+  if (run.state === "waiting_for_user") return "you";
+  if (run.state === "done") return "ok";
+  if (run.state === "failed") return "err";
+  if (hasEnded(run)) return "ended";
+  return "working";
 }
 
 // Re-draws once a second while a Stop may still show.
@@ -80,12 +94,15 @@ export function LiveRunLines({ byId }) {
   const runIds = new Set(shown.map((l) => l.runId));
   const cards = (inbox.list?.items ?? []).filter((i) => i.state === "open" && runIds.has(i.runId));
   return (
-    <div className="eos-live">
+    <section className="eos-live" aria-label="Started here">
+      <p className="eos-live__head">
+        <span className="eos-label">Started here</span>
+        {lines.length > LINES_SHOWN && <span className="eos-live__more">+{lines.length - LINES_SHOWN} more running</span>}
+      </p>
       <ul className="eos-live__lines" role="status">
         {shown.map((line) => <Line key={line.runId} line={line} name={byId.get(line.routineId)?.name ?? "The routine"} now={now} />)}
       </ul>
-      {lines.length > LINES_SHOWN && <p className="eos-live__more">+{lines.length - LINES_SHOWN} more running</p>}
-      {cards.map((item) => <NeedsCard key={item.id} item={item} routineName={byId.get(item.routineId)?.name} routineIcon={byId.get(item.routineId)?.icon} />)}
-    </div>
+      {cards.length > 0 && <div className="eos-live__cards">{cards.map((item) => <NeedsCard key={item.id} item={item} routineName={byId.get(item.routineId)?.name} routineIcon={byId.get(item.routineId)?.icon} />)}</div>}
+    </section>
   );
 }
