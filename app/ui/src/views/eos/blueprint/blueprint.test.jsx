@@ -450,7 +450,7 @@ describe("the blueprint's spine", () => {
   it("leads a routine being made with where it stands, and shows it without tabs", async () => {
     expect(makingLead({ status: "working" }, [])).toBe("Eos is writing the blueprint.");
     expect(makingLead({ status: "asking" }, [])).toBe("One question, then it is ready.");
-    expect(makingLead({ status: "ready" }, [{ state: "done" }])).toBe("It went well on real past items.");
+    expect(makingLead({ status: "ready" }, [{ state: "done" }])).toBe("Ready to start.");
     expect(makingLead(null, [])).toBe("Set each part, then start it.");
     setEosTransport(fixtureTransport(reads));
     await refreshRoutines();
