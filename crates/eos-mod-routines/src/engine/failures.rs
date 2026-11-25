@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use eos_contracts::RoutineState;
 use eos_core::Error;
-use eos_core::store::{Outbox, Tx};
+use eos_core::store::{Outbox, StoredRoutine, Tx};
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::limits::{FAILURES_TO_PAUSE, abnormal_spend, failure_streak, pauses_for_failures};
 use eos_domain::routine::run::{Reason, RunState};
@@ -68,6 +68,16 @@ pub(crate) fn ended_in(
         tracing::info!(routine_id = %routine.id, run_id, cost_usd = run.cost_usd, "a run spent far more than usual");
         let summary = format!("Paused after a run cost ${:.2}, far more than its runs usually do.", run.cost_usd);
         return pause_with_alert(engine, tx, out, &run, SPEND, &summary, now);
+    }
+    Ok(())
+}
+
+/// A routine that paused because its runs kept failing is resumed: its
+/// streak starts over, so one more failure does not pause it again.
+pub(crate) fn resumed_in(tx: &dyn Tx, routine: &StoredRoutine) -> Result<(), Error> {
+    let for_failures = matches!(routine.paused_reason.as_deref(), Some(FAILURES | SIGN_IN));
+    if routine.state == RoutineState::Paused && for_failures && routine.failure_streak != 0 {
+        tx.routines().set_failure_streak(&routine.id, 0)?;
     }
     Ok(())
 }

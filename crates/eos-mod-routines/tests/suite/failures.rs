@@ -104,6 +104,19 @@ async fn three_failures_in_a_row_pause_with_one_alert_and_a_good_run_starts_the_
     // A fourth failure, by hand while paused, opens no second alert.
     bench.fails(&routine, 7).await;
     assert_eq!(bench.alerts("failures").len(), 1);
+
+    // Resumed, the count starts over: one more failure does not pause it again.
+    let (control, id) = (bench.module.control(), routine.clone());
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, out| {
+            control.resume_in(tx, out, &id, "failures").map_err(|_| eos_core::Error::Conflict("refused".into()))
+        })
+        .expect("resumed");
+    assert_eq!((bench.stored(&routine).state, bench.stored(&routine).failure_streak), (RoutineState::Active, 0));
+    bench.fails(&routine, 8).await;
+    assert_eq!(bench.stored(&routine).state, RoutineState::Active);
 }
 
 #[tokio::test(flavor = "multi_thread")]

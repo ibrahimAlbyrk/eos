@@ -222,6 +222,7 @@ impl RoutineControl for Control {
                                 tracing::info!(routine_id = %routine.id, "a routine stays paused: recipients to confirm");
                                 continue;
                             }
+                            super::failures::resumed_in(tx, &routine)?;
                             tx.routines().set_state(&routine.id, RoutineState::Active, None, now)?;
                             tracing::info!(routine_id = %routine.id, reason = %reason, "a routine was resumed");
                             announce(tx, out, &routine.id, RoutineChangeReason::State, now, &patterns)?;
@@ -245,6 +246,7 @@ impl RoutineControl for Control {
             return Err(ResumeError::Unconfirmed(refusal));
         }
         let now = self.0.clock.now_ms();
+        super::failures::resumed_in(tx, &routine)?;
         tx.routines().set_state(routine_id, RoutineState::Active, None, now)?;
         tracing::info!(routine_id, reason, "a routine was resumed");
         announce(tx, out, routine_id, RoutineChangeReason::State, now, &self.0.patterns)?;
