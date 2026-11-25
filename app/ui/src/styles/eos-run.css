@@ -7,15 +7,18 @@
 .eos-head__side { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 
 /* ── The run ──────────────────────────────────────────────────────────────── */
-.eos-run__columns { display: flex; align-items: flex-start; gap: 32px; }
-.eos-run__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; container: eos-run-main / inline-size; }
+/* Too narrow for both side by side, the aside goes under the run, as a
+   Needs-you item's does. */
+.eos-run__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 32px; }
+.eos-run__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 20px; container: eos-run-main / inline-size; }
 .eos-run__sentence { margin: 0; font-size: 22px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; }
 .eos-run__shown { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-run__interruptions { margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--fg-dim); }
 
 .eos-stations { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
 .eos-station { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: var(--r-pill); background: var(--raised); font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-station + .eos-station::before { content: ""; width: 10px; height: 1px; margin: 0 8px 0 -19px; background: var(--chip); }
+/* The joining line stands centred in the 18 px between two stations. */
+.eos-station + .eos-station::before { content: ""; flex: none; width: 10px; height: 1px; margin: 0 9px 0 -25px; background: var(--chip); }
 .eos-station + .eos-station { margin-left: 18px; }
 .eos-station__mark { width: 8px; height: 8px; flex: none; display: inline-block; }
 svg.eos-station__mark { width: 11px; height: 11px; }
@@ -51,9 +54,13 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-team-card--working { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 80%, transparent); }
 .eos-team-card--working .eos-team-card__lines { font-family: var(--font-mono); font-size: 12.5px; }
 
-.eos-run__tell { margin-top: 8px; }
+/* Tell the team stands at the column's foot, as RunView.dc.html draws it,
+   and stays in view while the team's lines scroll. */
+.eos-run__columns { flex: 1 0 auto; }
+.eos-run__main { align-self: stretch; }
+.eos-run__tell { position: sticky; bottom: 0; z-index: 1; margin-top: auto; padding-top: 8px; }
 
-.eos-run-aside { flex: 0 0 280px; display: flex; flex-direction: column; gap: 22px; }
+.eos-run-aside { flex: 1 1 280px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
 .eos-run-aside__part { display: flex; flex-direction: column; gap: 8px; }
 .eos-run-aside__part .eos-facts__row dt { flex-basis: 70px; }
 .eos-run-aside__text { margin: 0; font-size: var(--text-sm); color: var(--fg); }
@@ -161,11 +168,6 @@ span.eos-station__mark { display: none; border-radius: 50%; }
   cursor: pointer;
 }
 .eos-menu__item:hover, .eos-menu__item:focus-visible { background: var(--chip); }
-
-@media (max-width: 960px) {
-  .eos-run__columns { flex-direction: column; }
-  .eos-run-aside { flex-basis: auto; width: 100%; }
-}
 
 /* ── A project routine (SurfaceApp): steps, the team's word, the side panel ── */
 .eos-project { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }

@@ -146,6 +146,8 @@
 /* A second action beside a primary one: the words alone, a ground on hover. */
 .eos-btn--ghost { background: none; }
 .eos-btn--ghost:hover { background: var(--row-on); }
+/* Stop says in its colour that it ends the work. */
+.eos-btn--stop, .eos-btn--stop:hover { color: var(--err); }
 /* A bare glyph button in a header or a row. */
 .eos-icon-btn {
   width: 30px;
