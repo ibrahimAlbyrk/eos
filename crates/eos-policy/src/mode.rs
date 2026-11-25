@@ -10,6 +10,9 @@ use eos_core::Error;
 use eos_core::policy::AgentMode;
 use eos_core::store::WorkerRepo;
 use serde_json::Value;
+use std::os::unix::fs::MetadataExt;
+
+use crate::js::JsRegex;
 
 /// The kinds of tool a mode tells apart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,6 +100,32 @@ pub fn is_path_inside(child: &str, parent: &str) -> bool {
 pub(crate) fn edit_target(input: &UnknownRecord) -> Option<&str> {
     let target = input.get("file_path").filter(|v| !v.is_null()).or_else(|| input.get("notebook_path"));
     target.and_then(Value::as_str)
+}
+
+/// Whether an edit of `target` stays where a scope's `editRegex` lets edits
+/// go. The disk resolves `..` and follows links where the pattern sees only
+/// text, so the path must match as written and with its `.` and `..`
+/// resolved, may not pass through a link that lies inside the edited area
+/// (one made there by the agent's own shell could point anywhere), and may
+/// not be a second name of a file kept elsewhere (a hard link).
+pub(crate) fn edit_lands_in(re: &JsRegex, target: &str) -> bool {
+    if !re.test(target) {
+        return false;
+    }
+    let Some(segments) = resolve_segments(target).filter(|_| target.starts_with('/')) else { return true };
+    if !re.test(&format!("/{}", segments.join("/"))) {
+        return false;
+    }
+    let mut written = String::new();
+    for part in target.split('/').filter(|part| !part.is_empty()) {
+        let parent = format!("{written}/");
+        written = format!("{parent}{part}");
+        let Ok(meta) = std::fs::symlink_metadata(&written) else { break };
+        if meta.file_type().is_symlink() && re.test(&parent) {
+            return false;
+        }
+    }
+    std::fs::symlink_metadata(target).map_or(true, |meta| !meta.is_file() || meta.nlink() <= 1)
 }
 
 /// The kind of tool a call is. Browser verbs are checked ahead of Eos's other
@@ -225,6 +254,39 @@ mod tests {
 
     fn record(value: serde_json::Value) -> UnknownRecord {
         serde_json::from_value(value).expect("an object")
+    }
+
+    #[test]
+    fn the_builders_edits_never_reach_its_sandbox_settings_by_another_way() {
+        use eos_domain::run_scope::{RunRole, Trust, scope_for};
+        let root = std::env::temp_dir().join(format!("eos-policy-edits-{}", std::process::id()));
+        let folder = root.join("forge-rn-1");
+        std::fs::create_dir_all(folder.join(".claude")).expect("folder");
+        std::fs::create_dir_all(folder.join("package")).expect("package");
+        std::fs::create_dir_all(root.join("elsewhere")).expect("elsewhere");
+        std::fs::write(folder.join(".claude/settings.json"), "{}").expect("settings");
+        std::os::unix::fs::symlink(folder.join(".claude"), folder.join("cfg")).expect("link");
+        std::os::unix::fs::symlink(root.join("elsewhere"), folder.join("out")).expect("link");
+        std::fs::hard_link(folder.join(".claude/settings.json"), folder.join("package/s.json")).expect("hard link");
+        let folder_text = folder.to_str().expect("a path");
+        let scope = scope_for(RunRole::ForgeBuilder, Trust::Trusted, &[], None, folder_text);
+        let re = JsRegex::new(scope.edit_regex.as_deref().expect("a regex")).expect("a regex");
+        let lands = |path: &str| edit_lands_in(&re, &format!("{folder_text}/{path}"));
+        assert!(lands("package/capability.toml"));
+        for sneaky in [
+            ".claude/settings.local.json",
+            ".CLAUDE/settings.local.json",
+            "package/../.claude/settings.local.json",
+            "./.claude/settings.local.json",
+            "/.claude/settings.local.json",
+            "cfg/settings.local.json",
+            "cfg/../x",
+            "out/authorized_keys",
+            "package/s.json",
+        ] {
+            assert!(!lands(sneaky), "{sneaky}");
+        }
+        std::fs::remove_dir_all(&root).expect("clean up");
     }
 
     #[test]

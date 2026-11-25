@@ -31,7 +31,7 @@ use serde_json::Value;
 
 use crate::glob::matches_any;
 use crate::js::JsRegex;
-use crate::mode::{ToolCategory, Verdict, classify_tool, edit_target, mode_verdict};
+use crate::mode::{ToolCategory, Verdict, classify_tool, edit_lands_in, edit_target, mode_verdict};
 use crate::rule::{Policy, default_decision, evaluate_policy_from};
 
 /// What a decision is made from, besides the policy.
@@ -79,7 +79,7 @@ fn scope_denial(call: &Call<'_>, scope: &ToolScope) -> Option<String> {
     let edit_regex = scope.edit_regex.as_deref().filter(|pattern| !pattern.is_empty());
     if let Some(re) = edit_regex.and_then(|pattern| JsRegex::new(pattern).ok())
         && classify_tool(tool, Some(call.input), call.plans_dir) == ToolCategory::FileEdit
-        && !edit_target(call.input).is_some_and(|target| re.test(target))
+        && !edit_target(call.input).is_some_and(|target| edit_lands_in(&re, target))
     {
         return Some("edit target is outside this worker definition's allowed paths".to_owned());
     }

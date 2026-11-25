@@ -98,6 +98,10 @@ fn shell_and_web(trust: Trust) -> [&'static [&'static str]; 2] {
     }
 }
 
+/// What the builder's edits may not start with below its folder: the
+/// `.claude` folder the engine reads its sandbox settings from.
+const NO_SETTINGS_FOLDER: &str = r"(?![.][cC][lL][aA][uU][dD][eE](?:/|$))";
+
 /// The scope of a run worker. `capability_tools` are the tools that reach
 /// capability actions, which only a routine run's own roles get.
 /// `def_scope` is the agent's own definition, as it is baked onto a worker:
@@ -129,12 +133,13 @@ pub fn scope_for(
     let mut allow: Vec<String> = groups.iter().flat_map(|group| group.iter()).map(|tool| (*tool).to_owned()).collect();
     let mut deny: Vec<String> = SHELL_DENIED.iter().map(|pattern| (*pattern).to_owned()).collect();
     let folder = format!("{}/", regex_escaped(edit_folder.trim_end_matches('/')));
-    let mut edit_regex = match role {
+    let bound = match role {
         // The folder's sandbox settings hold the builder's shell: its own
-        // edits never reach them.
-        RunRole::ForgeBuilder => format!(r"^{folder}(?!\.claude/)"),
-        _ => format!("^{folder}"),
+        // edits never reach them, in any case, since the Mac's disk ignores it.
+        RunRole::ForgeBuilder => format!("{folder}{NO_SETTINGS_FOLDER}"),
+        _ => folder,
     };
+    let mut edit_regex = format!("^{bound}");
     if let Some(def) = def_scope {
         if !def.allow.is_empty() {
             allow = allow.iter().flat_map(|tool| kept(&def.allow, tool)).collect();
@@ -144,7 +149,7 @@ pub fn scope_for(
                 deny.push(pattern.clone());
             }
         }
-        if let Some(both) = def.edit_regex.as_deref().and_then(|pattern| in_folder(&folder, pattern)) {
+        if let Some(both) = def.edit_regex.as_deref().and_then(|pattern| in_folder(&bound, pattern)) {
             edit_regex = both;
         }
     }
