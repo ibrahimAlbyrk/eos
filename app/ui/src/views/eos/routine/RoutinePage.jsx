@@ -1,24 +1,22 @@
 import { useEffect } from "react";
-import { ensureInboxLoaded } from "../../../state/eos/inboxStore.js";
+import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { loadRoutineView, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { loadRoutine, setRoutineState, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
-import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { DevRunNote, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SurfaceCard } from "../needs/SurfaceCard.jsx";
 import { RoutinePageLink } from "../surface/RoutinePageLink.jsx";
-import { reasonLine } from "../run/words.js";
 import { HolderLine } from "./Holder.jsx";
 import { RoutineMenu } from "./RoutineMenu.jsx";
-import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
+import { RoutineRuns } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
 import { LearnedFromWork } from "../memory/LearnedFromWork.jsx";
 import { SignalList } from "./SignalList.jsx";
-import { UnconfirmedRecipients } from "./Unconfirmed.jsx";
-import { pausedLine } from "./words.js";
+import { RoutineLead, RoutineLeadGhost } from "./RoutineLead.jsx";
 import { ProjectSteps, doneCount, milestonesOf, stepLabel } from "./ProjectSteps.jsx";
 
 // Hand runs start in these states; a draft runs only trials.
@@ -34,41 +32,11 @@ function RunNow({ routine }) {
   );
 }
 
-// Pause for an active routine, Resume for an archived one. A paused
-// routine's Resume is in its band, beside why it paused.
-function PauseResume({ routine }) {
-  if (routine.state === "active") {
-    return <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void setRoutineState(routine.id, "paused")}>Pause</button>;
-  }
-  if (routine.state === "archived") {
-    return <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>;
-  }
-  return null;
-}
-
-// A paused routine's band: why, in words, with Resume and its last run; once
-// Resume was refused until recipients are confirmed, that refusal in place
-// of the reason, and Resume to try again once they are.
-function PausedBand({ routine, refusal }) {
-  return (
-    <div className="eos-band eos-band--warn" role="status">
-      {refusal
-        ? <UnconfirmedRecipients refusal={refusal} routineId={routine.id} />
-        : <span className="eos-band__text">{pausedLine(routine.pausedReason)}</span>}
-      <button type="button" className={refusal ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>
-      {routine.lastRun && <button type="button" className="eos-btn" onClick={() => openLocation(runLocation(routine.lastRun.id))}>Open the last run</button>}
-    </div>
-  );
-}
-
-// A routine whose last run failed: why, and the way to that run.
-function FailedBand({ run }) {
-  return (
-    <div className="eos-band eos-band--err" role="status">
-      <span className="eos-band__text">The last run failed. {reasonLine(run)}</span>
-      <button type="button" className="eos-btn" onClick={() => openLocation(runLocation(run.id))}>Open the run</button>
-    </div>
-  );
+// Pause for an active routine. Resume is in the lead, beside the words that
+// say why a routine is paused or archived.
+function Pause({ routine }) {
+  if (routine.state !== "active") return null;
+  return <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void setRoutineState(routine.id, "paused")}>Pause</button>;
 }
 
 // eos:/routines/<id> — one routine: its state and what can be done with it,
@@ -77,6 +45,7 @@ function FailedBand({ run }) {
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
   const { details, failed, list, unconfirmed } = useRoutines();
+  const waiting = useInbox().list?.counts.byRoutine[id] ?? 0;
   const view = useSurfaces().byRoutine[id];
   const devRun = useDevRunSeen();
   useEffect(() => {
@@ -111,7 +80,7 @@ export function RoutinePage({ id, tab, version }) {
         {routine && (
           <>
             <RunNow routine={routine} />
-            <PauseResume routine={routine} />
+            <Pause routine={routine} />
             {!making && <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }))}>Change it</button>}
             <RoutineMenu routine={routine} />
           </>
@@ -121,19 +90,12 @@ export function RoutinePage({ id, tab, version }) {
         {devRun && <DevRunNote />}
         {!detail && failed[id] === "gone" && <p className="eos-note">This routine is no longer here.</p>}
         {!detail && failed[id] === "error" && <LoadFailed what="this routine" retry={() => void loadRoutine(id)} />}
-        {!detail && !failed[id] && <Loading blocks={3} />}
+        {!detail && !failed[id] && <RoutineLeadGhost />}
         {detail && (
           <>
             <HolderLine routine={routine} />
-            {routine.state === "paused" && <PausedBand routine={routine} refusal={unconfirmed[id]} />}
-            {routine.state !== "paused" && routine.lastRun?.state === "failed" && <FailedBand run={routine.lastRun} />}
             {making && <BlueprintTab detail={detail} version={version} />}
-            {!making && (
-              <div>
-                <p className="eos-routine__summary">{routine.summary}</p>
-                {routine.triggerLine && <p className="eos-routine__line">{routine.triggerLine}</p>}
-              </div>
-            )}
+            {!making && <RoutineLead routine={routine} runs={detail.runs} waiting={waiting} refusal={unconfirmed[id]} now={now} />}
             {!making && <RoutineTabs routineId={id} tab={shown} />}
             {!making && <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
               {shown === "overview" && view && (

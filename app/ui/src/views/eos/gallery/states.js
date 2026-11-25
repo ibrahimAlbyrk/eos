@@ -129,6 +129,23 @@ const importing = {
   wrong: { then: dragFile("notes.txt", "Buy milk", "drop") },
 };
 
+// PR Review as it can also stand: nothing running and no week judged yet,
+// its last run failed, or archived.
+const PR = routineDetail.routine.id;
+const prWith = (s, change) => {
+  const detail = s[ROUTES.routine(PR)];
+  const next = change(detail);
+  return { ...s, [ROUTES.routine(PR)]: next, [ROUTES.routines]: s[ROUTES.routines].map((r) => (r.id === PR ? { ...r, ...next.routine } : r)) };
+};
+const quietPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => r.state === "done").slice(0, 1), routine: { ...d.routine, stats: undefined, activeRuns: 0 } }));
+const failedPr = (s) => prWith(s, (d) => {
+  const failed = d.runs.find((r) => r.state === "failed");
+  const at = (r) => r.createdAt ?? 0;
+  const ended = d.runs.filter((r) => r !== failed && at(r) < at(failed) && ["done", "cancelled", "failed"].includes(r.state));
+  return { ...d, runs: [failed, ...ended], routine: { ...d.routine, lastRun: failed, activeRuns: 0 } };
+});
+const archivedPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => ["done", "cancelled", "failed"].includes(r.state)), routine: { ...d.routine, state: "archived", activeRuns: 0, lastRun: d.runs.find((r) => r.state === "done") } }));
+
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
 // { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" | "offline",
@@ -149,9 +166,18 @@ export const GALLERY_STATES = [
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "link-unknown", label: "A link names no routine", location: "eos:/form?routine=release-train&item=v2.4&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
+  { id: "routines-loading", label: "Routines · loading", location: "eos:/routines", answer: "loading" },
+  { id: "routines-error", label: "Routines · cannot read", location: "eos:/routines", answer: "error" },
   { id: "routines-empty", label: "Routines · none yet", location: "eos:/routines", reads: (s) => ({ ...s, [ROUTES.routines]: [] }) },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
+  { id: "routine-quiet", label: "Routine · nothing running, no week yet", location: `eos:/routines/${PR}`, reads: quietPr },
+  { id: "routine-failed", label: "Routine · its last run failed", location: `eos:/routines/${PR}`, reads: failedPr },
+  { id: "routine-archived", label: "Routine · archived", location: `eos:/routines/${PR}`, reads: archivedPr },
+  { id: "routine-runs", label: "Routine · Runs", location: `eos:/routines/${PR}?tab=runs` },
+  { id: "routine-signals", label: "Routine · Signals", location: `eos:/routines/${PR}?tab=signals` },
+  { id: "routine-learned", label: "Routine · Learned", location: `eos:/routines/${PR}?tab=learned` },
+  { id: "routine-loading", label: "Routine · loading", location: `eos:/routines/${PR}`, answer: "loading" },
   { id: "routine-making", label: "Routine · being made, the architect asking", location: `eos:/routines/${routineDraft.routine.id}?tab=blueprint` },
   { id: "routine-change", label: "Routine · a change to look at", location: `eos:/routines/${routinePaused.routine.id}?tab=blueprint` },
   { id: "routine-writing", label: "Routine · being made, the architect writing", location: `eos:/routines/${DOCS}`, reads: writingDocs },

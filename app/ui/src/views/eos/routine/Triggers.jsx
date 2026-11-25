@@ -12,6 +12,17 @@ import { catchUpLine, sourceName, sourceReason, sourceStateWord, timeAt, zoneNam
 
 const WHEN = SLOTS.find((s) => s.key === "when");
 
+// What starts the routine, drawn as a small mark at each line's head: a
+// clock for a schedule, a ring for a source it watches, a stack for a batch.
+const ICONS = {
+  schedule: "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM8 5v3.2l2.2 1.4",
+  source: "M8 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM8 1.8v1.4M8 12.8v1.4M1.8 8h1.4M12.8 8h1.4",
+  batch: "M3 5.5h10M3 8h10M3 10.5h10",
+};
+const Icon = ({ kind }) => (
+  <svg className="eos-trigger__icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d={ICONS[kind]} /></svg>
+);
+
 // A schedule only shows late once it fired a minute or more after its slot.
 const LATE_FROM_MS = 60_000;
 
@@ -48,6 +59,7 @@ function ScheduleLine({ status, head, routineId, routines }) {
   ].filter(Boolean);
   return (
     <li className="eos-trigger">
+      <Icon kind="schedule" />
       <span className="eos-trigger__name">{words}</span>
       {facts.length > 0 && <span className="eos-trigger__facts">{facts.join(" · ")}</span>}
       {status.zoneDiffers && zoneName(status.zone) !== zoneName(localZone()) && <ZoneHint status={status} trigger={trigger} routineId={routineId} head={head} />}
@@ -87,6 +99,7 @@ function SourceLine({ source, now, routineId }) {
   ].filter(Boolean);
   return (
     <li className="eos-trigger">
+      <Icon kind="source" />
       <span className="eos-trigger__name">{sourceName(source, capabilities)}</span>
       <span className={`eos-trigger__state eos-trigger__state--${source.state === "active" ? "ok" : "warn"}`}>
         {sourceStateWord(source.state)}{reason && `: ${reason}`}
@@ -114,6 +127,7 @@ export function TriggerLines({ status, head, routineId, now }) {
         {sources.map((s) => <SourceLine key={s.sourceId} source={s} now={now} routineId={routineId} />)}
         {batch && (
           <li className="eos-trigger">
+            <Icon kind="batch" />
             <span className="eos-trigger__name">
               {batch.items} {batch.items === 1 ? "item waits" : "items wait"} to run together, until {timeAt(batch.closesAt)}
             </span>

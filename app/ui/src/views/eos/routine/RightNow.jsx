@@ -48,7 +48,7 @@ function Row({ run, now }) {
   );
 }
 
-// Right now: the routine's runs that have not ended. The first whose team is
+// Right now: the routine's runs that have not ended, when there are any. The first whose team is
 // at work leads, with its team as the run shows it; the others are rows with
 // their state and the way to them. Item titles come from outside: React text
 // only.
@@ -59,13 +59,14 @@ export function RightNow({ runs, now }) {
   const agents = useRuns().details[leadId]?.agents;
   useEffect(() => { if (leadId) void loadRun(leadId); }, [leadId]);
   const rest = live.filter((r) => r !== lead);
+  // With nothing at work the lead above says so; the section stays away.
+  if (live.length === 0) return null;
   return (
     <section className="eos-routine__section eos-routine__now" aria-label="Right now">
       <div className="eos-routine__head">
         <h2 className="eos-label">Right now</h2>
         {lead && <button type="button" className="eos-link" onClick={() => openLocation(runLocation(lead.id))}>Open the run</button>}
       </div>
-      {live.length === 0 && <p className="eos-note">Nothing is running.</p>}
       {lead && (
         <div className="eos-now-lead">
           <p className="eos-now-lead__title">

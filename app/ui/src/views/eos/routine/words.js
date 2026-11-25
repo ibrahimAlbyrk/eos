@@ -1,3 +1,5 @@
+import { reasonLine } from "../run/words.js";
+
 // What the routine page says for a routine's words: why it is paused, what
 // starts its runs and what became of the signals it was offered.
 
@@ -125,4 +127,42 @@ export function replayLine(replay) {
   if (replay === "dev-run") return "Not run: this is a dev run.";
   if (replay.decision === "run") return "Running it now.";
   return `Decided again: ${decisionWord(replay.decision)}.`;
+}
+
+const COUNT = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const lower = (n) => (COUNT[n] ?? String(n)).toLowerCase();
+
+const WORKING_STATES = new Set(["running", "checking"]);
+
+// Where a routine stands now, in one line under its summary: why it is
+// paused, that it is archived, what works and what waits, or that its last
+// run failed and why, with the tone a state that needs the user carries.
+// Item titles never appear here, only their numbers.
+export function nowLine({ routine, runs = [], waiting = 0 }) {
+  if (routine.state === "paused") return { text: pausedLine(routine.pausedReason), tone: "warn" };
+  if (routine.state === "archived") return { text: "Archived. Its runs and what it learned stay here.", tone: null };
+  const working = runs.find((r) => WORKING_STATES.has(r.state));
+  if (!working && routine.lastRun?.state === "failed") return { text: `The last run failed. ${reasonLine(routine.lastRun)}`, tone: "err" };
+  const parts = [];
+  if (working) {
+    const number = /^(#\d+)\s/.exec(working.itemTitle ?? "")?.[1];
+    parts.push(number ? `working on ${number} now` : "working on a run now");
+  }
+  if (waiting > 0) parts.push(`${lower(waiting)} ${waiting === 1 ? "thing waits" : "things wait"} for you`);
+  if (parts.length > 0) {
+    const line = parts.join("; ");
+    return { text: `${line.charAt(0).toUpperCase()}${line.slice(1)}.`, tone: null };
+  }
+  return { text: "Nothing is running.", tone: null };
+}
+
+// The runs the beat draws: the newest few, oldest first.
+const BEAT = 9;
+export const beatRuns = (runs = []) => runs.slice(0, BEAT).reverse();
+
+// The soonest time a schedule starts the routine, from its trigger status.
+export function nextRunAt(status, now) {
+  if (!status || typeof status !== "object") return null;
+  const times = (status.schedules ?? []).map((s) => s.nextAt).filter((t) => t != null && t > now);
+  return times.length ? Math.min(...times) : null;
 }
