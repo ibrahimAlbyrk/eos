@@ -358,6 +358,17 @@ describe("a hand edit", () => {
     expect(t.send).toHaveBeenCalledWith("PUT", ROUTES.routineBlueprint(PR), { baseVersionId: routineDetail.head.id, blueprint: next });
   });
 
+  it("writes a folder trigger from ~ as a path in this computer's home", async () => {
+    const saved = { row: routineDetail.routine, versionId: "rv-new", warnings: [] };
+    const t = recording(async () => ({ ok: true, status: 200, body: saved }), { ...reads, [ROUTES.hostInfo]: { home: "/Users/me" } });
+    await editor(PR, t);
+    const schedule = { schedule: { every: "day", at: "09:00" } };
+    const next = { ...routineDetail.head.blueprint, when: { on: [schedule, { folder: { path: "~/Downloads", events: ["added"] } }, { folder: { path: "/tmp/in" } }] } };
+    expect(await saveBlueprint(PR, routineDetail.head.id, next)).toBe(true);
+    const on = [schedule, { folder: { path: "/Users/me/Downloads", events: ["added"] } }, { folder: { path: "/tmp/in" } }];
+    expect(t.send).toHaveBeenCalledWith("PUT", ROUTES.routineBlueprint(PR), { baseVersionId: routineDetail.head.id, blueprint: { ...next, when: { on } } });
+  });
+
   it("reads the routine again and says it changed elsewhere when its base is stale", async () => {
     const t = recording(async () => ({ ok: false, status: 409, body: { error: "the routine changed since this edit began" } }));
     await editor(PR, t);
