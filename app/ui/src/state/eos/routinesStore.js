@@ -57,6 +57,17 @@ function dropRoutine(id) {
   set({ list: state.list?.filter((r) => r.id !== id) ?? null, details: without(state.details, id), failed: { ...state.failed, [id]: "gone" } });
 }
 
+// Deleted: out of its detail, and in the list as the core lists it, in
+// Recently deleted until it comes back or its 30 days are over.
+function markDeleted(id) {
+  const row = state.list?.find((r) => r.id === id);
+  set({
+    list: row ? withRow(state.list, { ...row, state: "deleted" }) : state.list,
+    details: without(state.details, id),
+    failed: { ...state.failed, [id]: "gone" },
+  });
+}
+
 export async function refreshRoutines() {
   const r = await transport.get(ROUTES.routines).catch(() => null);
   if (r?.ok && Array.isArray(r.body)) set({ list: r.body, listFailed: false });
@@ -89,7 +100,7 @@ export function applyRoutineChange(payload) {
   const id = payload?.routineId;
   if (typeof id !== "string") return;
   if (payload.reason === "deleted") {
-    if (state.list?.some((r) => r.id === id) || state.details[id]) dropRoutine(id);
+    if (state.list?.some((r) => r.id === id) || state.details[id]) markDeleted(id);
     return;
   }
   const row = payload.row;
@@ -143,8 +154,18 @@ export async function setRoutineState(id, next) {
 // To Recently deleted; true when the core took it.
 export async function deleteRoutine(id) {
   const r = await routineWrite("DELETE", ROUTES.routine(id));
-  if (r) dropRoutine(id);
+  if (r) markDeleted(id);
   return Boolean(r);
+}
+
+// Back from Recently deleted: the core answers its row, paused when it ran
+// before, a draft when it never did; true when it took it.
+export async function undeleteRoutine(id) {
+  const r = await routineWrite("POST", ROUTES.routineUndelete(id));
+  if (r?.body?.id !== id) return false;
+  set({ failed: without(state.failed, id) });
+  putRoutineRow(r.body);
+  return true;
 }
 
 // Keep a one-off as a routine (01 G41): the core answers its row, now a

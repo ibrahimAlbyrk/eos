@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
+import { refreshRoutines, undeleteRoutine, useRoutines } from "../../../state/eos/routinesStore.js";
 import { useInbox } from "../../../state/eos/inboxStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote } from "../capabilities/parts.jsx";
@@ -12,6 +12,7 @@ const FILTERS = {
   active: { label: "Active", states: ["active", "draft"], empty: "No routines yet." },
   paused: { label: "Paused", states: ["paused"], empty: "No paused routines." },
   archived: { label: "Archived", states: ["archived"], empty: "No archived routines." },
+  deleted: { label: "Deleted", states: ["deleted"], empty: "Nothing was deleted in the last 30 days." },
 };
 // Hand runs start in these states; a draft runs only trials.
 const RUNNABLE = new Set(["active", "paused"]);
@@ -34,6 +35,7 @@ function keepFilter(filter) {
 export function routineStatus(routine, waiting) {
   if (routine.state === "paused") return { tone: "warn", line: "Paused" };
   if (routine.state === "archived") return { tone: null, line: "Archived" };
+  if (routine.state === "deleted") return { tone: null, line: "Deleted" };
   if (routine.state === "draft") return { tone: null, line: "Being made" };
   if (waiting > 0) return { tone: "active", line: `${waiting} waiting` };
   if (routine.activeRuns > 0) return { tone: "ok", line: "Running" };
@@ -41,7 +43,22 @@ export function routineStatus(routine, waiting) {
   return { tone: "ok", line: routine.triggerLine ?? "When you run it" };
 }
 
+// A routine in Recently deleted has no page to open: only the way back.
+function DeletedRow({ routine }) {
+  return (
+    <li className="eos-side-routine">
+      <span className="agents-row eos-side-routine__open">
+        <span className="eos-side-dot" aria-hidden="true" />
+        <span className="ag-name">{routine.name}</span>
+        <span className="eos-side-line">Deleted</span>
+      </span>
+      <button type="button" className="eos-btn" onClick={() => void undeleteRoutine(routine.id)}>Bring back</button>
+    </li>
+  );
+}
+
 function RoutineRow({ routine, waiting, selected }) {
+  if (routine.state === "deleted") return <DeletedRow routine={routine} />;
   const { tone, line } = routineStatus(routine, waiting);
   return (
     <li className="eos-side-routine">
