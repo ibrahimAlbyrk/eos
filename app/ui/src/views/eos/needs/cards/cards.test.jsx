@@ -198,6 +198,14 @@ describe("the other cards", () => {
     expect(html).toContain("<li>left-pad@1.3.0</li>");
   });
 
+  it("say which installed version a repair replaces and what the new one adds", async () => {
+    const sample = byKind.capability_install;
+    const replaces = { version: "1.0.0", widens: ["Reaches api.example.com"] };
+    const html = await screen("capability_install", { ...sample, payload: { ...sample.payload, replaces } });
+    expect(html).toContain("Replaces version 1.0.0, which you installed. New in this version:");
+    expect(html).toContain("<li>Reaches api.example.com</li>");
+  });
+
   it("offer Repair through the Forge and the version before for a broken capability", async () => {
     const sample = byKind.capability_attention;
     const broken = {

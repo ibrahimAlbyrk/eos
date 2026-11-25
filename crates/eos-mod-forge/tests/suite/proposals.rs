@@ -39,6 +39,11 @@ fn live_of(extra: &str) -> &'static str {
 
 /// The builder's report, Eos's tests, the reviewer's pass and the proposal.
 async fn through_review(rig: &Rig, run: &str, version: &str) -> StepResult {
+    through_review_of(rig, run, version, None).await
+}
+
+/// `through_review` of a run that repairs `repair`, when one is named.
+async fn through_review_of(rig: &Rig, run: &str, version: &str, repair: Option<&str>) -> StepResult {
     let (builder, reviewer) = (format!("w-build-{run}"), format!("w-review-{run}"));
     rig.session_of(run, &builder, "forge-builder");
     rig.session_of(run, &reviewer, "forge-reviewer");
@@ -47,7 +52,7 @@ async fn through_review(rig: &Rig, run: &str, version: &str) -> StepResult {
     let tested = rig.step(run, TEST_STEP).await;
     assert!(matches!(tested, StepResult::Done(_)), "{tested:?}");
     rig.forge.report(&reviewer, ForgeStage::Review, json!({"verdict": "pass", "findings": []})).await.expect("passed");
-    rig.step(run, PROPOSE_STEP).await
+    rig.step_of(run, PROPOSE_STEP, repair).await
 }
 
 async fn answer(rig: &Rig, run: &str, choice: &str) -> (u16, Value) {
@@ -181,13 +186,47 @@ async fn a_new_version_whose_health_fails_goes_back_to_the_one_before_and_the_us
     rig.secrets.write("echo-script", "token", "tok_for_the_check_4".to_owned().into()).await.expect("kept");
 
     package(&rig, "rn-2", "1.1.0", "health = { action = \"echo\" }\n");
-    assert!(matches!(through_review(&rig, "rn-2", "1.1.0").await, StepResult::Done(_)));
+    assert!(matches!(through_review_of(&rig, "rn-2", "1.1.0", Some("echo-script")).await, StepResult::Done(_)));
     assert_eq!(answer(&rig, "rn-2", "install").await.0, 200);
     let after = rig.service.get("echo-script").await.expect("read").expect("there");
     assert_eq!(after.version.as_deref(), Some("1.0.0"), "back to the version before");
     let notice = "SELECT COUNT(*) FROM inbox_items WHERE kind = 'notice' AND producer = 'forge' \
                   AND title LIKE '%went back to version 1.0.0'";
     assert_eq!(rig.temp.count(notice), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_package_takes_an_installed_capabilitys_id_only_as_its_repair_and_never_its_stored_secret_before_install() {
+    let rig = Rig::ready().await;
+    package(&rig, "rn-1", "1.0.0", "");
+    assert!(matches!(through_review(&rig, "rn-1", "1.0.0").await, StepResult::Done(_)));
+    assert_eq!(answer(&rig, "rn-1", "install").await.0, 200);
+    rig.secrets.write("echo-script", "token", "tok_installed_one_1".to_owned().into()).await.expect("kept");
+
+    package(&rig, "rn-2", "2.0.0", "#live\n");
+    let manifest = rig.folder("rn-2").join("package/capability.toml");
+    let text = std::fs::read_to_string(&manifest).expect("read").replace("hosts = []", "hosts = [\"api.example.com\"]");
+    std::fs::write(&manifest, text).expect("written");
+    let refused = through_review(&rig, "rn-2", "2.0.0").await;
+    assert!(
+        matches!(&refused, StepResult::Failed { reason } if reason.contains("a capability you have already")),
+        "{refused:?}"
+    );
+    let proposed = rig.step_of("rn-2", PROPOSE_STEP, Some("echo-script")).await;
+    assert!(matches!(proposed, StepResult::Done(_)), "{proposed:?}");
+    let (_, state) = rig.ask(Method::Get, "/api/forge/proposals/rn-2", None).await;
+    assert_eq!(state["proposal"]["replaces"], json!({"version": "1.0.0", "widens": ["Reaches api.example.com"]}));
+
+    let audits = rig.confinement.specs().len();
+    rig.prompt.answer(Some("tok_typed_for_two_2"));
+    let (status, _) = rig.ask(Method::Post, "/api/forge/proposals/rn-2/live-test", Some("{}")).await;
+    assert_eq!(status, 200);
+    assert_eq!(rig.prompt.asked().len(), 1, "a repair asks its secret again");
+    let env = &rig.confinement.specs()[audits].env;
+    assert!(env.iter().any(|(_, value)| value == "tok_typed_for_two_2"), "the live call has the typed secret");
+    assert!(!env.iter().any(|(_, value)| value.contains("tok_installed")), "never the installed version's");
+    let kept = rig.secrets.read("echo-script", "token").await.expect("read").expect("kept");
+    assert_eq!(kept.as_str(), "tok_installed_one_1", "nothing overwritten before Install");
 }
 
 /// A way that runs Acme's published server, pinned.

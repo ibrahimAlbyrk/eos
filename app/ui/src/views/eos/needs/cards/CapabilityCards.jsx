@@ -25,6 +25,7 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
   return (
     <div className="eos-needs-card">
       <p className="eos-needs-card__lead"><strong>{name ?? detail.item.title}</strong>{summary ? ` · ${summary}` : ""}</p>
+      {p.replaces && <ReplacedVersion replaces={p.replaces} />}
       {actions.length > 0 && (
         <ul className="eos-needs-card__list" aria-label="What it can do">
           {actions.map((a) => (
@@ -81,6 +82,24 @@ function PublishedSource({ source }) {
       {dependencies.length > 0 && (
         <ul className="eos-needs-card__list eos-needs-card__class" aria-label="What it installs">
           {dependencies.map((d) => <li key={d}>{d}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// A repair replaces the installed version (06 G9): which one, and what the
+// new one may do that it could not, before the user says yes.
+function ReplacedVersion({ replaces }) {
+  const { version, widens = [] } = replaces;
+  return (
+    <div>
+      <p className="eos-needs-card__lead">
+        Replaces version {version}, which you installed.{widens.length ? " New in this version:" : " It reaches and may do nothing more."}
+      </p>
+      {widens.length > 0 && (
+        <ul className="eos-needs-card__list eos-needs-card__class" aria-label="What it adds">
+          {widens.map((line) => <li key={line}>{line}</li>)}
         </ul>
       )}
     </div>

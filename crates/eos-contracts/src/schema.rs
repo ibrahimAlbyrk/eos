@@ -498,6 +498,7 @@ bundle![
     ProposedRoutine,
     ProposedSource,
     ProposedTests,
+    ProposedUpdate,
     ProviderCapabilities,
     ProviderModel,
     ProviderModels,

@@ -140,7 +140,7 @@ impl Proposals {
         let built = self.proposed_files(run_id, &proposal).await?;
         let manifest = &built.manifest;
         let mut env = given(manifest, &settings)?;
-        env.extend(self.secrets_for(manifest).await?);
+        env.extend(self.secrets_for(manifest, proposal.replaces.is_some()).await?);
         let input = live_input(manifest, &live.action)?;
         self.live_calls.lock().unwrap_or_else(PoisonError::into_inner).insert(run_id.to_owned(), calls + 1);
         let answer = self.steps.trial.live(&built.dir, manifest, input, env, &self.steps.tests_folder()).await;
@@ -154,12 +154,19 @@ impl Proposals {
     }
 
     /// Each secret the package declares, asked in the app's prompt when the
-    /// Keychain has none for it yet.
-    async fn secrets_for(&self, manifest: &Manifest) -> Result<Vec<(String, Zeroizing<String>)>, Error> {
+    /// Keychain has none for it yet. For a version that would replace an
+    /// installed one, every secret is asked again and goes only to this
+    /// call: the installed version's secrets never reach code the user has
+    /// not accepted, and are not overwritten before Install.
+    async fn secrets_for(
+        &self,
+        manifest: &Manifest,
+        replaces: bool,
+    ) -> Result<Vec<(String, Zeroizing<String>)>, Error> {
         let secrets = self.capabilities.secrets();
         let mut env = Vec::new();
         for secret in &manifest.secrets {
-            if !secrets.has(&manifest.id, &secret.name).await? {
+            if replaces || !secrets.has(&manifest.id, &secret.name).await? {
                 let Some(prompt) = &self.prompt else {
                     return Err(Error::Conflict("the secret prompt needs the app's window".into()));
                 };
@@ -171,8 +178,14 @@ impl Proposals {
                 let Some(value) = prompt.ask(ask).await.filter(|value| !value.trim().is_empty()) else {
                     return Err(Error::Conflict(format!("{} was not entered", secret.label)));
                 };
-                secrets.write(&manifest.id, &secret.name, value).await?;
                 tracing::info!(capability = %manifest.id, "a proposed capability's secret was entered");
+                if replaces {
+                    if let Some(variable) = &secret.env {
+                        env.push((variable.clone(), value));
+                    }
+                    continue;
+                }
+                secrets.write(&manifest.id, &secret.name, value).await?;
             }
             if let (Some(variable), Some(value)) = (&secret.env, secrets.read(&manifest.id, &secret.name).await?) {
                 env.push((variable.clone(), value));

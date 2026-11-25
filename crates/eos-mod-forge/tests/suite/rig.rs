@@ -204,7 +204,16 @@ impl Rig {
 
     /// Runs the system step `step` of `run`, as the routines would.
     pub(crate) async fn step(&self, run: &str, step: &str) -> StepResult {
-        let input: RunInput = serde_json::from_str(r#"{"note":"Send me a text","result":"usual"}"#).expect("input");
+        self.step_of(run, step, None).await
+    }
+
+    /// Runs the system step `step` of `run`, a repair of `repair` when one
+    /// is named.
+    pub(crate) async fn step_of(&self, run: &str, step: &str, repair: Option<&str>) -> StepResult {
+        let mut input: RunInput = serde_json::from_str(r#"{"note":"Send me a text","result":"usual"}"#).expect("input");
+        if let Some(id) = repair {
+            input.options.insert("capability".into(), serde_json::Value::String(id.into()));
+        }
         let call = SystemStepCall {
             step: step.into(),
             run_id: run.into(),
