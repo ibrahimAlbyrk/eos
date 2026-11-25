@@ -19,7 +19,7 @@ export function costLine(routine, bp) {
 // A finding of the blueprint's rules: where, and what is wrong.
 export const issueLine = (issue) => (issue.path?.length ? `${issue.path.join(" › ")}: ${issue.message}` : issue.message);
 
-const AUTHORS = { user: "you", restore: "you", once: "you", architect: "by talking", eos: "suggested", sync: "from another Mac" };
+const AUTHORS = { user: "you", restore: "you", once: "you", architect: "by talking", eos: "suggested", sync: "from another Mac", import: "from a file" };
 
 export const authorWord = (author) => AUTHORS[author] ?? author;
 

@@ -2,12 +2,14 @@
 //! it (its versions and settings, no runs), the same file a final delete
 //! leaves in the trash with its runs beside; `POST /api/routines/import`
 //! makes a draft routine of such a file, from the version it ran from.
-//! Nothing of the routine's recipients is confirmed by an import: the user
-//! confirms them again before anything goes out.
+//! Nothing a file says widens what the routine may do here (L14): it starts
+//! at the Draft rung with no grants, and its version is the file's, not the
+//! user's, so its Goes to is confirmed again on this computer before
+//! anything goes out.
 
 use std::sync::Arc;
 
-use eos_contracts::VersionStatus;
+use eos_contracts::{VersionAuthor, VersionStatus};
 use eos_core::Error;
 use eos_core::store::Tx;
 use eos_runtime::access::Access;
@@ -43,8 +45,8 @@ pub(crate) fn export_of(tx: &dyn Tx, routine_id: &str) -> Result<Value, Error> {
     }))
 }
 
-/// The blueprint a file's routine ran from: its head, else its newest kept
-/// version, else its newest.
+/// The blueprint a file's routine ran from (its head, else its newest kept
+/// version, else its newest), holding every result for the user.
 fn blueprint_of(file: &Value) -> Result<Value, ApiError> {
     if file["format"].as_i64() != Some(FORMAT) {
         return Err(ApiError::Validation("not a routine file this Eos can read".into()));
@@ -58,7 +60,14 @@ fn blueprint_of(file: &Value) -> Result<Value, ApiError> {
         .find(|version| head.is_some() && version["id"].as_str() == head)
         .or_else(|| versions.iter().rev().find(|version| version["status"] == kept))
         .or_else(|| versions.last());
-    chosen.map(|version| version["blueprint"].clone()).ok_or_else(|| ApiError::Validation("no version".into()))
+    let mut blueprint =
+        chosen.map(|version| version["blueprint"].clone()).ok_or_else(|| ApiError::Validation("no version".into()))?;
+    let held = json!({"rung": "draft", "grants": []});
+    blueprint
+        .as_object_mut()
+        .ok_or_else(|| ApiError::Validation("the version holds no blueprint".into()))?
+        .insert("freedom".to_owned(), held);
+    Ok(blueprint)
 }
 
 pub(super) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
@@ -88,7 +97,7 @@ pub(super) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
             let file: Value = req.parse()?;
             let blueprint = blueprint_of(&file)?;
             let note = Some("Imported from a file".to_owned());
-            Ok(match engine::create(&engine, blueprint, note, IMPORT).await? {
+            Ok(match engine::create(&engine, blueprint, note, IMPORT, VersionAuthor::Import).await? {
                 Saved::Done(saved) => Response::json(201, &saved),
                 Saved::Refused(issues) => Response::json(
                     400,

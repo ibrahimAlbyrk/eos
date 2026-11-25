@@ -1,8 +1,9 @@
 //! The injection suite (03 §10, NY-23) where results go out on their own: a repeat run of an
 //! item the user confirmed beside a live run of it sends once to a fixed recipient (D55); a
 //! hostile mail adds no recipient and makes Eos send to no one outside Goes to; a grant or bound
-//! that rests on what a mail's sender writes is refused (D63); and an undo of an automatic send
-//! steps the routine down, so the next clean result waits for the user.
+//! that rests on what a mail's sender writes is refused (D63); an undo of an automatic send
+//! steps the routine down, so the next clean result waits for the user; and a routine imported
+//! from a file earns no freedom and reaches no one until the user confirms it here (L14).
 
 use std::time::Duration;
 
@@ -249,5 +250,65 @@ async fn a_planted_sender_can_never_earn_a_routine_freedom() {
     assert_eq!(paths, ["freedom.grants.0.when", "goesTo.0.bound"]);
     let (_, listed) = rig::call(&app, Method::Get, "/api/routines", None).await;
     assert!(!listed.to_string().contains("Mail replies"), "nothing was made: {listed}");
+    app.shutdown(Duration::from_secs(5)).await;
+}
+
+/// A routine file someone else wrote: on its own, with a grant, to the boss.
+fn routine_file() -> Value {
+    let mut blueprint = mail_blueprint();
+    blueprint["freedom"] = json!({"rung": "on_its_own", "grants": [{"id": "all", "when": {"fact": "draft", "is": false}, "rung": "on_its_own"}]});
+    json!({"format": 1, "routine": {"id": "rt-x", "name": "Mail replies", "kind": "standing", "headVersionId": "rv-x"},
+           "versions": [{"id": "rv-x", "status": "kept", "author": "user", "blueprint": blueprint}]})
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_imported_routine_holds_its_results_and_sends_nowhere_until_its_goes_to_is_confirmed_here() {
+    let (home, agents, fakes) = (TempHome::new(), working_agents(), Fakes::new());
+    let app = app(&fakes, &home, &agents);
+    app.start().await.expect("starts");
+    let (status, saved) = rig::call(&app, Method::Post, "/api/routines/import", Some(routine_file())).await;
+    assert_eq!(status, 201, "{saved}");
+    let routine = saved["row"]["id"].as_str().expect("an id").to_owned();
+    let start_path = format!("/api/routines/{routine}/start");
+    let (status, row) = rig::call(&app, Method::Post, &start_path, Some(json!({"withoutTrial": true}))).await;
+    assert_eq!(status, 200, "{row}");
+    let (_, detail) = rig::call(&app, Method::Get, &format!("/api/routines/{routine}"), None).await;
+    assert_eq!(
+        detail["head"]["blueprint"]["freedom"],
+        json!({"rung": "draft", "grants": []}),
+        "whatever the file said"
+    );
+    assert_eq!(detail["head"]["author"], "import");
+
+    // Started as it came, the routine's Goes to is the file's, not the user's: its result is
+    // turned back at the check and nothing goes out.
+    let first = start(&app, &routine, mail_item("Is the invoice paid?"), false, "c-1").await;
+    let first_lead = lead(&app, &agents, &first).await;
+    let result = json!({"kind": "mail", "headline": "Review", "body": reply("Yes, it is paid.")});
+    let handed = call_tool(&app, &agents, &first_lead, "submit_result", result).await;
+    assert!(!handed.is_error, "{}", handed.text);
+    eventually("the check turns the result back for a recipient the user has not confirmed", || async {
+        let id = first.clone();
+        let results = app.store().read(move |tx| tx.run_results().by_run(&id)).await.expect("reads");
+        results.iter().filter_map(|r| r.verdict.as_deref()).any(|v| v.contains("the user has not confirmed"))
+    })
+    .await;
+    assert!(fakes.channels.sent().is_empty(), "nothing was sent");
+    assert!(items_of(&app, &first).await.is_empty(), "nothing waits to be sent either");
+
+    // The user keeps the blueprint on this Mac: its Goes to is confirmed, its results still wait.
+    let (_, detail) = rig::call(&app, Method::Get, &format!("/api/routines/{routine}"), None).await;
+    let keep = json!({"baseVersionId": detail["head"]["id"], "blueprint": detail["head"]["blueprint"]});
+    let (status, kept) = rig::call(&app, Method::Put, &format!("/api/routines/{routine}/blueprint"), Some(keep)).await;
+    assert_eq!(status, 200, "{kept}");
+    let mut item = mail_item("And the next one?");
+    item["key"] = json!("mail:<m-2@acme.dev>");
+    let next = start(&app, &routine, item, false, "c-2").await;
+    let next_lead = lead(&app, &agents, &next).await;
+    hand_in(&app, &agents, &next_lead, reply("Paid as well."), 0).await;
+    eventually("the reply waits for the user", || async { !items_of(&app, &next).await.is_empty() }).await;
+    assert_eq!(items_of(&app, &next).await[0]["kind"], "draft");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(fakes.channels.sent().is_empty(), "a file never earns a send on its own");
     app.shutdown(Duration::from_secs(5)).await;
 }
