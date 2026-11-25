@@ -36,6 +36,20 @@ function withPlainDecision(s) {
   return { ...withDecision(s), [issue]: { issue: decision.issue, body: { ...body, untrusted: true } } };
 }
 
+// Mail Triage's View answered, and Eos asking before it goes: on a click, or,
+// for what cannot be taken back, once the user types the routine's name.
+const pressButton = (text) => [...document.querySelectorAll(".eos-body button")].find((b) => b.textContent.trim().startsWith(text))?.click();
+const eosAsks = (asked) => ({
+  reads: withDecision,
+  sends: async (method, path) => (path === ROUTES.actionsRun
+    ? { ok: true, status: 202, body: { status: "confirm", recordId: "da-1", token: "t-1", ...asked } }
+    : { ok: false, status: 403, body: { error: "sample data" } }),
+  then: () => {
+    pressButton("Through your iPhone");
+    setTimeout(() => pressButton("Confirm"), 200);
+  },
+});
+
 // Docs Review, being made, at each point of its making: the architect writing
 // its first blueprint, and the blueprint ready after a trial on two items.
 const DOCS = routineDraft.routine.id;
@@ -183,6 +197,8 @@ export const GALLERY_STATES = [
   { id: "need-offline", label: "Needs you · a draft, reconnecting", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}`, answer: "offline" },
   { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
   { id: "need-view-plain", label: "Needs you · a View with no facts or aside, from outside text", location: `eos:/needs/${decision.item.id}`, reads: withPlainDecision },
+  { id: "need-view-confirm", label: "Needs you · a View answered, Eos asks first", location: `eos:/needs/${decision.item.id}`, ...eosAsks({ prompt: "Eos will text your own number through your iPhone, at most five times a day. Go ahead?" }) },
+  { id: "need-view-type", label: "Needs you · a View answered, Eos asks for the routine's name", location: `eos:/needs/${decision.item.id}`, ...eosAsks({ prompt: "This lets Mail Triage text you from now on and cannot be taken back from here.", typeToConfirm: "Mail Triage" }) },
   ...NEEDS_STATES,
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "link-unknown", label: "A link names no routine", location: "eos:/form?routine=release-train&item=v2.4&from=link" },

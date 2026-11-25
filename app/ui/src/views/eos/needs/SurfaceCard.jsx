@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ViewSurface } from "../../../genui/ViewBlock.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { OptionFacts } from "../../../genui/runtime/optionFacts.js";
@@ -21,6 +21,11 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
   const offer = onSubmitOffer ?? setOwnSubmit;
   const [asking, setAsking] = useState(null);
   const [typed, setTyped] = useState("");
+  // The form's own offer, held back while Eos asks: its ask is then the one
+  // way on, and the form's send must not stand beside it saying Sent.
+  const [formOffer, setFormOffer] = useState(null);
+  useEffect(() => offer(formOffer && asking ? { ...formOffer, phase: "asking", ready: false } : formOffer), [offer, formOffer, asking]);
+  useEffect(() => () => offer(null), [offer]);
   const ask = useCallback((next) => {
     setTyped("");
     setAsking(next);
@@ -47,7 +52,7 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
   const frame = (
     <EosFrame maker={routineName} level="view" below={below} outside={body.untrusted === true}>
       <GenuiHostContext.Provider value={host}>
-        <SubmitOutside.Provider value={offer}>
+        <SubmitOutside.Provider value={setFormOffer}>
           <OptionFacts.Provider value={factsOf}>
             <ViewSurface viewId={issue.id} spec={body.view} ts={issue.createdAt} variant="panel" />
           </OptionFacts.Provider>
@@ -84,8 +89,9 @@ export function ViewAside({ notes }) {
 }
 
 // A View's form send, drawn by Eos outside the frame: its label, Sent once it
-// went, and why it did not.
+// went, and why it did not. While Eos asks below the frame it draws nothing.
 export function ViewSubmit({ offer, shortcut, disabled = false }) {
+  if (offer.phase === "asking") return null;
   return (
     <>
       <button type="button" className="eos-btn eos-btn--primary" disabled={disabled || !offer.ready || offer.phase === "sending"} onClick={offer.submit}>
@@ -103,26 +109,37 @@ export function typedRight(typeToConfirm, typed) {
   return !typeToConfirm || typed.trim().toLowerCase() === typeToConfirm.trim().toLowerCase();
 }
 
-// Eos's own question below the frame. For what cannot be taken back the
-// user types its name before Confirm goes.
+// Eos's own question below the frame: who asks, what it asks, and for what
+// cannot be taken back the name the user types before Confirm goes. Cancel
+// comes first, as in every ask of Eos's, and takes the focus when there is
+// nothing to type, so Enter never confirms by accident.
 export function ConfirmBelow({ asking, typed, onType, onConfirm, onCancel }) {
   const name = asking.typeToConfirm;
   return (
     <div className="eos-frame__ask" role="alertdialog" aria-label="Eos asks first">
+      <p className="eos-label eos-frame__ask-label">Eos asks first</p>
       <p className="eos-frame__ask-text">{asking.prompt}</p>
-      {name && (
-        <input
-          className="eos-input"
-          aria-label={`Type ${name} to go ahead`}
-          placeholder={name}
-          value={typed}
-          onChange={(e) => onType(e.target.value)}
-        />
-      )}
-      <span className="eos-actions">
-        <button type="button" className="eos-btn eos-btn--primary" disabled={!typedRight(name, typed)} onClick={onConfirm}>Confirm</button>
-        <button type="button" className="eos-btn" onClick={onCancel}>Cancel</button>
-      </span>
+      <div className="eos-frame__ask-foot">
+        {name && (
+          <label className="eos-frame__ask-type">
+            <span className="eos-frame__ask-hint">Type <b>{name}</b> to go ahead</span>
+            <input
+              className="eos-bp-input"
+              aria-label={`Type ${name} to go ahead`}
+              placeholder={name}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              value={typed}
+              onChange={(e) => onType(e.target.value)}
+            />
+          </label>
+        )}
+        <span className="eos-actions eos-frame__ask-acts">
+          <button type="button" className="eos-btn eos-btn--quiet" autoFocus={!name} onClick={onCancel}>Cancel</button>
+          <button type="button" className="eos-btn eos-btn--primary" disabled={!typedRight(name, typed)} onClick={onConfirm}>Confirm</button>
+        </span>
+      </div>
     </div>
   );
 }

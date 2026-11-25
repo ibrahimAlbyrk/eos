@@ -82,6 +82,8 @@ describe("a routine's View in Needs you", () => {
     expect(below("")).toContain('aria-label="Type Erase to go ahead"');
     expect(below("")).toMatch(/<button[^>]*disabled=""[^>]*>Confirm<\/button>/);
     expect(below(" erase ")).not.toMatch(/disabled=""/);
+    expect(below("")).toMatch(/>Cancel<\/button><button[^>]*>Confirm<\/button>/);
+    expect(below("")).toContain("Type <b>Erase</b> to go ahead");
     expect(typedRight(undefined, "")).toBe(true);
     expect(renderToStaticMarkup(
       <ConfirmBelow asking={{ prompt: "Run it again?" }} typed="" onType={() => {}} onConfirm={() => {}} onCancel={() => {}} />,
@@ -139,6 +141,7 @@ describe("a View's form send", () => {
     expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "sent" }} />)).toContain(">Sent</button>");
     expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "sending" }} />)).toContain("disabled");
     expect(renderToStaticMarkup(<ViewSubmit offer={ready} disabled />)).toContain("disabled");
+    expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "asking", ready: false }} />)).toBe("");
     expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "error", reason: "Couldn't send" }} />)).toContain('<span class="eos-frame__send-error" role="alert">Couldn&#x27;t send</span>');
   });
 });
