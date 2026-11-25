@@ -7,6 +7,7 @@ import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { resultWord } from "../run/words.js";
 import { refusalText } from "../runform/RunForm.jsx";
 import { valueWord } from "../runform/OptionControl.jsx";
+import { AskRows, Dialog } from "../frame.jsx";
 
 // What an `eos:/form` location fills the form with. It came from outside Eos
 // (a link, another app), so its item is never taken for the user's words.
@@ -65,46 +66,38 @@ export function LinkDialog({ location, routine }) {
     setRefused(answer.repeat ? `${routine.name} handled this item lately. Open it from the routine's runs.` : refusalText(answer));
   };
   const title = routine ? `Run ${routine.name}${input.item ? ` on ${input.item.title}` : ""}?` : "This link names no routine here.";
+  const rows = routine && [
+    ["Routine", routine.name],
+    ...(input.item ? [["Item", input.item.title]] : []),
+    ...(input.note ? [["Note", input.note]] : []),
+    ...Object.entries(input.options).map(([key, value]) => [optionLabel(routine, key), typeof value === "boolean" ? (value ? "Yes" : "No") : valueWord(value)]),
+    ...(input.at !== undefined ? [["When", new Date(input.at).toLocaleString()]] : []),
+    ["Result", resultWord(input.result)],
+  ];
   return (
-    <div className="eos-runsheet eos-runsheet--centre" onMouseDown={(e) => { if (e.target === e.currentTarget) home(); }}>
-      <div
-        className="eos-runsheet__panel eos-linkdialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="A link wants to start a run"
-        onKeyDown={(e) => { if (e.key === "Escape") home(); }}
-      >
-        <p className="eos-linkdialog__from">
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1.2-1.2a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5l-1.2 1.2a2.5 2.5 0 0 1-3.5-3.5L5.5 8" /></svg>
-          A link wants to start a run
-        </p>
-        <h2 className="eos-linkdialog__title">{title}</h2>
-        <p className="eos-linkdialog__line">
-          {routine ? "A link never starts anything by itself. Look at what it sets, then run it or let it go." : `There is no routine named ${location.routine}. Nothing was started.`}
-        </p>
-        <div className="eos-linkdialog__link">{linkText(location)}</div>
-        {routine && (
-          <dl className="eos-linkdialog__rows">
-            <div><dt>Routine</dt><dd>{routine.name}</dd></div>
-            {input.item && <div><dt>Item</dt><dd>{input.item.title}</dd></div>}
-            {input.note && <div><dt>Note</dt><dd>{input.note}</dd></div>}
-            {Object.entries(input.options).map(([key, value]) => (
-              <div key={key}><dt>{optionLabel(routine, key)}</dt><dd>{typeof value === "boolean" ? (value ? "Yes" : "No") : valueWord(value)}</dd></div>
-            ))}
-            {input.at !== undefined && <div><dt>When</dt><dd>{new Date(input.at).toLocaleString()}</dd></div>}
-            <div><dt>Result</dt><dd>{resultWord(input.result)}</dd></div>
-          </dl>
-        )}
-        {refused && <p className="eos-note eos-runform__problem" role="alert">{refused}</p>}
-        <div className="eos-linkdialog__acts">
+    <Dialog
+      id="eos-link"
+      from="A link wants to start a run"
+      icon={LINK}
+      title={title}
+      line={routine ? "A link never starts anything by itself. Look at what it sets, then run it or let it go." : `There is no routine named ${location.routine}. Nothing was started.`}
+      onClose={home}
+      actions={(
+        <>
           {/* Cancel takes the focus first: a link never runs on a stray Enter. */}
           <button type="button" className="eos-btn eos-btn--ghost" autoFocus onClick={home}>{routine ? "Cancel" : "Close"}</button>
           {routine && <button type="button" className="eos-btn eos-btn--primary" disabled={starting} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    >
+      <div className="eos-linkdialog__link">{linkText(location)}</div>
+      {rows && <AskRows rows={rows} />}
+      {refused && <p className="eos-ask__wrong" role="alert">{refused}</p>}
+    </Dialog>
   );
 }
+
+const LINK = "M6.5 9.5l3-3M7 4.5l1.2-1.2a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5l-1.2 1.2a2.5 2.5 0 0 1-3.5-3.5L5.5 8";
 
 // An `eos:/form` location over Home: a link asks first in its dialog; any
 // other opens the run sheet filled, centred, as Home's own door: "form" is
