@@ -1,13 +1,23 @@
 /* ── What starts a routine, and what it did with what came ───────────────── */
 .eos-triggers, .eos-signals { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.eos-trigger, .eos-signal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; font-size: var(--text-sm); }
 .eos-trigger + .eos-trigger, .eos-signal + .eos-signal { border-top: 1px solid var(--line); }
-.eos-trigger__name, .eos-signal__title { flex: 1 1 100%; min-width: 0; color: var(--fg-strong); overflow-wrap: anywhere; }
-.eos-trigger__facts, .eos-signal__line { color: var(--fg-dim); }
-.eos-trigger__state { color: var(--fg-mid); }
+/* A trigger: its mark at the head, then what it is, its state with a dot in
+   its tone, and its times, each on its own line. */
+.eos-trigger { display: grid; grid-template-columns: 16px minmax(0, 1fr); column-gap: 12px; row-gap: 4px; align-items: baseline; padding: 14px 0; font-size: var(--text-sm); }
+.eos-trigger > :not(.eos-trigger__icon) { grid-column: 2; }
+.eos-trigger__icon { grid-column: 1; grid-row: 1; align-self: start; margin-top: 1px; fill: none; stroke: var(--fg-dim2); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.eos-trigger__name { min-width: 0; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-trigger__facts { font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
+.eos-trigger__state { display: inline-flex; align-items: center; gap: 7px; color: var(--fg-mid); }
+.eos-trigger__state::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-dim2); }
+.eos-trigger__state--ok::before { background: var(--ok); }
 .eos-trigger__state--warn { color: var(--warn); }
+.eos-trigger__state--warn::before { background: var(--warn); }
 .eos-trigger__refused { color: var(--warn); }
-.eos-trigger__hint { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 0; color: var(--fg-mid); }
+.eos-trigger__hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 0; color: var(--fg-dim); font-size: var(--text-xs); }
+.eos-signal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; font-size: var(--text-sm); }
+.eos-signal__title { flex: 1 1 100%; min-width: 0; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-signal__line { color: var(--fg-dim); }
 .eos-signal__decision { color: var(--fg-mid); }
 .eos-signal__replay { color: var(--fg-dim); }
 .eos-bp-preview { margin: 4px 0 0; font-size: var(--text-xs); color: var(--fg-dim); }

@@ -1,3 +1,4 @@
+import { EmptyState } from "../frame.jsx";
 import { BlueprintEditor } from "../blueprint/BlueprintEditor.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { RightNow } from "./RightNow.jsx";
@@ -38,14 +39,17 @@ export function RoutineTabs({ routineId, tab }) {
 }
 
 // Getting better: the share of this week's results sent without an edit,
-// against the first week and the weeks between. Only when the routine's row
-// carries its stats.
-function GettingBetter({ stats }) {
-  if (stats?.sentUnedited7d == null) return null;
-  const pct = (share) => `${Math.round(share * 100)}%`;
-  // A week the user judged nothing in keeps its place as a bare line.
-  const bar = (share) => (share == null ? "0%" : pct(Math.max(share, 0.04)));
+// against the first week and the weeks between, drawn as a line of weekly
+// marks as Home draws the day: the first and the weeks between dim, this
+// week lit. A week the user judged nothing in keeps its place as a hollow
+// mark on the floor. Only when the routine's row carries its stats.
+const pct = (share) => `${Math.round(share * 100)}%`;
+// Shares sit between 12% and 88% of the plot's height so marks never touch its edges.
+const heightOf = (share) => Math.round((12 + share * 76) * 100) / 100;
+
+function BetterPlot({ stats }) {
   const between = stats.weeksBetween ?? [];
+  const weeks = [stats.baselineFirstWeek, ...between, stats.sentUnedited7d];
   const said = [
     `First week ${pct(stats.baselineFirstWeek)}`,
     ...between.map((share, i) => {
@@ -54,18 +58,34 @@ function GettingBetter({ stats }) {
     }),
     `this week ${pct(stats.sentUnedited7d)}`,
   ];
+  const at = (i) => (weeks.length === 1 ? 50 : (i / (weeks.length - 1)) * 100);
+  const points = weeks.map((share, i) => (share == null ? null : `${at(i)},${Math.round((100 - heightOf(share)) * 100) / 100}`)).filter(Boolean).join(" ");
+  return (
+    <div className="eos-better__plot" role="img" aria-label={said.join(", ")}>
+      <div className="eos-better__field">
+        <svg className="eos-better__path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={points} vectorEffect="non-scaling-stroke" />
+        </svg>
+        {weeks.map((share, i) => (
+          <span
+            key={i}
+            className={["eos-better__week", share == null && "eos-better__week--none", i === weeks.length - 1 && "eos-better__week--now"].filter(Boolean).join(" ")}
+            style={{ left: `${at(i)}%`, bottom: `${share == null ? 0 : heightOf(share)}%` }}
+          />
+        ))}
+      </div>
+      <span className="eos-better__axis" aria-hidden="true"><span>first week, {pct(stats.baselineFirstWeek)}</span><span>this week</span></span>
+    </div>
+  );
+}
+
+function GettingBetter({ stats }) {
+  if (stats?.sentUnedited7d == null) return null;
   return (
     <section className="eos-routine__section eos-routine__better" aria-label="Getting better">
       <h2 className="eos-label">Getting better</h2>
       <p className="eos-better__share"><span className="eos-better__pct">{pct(stats.sentUnedited7d)}</span> sent without a single edit this week</p>
-      {stats.baselineFirstWeek != null && (
-        <div className="eos-better__bars" role="img" aria-label={said.join(", ")} style={{ gridTemplateColumns: `repeat(${between.length + 2}, 1fr)` }}>
-          <span className="eos-better__bar" style={{ height: bar(stats.baselineFirstWeek) }} />
-          {between.map((share, i) => <span key={i} className="eos-better__bar" style={{ height: bar(share) }} />)}
-          <span className="eos-better__bar eos-better__bar--now" style={{ height: bar(stats.sentUnedited7d) }} />
-          <span className="eos-better__axis" aria-hidden="true"><span>first week, {pct(stats.baselineFirstWeek)}</span><span>this week</span></span>
-        </div>
-      )}
+      {stats.baselineFirstWeek != null && <BetterPlot stats={stats} />}
     </section>
   );
 }
@@ -78,7 +98,7 @@ export function OverviewTab({ detail, now }) {
         <section className="eos-routine__section" aria-label="Recent runs">
           <h2 className="eos-label">Recent runs</h2>
           {detail.runs.length === 0 ? (
-            <p className="eos-note">No runs yet.</p>
+            <EmptyState title="No runs yet.">Each run shows here with what it was about, how it went and what it cost.</EmptyState>
           ) : (
             <ul className="eos-runs eos-runs--flat">{detail.runs.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
           )}

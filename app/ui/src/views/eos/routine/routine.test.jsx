@@ -12,7 +12,7 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
 import { fileName, menuActions } from "./RoutineMenu.jsx";
 import { RunRow, splitItemNumber } from "./RoutineRuns.jsx";
-import { pausedLine } from "./words.js";
+import { nowLine, pausedLine } from "./words.js";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
 import routinePaused from "../gallery/sample/routine-paused.json";
@@ -107,11 +107,32 @@ describe("the routine page", () => {
     expect(html).not.toContain("Runs when you start it");
   });
 
-  it("shows Overview first: nothing running, the recent runs, and no Getting better without stats", async () => {
+  it("leads with its kind and freedom, what it does and where it stands, and the beat of its runs to the next", async () => {
     const html = await page(`eos:/routines/${PR}`);
+    expect(html).toContain('<header class="eos-rlead"><p class="eos-label">Standing routine · Draft, I send</p>');
+    expect(html).toContain('<p class="eos-rlead__now">Three things wait for you.</p>');
+    expect(html).toContain('<ol class="eos-beat__line" aria-label="Its runs, oldest first, then the next">');
+    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--done eos-beat__stop--newest"><button type="button" class="eos-beat__mark" aria-label="Fix the login, Done in 3 min" title="Fix the login">');
+    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--ahead">');
+  });
+
+  it("says where it stands in one line: what works, what waits, a failed last run, paused or archived", () => {
+    const routine = { state: "active", lastRun: { state: "done" } };
+    const working = { state: "running", itemTitle: "#470 Rework shop carousel paging" };
+    expect(nowLine({ routine, runs: [working], waiting: 3 })).toEqual({ text: "Working on #470 now; three things wait for you.", tone: null });
+    expect(nowLine({ routine, runs: [{ state: "checking" }], waiting: 1 }).text).toBe("Working on a run now; one thing waits for you.");
+    expect(nowLine({ routine, runs: [], waiting: 0 })).toEqual({ text: "Nothing is running.", tone: null });
+    expect(nowLine({ routine: { state: "active", lastRun: { state: "failed", reason: "crashed" } }, waiting: 2 })).toEqual({ text: "The last run failed. One of its agents crashed.", tone: "err" });
+    expect(nowLine({ routine: { state: "paused", pausedReason: "user" } })).toEqual({ text: "Paused by you.", tone: "warn" });
+    expect(nowLine({ routine: { state: "archived" } }).text).toBe("Archived. Its runs and what it learned stay here.");
+  });
+
+  it("shows Overview first: no Right now with nothing running, the recent runs, and no Getting better without stats", async () => {
+    const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.inbox]: { ...inbox, items: [], counts: { ...inbox.counts, byRoutine: {} } } }));
     expect(tabs(html)).toEqual(["Overview*", "Runs", "Signals", "Blueprint", "Learned"]);
     expect(html).not.toContain("What it learned from you");
-    expect(html).toContain("Nothing is running.");
+    expect(html).toContain('<p class="eos-rlead__now">Nothing is running.</p>');
+    expect(html).not.toContain("Right now");
     expect(html).toContain('<span class="eos-run-row__title">Fix the login</span>');
     expect(html).not.toContain("Getting better");
   });
@@ -168,14 +189,23 @@ describe("the routine page", () => {
       [true, "Unity specialist", "reading CarouselPager.cs"],
       [false, "Allocation specialist", "Waiting"],
     ]);
-    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__bars" role="img" aria-label="First week 40%, this week 86%" style="grid-template-columns:repeat(2, 1fr)">');
+    expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__plot" role="img" aria-label="First week 40%, this week 86%">');
+    expect(html).toContain('<p class="eos-rlead__now">Working on #470 now; three things wait for you.</p>');
+    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--active eos-beat__stop--working eos-beat__stop--newest">');
   });
 
-  it("draws a bar for each week between the first and this one, a week with nothing judged as a bare line", async () => {
+  it("draws a mark for each week between the first and this one, a week with nothing judged hollow on the floor", async () => {
     const stats = { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, null, 0.79], runs7d: 7, cost7d: 2.1, setupUsd: 0.5 };
     const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.routine(PR)]: { ...routineDetail, routine: { ...routineDetail.routine, stats } } }));
-    expect(html).toContain('aria-label="First week 40%, 3 weeks ago 55%, 2 weeks ago none judged, last week 79%, this week 86%" style="grid-template-columns:repeat(5, 1fr)"');
-    expect([...html.matchAll(/class="eos-better__bar[^"]*" style="height:([^"]*)"/g)].map((m) => m[1])).toEqual(["40%", "55%", "0%", "79%", "86%"]);
+    expect(html).toContain('<div class="eos-better__plot" role="img" aria-label="First week 40%, 3 weeks ago 55%, 2 weeks ago none judged, last week 79%, this week 86%">');
+    expect([...html.matchAll(/class="(eos-better__week[^"]*)" style="left:([^;]*);bottom:([^"]*)"/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
+      ["eos-better__week", "0%", "42.4%"],
+      ["eos-better__week", "25%", "53.8%"],
+      ["eos-better__week eos-better__week--none", "50%", "0%"],
+      ["eos-better__week", "75%", "72.04%"],
+      ["eos-better__week eos-better__week--now", "100%", "77.36%"],
+    ]);
+    expect(html).toContain('<polyline points="0,57.6 25,46.2 75,27.96 100,22.64" vector-effect="non-scaling-stroke"></polyline>');
   });
 
   it("lists every run on the Runs tab with a filter by origin, and the blueprint's slots on the Blueprint tab", async () => {
@@ -214,12 +244,12 @@ describe("the routine page", () => {
     expect(tab).not.toContain(">Everything</button>");
   });
 
-  it("bands a paused routine with its reason in words, Resume and its last run", async () => {
+  it("says in its lead why a routine is paused, with Resume and its last run under, and ends its beat at the pause", async () => {
     const html = await page(`eos:/routines/${MAIL}`);
     expect(html).toContain('<span class="eos-status eos-status--warn">Paused</span>');
-    expect(html).toContain('<div class="eos-band eos-band--warn" role="status"><span class="eos-band__text">Paused after three failed runs in a row.</span>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Resume</button>');
-    expect(html).toContain(">Open the last run</button>");
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--warn" role="status">Paused after three failed runs in a row.</p>');
+    expect(html).toContain('<div class="eos-rlead__acts"><button type="button" class="eos-btn eos-btn--primary">Resume</button><button type="button" class="eos-btn eos-btn--quiet">Open the last run</button></div>');
+    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--ahead eos-beat__stop--paused">');
     expect(html).not.toContain(">Pause</button>");
   });
 
@@ -228,12 +258,13 @@ describe("the routine page", () => {
     expect(pausedLine("odd")).toBe("Paused.");
   });
 
-  it("bands a routine whose last run failed with the reason in words", async () => {
+  it("says in its lead that the last run failed, why, and the way to it", async () => {
     const failing = { ...routinePaused, routine: { ...routinePaused.routine, state: "active", pausedReason: undefined } };
     const nothingWaits = { ...inbox, items: [], counts: { ...inbox.counts, byRoutine: {} } };
     const html = await page(`eos:/routines/${MAIL}`, fixtureTransport({ ...reads, [ROUTES.inbox]: nothingWaits, [ROUTES.routine(MAIL)]: failing }));
     expect(html).toContain('<span class="eos-status eos-status--err">Last run failed</span>');
-    expect(html).toContain("The last run failed. A capability it reads with is missing or broken.");
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--err" role="status">The last run failed. A capability it reads with is missing or broken.</p>');
+    expect(html).toContain('<div class="eos-rlead__acts"><button type="button" class="eos-btn">Open the run</button></div>');
   });
 
   it("says when the routine is gone or could not be read", async () => {
