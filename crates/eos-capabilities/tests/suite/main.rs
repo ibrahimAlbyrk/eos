@@ -10,3 +10,4 @@ mod notify;
 mod push;
 mod rig;
 mod slack;
+mod synced;

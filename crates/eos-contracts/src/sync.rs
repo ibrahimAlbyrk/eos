@@ -23,6 +23,8 @@ pub enum SyncDomainName {
     Run,
     /// Surfaces' kept designs and saved state.
     Surface,
+    /// Capabilities' definitions: manifest, package and settings, never a secret.
+    Capability,
 }
 
 impl Validate for SyncDomainName {}

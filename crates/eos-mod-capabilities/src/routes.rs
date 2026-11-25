@@ -224,6 +224,15 @@ pub(crate) fn all(
         }
     });
     let p = parts.clone();
+    let install_here = RouteDef::post("/api/capabilities/{id}/install-here", move |req: Request| {
+        let p = p.clone();
+        async move {
+            let id = id_of(&req);
+            p.service.install_here(&id).await?;
+            Ok(Response::json(200, &row_of(&p.service, &p.store, &id).await?))
+        }
+    });
+    let p = parts.clone();
     let disable = RouteDef::post("/api/capabilities/{id}/disable", move |req: Request| {
         let p = p.clone();
         async move {
@@ -320,5 +329,6 @@ pub(crate) fn all(
         secret_enter.access(here),
         secret_forget.access(here),
         remove.access(here),
+        install_here.access(here),
     ]
 }

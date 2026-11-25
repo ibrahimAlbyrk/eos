@@ -95,6 +95,55 @@ impl CapabilityFiles for FakeCapabilityFiles {
         Box::pin(std::future::ready(installed))
     }
 
+    fn install_files<'a>(
+        &'a self,
+        files: Vec<(String, Vec<u8>)>,
+        id: &'a str,
+        version: &'a str,
+        hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        let dir = self.dir(id, version);
+        let installed = if dir.exists() {
+            Err(Error::Conflict(format!("capability {id} has version {version} already")))
+        } else {
+            files
+                .iter()
+                .try_for_each(|(relative, bytes)| {
+                    let target = dir.join(relative);
+                    fs::create_dir_all(target.parent().unwrap_or(&dir))?;
+                    fs::write(target, bytes)
+                })
+                .map_err(Error::storage)
+                .map(|()| {
+                    locked(&self.hashes).insert(key(id, version), hash.to_owned());
+                })
+        };
+        Box::pin(std::future::ready(installed))
+    }
+
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>> {
+        fn read(dir: &Path, prefix: &str, out: &mut Vec<(String, Vec<u8>)>) -> std::io::Result<()> {
+            for entry in fs::read_dir(dir)? {
+                let entry = entry?;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let relative = if prefix.is_empty() { name } else { format!("{prefix}/{name}") };
+                if entry.file_type()?.is_dir() {
+                    read(&entry.path(), &relative, out)?;
+                } else {
+                    out.push((relative, fs::read(entry.path())?));
+                }
+            }
+            Ok(())
+        }
+        let files = self.installed(id, version).and_then(|dir| {
+            let mut out = Vec::new();
+            read(&dir, "", &mut out).map_err(Error::storage)?;
+            out.sort();
+            Ok(out)
+        });
+        Box::pin(std::future::ready(files))
+    }
+
     fn remove<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(async move {
             let dir = self.installed(id, version)?;

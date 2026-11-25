@@ -129,6 +129,12 @@ export async function setCapabilityEnabled(id, enabled) {
   if (row) putRow(row);
 }
 
+// Installs here a capability that arrived from another Mac: it checks its secrets on this one.
+export async function installCapabilityHere(id) {
+  const row = await write("POST", ROUTES.capabilityInstallHere(id), {});
+  if (row) putRow(row);
+}
+
 export async function rollbackCapability(id, version) {
   const row = await write("POST", ROUTES.capabilityRollback(id), { version });
   if (row) putRow(row);

@@ -71,10 +71,7 @@ fn walk(dir: &Path) -> Result<Vec<(String, PathBuf)>, Error> {
 }
 
 fn hash_dir(dir: &Path) -> Result<String, Error> {
-    let mut files = Vec::new();
-    for (relative, path) in walk(dir)? {
-        files.push((relative, fs::read(&path).map_err(io(&path))?));
-    }
+    let files = read_all(dir)?;
     let files: Vec<(&str, &[u8])> =
         files.iter().map(|(relative, bytes)| (relative.as_str(), bytes.as_slice())).collect();
     Ok(package_hash(&files))
@@ -111,10 +108,7 @@ fn copy_in(from: &Path, to: &Path) -> Result<(), Error> {
         bytes += fs::metadata(path).map_err(io(path))?.len();
     }
     if bytes > PACKAGE_MAX_BYTES {
-        return Err(Error::LimitExceeded(format!(
-            "a capability package is at most {} MiB",
-            PACKAGE_MAX_BYTES / 1024 / 1024
-        )));
+        return Err(too_big());
     }
     fs::create_dir_all(to).map_err(io(to))?;
     for (relative, path) in files {
@@ -125,6 +119,37 @@ fn copy_in(from: &Path, to: &Path) -> Result<(), Error> {
         fs::copy(&path, &target).map_err(io(&path))?;
     }
     Ok(())
+}
+
+fn too_big() -> Error {
+    Error::LimitExceeded(format!("a capability package is at most {} MiB", PACKAGE_MAX_BYTES / 1024 / 1024))
+}
+
+/// Writes `files` into the new folder `to`; a path that would leave it is refused.
+fn write_in(files: &[(String, Vec<u8>)], to: &Path) -> Result<(), Error> {
+    if files.iter().map(|(_, bytes)| bytes.len() as u64).sum::<u64>() > PACKAGE_MAX_BYTES {
+        return Err(too_big());
+    }
+    fs::create_dir_all(to).map_err(io(to))?;
+    for (relative, bytes) in files {
+        for name in relative.split('/') {
+            component("file", name)?;
+        }
+        let target = to.join(relative);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(io(parent))?;
+        }
+        fs::write(&target, bytes).map_err(io(&target))?;
+    }
+    Ok(())
+}
+
+fn read_all(dir: &Path) -> Result<Vec<(String, Vec<u8>)>, Error> {
+    let mut files = Vec::new();
+    for (relative, path) in walk(dir)? {
+        files.push((relative, fs::read(&path).map_err(io(&path))?));
+    }
+    Ok(files)
 }
 
 impl FsCapabilityFiles {
@@ -144,6 +169,46 @@ impl FsCapabilityFiles {
     fn installed(&self, id: &str, version: &str) -> Result<PathBuf, Error> {
         let dir = self.version_dir(id, version)?;
         if dir.is_dir() { Ok(dir) } else { Err(Error::not_found("capability version", format!("{id}@{version}"))) }
+    }
+
+    /// Fills `<id>/<version>.partial/` with `fill` and renames it once its
+    /// files hash to `hash`.
+    async fn put(
+        &self,
+        id: &str,
+        version: &str,
+        hash: &str,
+        fill: impl FnOnce(&Path) -> Result<(), Error> + Send + 'static,
+    ) -> Result<(), Error> {
+        let target = self.version_dir(id, version)?;
+        if target.exists() {
+            return Err(Error::Conflict(format!("capability {id} has version {version} already")));
+        }
+        let partial = target.with_file_name(format!("{version}{PARTIAL_SUFFIX}"));
+        if partial.exists() {
+            self.files.trash(&partial).await?;
+        }
+        let copied = {
+            let to = partial.clone();
+            blocking(move || fill(&to).and_then(|()| hash_dir(&to))).await
+        };
+        let copied = match copied {
+            Ok(copied) => copied,
+            Err(e) => {
+                if partial.exists() {
+                    // What the trash cannot take now, the start sweep takes.
+                    let _left = self.files.trash(&partial).await;
+                }
+                return Err(e);
+            }
+        };
+        if copied != hash {
+            self.files.trash(&partial).await?;
+            return Err(Error::Rule(format!(
+                "capability {id} {version}: its files are not the ones it was checked with"
+            )));
+        }
+        blocking(move || fs::rename(&partial, &target).map_err(io(&partial))).await
     }
 
     /// Every `<id>/<version>.partial/` there is.
@@ -171,36 +236,24 @@ impl CapabilityFiles for FsCapabilityFiles {
         version: &'a str,
         hash: &'a str,
     ) -> BoxFuture<'a, Result<(), Error>> {
+        let from = package_dir.to_owned();
+        Box::pin(self.put(id, version, hash, move |to| copy_in(&from, to)))
+    }
+
+    fn install_files<'a>(
+        &'a self,
+        files: Vec<(String, Vec<u8>)>,
+        id: &'a str,
+        version: &'a str,
+        hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(self.put(id, version, hash, move |to| write_in(&files, to)))
+    }
+
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>> {
         Box::pin(async move {
-            let target = self.version_dir(id, version)?;
-            if target.exists() {
-                return Err(Error::Conflict(format!("capability {id} has version {version} already")));
-            }
-            let partial = target.with_file_name(format!("{version}{PARTIAL_SUFFIX}"));
-            if partial.exists() {
-                self.files.trash(&partial).await?;
-            }
-            let copied = {
-                let (from, to) = (package_dir.to_owned(), partial.clone());
-                blocking(move || copy_in(&from, &to).and_then(|()| hash_dir(&to))).await
-            };
-            let copied = match copied {
-                Ok(copied) => copied,
-                Err(e) => {
-                    if partial.exists() {
-                        // What the trash cannot take now, the start sweep takes.
-                        let _left = self.files.trash(&partial).await;
-                    }
-                    return Err(e);
-                }
-            };
-            if copied != hash {
-                self.files.trash(&partial).await?;
-                return Err(Error::Rule(format!(
-                    "capability {id} {version}: its files are not the ones it was checked with"
-                )));
-            }
-            blocking(move || fs::rename(&partial, &target).map_err(io(&partial))).await
+            let dir = self.installed(id, version)?;
+            blocking(move || read_all(&dir)).await
         })
     }
 

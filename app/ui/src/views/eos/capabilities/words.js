@@ -8,7 +8,7 @@ const STATES = {
   needs_setup: { word: "Needs setup", tone: "warn", line: "It needs a step from you first." },
   broken: { word: "Broken", tone: "err", line: "It stopped working." },
   disabled: { word: "Disabled", tone: null, line: "You turned it off." },
-  available: { word: "Not installed", tone: null, line: "It is not installed." },
+  available: { word: "Not installed", tone: null, line: "It is set up on another Mac. Install it here to use it on this one." },
 };
 
 const CODES = {

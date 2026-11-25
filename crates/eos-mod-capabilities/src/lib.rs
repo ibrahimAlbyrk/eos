@@ -38,17 +38,19 @@
 mod breakage;
 mod routes;
 mod sign_in;
+mod synced;
 mod ticker;
 
 use std::sync::Arc;
 
 use eos_capabilities::{CAPABILITIES_CHANGE, CapabilityService};
 use eos_contracts::CapabilitiesChange;
+use eos_core::net::sync::RecordSync;
 use eos_core::shell::SecretPrompt;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Sleeper};
 use eos_runtime::bus::{Topic, TopicDecl};
-use eos_runtime::module::{Module, ModuleError};
+use eos_runtime::module::{Module, ModuleError, Opaque, SyncContribution};
 use eos_runtime::router::RouteDef;
 
 pub use breakage::{BreakageParts, PRODUCER, pause_reason};
@@ -163,6 +165,14 @@ impl Module for CapabilitiesModule {
             self.ticker.start(self.service.clone(), self.store.clone(), self.clock.clone(), self.sleeper.clone());
             Ok(())
         })
+    }
+
+    /// Definitions without secrets; the handle is an `Arc<dyn RecordSync>`.
+    fn sync(&self) -> Vec<SyncContribution> {
+        let records: Arc<dyn RecordSync> = Arc::new(synced::Definitions(self.service.clone()));
+        let handle: Opaque = Arc::new(records);
+        let change_topic = Some(CAPABILITIES_CHANGE_TOPIC.name());
+        vec![SyncContribution { domain: "capability", handle, change_topic, is_local: None }]
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
