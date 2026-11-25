@@ -107,7 +107,9 @@ function StateActions({ routine, refusal, failed }) {
 // dimmer one; then what that state asks for, and the beat of its runs.
 export function RoutineLead({ routine, runs, waiting, refusal, now }) {
   const rung = RUNGS.find((r) => r.value === routine.rung)?.label;
-  const standing = nowLine({ routine, runs, waiting });
+  // Once Resume was refused until recipients are confirmed, that is where it
+  // stands: the core's words and the recipients follow under the line.
+  const standing = refusal ? { text: "Paused until you confirm who it sends to.", tone: "warn" } : nowLine({ routine, runs, waiting });
   const tone = standing.tone;
   return (
     <header className="eos-rlead">
