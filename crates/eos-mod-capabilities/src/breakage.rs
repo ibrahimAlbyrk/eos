@@ -14,7 +14,7 @@ use eos_capabilities::{CAPABILITIES_CHANGE, CapabilityService};
 use eos_contracts::CapabilitiesChange;
 use eos_core::capability::CapabilityRegistry;
 use eos_core::os::TimeZone;
-use eos_core::routine::RoutineControl;
+use eos_core::routine::{ResumeError, RoutineControl};
 use eos_core::store::{Outbox, Store, StoredInstall, Tx};
 use eos_core::{Clock, Error, Ids};
 use eos_domain::capability::health::{HealthState, StateCode};
@@ -158,6 +158,38 @@ fn withdraw_in(tx: &dyn Tx, out: &mut Outbox, now: i64, subject: &str, keep: Opt
     Ok(kept)
 }
 
+/// Moves each routine paused for `reason` that also needs a capability of
+/// `others` that does not work to that one's pause, in the same job, so
+/// resuming `reason` leaves it paused.
+fn hand_over_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    control: &dyn RoutineControl,
+    reason: &str,
+    others: &[(String, Vec<String>)],
+) -> Result<(), Error> {
+    for (other, shared) in others {
+        let still_off = tx.capability_installs().find(other)?.is_none_or(|install| !works(install.health.state));
+        if !still_off {
+            continue;
+        }
+        for routine_id in shared {
+            let paused_here =
+                tx.routines().find(routine_id)?.is_some_and(|routine| routine.paused_reason.as_deref() == Some(reason));
+            if !paused_here {
+                continue;
+            }
+            match control.resume_in(tx, out, routine_id, reason) {
+                Ok(()) => control.pause_in(tx, out, routine_id, &pause_reason(other))?,
+                // Recipients to confirm keep it paused as it is.
+                Err(ResumeError::Unconfirmed(_)) => {}
+                Err(ResumeError::Store(error)) => return Err(error),
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Breakage {
     pub(crate) fn new(
         parts: BreakageParts,
@@ -172,6 +204,18 @@ impl Breakage {
     /// the capability now stands.
     pub(crate) async fn settle(&self, id: &str) -> Result<(), Error> {
         let users = self.parts.control.using_capability(id).await?;
+        // The other capabilities its routines need: one still not working
+        // keeps them paused once this one works again.
+        let mut others = Vec::new();
+        for capability in self.service.list().await?.into_iter().filter(|capability| capability.id != id) {
+            let shared: Vec<String> = (self.parts.control.using_capability(&capability.id).await?)
+                .into_iter()
+                .filter(|routine_id| users.contains(routine_id))
+                .collect();
+            if !shared.is_empty() {
+                others.push((capability.id, shared));
+            }
+        }
         let name = self.service.get(id).await?.map_or_else(|| id.to_owned(), |capability| capability.manifest.name);
         let reason = pause_reason(id);
         let (control, ids, zone) = (self.parts.control.clone(), self.parts.ids.clone(), self.parts.zone.clone());
@@ -187,6 +231,7 @@ impl Breakage {
                 };
                 let waits = withdraw_in(tx, out, now, &reason_in, payload)?;
                 if standing == Standing::Works {
+                    hand_over_in(tx, out, control.as_ref(), &reason_in, &others)?;
                     return Ok(standing);
                 }
                 for routine_id in &users {

@@ -87,10 +87,12 @@ async fn a_broken_package_offers_repair_and_the_version_before() {
     assert_eq!((payload["repair"].as_bool(), payload["goBack"].as_str()), (Some(true), Some("1.0.0")));
     assert!(paused(&control, "capability:notes-db") >= 1);
 
+    // The installs settled too: only a resume after the rollback counts.
+    let before = resumed(&control, "capability:notes-db");
     let (status, _) =
         rig.ask(Method::Post, "/api/capabilities/notes-db/rollback", Some(r#"{"version": "1.0.0"}"#)).await;
     assert_eq!(status, 200);
-    until("resumed once it works", || resumed(&control, "capability:notes-db") >= 1).await;
+    until("resumed once it works", || resumed(&control, "capability:notes-db") > before).await;
     assert_eq!(rig.temp.count(OPEN), 0);
 
     // Removed: its routines stay paused, and there is nothing to ask.
@@ -98,4 +100,29 @@ async fn a_broken_package_offers_repair_and_the_version_before() {
     rig.ask(Method::Delete, "/api/capabilities/notes-db", None).await;
     until("paused again", || paused(&control, "capability:notes-db") > before).await;
     assert_eq!(rig.temp.count(OPEN), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_that_needs_two_broken_capabilities_stays_paused_until_both_work() {
+    let builtin = Arc::new(FakeBuiltin::new(GITHUB));
+    let control = Arc::new(FakeRoutineControl::new().using("github", &["rt-1"]).using("notes-db", &["rt-1"]));
+    let rig = rig_breaking(vec![builtin.clone()], control.clone()).await;
+    rig.temp.exec(
+        "INSERT INTO routines (id, slug, name, kind, state, paused_reason, origin, created_at, updated_at, changed_at) \
+         VALUES ('rt-1', 'pr-review', 'PR Review', 'standing', 'paused', 'capability:github', 'hand', 1, 1, 1)",
+    );
+    rig.install(&notes("1.0.0"), "h-1").await;
+    rig.service.disable("notes-db").await.expect("off");
+    builtin.set_health(Event::Unauthorized);
+    rig.ask(Method::Post, "/api/capabilities/github/check", None).await;
+    until("paused for github", || paused(&control, "capability:github") >= 1).await;
+
+    builtin.set_health(Event::Passed);
+    rig.ask(Method::Post, "/api/capabilities/github/check", None).await;
+    until("github works", || resumed(&control, "capability:github") >= 2).await;
+    let calls = control.calls();
+    let resume = ControlCall::Resume { routine_id: "rt-1".into(), reason: "capability:github".into() };
+    let pause = ControlCall::Pause { routine_id: "rt-1".into(), reason: "capability:notes-db".into() };
+    let handed = calls.iter().position(|call| *call == resume).map(|at| &calls[at + 1..]);
+    assert_eq!(handed.and_then(<[ControlCall]>::first), Some(&pause), "it waits for notes-db now: {calls:?}");
 }
