@@ -94,7 +94,7 @@ export function NoteDetail({ id }) {
           {detail.nextTo.map((n, i) => (
             <span key={n.id}>
               {i > 0 && ", "}
-              <button type="button" className="eos-link" onClick={() => openLocation(buildLocation({ screen: "memory", tab: "work", note: n.id }))}>{n.text}</button>
+              <button type="button" className="eos-link eos-link--quiet" onClick={() => openLocation(buildLocation({ screen: "memory", tab: "work", note: n.id }))}>{n.text}</button>
             </span>
           ))}
         </p>
@@ -113,7 +113,7 @@ export function NoteDetail({ id }) {
         <div className="eos-mem-detail__actions">
           <button type="button" className="eos-btn" onClick={() => setEditing(true)}>Edit</button>
           <button type="button" className="eos-btn" onClick={() => void forgetNote(id)}>Forget</button>
-          <button type="button" className="eos-link eos-mem-detail__close" onClick={close}>Close</button>
+          <button type="button" className="eos-btn eos-btn--quiet eos-mem-detail__close" onClick={close}>Close</button>
         </div>
       )}
     </aside>
