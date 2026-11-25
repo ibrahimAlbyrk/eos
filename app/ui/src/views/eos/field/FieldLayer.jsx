@@ -141,7 +141,7 @@ export function FieldLayer({ routines, needs, next, caption, handled, status = n
 
   return (
     <div
-      className={`eos-field${on ? " is-on" : ""}${phase === "entering" || phase === "leaving" ? " is-moving" : ""}`}
+      className={`eos-field${on ? " is-on" : ""}${shown === "list" ? " is-list" : ""}${phase === "entering" || phase === "leaving" ? " is-moving" : ""}`}
       role="dialog"
       aria-label="Your routines around the input"
       style={{
