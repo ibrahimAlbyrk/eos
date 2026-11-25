@@ -179,6 +179,12 @@ export function SettingsProvider({ children }) {
 
 // One value for leaf components that may render outside the provider (tests,
 // previews): the registry default when there is no provider.
+// Fixed settings that read as the provider's do, for the sample gallery: a
+// screen that only reads a setting draws as it would with that choice.
+export function FixedSettings({ settings, children }) {
+  return <SettingsContext.Provider value={{ settings }}>{children}</SettingsContext.Provider>;
+}
+
 export function useSettingOr(key, fallback) {
   const c = useContext(SettingsContext);
   return c ? (c.settings[key] ?? fallback) : fallback;

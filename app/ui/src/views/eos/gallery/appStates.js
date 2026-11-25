@@ -1,6 +1,6 @@
 // The gallery's states of a routine's App: Release Notes' changelog preview
-// as a tool in the whole window, before its first version is kept, and read
-// slowly.
+// as a tool in the whole window, before its first version is kept, read
+// slowly, and in the side panel beside a screen (Apps on or switched off).
 import { ROUTES } from "../../../api/routes.js";
 import routines from "./sample/routines.json";
 
@@ -41,4 +41,7 @@ export const APP_STATES = [
   { id: "app", label: "App · as a tool", location: AT, reads: withApp },
   { id: "app-none", label: "App · no version kept yet", location: AT, reads: notYet },
   { id: "app-loading", label: "App · loading", location: AT, answer: "loading" },
+  { id: "app-panel", label: "App · in the side panel", location: "eos:/routines", reads: withApp, panel: { surfaceId: APP } },
+  { id: "app-panel-none", label: "App · in the side panel, no version kept yet", location: "eos:/routines", reads: notYet, panel: { surfaceId: APP } },
+  { id: "app-panel-off", label: "App · in the side panel, Apps switched off", location: "eos:/routines", reads: withApp, panel: { surfaceId: APP, appsOff: true } },
 ];
