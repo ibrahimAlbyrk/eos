@@ -1,12 +1,13 @@
 import { openLocation } from "../nav/eosNav.js";
 import { awayText, clockOf } from "./homeWords.js";
 
-// "While you were away": one line per routine, newest first; Open shows the run.
-export function AwayList({ runs, names }) {
+// "While you were away" (or, when nothing ended since the visit, "Earlier
+// today"): one line per routine, newest first; Open shows the run.
+export function AwayList({ runs, names, title = "While you were away" }) {
   if (runs.length === 0) return null;
   return (
     <section className="eos-home-part" aria-labelledby="eos-home-away">
-      <h2 id="eos-home-away" className="eos-label">While you were away</h2>
+      <h2 id="eos-home-away" className="eos-label">{title}</h2>
       <ul className="eos-away">
         {runs.map((run) => (
           <li key={run.id} className="eos-away__line">

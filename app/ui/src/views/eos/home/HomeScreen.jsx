@@ -13,7 +13,8 @@ import { useInputFlight } from "../field/flight.js";
 import { AwayList } from "./AwayList.jsx";
 import { Greeting } from "./Greeting.jsx";
 import { Horizon } from "./Horizon.jsx";
-import { awayLines, dayStart, handledLine, hello, needLine } from "./homeWords.js";
+import { awayLines, comingUp, dayStart, handledLine, hello, needLine } from "./homeWords.js";
+import { ComingUp } from "./ComingUp.jsx";
 import { LearnedLine } from "./LearnedLine.jsx";
 import { MovedShortcuts } from "./MovedShortcuts.jsx";
 import { NeedsYouCards } from "./NeedsYouCards.jsx";
@@ -35,8 +36,8 @@ function useMinute(clock) {
 
 // eos:/ — Horizon (Main.dc.html): the day's arc, the greeting with what was
 // handled and what needs the user, the input, starter chips that fill it,
-// the first Needs-you cards, the pinned tiles, what happened while away and the week's
-// learned line. Empty sections are left
+// the first Needs-you cards, the pinned tiles, what runs next, what happened
+// while away (or earlier today) and the week's learned line. Empty sections are left
 // out; entering Home never focuses anything. Focusing the input turns Home
 // into the field (FieldLayer); the rest of Home is inert meanwhile.
 export function HomeScreen({ clock = Date.now }) {
@@ -72,6 +73,7 @@ export function HomeScreen({ clock = Date.now }) {
   const scheduled = home.next.filter((n) => n.nextAt != null).map((n) => ({ routineId: n.routineId, at: n.nextAt }));
   const waiting = (inbox.list?.items ?? []).filter((i) => i.state === "open");
   const away = awayLines(runs, lastSeen ?? dayStart(now));
+  const earlier = away.length === 0 ? awayLines(runs, dayStart(now)) : [];
   const needs = {};
   for (const item of waiting) if (item.routineId) needs[item.routineId] = (needs[item.routineId] ?? 0) + 1;
   const next = Object.fromEntries(home.next.filter((n) => n.nextAt != null).map((n) => [n.routineId, n.nextAt]));
@@ -84,7 +86,8 @@ export function HomeScreen({ clock = Date.now }) {
     <>
       {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}
       {!firstRun && <PinnedTiles />}
-      {!firstRun && <AwayList runs={away} names={names} />}
+      {!firstRun && <ComingUp slots={comingUp(home.next, now)} names={names} now={now} />}
+      {!firstRun && (away.length > 0 ? <AwayList runs={away} names={names} /> : <AwayList runs={earlier} names={names} title="Earlier today" />)}
       {!firstRun && <LearnedLine weekly={summary?.weekly ?? 0} />}
     </>
   );

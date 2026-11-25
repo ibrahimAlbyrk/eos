@@ -15,7 +15,7 @@ import { closeField, setFieldView, shownView, useField } from "./fieldStore.js";
 import { discOf, placeDiscs, ringRadii } from "./placeDiscs.js";
 import { discDelays, dotDelay } from "./transition.js";
 import { useWindowLayoutEffect } from "./flight.js";
-import { ARC_R, ARC_TOP, ARC_W } from "../home/Horizon.jsx";
+import { ARC_R, ARC_TOP } from "../home/Horizon.jsx";
 
 // The field's input is this wide (08 §4.6).
 export const FIELD_INPUT_WIDTH = 580;
@@ -36,11 +36,10 @@ function useWindowSize() {
 // The circle Home's day arc is the crest of, in window coordinates: the
 // rings start there and move to the window's centre.
 function arcCircle(W, H) {
-  const el = typeof document === "undefined" ? null : document.querySelector(".eos-home .eos-horizon");
+  const el = typeof document === "undefined" ? null : document.querySelector(".eos-home .eos-horizon__sky");
   if (!el) return { x: W / 2, y: H + ARC_R, r: ARC_R };
   const rect = el.getBoundingClientRect();
-  const k = rect.width / ARC_W;
-  return { x: rect.left + rect.width / 2, y: rect.top + (ARC_TOP + ARC_R) * k, r: ARC_R * k };
+  return { x: rect.left + rect.width / 2, y: rect.top + ARC_TOP + ARC_R, r: ARC_R };
 }
 
 // Each of Home's day dots flies to its routine's disc, or to the centre.
