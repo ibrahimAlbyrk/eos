@@ -9,6 +9,10 @@
 //! token is kept, the account's label too, and the capability is checked,
 //! which announces it ready on `capabilities:change`.
 //!
+//! An attempt the user ends after its token was kept (while its label is
+//! written and the capability checked) ends signed out: the cancel wins
+//! and the token is forgotten.
+//!
 //! The codes, the state, the verifier and the token never reach a log, an
 //! error or a frame; the label is shown to the dashboard only.
 
@@ -20,7 +24,7 @@ use eos_contracts::{CapabilitySignIn, CapabilitySignInState, CapabilitySignInSta
 use eos_core::capability::{BrowserCallback, BrowserCode, BuiltinCapability, CapabilityRegistry, SignInError};
 use eos_core::{Clock, Error};
 use eos_runtime::http::ApiError;
-use tokio::task::AbortHandle;
+use tokio::task::JoinHandle;
 use zeroize::Zeroizing;
 
 /// The prefix of a sign-in's link back.
@@ -37,8 +41,10 @@ struct Attempt {
     /// Tells this attempt from a later one of the same capability.
     serial: u64,
     status: CapabilitySignInStatus,
-    task: Option<AbortHandle>,
+    task: Option<JoinHandle<()>>,
     waiting: Option<Waiting>,
+    /// The token is kept; the label and the check are under way.
+    keeping: bool,
 }
 
 /// The attempts under way or ended, by capability.
@@ -68,6 +74,14 @@ async fn ended(service: &CapabilityService, id: &str, result: Result<String, Sig
     };
     tracing::info!(capability = %id, state = ?ended.state, "a capability sign-in ended");
     ended
+}
+
+/// Forgets a sign-in the user ended after its token was kept.
+async fn forget(service: &CapabilityService, id: &str) {
+    match service.forget_sign_in(id).await {
+        Ok(()) => tracing::info!(capability = %id, "a sign-in ended by the user was forgotten"),
+        Err(e) => tracing::warn!(capability = %id, error = %e, "a sign-in ended by the user could not be forgotten"),
+    }
 }
 
 /// Why a sign-in did not start, as its route answers.
@@ -118,7 +132,8 @@ impl SignIns {
             *serial += 1;
             *serial
         };
-        let pending = Attempt { serial, status: status(CapabilitySignInState::Pending), task: None, waiting };
+        let pending =
+            Attempt { serial, status: status(CapabilitySignInState::Pending), task: None, waiting, keeping: false };
         if let Some(Attempt { task: Some(previous), .. }) = self.attempts().insert(id.to_owned(), pending) {
             previous.abort();
         }
@@ -129,10 +144,36 @@ impl SignIns {
         if let Some(attempt) = self.attempts().get_mut(id).filter(|attempt| attempt.serial == serial) {
             attempt.status = done;
             attempt.task = None;
+            attempt.keeping = false;
         }
     }
 
-    fn keep_task(&self, id: &str, serial: u64, task: AbortHandle) {
+    /// Marks the attempt as keeping its sign-in; false when the user ended
+    /// it already.
+    fn keeping(&self, id: &str, serial: u64) -> bool {
+        let mut attempts = self.attempts();
+        let live = attempts.get_mut(id).filter(|attempt| attempt.serial == serial);
+        live.map(|attempt| attempt.keeping = true).is_some()
+    }
+
+    /// What a finished flow leaves: the sign-in kept and checked, or how it
+    /// failed. A token kept after the user ended the attempt is forgotten.
+    async fn finished(
+        self: Arc<Self>,
+        service: Arc<CapabilityService>,
+        id: String,
+        serial: u64,
+        result: Result<String, SignInError>,
+    ) {
+        if result.is_ok() && !self.keeping(&id, serial) {
+            forget(&service, &id).await;
+            return;
+        }
+        let done = ended(&service, &id, result).await;
+        self.settle(&id, serial, done);
+    }
+
+    fn keep_task(&self, id: &str, serial: u64, task: JoinHandle<()>) {
         if let Some(attempt) = self.attempts().get_mut(id).filter(|attempt| attempt.serial == serial) {
             attempt.task = Some(task);
         }
@@ -169,10 +210,10 @@ impl SignIns {
         let (me, service, owned) = (self.clone(), service.clone(), id.to_owned());
         let task = tokio::spawn(async move {
             let Some(flow) = builtin.device_sign_in() else { return };
-            let done = ended(&service, &owned, flow.finish(&code).await).await;
-            me.settle(&owned, serial, done);
+            let result = flow.finish(&code).await;
+            me.finished(service, owned, serial, result).await;
         });
-        self.keep_task(id, serial, task.abort_handle());
+        self.keep_task(id, serial, task);
         Ok(answer)
     }
 
@@ -200,10 +241,10 @@ impl SignIns {
         let (me, service, owned) = (self.clone(), service.clone(), id.clone());
         let task = tokio::spawn(async move {
             let Some(flow) = builtin.browser_sign_in() else { return };
-            let done = ended(&service, &owned, flow.finish(&code, callback).await).await;
-            me.settle(&owned, serial, done);
+            let result = flow.finish(&code, callback).await;
+            me.finished(service, owned, serial, result).await;
         });
-        self.keep_task(&id, serial, task.abort_handle());
+        self.keep_task(&id, serial, task);
         true
     }
 
@@ -221,11 +262,18 @@ impl SignIns {
         Ok(attempt.status.clone())
     }
 
-    /// Ends the capability's attempt; one already ended is forgotten.
-    pub(crate) fn cancel(&self, service: &CapabilityService, id: &str) -> Result<(), Error> {
+    /// Ends the capability's attempt; one already ended is forgotten. One
+    /// that was keeping its token ends signed out, once its task stopped
+    /// writing.
+    pub(crate) async fn cancel(&self, service: &CapabilityService, id: &str) -> Result<(), Error> {
         Self::builtin(service, id)?;
-        if let Some(Attempt { task: Some(task), .. }) = self.attempts().remove(id) {
+        let removed = self.attempts().remove(id);
+        if let Some(Attempt { task: Some(task), keeping, .. }) = removed {
             task.abort();
+            if keeping {
+                let _ = task.await;
+                service.forget_sign_in(id).await?;
+            }
         }
         Ok(())
     }
