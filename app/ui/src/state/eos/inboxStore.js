@@ -328,6 +328,19 @@ export function discardInboxItem(id) {
   return answerWith(id, "POST", ROUTES.inboxDiscard(id), { rev: revOf(id) });
 }
 
+// What the user wants done differently next time, said beside an answer or
+// after Discard: kept as a rule they stated, in About you (08 §4.9), in
+// their own words.
+export async function keepNextTime(text) {
+  const said = text.trim();
+  if (!said) return true;
+  const body = { text: said, category: "work-style", scope: { kind: "global" } };
+  const r = await transport.send("POST", ROUTES.userMemories, body).catch(() => null);
+  if (r?.ok) return true;
+  notify.error("Eos could not keep what to do next time.", { title: "Needs you" });
+  return false;
+}
+
 // Puts an item aside at once; the list is read again when the core refuses.
 export async function laterInboxItem(id) {
   const item = state.list?.items.find((i) => i.id === id);
