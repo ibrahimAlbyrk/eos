@@ -151,3 +151,31 @@ async fn a_scratch_folder_is_a_repository_and_goes_with_what_claude_code_kept_ab
     scratch.remove(home.path.to_str().expect("utf-8")).await;
     assert!(outside.exists() && Path::new(&dir).exists());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_forge_build_folder_stays_while_its_run_works_or_its_proposal_waits() {
+    let home = Dir::new("eos-scratch-forge-");
+    let (root, projects) = (home.join("scratch"), home.join("claude/projects"));
+    let scratch = ScratchRepos::new(adapter(), &root, &projects);
+    for run in ["rn-live", "rn-waits", "rn-done", "rn-gone"] {
+        fs::create_dir_all(root.join(format!("forge-{run}"))).expect("a build folder");
+    }
+    let temp = TempStore::new();
+    let run = |id: &str, state: &str| {
+        format!(
+            "INSERT INTO runs (id, routine_id, version_id, kind, origin, input, state, priority, device, created_at, \
+             updated_at) VALUES ('{id}', 'rt-forge', 'rv-1', 'project', 'hand', '{{}}', '{state}', 0, 'd', 1, 1);"
+        )
+    };
+    temp.exec(&format!("{}{}{}", run("rn-live", "running"), run("rn-waits", "done"), run("rn-done", "done")));
+    temp.exec(
+        "INSERT INTO inbox_items (id, kind, state, producer, title, summary, payload, rev, attention, created_at, \
+         updated_at, routine_id, run_id) VALUES ('ni-1', 'capability_install', 'open', 'forge', 't', 's', '{}', 1, \
+         'digest', 1, 1, 'rt-forge', 'rn-waits')",
+    );
+    let store: Arc<dyn Store> = temp.port();
+    let mut pruned = prune_orphan_scratch(store.as_ref(), &scratch).await.expect("prunes");
+    pruned.sort();
+    let gone = |run: &str| root.join(format!("forge-{run}")).to_string_lossy().into_owned();
+    assert_eq!(pruned, [gone("rn-done"), gone("rn-gone")], "only the folders nothing waits on go");
+}

@@ -113,12 +113,15 @@ pub async fn reap_worktree_removals(
 
 /// Deletes the scratch folders no worker row works in (a removal that was cut
 /// short, a spawn that failed half-way). An archived chat still owns its folder.
+/// A Forge run's build folder (`forge-<runId>`) stays while its run is under
+/// way or one of its items waits: its proposal installs from there, long
+/// after the run's sessions are gone.
 pub async fn prune_orphan_scratch(store: &dyn Store, scratch: &dyn ScratchFolders) -> Result<Vec<String>, Error> {
     let rows = store.read(|tx| tx.workers().list_all()).await?;
     let owned: HashSet<&str> = rows.iter().filter_map(|w| w.cwd.as_deref()).collect();
     let mut removed = Vec::new();
     for dir in scratch.list() {
-        if owned.contains(dir.as_str()) {
+        if owned.contains(dir.as_str()) || run_still_needs(store, &dir).await? {
             continue;
         }
         scratch.remove(&dir).await;
@@ -126,4 +129,23 @@ pub async fn prune_orphan_scratch(store: &dyn Store, scratch: &dyn ScratchFolder
         removed.push(dir);
     }
     Ok(removed)
+}
+
+/// Whether `dir` is the build folder of a Forge run that is under way or
+/// has an item that waits.
+async fn run_still_needs(store: &dyn Store, dir: &str) -> Result<bool, Error> {
+    let name = Path::new(dir).file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    let Some(run_id) = name.strip_prefix("forge-").filter(|id| !id.is_empty()).map(str::to_owned) else {
+        return Ok(false);
+    };
+    store
+        .read(move |tx| {
+            let Some(run) = tx.runs().find(&run_id)? else { return Ok(false) };
+            if !run.state.is_terminal() {
+                return Ok(true);
+            }
+            let waiting = tx.inbox_items().waiting_of_routine(&run.routine_id)?;
+            Ok(waiting.iter().any(|item| item.run_id.as_deref() == Some(run_id.as_str())))
+        })
+        .await
 }
