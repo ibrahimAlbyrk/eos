@@ -7,6 +7,7 @@ import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStor
 import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
+import { capabilitiesLead } from "./CapabilitiesScreen.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
 import samples from "../gallery/sample/capabilities.json";
 import signInFailed from "../gallery/sample/sign-in-failed.json";
@@ -63,6 +64,15 @@ describe("the Capabilities list", () => {
     expect(rowHtml(html, "GitHub")).toContain("Built in · Used by 1 routine");
     expect(rowHtml(html, "SMS")).toContain("Script · Made by the Forge · Version 1.0.1 · No routine uses it");
     expect(rowHtml(html, "Weather")).toContain("MCP server · From a registry · Version 1.2.0 · Used by 2 routines");
+  });
+
+  it("leads with how many need a look and groups them: needs a look, ready, turned off", async () => {
+    await refreshCapabilities();
+    const html = at("eos:/capabilities");
+    expect(html).toContain('<p class="eos-lead">Six capabilities, four of them need a look.</p>');
+    const groups = [...html.matchAll(/<h2 id="eos-caps-[a-z]+" class="eos-label">([^<]+)<\/h2><span class="eos-section__aside">(\d+)/g)].map((m) => `${m[1]} ${m[2]}`);
+    expect(groups).toEqual(["Needs a look 4", "Ready 1", "Turned off 1"]);
+    expect(capabilitiesLead([{ state: "ready" }])).toBe("One capability, all of them in order.");
   });
 
   it("shows loading blocks, then an empty list or a failed read in words", async () => {
