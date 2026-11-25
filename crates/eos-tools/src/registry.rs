@@ -111,6 +111,9 @@ pub struct Tools {
     /// A session of the Forge: its report to the lead, its report to Eos and
     /// the date; nothing that reaches a capability, a page or memory.
     pub(crate) run_forge: Vec<Spec>,
+    /// An App's reviewer: its verdict and the date; nothing that reaches a
+    /// capability, a page, memory or the user.
+    pub(crate) app_reviewer: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
     /// only when its description changed. A name is one tool whichever list
@@ -230,6 +233,9 @@ impl Tools {
         run_forge.extend(s.forge.as_ref().map(forge::report_spec));
         run_forge.push(time::spec(&s.clock, &s.zone));
 
+        let mut app_reviewer: Vec<Spec> = s.surfaces.as_ref().map(surfaces::reviewer_spec).into_iter().collect();
+        app_reviewer.push(time::spec(&s.clock, &s.zone));
+
         Self {
             prompts: s.prompts,
             plugins: s.plugins,
@@ -243,6 +249,7 @@ impl Tools {
             run_designer,
             architect,
             run_forge,
+            app_reviewer,
             handed: Mutex::default(),
         }
     }
@@ -262,6 +269,7 @@ impl Tools {
             }
             Some(routines::CHECKER_DEFINITION) => return self.run_checker.iter().filter(on).collect(),
             Some(routines::DESIGNER_DEFINITION) => return self.run_designer.iter().filter(on).collect(),
+            Some(routines::APP_REVIEWER_DEFINITION) => return self.app_reviewer.iter().filter(on).collect(),
             Some(architect::ARCHITECT_DEFINITION) => return self.architect.iter().filter(on).collect(),
             Some(name) if RunRole::of_forge_definition(name).is_some() => {
                 return self.run_forge.iter().filter(on).collect();

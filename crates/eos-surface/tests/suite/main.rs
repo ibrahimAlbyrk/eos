@@ -2,6 +2,7 @@
 
 mod app;
 mod app_files;
+mod app_test;
 mod contract;
 mod lifecycle;
 mod paper;

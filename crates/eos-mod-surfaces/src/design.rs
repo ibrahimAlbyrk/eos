@@ -225,14 +225,18 @@ impl Designs {
                     let Some(open) = surface.candidate_version else { continue };
                     let row = tx.surface_versions().find(&surface.id, open)?;
                     if row.is_some_and(|row| row.status == VersionStatus::Checking) {
-                        found.push((surface.id, open));
+                        found.push((surface.id, surface.level, open));
                     }
                 }
                 Ok(found)
             })
             .await?;
-        for (surface, version) in waiting {
-            if let Err(error) = self.check(&surface, version).await {
+        for (surface, level, version) in waiting {
+            let checked = match level {
+                Level::App => self.test_app(&surface, version).await,
+                _ => self.check(&surface, version).await.map(drop),
+            };
+            if let Err(error) = checked {
                 tracing::warn!(surface = %surface, version, %error, "a waiting page design could not be checked");
             }
         }

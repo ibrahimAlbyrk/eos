@@ -318,6 +318,12 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         app_files: Arc::new(eos_store_files::app_files::FsAppFiles),
         keys: cx.project_keys.clone(),
         folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(cx.paths.join("routines"))),
+        reviews: routines.app_reviews(),
+        app_reviewer: eos_workers::definition::records_from(
+            &eos_store_files::worker_definitions::app_reviewer_definition().into_iter().collect::<Vec<_>>(),
+        )
+        .pop()
+        .ok_or_else(|| eos_core::Error::storage("the App reviewer's definition does not read"))?,
     }));
     cx.raw_routes.add(surfaces.raw_routes());
     // The mail channel draws a page issue it sends.

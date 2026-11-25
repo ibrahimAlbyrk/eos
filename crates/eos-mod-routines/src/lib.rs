@@ -318,6 +318,11 @@ impl RoutinesModule {
         Arc::new(engine::Runs(self.engine.clone()))
     }
 
+    /// A build run's App reviewer, and its notes to the builder.
+    pub fn app_reviews(&self) -> Arc<dyn eos_core::routine::AppReviews> {
+        Arc::new(engine::AppReviews(self.engine.clone()))
+    }
+
     /// Admits and counts triggered runs, inside the signals' own writes.
     pub fn intake(&self) -> Arc<dyn RunIntake> {
         Arc::new(engine::Intake(self.engine.clone()))

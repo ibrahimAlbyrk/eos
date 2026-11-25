@@ -16,6 +16,7 @@ pub mod template;
 
 mod app;
 mod app_files;
+mod app_test;
 mod args;
 mod arrange;
 mod design;
@@ -32,6 +33,7 @@ mod words;
 
 pub use app::{APP_HEIGHT, APP_HTML_BYTES, APP_TESTS_BYTES, AppDesign, AppManifest, FileRoot, FileScope};
 pub use app_files::{APP_FILE_BYTES, APP_FILES_LISTED, app_path, glob_matches};
+pub use app_test::{APP_CSP, APP_TEST_CSP, APP_TEST_JS, APP_TEST_WIDTH, app_test_document};
 pub use args::{Sources, fill_args, pressed_row};
 pub use arrange::{ArrangeOp, arrange};
 pub use design::PageDesign;

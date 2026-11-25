@@ -3,8 +3,8 @@
 //! and tests. Eos's static scan refuses every way out of the frame and
 //! every bridge name its manifest does not declare; what passes is written
 //! as the App's version `checking`, its one open candidate, which nobody
-//! sees until its review and its tests pass. With Apps switched off in
-//! Settings nothing is taken.
+//! sees until its review and its tests pass (`app_checks`). With Apps
+//! switched off in Settings nothing is taken.
 
 use eos_contracts::SettingValue;
 use eos_core::Error;
@@ -49,7 +49,7 @@ pub(crate) async fn propose(tools: &ViewIssues, worker_id: &str, body: Value, no
     let app = scanned(tools, &body).map_err(|problems| Error::Validation(format_problems(&problems)))?;
     let text = app.to_body().to_string();
     let (worker, now) = (worker_id.to_owned(), tools.clock.now_ms());
-    let (surface_id, version) = tools
+    let (surface_id, title, version, run_id) = tools
         .store
         .write(move |tx, out| {
             let run = tx.routine_sessions().run_of(&worker)?.filter(|run| BUILD_RUNS.contains(&run.kind.as_str()));
@@ -68,7 +68,7 @@ pub(crate) async fn propose(tools: &ViewIssues, worker_id: &str, body: Value, no
                 status: VersionStatus::Checking,
                 base_version: surface.current_version,
                 made_by: MadeBy::Builder,
-                run_id: Some(run.run_id),
+                run_id: Some(run.run_id.clone()),
                 note,
                 body_bytes: text.len() as i64,
                 body_json: text,
@@ -80,10 +80,13 @@ pub(crate) async fn propose(tools: &ViewIssues, worker_id: &str, body: Value, no
             surface.updated_at = now;
             tx.surfaces().put(&surface)?;
             announce(out, &surface, version, "checking");
-            Ok((surface.id, version))
+            Ok((surface.id, surface.title, version, run.run_id))
         })
         .await?;
     tracing::info!(surface = %surface_id, version, "an App passed Eos's scan");
+    let checking =
+        crate::app_checks::Checking { surface_id, title, version, run_id, builder: worker_id.to_owned(), app };
+    crate::app_checks::begin(&tools.designs, checking);
     Ok(format!(
         "version {version} passed Eos's scan and waits for its review and its tests; the user sees it only once \
          both pass."

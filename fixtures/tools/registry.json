@@ -1780,6 +1780,58 @@
    "plugin": null
   },
   {
+   "name": "app_review",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "verdict": {
+      "type": "string",
+      "enum": [
+       "pass",
+       "fail"
+      ],
+      "description": "`pass` only when no rule is broken."
+     },
+     "findings": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "rule": {
+         "type": "string",
+         "description": "The rule of the list it breaks."
+        },
+        "where": {
+         "type": "string",
+         "description": "Where in the code or the manifest."
+        },
+        "why": {
+         "type": "string",
+         "description": "What is wrong, in one sentence."
+        }
+       },
+       "required": [
+        "rule",
+        "where",
+        "why"
+       ],
+       "additionalProperties": false
+      },
+      "description": "Each broken rule; empty for a pass."
+     }
+    },
+    "required": [
+     "verdict",
+     "findings"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
    "name": "submit_verdict",
    "inputSchema": {
     "type": "object",
@@ -3251,6 +3303,17 @@
     "list_capabilities",
     "request_capability",
     "list_routines"
+   ]
+  },
+  {
+   "kind": "app-reviewer",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [],
+   "names": [
+    "app_review",
+    "current_datetime"
    ]
   }
  ]

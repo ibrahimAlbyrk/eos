@@ -71,6 +71,43 @@ impl RunStarter for FakeRunStarter {
     }
 }
 
+/// Starts every App reviewer as `w-reviewer1`, `w-reviewer2`, … and
+/// records each start and each note to a builder.
+#[derive(Debug, Default)]
+pub struct FakeAppReviews {
+    started: Mutex<Vec<eos_core::routine::AppReviewStart>>,
+    told: Mutex<Vec<(String, String, String)>>,
+}
+
+impl FakeAppReviews {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn started(&self) -> Vec<eos_core::routine::AppReviewStart> {
+        locked(&self.started).clone()
+    }
+
+    /// Each note as (run, worker, text).
+    pub fn told(&self) -> Vec<(String, String, String)> {
+        locked(&self.told).clone()
+    }
+}
+
+impl eos_core::routine::AppReviews for FakeAppReviews {
+    fn start_reviewer(&self, start: eos_core::routine::AppReviewStart) -> BoxFuture<'_, Result<Option<String>, Error>> {
+        let mut started = locked(&self.started);
+        started.push(start);
+        let id = format!("w-reviewer{}", started.len());
+        Box::pin(std::future::ready(Ok(Some(id))))
+    }
+
+    fn tell<'a>(&'a self, run_id: &'a str, worker_id: &'a str, text: String) -> BoxFuture<'a, Result<(), Error>> {
+        locked(&self.told).push((run_id.to_owned(), worker_id.to_owned(), text));
+        Box::pin(std::future::ready(Ok(())))
+    }
+}
+
 /// Admits every run as `rn-1`, `rn-2`, … unless the test set a refusal;
 /// writes nothing. Answers the load and ended runs the test gives, and
 /// records admissions and supersedes.

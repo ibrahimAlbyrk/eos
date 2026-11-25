@@ -4,7 +4,8 @@
 //!   in the frame, with its version or one to compare it with, under the
 //!   frame's CSP (sent as a header and in the page);
 //! - `GET /surfaces/:id/img/:hash`: one stored image;
-//! - `GET /surfaces/_probe/:token.html`: a document the page probe measures,
+//! - `GET /surfaces/_probe/:token.html`: a document the page probe measures
+//!   (a page drawn in its frame, or an App's test document under its own policy),
 //!   held for a minute.
 //!
 //! The dashboard frames a page with `sandbox="allow-scripts"`, so a page has
@@ -28,7 +29,8 @@ const PROBE_DOC_MS: i64 = 60_000;
 
 /// Documents the page probe loads, by a token nobody can guess.
 pub struct ProbeDocs {
-    docs: Mutex<HashMap<String, (String, i64)>>,
+    /// Each document, the policy it is served under, and until when.
+    docs: Mutex<HashMap<String, (String, Option<&'static str>, i64)>>,
     clock: Arc<dyn Clock>,
     ids: Arc<dyn Ids>,
 }
@@ -44,20 +46,26 @@ impl ProbeDocs {
         ProbeDocs { docs: Mutex::new(HashMap::new()), clock, ids }
     }
 
-    /// Holds `html` for a minute; the URL the probe loads it from.
+    /// Holds a page's `html` for a minute, served under the page frame's
+    /// policy; the URL the probe loads it from.
     pub fn hold(&self, html: String) -> String {
+        self.hold_under(html, None)
+    }
+
+    /// Holds a document whose own policy is `csp` (an App's test document).
+    pub(crate) fn hold_under(&self, html: String, csp: Option<&'static str>) -> String {
         let token = self.ids.uuid();
         let now = self.clock.now_ms();
         let mut docs = self.docs.lock().unwrap_or_else(PoisonError::into_inner);
-        docs.retain(|_, (_, until)| *until > now);
-        docs.insert(token.clone(), (html, now + PROBE_DOC_MS));
+        docs.retain(|_, (_, _, until)| *until > now);
+        docs.insert(token.clone(), (html, csp, now + PROBE_DOC_MS));
         format!("http://raw.eos.localhost/surfaces/_probe/{token}.html")
     }
 
-    fn take(&self, token: &str) -> Option<String> {
+    fn take(&self, token: &str) -> Option<(String, Option<&'static str>)> {
         let now = self.clock.now_ms();
         let docs = self.docs.lock().unwrap_or_else(PoisonError::into_inner);
-        docs.get(token).filter(|(_, until)| *until > now).map(|(html, _)| html.clone())
+        docs.get(token).filter(|(_, _, until)| *until > now).map(|(html, csp, _)| (html.clone(), *csp))
     }
 }
 
@@ -105,7 +113,10 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>, probe: &Arc<ProbeDocs>) -> Vec<
         let (docs, file) = (docs.clone(), param(&req, "file"));
         async move {
             let token = file.strip_suffix(".html").unwrap_or_default();
-            let doc = docs.take(token).ok_or_else(|| ApiError::NotFound("not found".into()))?;
+            let (doc, own) = docs.take(token).ok_or_else(|| ApiError::NotFound("not found".into()))?;
+            if let Some(csp) = own {
+                return Ok(html(doc, csp));
+            }
             let csp = format!(
                 "default-src 'none'; script-src 'sha256-{}'; style-src 'unsafe-inline'; img-src http://raw.eos.localhost/surfaces/ data:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'",
                 runtime_hash()

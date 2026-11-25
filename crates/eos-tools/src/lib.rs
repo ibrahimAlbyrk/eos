@@ -18,6 +18,7 @@
 //! | a routine run's lead (`eos-run-solo`, `eos-run-lead`, `eos-run-script`) | its run tools, `ask_user`, date, memory search, capabilities |
 //! | a routine run's checker (`eos-run-checker`) | `submit_verdict`, date, memory search, capabilities |
 //! | a routine's architect (`eos-architect`) | its routine tools, `list_capabilities`, `request_capability` |
+//! | an App's reviewer (`app-reviewer`) | `app_review`, date |
 //! | a session of the Forge (`forge-researcher`, `forge-builder`, `forge-reviewer`) | its report, `forge_report`, date |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions

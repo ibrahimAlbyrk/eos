@@ -189,3 +189,46 @@ async fn without_a_checker_the_rules_alone_pass_a_result() {
     assert_eq!(verdicts(&bench, &run)[0].as_ref().map(|v| v["pass"].clone()), Some(json!(true)));
     assert!(!bench.agents.started().iter().any(is_checker));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_apps_reviewer_starts_read_only_in_its_build_run_and_never_leads_it() {
+    let bench = Bench::new(true);
+    let (run, lead) = working(&bench, checked()).await;
+    let reviews = bench.module.app_reviews();
+    let fence = eos_contracts::ToolScope {
+        allow: ["Read", "Grep", "Glob", "LS"].map(String::from).to_vec(),
+        deny: Vec::new(),
+        edit_regex: None,
+    };
+    let start = eos_core::routine::AppReviewStart {
+        run_id: run.clone(),
+        name: "Game · App review".into(),
+        model: "opus".into(),
+        effort: "high".into(),
+        fence,
+        brief: "Review it. <untrusted source=\"app\">code</untrusted>".into(),
+    };
+    let reviewer = reviews.start_reviewer(start.clone()).await.expect("starts").expect("a reviewer");
+    let spec = bench.agents.started().into_iter().find(|s| s.worker_id == reviewer).expect("started");
+    assert_eq!(spec.worker_definition.as_deref(), Some("app-reviewer"));
+    assert!(spec.prompt.as_deref().is_some_and(|prompt| prompt.ends_with(start.brief.as_str())), "{:?}", spec.prompt);
+    assert_eq!(spec.model, "opus");
+    let id = reviewer.clone();
+    let session = bench.temp.store.read_blocking(move |tx| tx.routine_sessions().find(&id)).expect("reads");
+    assert_eq!(session.map(|s| s.role).as_deref(), Some("app_reviewer"));
+    let id = reviewer.clone();
+    let row = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads").expect("a row");
+    let scope: eos_contracts::ToolScope =
+        serde_json::from_str(row.tool_scope.as_deref().expect("a scope")).expect("json");
+    assert_eq!(scope.allow, ["Read", "Glob", "Grep", "LS"], "it reads and runs nothing");
+    assert_eq!(bench.run(&run).lead_id.as_deref(), Some(lead.as_str()), "the lead still leads");
+
+    reviews.tell(&run, &lead, "Version 1 of the App passed.".into()).await.expect("told");
+    bench
+        .eventually(|| bench.agents.sent(&lead).iter().any(|text| text.contains("Version 1 of the App passed.")))
+        .await;
+
+    // A run that ended starts no reviewer.
+    bench.runs.stop(&run, Reason::User).await.expect("stopped");
+    assert_eq!(reviews.start_reviewer(start).await.expect("answers"), None);
+}

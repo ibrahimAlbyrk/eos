@@ -1,6 +1,7 @@
 //! The surface routes over the real store.
 
 mod app_calls;
+mod app_reviews;
 mod apps;
 mod designs;
 mod dispatch;

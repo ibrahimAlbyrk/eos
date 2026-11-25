@@ -32,6 +32,9 @@ pub(crate) const TEAM_LEAD_DEFINITION: &str = "eos-run-lead";
 /// The worker definition a design run's designer starts as.
 pub(crate) const DESIGNER_DEFINITION: &str = "eos-run-designer";
 
+/// The worker definition an App's reviewer starts as.
+pub(crate) const APP_REVIEWER_DEFINITION: &str = "app-reviewer";
+
 /// The worker definition a run's checker starts as.
 pub(crate) const CHECKER_DEFINITION: &str = "eos-run-checker";
 

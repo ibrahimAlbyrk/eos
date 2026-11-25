@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use eos_contracts::WorkerDefinitionRecord;
 use eos_core::store::WorkerDefinitionFiles;
 use eos_store_files::worker_definitions::{
-    BUILTIN_DEFINITIONS, FORGE_DEFINITIONS, FsWorkerDefinitionFiles, find_project_dir, forge_definitions,
+    APP_REVIEWER_DEFINITION, BUILTIN_DEFINITIONS, FORGE_DEFINITIONS, FsWorkerDefinitionFiles, app_reviewer_definition,
+    find_project_dir, forge_definitions,
 };
 use eos_testkit::TempHome;
 use eos_workers::definition::records_from;
@@ -106,4 +107,18 @@ fn the_forges_definitions_are_the_frozen_ones_and_each_reads_as_a_definition() {
     assert_eq!(ours, frozen);
     let names: Vec<String> = records_from(&forge_definitions()).into_iter().map(|record| record.name).collect();
     assert_eq!(names, ["forge-builder", "forge-researcher", "forge-reviewer"]);
+}
+
+#[test]
+fn the_app_reviewer_is_the_frozen_one_and_only_reads() {
+    use sha2::{Digest, Sha256};
+    let path = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/workers/apps.json"));
+    let frozen: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).expect("read")).expect("json");
+    let (name, text) = APP_REVIEWER_DEFINITION;
+    let ours: String = Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(frozen["sha256"][name].as_str(), Some(ours.as_str()));
+    let record = records_from(&app_reviewer_definition().into_iter().collect::<Vec<_>>()).remove(0);
+    assert_eq!(record.name, "app-reviewer");
+    assert_eq!(record.tools_allow.as_deref(), Some(&["Read", "Grep", "Glob", "LS"].map(String::from)[..]));
+    assert!(record.body.contains("outside text"));
 }
