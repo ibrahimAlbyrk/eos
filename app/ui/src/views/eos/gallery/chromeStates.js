@@ -2,6 +2,7 @@
 // Eos is stopped, on Home and on a routine, and the note once it runs again;
 // the menus (a routine's, the sidebar's filter) and pinning a fourth page.
 import { ROUTES } from "../../../api/routes.js";
+import { notify } from "../../../lib/notify.js";
 import routineDetail from "./sample/routine-detail.json";
 import paper from "./sample/paper.json";
 
@@ -41,6 +42,15 @@ const withPage = (s) => ({ ...s, [`${ROUTES.surfaces}?routine=${RT}`]: { surface
 const withNoIssue = (s) => ({ ...withPage(s), [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } });
 
 export const CHROME_STATES = [
+  { id: "notice", label: "Notice · unpinning refused", location: `eos:/surfaces/${PAPER}`,
+    sends: async () => ({ ok: false, status: 500, body: { error: "Eos could not save the pins. Try again in a moment." } }),
+    then: pressIn(".eos-head__side button", (b) => b.textContent === "Pinned to Home") },
+  { id: "notices", label: "Notice · three at once", location: "eos:/",
+    then: () => {
+      notify.info("It waits in Needs you for you to send.");
+      notify.warning("Slack answered slowly; the channel list may be short.", { title: "Goes to" });
+      notify.error("Eos could not export what it learned.", { title: "Settings" });
+    } },
   { id: "pins-one", label: "Home · one page pinned", location: "eos:/", reads: homeOne },
   { id: "pins-three", label: "Home · three pinned", location: "eos:/", reads: homeThree },
   { id: "routine-page", label: "Routine · the page it fills", location: `eos:/routines/${RT}`, reads: withPage },
