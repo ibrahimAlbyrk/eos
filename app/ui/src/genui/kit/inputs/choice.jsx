@@ -1,7 +1,8 @@
 // Checklist · Choice · Form · Actions.
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
+import { SubmitOutside } from "../../runtime/submitOutside.js";
 import { attrText, parseOptions, splitIds, splitLabels } from "../../../shared/genui/attrs.ts";
 import { ActionButton } from "../content/ActionButton.jsx";
 import { Icon } from "../icons.jsx";
@@ -169,8 +170,11 @@ export async function submitForm(view, id) {
   return r?.ok === false ? { phase: "error", reason: r.reason ?? "Couldn't send" } : { phase: "sent", reason: "" };
 }
 
+// Under SubmitOutside the form draws only its fields and offers its submit,
+// label and phase to the host that draws the send.
 export function Form({ attrs = {}, children }) {
   const view = useView();
+  const offer = useContext(SubmitOutside);
   const [status, setStatus] = useState({ phase: "idle", reason: "" });
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -178,7 +182,7 @@ export function Form({ attrs = {}, children }) {
   const action = id ? view.actions?.[id] : null;
   const label = view.template(attrText(attrs.submit), undefined) || action?.label || "Send";
   const submit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!id || status.phase === "sending" || view.streaming) return;
     setStatus({ phase: "sending", reason: "" });
     const next = await submitForm(view, id);
@@ -188,6 +192,19 @@ export function Form({ attrs = {}, children }) {
       timer.current = setTimeout(() => setStatus({ phase: "idle", reason: "" }), 2400);
     }
   };
+  const ready = Boolean(action) && !view.streaming;
+  useEffect(() => {
+    if (!offer) return undefined;
+    offer({ label, phase: status.phase, reason: status.reason, ready, submit: () => void submit() });
+    return () => offer(null);
+  }, [offer, label, status.phase, status.reason, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (offer) {
+    return (
+      <form className="gv-form" onSubmit={submit} noValidate>
+        <div className="gv-form__fields">{children}</div>
+      </form>
+    );
+  }
   return (
     <form className="gv-form" onSubmit={submit} noValidate>
       <div className="gv-form__fields">{children}</div>

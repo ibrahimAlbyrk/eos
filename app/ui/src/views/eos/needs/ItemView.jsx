@@ -23,11 +23,12 @@ export function PageItem({ surfaceId, issueId, routineName }) {
 }
 
 // What a Needs-you item shows of its routine's surface: a View (a card, or a
-// question whose press answers its run), or a page issue with its editor.
-export function ItemView({ item, routineName }) {
+// question whose press answers its run), or a page issue with its editor. A
+// View's form offers its send to onSubmitOffer.
+export function ItemView({ item, routineName, onSubmitOffer }) {
   const card = useSurfaces().byIssue[item.view.issueId];
   useEffect(() => { void loadItemView(item.view); }, [item.view]);
   if (!card) return null;
   if (card.issue.kind === "page") return <PageItem surfaceId={item.view.surfaceId} issueId={item.view.issueId} routineName={routineName} />;
-  return <SurfaceCard card={card} routineName={routineName} />;
+  return <SurfaceCard card={card} routineName={routineName} onSubmitOffer={onSubmitOffer} />;
 }

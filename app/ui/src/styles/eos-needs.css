@@ -134,3 +134,8 @@
 .eos-needs-offer strong { color: var(--fg-strong); font-weight: 600; }
 .eos-needs-view { display: flex; flex-direction: column; gap: 8px; }
 .eos-needs-view__aside { align-self: flex-end; }
+
+/* A View's form send, drawn by Eos under the frame when no screen draws it
+   in its own actions. */
+.eos-frame-with-send { display: flex; flex-direction: column; gap: 12px; }
+.eos-frame__send-error { font-size: var(--text-sm); color: var(--err); }

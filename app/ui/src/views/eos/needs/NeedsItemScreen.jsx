@@ -14,6 +14,7 @@ import { followReplacement } from "./cards/DraftCard.jsx";
 import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
 import { ItemView } from "./ItemView.jsx";
+import { ViewSubmit } from "./SurfaceCard.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
 import { closedLine, isShownOnly } from "./words.js";
@@ -46,6 +47,8 @@ function Closed({ detail, refused }) {
 export function NeedsItemScreen({ id }) {
   const { list, details, failed, refused, devRun, offline } = useInbox();
   const [values, setValues] = useState({});
+  // A View's form send, which this screen draws first among its actions.
+  const [viewSubmit, setViewSubmit] = useState(null);
   const routines = useRoutines().list;
   const nameOf = (routineId) => routines?.find((r) => r.id === routineId)?.name;
   const detail = details[id];
@@ -63,7 +66,8 @@ export function NeedsItemScreen({ id }) {
     if (to) openLocation(itemLocation(to.id));
   };
   const open = Boolean(detail) && WAITING.has(detail.item.state) && !refused[id];
-  // A View's own buttons answer it; only Later and Discard sit beside them.
+  // A View answers through its own buttons, or its form's send drawn here;
+  // Later and Discard sit beside it.
   const actions = open && !detail.item.view ? actionsOf(detail, values) : [];
   const setValue = (key, value) => setValues((v) => ({ ...v, [key]: value }));
   const doing = async (action) => {
@@ -86,11 +90,16 @@ export function NeedsItemScreen({ id }) {
   useKeybinding({
     match: primaryKey,
     run: (ctx, e) => {
+      if (!primary && open && viewSubmit?.ready && !offline) {
+        e.preventDefault();
+        viewSubmit.submit();
+        return;
+      }
       if (!primary || blocked(primary)) return;
       e.preventDefault();
       void doing(primary);
     },
-  }, [detail, values, offline, neighbours, at]);
+  }, [detail, values, offline, neighbours, at, viewSubmit]);
 
   const title = detail?.item.title ?? "Item";
   const { Body } = cardOf(detail?.item.kind);
@@ -121,10 +130,11 @@ export function NeedsItemScreen({ id }) {
             <div className="eos-needs-item__main">
               {!open && <Closed detail={detail} refused={refused[id]} />}
               {detail.item.view
-                ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} />
+                ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} onSubmitOffer={setViewSubmit} />
                 : <article className="eos-needs-item__card"><Body detail={detail} values={values} setValue={setValue} routineName={nameOf(detail.item.routineId)} /></article>}
               {open && (
                 <div className="eos-actions eos-needs-item__actions">
+                  {detail.item.view && viewSubmit && <ViewSubmit offer={viewSubmit} shortcut={shortcutLabel("mod+return")} disabled={offline} />}
                   {actions.map((a) => (
                     <button
                       key={a.label}
