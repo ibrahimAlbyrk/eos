@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
-use eos_core::capability::{CapabilityFiles, PACKAGE_MAX_BYTES};
+use eos_core::capability::{CapabilityFiles, PACKAGE_MAX_BYTES, PackageFiles};
 use eos_core::os::FileSystem;
 use eos_core::{BoxFuture, Error};
 use eos_domain::capability::check::{PARTIAL_SUFFIX, is_version};
@@ -242,7 +242,7 @@ impl CapabilityFiles for FsCapabilityFiles {
 
     fn install_files<'a>(
         &'a self,
-        files: Vec<(String, Vec<u8>)>,
+        files: PackageFiles,
         id: &'a str,
         version: &'a str,
         hash: &'a str,
@@ -250,7 +250,7 @@ impl CapabilityFiles for FsCapabilityFiles {
         Box::pin(self.put(id, version, hash, move |to| write_in(&files, to)))
     }
 
-    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>> {
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<PackageFiles, Error>> {
         Box::pin(async move {
             let dir = self.installed(id, version)?;
             blocking(move || read_all(&dir)).await

@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_core::capability::CapabilityFiles;
+use eos_core::capability::{CapabilityFiles, PackageFiles};
 use eos_core::os::FileSystem;
 use eos_core::{BoxFuture, Error};
 
@@ -97,7 +97,7 @@ impl CapabilityFiles for FakeCapabilityFiles {
 
     fn install_files<'a>(
         &'a self,
-        files: Vec<(String, Vec<u8>)>,
+        files: PackageFiles,
         id: &'a str,
         version: &'a str,
         hash: &'a str,
@@ -121,7 +121,7 @@ impl CapabilityFiles for FakeCapabilityFiles {
         Box::pin(std::future::ready(installed))
     }
 
-    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>> {
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<PackageFiles, Error>> {
         fn read(dir: &Path, prefix: &str, out: &mut Vec<(String, Vec<u8>)>) -> std::io::Result<()> {
             for entry in fs::read_dir(dir)? {
                 let entry = entry?;
