@@ -135,26 +135,34 @@ pub(crate) async fn rig(builtins: Vec<Arc<dyn BuiltinCapability>>, signed_in: bo
 /// The module over these built-ins and the secrets they share with the
 /// service.
 pub(crate) async fn rig_with(builtins: Vec<Arc<dyn BuiltinCapability>>, secrets: Arc<FakeCapabilitySecrets>) -> Rig {
-    rig_on(builtins, secrets, None).await
+    rig_on(builtins, secrets, None, Arc::new(FakeActionRunner::new()), true).await
 }
 
 /// The module whose broken capabilities pause routines through `control`.
 pub(crate) async fn rig_breaking(builtins: Vec<Arc<dyn BuiltinCapability>>, control: Arc<FakeRoutineControl>) -> Rig {
     let secrets = FakeCapabilitySecrets::new().with("github", "token", SECRET);
-    rig_on(builtins, Arc::new(secrets), Some(control)).await
+    rig_on(builtins, Arc::new(secrets), Some(control), Arc::new(FakeActionRunner::new()), true).await
+}
+
+/// The module whose packages run through `runner`, their own code in the
+/// checks nobody asked for only when `package_checks`.
+pub(crate) async fn rig_running(runner: FakeActionRunner, package_checks: bool) -> Rig {
+    rig_on(Vec::new(), Arc::new(FakeCapabilitySecrets::new()), None, Arc::new(runner), package_checks).await
 }
 
 async fn rig_on(
     builtins: Vec<Arc<dyn BuiltinCapability>>,
     secrets: Arc<FakeCapabilitySecrets>,
     control: Option<Arc<FakeRoutineControl>>,
+    runner: Arc<FakeActionRunner>,
+    package_checks: bool,
 ) -> Rig {
     let kernel = Kernel::new(KernelOptions::default());
     let temp = TempStore::on_bus(&kernel.bus);
     let clock = Arc::new(FakeClock::new());
     let sleeper = Arc::new(FakeSleeper::default());
     let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));
-    let (prompt, runner) = (Arc::new(FakeSecretPrompt::new()), Arc::new(FakeActionRunner::new()));
+    let prompt = Arc::new(FakeSecretPrompt::new());
     let files = Arc::new(FakeCapabilityFiles::new(temp.home.join("capabilities"), trash));
     let service = Arc::new(CapabilityService::new(
         CapabilityPorts {
@@ -169,7 +177,8 @@ async fn rig_on(
         builtins,
     ));
     let mut module = CapabilitiesModule::new(service.clone(), temp.port(), clock.clone(), sleeper.clone())
-        .with_secret_prompt(Some(prompt.clone()));
+        .with_secret_prompt(Some(prompt.clone()))
+        .with_package_checks(package_checks);
     if let Some(control) = control {
         module = module.with_breakage(BreakageParts {
             control,

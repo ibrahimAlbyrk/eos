@@ -21,6 +21,7 @@
 //! | The Mail app, for its capability's reads, sends and checks | `osascript` never runs; every program answers as macOS refusing Apple Events, so Mail reads `needs_setup` |
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
 //! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
+//! | Packages' own code (scripts, MCP servers) in the checks nobody asked for: hourly and early | never started; a package is checked only when the user asks, built-ins still are |
 //! | Outside services' events in the relay's hook inbox | there is no inbox: it is never dialled and no webhook is added |
 //! | Signals that match a routine | decided `held-dev`: no run is admitted |
 //! | The channels a run's results go out through (GitHub reviews) | every send answers `DevRun`: the delivery stays `frozen`, nothing is sent |
@@ -187,6 +188,13 @@ impl Reach {
     /// (reflection, night tidying, the suggestion read): those calls spend
     /// the user's plan.
     pub(crate) fn background_model_calls(self) -> bool {
+        self.network
+    }
+
+    /// Whether the capability checks nobody asked for run packages' own
+    /// code, which may drive an app through Apple Events or reach its hosts
+    /// with no secret at all.
+    pub(crate) fn package_checks(self) -> bool {
         self.network
     }
 
@@ -419,6 +427,12 @@ mod tests {
         let on = Reach::new(true).account_reads(stores);
         assert!(on.access_token("anthropic", "/acc/claude").await.is_some());
         assert_eq!(on.withheld(), None);
+    }
+
+    #[test]
+    fn off_the_network_no_unasked_capability_check_runs_a_package_s_code() {
+        assert!(!Reach::new(false).package_checks());
+        assert!(Reach::new(true).package_checks());
     }
 
     #[tokio::test]

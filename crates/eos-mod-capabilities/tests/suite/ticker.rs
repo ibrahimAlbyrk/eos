@@ -11,7 +11,9 @@ use eos_runtime::http::Method;
 use eos_testkit::{FakeBuiltin, routine_seed};
 use serde_json::json;
 
-use crate::rig::{GITHUB, MAIL, Rig, rig};
+use eos_testkit::FakeActionRunner;
+
+use crate::rig::{GITHUB, MAIL, Rig, notes, rig, rig_running};
 
 /// Waits until the loop sleeps again.
 async fn sleeping(rig: &Rig) {
@@ -91,4 +93,43 @@ async fn a_refused_sign_in_is_checked_at_once() {
     .await
     .expect("back to ready");
     assert_eq!(rig.changes().len(), 3, "{:?}", rig.changes());
+}
+
+/// A package's call refused for its sign-in asks for an early check, which
+/// runs the package's health action only where the app may act as the user.
+async fn early_check_runs_of_a_package(package_checks: bool) -> usize {
+    let refused = Err(ActionError::Failed { kind: FailureKind::Unauthorized });
+    let rig = rig_running(FakeActionRunner::new().answering("notes-db", "list_notes", refused), package_checks).await;
+    let manifest = notes("1.0.0").replace("reach = {", "health = { action = \"list_notes\" }\nreach = {");
+    rig.install(&manifest, "h-1").await;
+    sleeping(&rig).await;
+    let call = ActionCall {
+        capability: "notes-db".into(),
+        action: "list_notes".into(),
+        input: json!({}),
+        caller: ActionCaller::Agent { worker_id: "w-1".into() },
+        idempotency_key: None,
+    };
+    assert!(rig.service.call(call).await.is_err());
+    assert_eq!(rig.runner.runs().len(), 1, "the agent's own call ran");
+    if package_checks {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while rig.runner.runs().len() < 2 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("an early check of the package");
+    } else {
+        for _ in 0..3 {
+            tick(&rig).await;
+        }
+    }
+    rig.runner.runs().len()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_package_s_own_code_runs_in_an_unasked_check_only_where_the_app_acts_as_the_user() {
+    assert_eq!(early_check_runs_of_a_package(true).await, 2);
+    assert_eq!(early_check_runs_of_a_package(false).await, 1, "off the network its code never starts unasked");
 }
