@@ -32,6 +32,10 @@
         "inline": true
       }
     ],
+    "usual": {
+      "usd": 0.4,
+      "ms": 180000
+    },
     "runs7d": 2,
     "activeRuns": 0,
     "lastRun": {

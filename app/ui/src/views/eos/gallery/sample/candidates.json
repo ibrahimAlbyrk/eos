@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "kind": "github.pull_request", "key": "github:pr:acme/game#483", "title": "Add haptics to match-3 combos", "url": "https://github.com/acme/game/pull/483" },
+    { "kind": "github.pull_request", "key": "github:pr:acme/game#470", "title": "Rework shop carousel paging", "url": "https://github.com/acme/game/pull/470" },
+    { "kind": "github.pull_request", "key": "github:pr:acme/game#468", "title": "Fix daily reward timer drift", "url": "https://github.com/acme/game/pull/468" },
+    { "kind": "github.pull_request", "key": "github:pr:acme/game#465", "title": "Localise shop banners", "url": "https://github.com/acme/game/pull/465" }
+  ]
+}

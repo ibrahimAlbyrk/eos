@@ -15,6 +15,7 @@ import blueprintDrafts from "./sample/blueprint-drafts.json";
 import blueprintVersions from "./sample/blueprint-versions.json";
 import blueprintVersionBodies from "./sample/blueprint-version-bodies.json";
 import runsPageSample from "./sample/runs-page.json";
+import candidates from "./sample/candidates.json";
 import runDetailSample from "./sample/run-detail.json";
 import runsSample from "./sample/runs.json";
 import runResults from "./sample/run-results.json";
@@ -22,8 +23,8 @@ import inboxSample from "./sample/inbox.json";
 import inboxItemsSample from "./sample/inbox-items.json";
 import capabilities from "./sample/capabilities.json";
 import signInFailed from "./sample/sign-in-failed.json";
-import triggerStatus from "./sample/trigger-status.json";
-import signals from "./sample/signals.json";
+import triggerStatusSample from "./sample/trigger-status.json";
+import signalsSample from "./sample/signals.json";
 import memory from "./sample/memory.json";
 import surfaceSample from "./sample/surfaces.json";
 import paper from "./sample/paper.json";
@@ -57,11 +58,18 @@ const runs = later(runsSample, runsBy);
 const runsPage = later(runsPageSample, runsBy);
 const runDetail = later(runDetailSample, runsBy);
 
+// PR Review's source last looked four minutes before the gallery opened; its
+// triggers and signals move with it.
+const signalsBy = Date.now() - 4 * MIN - triggerStatusSample[routineDetail.routine.id].sources[0].lastPollAt;
+const triggerStatus = later(triggerStatusSample, signalsBy);
+const signals = later(signalsSample, signalsBy);
+
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
 // paused with its detail and an architect's change ready, Docs Review being
 // made with its architect asking, and a run of
-// PR Review in each state with the results of those shown only; Needs you holds
+// PR Review in each state with the results of those shown only, and the
+// pull requests it could run on; Needs you holds
 // an item of each kind; the
 // capabilities hold one of each state; GitHub's sign-in is one that did not work.
 // PR Review's triggers show a schedule in another zone, a source after a
@@ -80,6 +88,7 @@ export const SAMPLE_READS = {
   ...Object.fromEntries(Object.entries(blueprintVersions).map(([id, rows]) => [ROUTES.routineVersions(id), rows])),
   ...Object.fromEntries(Object.entries(blueprintVersionBodies).flatMap(([id, bodies]) => bodies.map((v) => [ROUTES.routineVersion(id, v.id), v]))),
   [`${ROUTES.runs}?routineId=${routineDetail.routine.id}&limit=50`]: runsPage,
+  [`${ROUTES.routineCandidates(routineDetail.routine.id)}?limit=20`]: candidates,
   [ROUTES.run(runDetail.run.id)]: runDetail,
   ...Object.fromEntries(runs.map((detail) => [ROUTES.run(detail.run.id), detail])),
   ...Object.fromEntries(runResults.map((result) => [ROUTES.runResult(result.runId), result])),
