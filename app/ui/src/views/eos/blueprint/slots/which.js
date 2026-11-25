@@ -1,11 +1,15 @@
 // The Which slot (02's `Which`) as words and the parts the user can change:
-// each test's value (a menu for yes or no, a glob for paths, text for the
+// each test's value (a menu for what the item is or is not, a glob for paths, text for the
 // rest) and the question a small model answers. Every change keeps the keys
 // this version does not know.
 
 const OPS = ["is", "in", "has", "glob", "contains", "gte", "lte"];
 const OP_WORDS = { is: "is", in: "is one of", has: "has", glob: "matches", contains: "contains", gte: "is at least", lte: "is at most" };
-const YES_NO = [{ value: "true", label: "yes" }, { value: "false", label: "no" }];
+// A yes-or-no fact reads as what the item is: "it is not a draft", "it is
+// merged". A fact that is a noun takes its article.
+const NOUNS = new Set(["draft", "bot", "fork"]);
+const asIs = (fact) => (NOUNS.has(fact) ? `a ${fact}` : fact);
+const isWords = (fact) => [{ value: "true", label: asIs(fact) }, { value: "false", label: `not ${asIs(fact)}` }];
 
 const opOf = (rule) => OPS.find((op) => op in rule);
 
@@ -17,7 +21,8 @@ function testParts(rule, put, key) {
   const base = { key, label: rule.fact };
   let part;
   if (op === "is" && typeof v === "boolean") {
-    part = { ...base, editor: "menu", text: v ? "yes" : "no", value: String(v), options: YES_NO, apply: (x) => set(x === "true") };
+    const options = isWords(rule.fact);
+    return ["it is ", { ...base, editor: "menu", text: options[v ? 0 : 1].label, value: String(v), options, apply: (x) => set(x === "true") }];
   } else if (op === "in" || Array.isArray(v)) {
     part = { ...base, editor: "text", text: (v ?? []).join(", "), value: (v ?? []).join(", "), apply: (x) => set(x.split(",").map((s) => s.trim()).filter(Boolean)) };
   } else if (op === "glob") {
