@@ -2,7 +2,8 @@
 //! (`holding` or `queued`) is stopped. A send the user approved stops with
 //! every send of its draft that waits too, the draft opens again for the
 //! user, and the run waits for the user again; an automatic one goes back
-//! to the user as a new draft. A draft of several targets, one of which
+//! to the user as a new draft and counts as an undo for the streak, though
+//! the routine keeps its Freedom. A draft of several targets, one of which
 //! went out already or is on its way, opens again for only the targets
 //! stopped, so sending it again repeats none.
 
@@ -12,7 +13,8 @@ use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
 use super::record::{Again, hold_again_in};
-use super::{HOLDING, QUEUED, STOPPED, announce, target_of, target_value};
+use super::{HOLDING, QUEUED, STOPPED, announce, automatic, target_of, target_value};
+use crate::outcomes::stopped_in;
 use crate::{Items, Opening, announce as announce_item};
 
 fn not_out(row: &StoredDelivery) -> bool {
@@ -62,6 +64,10 @@ impl Items {
                     }
                     Some(_) => {}
                     None => hold_again_in(tx, out, &at, outcomes.as_ref(), &row, &again)?,
+                }
+                if automatic(&row.mode) {
+                    stopped_in(tx, &row, now)?;
+                    crate::offers::sent_in(tx, out, &at, &row.routine_id)?;
                 }
                 let stopped = stopped.into_iter().find(|sibling| sibling.id == row.id);
                 stopped.ok_or_else(|| Error::not_found("delivery", &row.id))
