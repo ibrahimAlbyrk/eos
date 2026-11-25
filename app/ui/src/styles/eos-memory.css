@@ -82,7 +82,9 @@
   color: var(--fg);
 }
 
-.eos-mem-about { padding: 0; }
+/* The Agents Memory body, here aligned to the screen's column as Learned
+   from work is, not centred in a narrower box. */
+.eos-mem-about { max-width: none; margin: 0; padding: 0; }
 .eos-mem-about__bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 
 /* Memory in the other screens: a draft's Why aside and a run's aside. */
