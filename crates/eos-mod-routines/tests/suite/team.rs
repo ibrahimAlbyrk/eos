@@ -127,7 +127,12 @@ async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked
     assert!(brief.contains("- tester (TESTER): tester brief.") && brief.contains(&worktree), "{brief}");
 
     let tools = bench.module.tools();
-    for (agent, task) in [("tester", "Run the tests."), ("reader", "Read the diff."), ("noter", "Take notes.")] {
+    let (one, two) = tokio::join!(
+        tools.start_specialist(&lead, "tester", "Run the tests."),
+        tools.start_specialist(&lead, "tester", "Run the tests.")
+    );
+    assert_eq!([one.is_ok(), two.is_ok()].iter().filter(|ok| **ok).count(), 1, "two starts at once start it once");
+    for (agent, task) in [("reader", "Read the diff."), ("noter", "Take notes.")] {
         tools.start_specialist(&lead, agent, task).await.expect("starts");
     }
     assert!(tools.start_specialist(&lead, "tester", "Again.").await.is_err(), "one session per specialist");
