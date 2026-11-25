@@ -4,40 +4,74 @@
    --fg-dim2 (eos.css's contrast note holds here too). */
 
 .eos-mem-tab-count { margin-left: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-mem-search {
-  width: 220px;
-  padding: 5px 10px;
+
+/* The header's search: a field with its glass, on the header's ground. */
+.eos-mem-search { position: relative; display: inline-flex; align-items: center; }
+.eos-mem-search svg { position: absolute; left: 11px; fill: none; stroke: var(--fg-dim2); stroke-width: 1.4; stroke-linecap: round; pointer-events: none; }
+.eos-mem-search input {
+  width: 240px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 12px 0 32px;
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
-  background: var(--raised);
+  background: var(--panel);
   font: inherit;
   font-size: var(--text-sm);
-  color: var(--fg);
+  color: var(--fg-strong);
+  transition: border-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
 }
+.eos-mem-search input::placeholder { color: var(--fg-dim2); }
+.eos-mem-search input:focus { outline: none; border-color: var(--accent); }
+.eos-mem-search input:focus + svg, .eos-mem-search:focus-within svg { stroke: var(--fg-mid); }
 
-.eos-mem-columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; }
-.eos-mem-learned { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+/* The lead, as Home greets: a label, what Eos learned this week, what it
+   holds in a dim line of the same size, and the one rule as a fact. */
+.eos-mem-lead { margin-bottom: -8px; }
+.eos-mem-lead > .eos-label { margin: 0 0 -2px; }
+.eos-mem-lead > .eos-rlead__now { margin-top: -12px; }
+.eos-mem-lead > .eos-fact { margin-top: 2px; }
+
+/* The list and the open note: columns 56 apart, the note at most 380. */
+.eos-mem-columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; margin-top: 8px; }
+.eos-mem-learned { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 32px; container: eos-mem / inline-size; }
 
 .eos-mem-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.eos-mem-filter { height: 26px; padding: 0 12px; border: 0; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; }
+.eos-mem-filter { height: 28px; padding: 0 12px; border: 0; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; transition: color calc(120ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1); }
 .eos-mem-filter:hover { color: var(--fg-strong); }
+.eos-mem-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eos-mem-filters .eos-mem-filter[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
 .eos-mem-filters .eos-mem-filter--kind { padding: 0 10px; background: none; color: var(--fg-dim); }
-.eos-mem-filters__sep { width: 1px; height: 16px; margin: 0 4px; background: var(--line); }
+.eos-mem-filters__sep { width: 1px; height: 16px; margin: 0 6px; background: var(--line); }
 
 /* A group is a section on hairlines: its place as a label with the count at
    its right, then its notes, a rule above each. */
 .eos-mem-group { display: flex; flex-direction: column; gap: 12px; }
 .eos-mem-group__head { display: flex; align-items: baseline; gap: 8px; }
 .eos-mem-group__name { flex: 1; min-width: 0; margin: 0; font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-mem-group__name--found { font-family: inherit; font-size: var(--text-xl); letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--fg-strong); }
 .eos-mem-group__count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-mem-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
-.eos-mem-row { display: flex; align-items: center; gap: 12px; min-height: 52px; box-sizing: border-box; padding: 12px 0; border-top: 1px solid var(--line); }
+
+/* A note: its state's mark hung at the left, its words and why, who taught
+   it, its strength as five marks. */
+.eos-mem-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) 72px 44px;
+  align-items: center;
+  column-gap: 16px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  transition: background-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), box-shadow calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-mem-row:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
 /* The open note's row is lit past the text's edges, so the words stay on the column's line. */
 .eos-mem-row:has([aria-current="true"]) { background: var(--raised); box-shadow: -12px 0 0 var(--raised), 12px 0 0 var(--raised); }
-.eos-mem-row:has([aria-current="true"]) .eos-chip { background: var(--chip); }
+.eos-mem-row:has([aria-current="true"])::before { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 2px; background: var(--accent); }
 .eos-mem-row__open {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -49,48 +83,143 @@
   text-align: left;
   cursor: pointer;
 }
-.eos-mem-row__text { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-mem-row__open[aria-current="true"] .eos-mem-row__text { color: var(--fg-strong); font-weight: 500; }
-.eos-mem-row__why { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-mem-row__open::after { content: ""; position: absolute; inset: 0; }
+.eos-mem-row__open:focus-visible { outline: none; }
+.eos-mem-row:has(.eos-mem-row__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.eos-mem-row__text { font-size: var(--text-base); font-weight: 500; line-height: 1.4; color: var(--fg-strong); overflow-wrap: anywhere; text-wrap: pretty; }
+.eos-mem-row__why { font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); text-wrap: pretty; }
+.eos-mem-row__source { font-size: var(--text-xs); color: var(--fg-dim2); text-align: right; white-space: nowrap; }
 /* A cooling note reads quieter: it has not come back for a while. */
 .eos-mem-row--cooling .eos-mem-row__text { color: var(--fg-dim); }
+.eos-mem-hit { padding: 0 1px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--fg-strong); }
 
-/* Five steps drawn as one thin bar, filled as far as the note is strong. */
-.eos-mem-strength { display: inline-flex; flex: none; width: 40px; height: 3px; border-radius: 2px; overflow: hidden; background: var(--chip); }
-.eos-mem-strength > span { flex: 1; }
+/* The state's mark: trying lit in the accent, firm solid, cooling hollow. */
+.eos-mem-mark { width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); align-self: start; margin-top: 6px; }
+.eos-mem-mark--trying { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.eos-mem-mark--firm { background: var(--fg-dim2); }
+.eos-mem-mark--cooling, .eos-mem-mark--closed { border-style: dashed; }
+
+/* Five small marks, filled as far as the note is strong. */
+.eos-mem-strength { display: inline-flex; gap: 3px; justify-self: end; }
+.eos-mem-strength > span { width: 5px; height: 5px; border-radius: 50%; background: var(--chip); }
 .eos-mem-strength > .eos-mem-strength__on { background: var(--fg-mid); }
+.eos-mem-more { align-self: flex-start; margin-left: -12px; }
 
-.eos-mem-detail { flex: 1 1 300px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
-.eos-mem-detail__head { display: flex; flex-direction: column; gap: 6px; }
-.eos-mem-detail__text { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
-.eos-mem-detail__line { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-mem-detail__part { display: flex; flex-direction: column; gap: 8px; }
-.eos-mem-detail__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--fg); }
-.eos-mem-detail__list li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
-.eos-mem-detail__when { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-mem-detail__chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
-.eos-mem-detail__next { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-mem-detail__para { margin: 0; font-size: var(--text-sm); color: var(--fg); }
-.eos-mem-detail__quote { margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--raised); font-size: var(--text-sm); color: var(--fg); }
-.eos-mem-detail__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.eos-mem-detail__close { margin-left: auto; }
-.eos-mem-edit { display: flex; flex-direction: column; gap: 8px; }
-.eos-mem-edit__text {
-  width: 100%;
-  resize: vertical;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
-  font: inherit;
-  font-size: var(--text-base);
-  color: var(--fg);
+@container eos-mem (max-width: 560px) {
+  .eos-mem-row { grid-template-columns: 9px minmax(0, 1fr) 44px; }
+  .eos-mem-row__source { display: none; }
 }
 
-/* The Agents Memory body, here aligned to the screen's column as Learned
-   from work is, not centred in a narrower box. */
-.eos-mem-about { max-width: none; margin: 0; padding: 0; }
-.eos-mem-about__bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+/* Nothing learned yet: what the place is for, then how Eos learns as a
+   glossary in two columns on hairlines. */
+.eos-mem-first { display: flex; flex-direction: column; gap: 40px; max-width: 760px; padding-top: 8px; }
+.eos-mem-first__title { margin: 0; font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
+.eos-mem-first__line { margin: 6px 0 0; max-width: 56ch; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim); }
+.eos-mem-ways { display: flex; flex-direction: column; gap: 12px; }
+.eos-mem-ways .eos-label { margin: 0; }
+.eos-mem-ways__list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); column-gap: 32px; border-top: 1px solid var(--line); }
+.eos-mem-way { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.eos-mem-way__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.eos-mem-way__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-mem-way__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
+
+/* The open note: a card acted on as a whole, beside the list. */
+.eos-mem-detail { position: relative; flex: 1 1 300px; max-width: 380px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding: 20px 20px 18px; border-radius: 16px; background: #1b1b1b; animation: eos-mem-open calc(220ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes eos-mem-open { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .eos-mem-detail { animation: eos-ask-shade 120ms linear both; } }
+.eos-mem-detail__head { display: flex; flex-direction: column; gap: 8px; }
+.eos-mem-detail__kind { margin: 0; padding-right: 36px; }
+.eos-mem-detail__close { position: absolute; top: 12px; right: 12px; color: var(--fg-dim); }
+.eos-mem-detail__text { margin: 4px 0 0; font-size: var(--text-xl); line-height: 1.35; font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; text-wrap: pretty; }
+.eos-mem-detail__line { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-mem-detail__body { display: flex; flex-direction: column; gap: 22px; }
+.eos-mem-detail--forgotten .eos-mem-detail__body { opacity: 0.55; }
+.eos-mem-detail__part { display: flex; flex-direction: column; gap: 10px; }
+.eos-mem-detail__part > .eos-label { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--chip); }
+.eos-mem-detail__when { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); white-space: nowrap; }
+.eos-mem-detail__chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.eos-mem-detail__chips .eos-chip { background: var(--chip); }
+.eos-mem-detail__para { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg); }
+.eos-mem-detail__quote { margin: 0; padding: 10px 14px; border-radius: 10px; background: var(--bg); font-size: var(--text-sm); line-height: 1.5; color: var(--fg-strong); }
+.eos-mem-detail__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
+.eos-mem-detail__actions .eos-btn:not(.eos-btn--ghost) { background: var(--chip); }
+
+/* What taught it, on a short spine: each moment a mark, its time, its words. */
+.eos-mem-spine { position: relative; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.eos-mem-spine::before { content: ""; position: absolute; left: 3.5px; top: 8px; bottom: 8px; width: 1px; background: var(--fg-dim2); opacity: 0.6; }
+.eos-mem-spine__step { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; padding-left: 20px; font-size: var(--text-sm); line-height: 1.5; color: var(--fg); }
+.eos-mem-spine__step::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; background: var(--fg-dim2); box-shadow: 0 0 0 3px #1b1b1b; }
+.eos-mem-spine__step:last-child::before { background: var(--fg-mid); }
+
+/* Did it help: figures, the number over its word. */
+.eos-mem-figures { margin: 0; display: flex; gap: 28px; }
+.eos-mem-figure { display: flex; flex-direction: column; gap: 2px; }
+.eos-mem-figure dd { margin: 0; font-family: var(--font-mono); font-size: 20px; line-height: 1.3; color: var(--fg-strong); }
+.eos-mem-figure dt { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-mem-figure--wrong dd { color: var(--warn); }
+
+.eos-mem-next { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.eos-mem-next__open { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); line-height: 1.5; text-align: left; color: var(--fg); cursor: pointer; }
+.eos-mem-next__open:hover { color: var(--fg-strong); text-decoration: underline; text-underline-offset: 3px; }
+.eos-mem-next__open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Forgotten: the fact in warn and the way back, above what it was. */
+.eos-mem-gone { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 12px; background: var(--bg); box-shadow: inset 2px 0 0 var(--warn); }
+.eos-mem-gone .eos-fact { display: grid; grid-template-columns: 9px minmax(0, 1fr); align-items: baseline; color: var(--fg); }
+.eos-mem-gone .eos-fact::before { transform: translateY(1px); }
+
+/* The note's words in a well while edited: the accent edge, the keys at
+   the left, Cancel then Save at the right. */
+.eos-mem-edit { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.eos-mem-edit__text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg);
+  font: inherit;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg-strong);
+}
+.eos-mem-edit__text:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.eos-mem-edit__foot { display: flex; align-items: center; gap: 6px; }
+.eos-mem-edit__keys { margin-right: auto; white-space: nowrap; font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* About you: the Agents Memory body drawn in Eos's hand. Scoped here, so the
+   Agents takeover keeps its own look. Groups are sections on hairlines (a
+   label, its count, a memory per row), what waits for a yes is one band with
+   the accent edge, the budget and Dreaming are the aside's parts. */
+/* Add memory stands at the right of the tabs' row, above the body it adds to. */
+.eos-mem-about { position: relative; max-width: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 32px; }
+.eos-mem-about__bar { position: absolute; top: -62px; right: 0; display: flex; align-items: center; gap: 8px; }
+.eos-mem-about .mem-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.eos-mem-about .mem-btn--primary { background: var(--solid-btn-bg); color: var(--solid-btn-fg); box-shadow: none; }
+.eos-mem-about .stg-chip { height: 28px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); box-shadow: none; }
+.eos-mem-about .stg-chip.is-on { background: var(--accent-soft); color: var(--fg-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.eos-mem-about .mem-body { gap: 40px 56px; }
+.eos-mem-about .mem-groups { gap: 40px 48px; }
+.eos-mem-about .mem-group { gap: 12px; border-radius: 0; background: none; }
+.eos-mem-about .mem-group__head { padding: 0; align-items: baseline; }
+.eos-mem-about .mem-group__head h2 { font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-mem-about .mem-group__list { padding: 0; border-bottom: 1px solid var(--line); }
+.eos-mem-about .mem-item { padding: 12px 0; border-radius: 0; border-top: 1px solid var(--line); box-shadow: none; }
+.eos-mem-about .mem-item:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-mem-about .mem-item__text { font-size: var(--text-base); color: var(--fg-strong); }
+.eos-mem-about .mem-rail { flex: 1 1 280px; max-width: 360px; gap: 40px; }
+.eos-mem-about .mem-card { gap: 12px; padding: 0; border-radius: 0; background: none; }
+.eos-mem-about .mem-card__title { padding-bottom: 12px; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-mem-about .mem-inbox { padding: 18px 20px; border-radius: 14px; background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
+.eos-mem-about .mem-inbox__icon { display: none; }
+.eos-mem-about .mem-inbox__grid { gap: 0; border-top: 1px solid var(--chip); }
+.eos-mem-about .mem-suggestion { padding: 14px 0; border-radius: 0; background: none; box-shadow: none; border-bottom: 1px solid var(--chip); }
+.eos-mem-about .mem-suggestion__why { font-style: normal; }
+.eos-mem-about .dr-journal { border-radius: 14px; background: #1b1b1b; box-shadow: none; }
+.eos-mem-about .dr-stars { display: none; }
+.eos-mem-about .dr-btn-violet { background: var(--solid-btn-bg); color: var(--solid-btn-fg); box-shadow: none; }
+.eos-mem-about .mem-empty { padding: 8px 0; }
 
 /* Memory in the other screens: a draft's Why aside and a run's aside. */
 .eos-needs-why, .eos-run-memory { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
