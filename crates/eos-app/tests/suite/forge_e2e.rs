@@ -237,7 +237,8 @@ impl Forge {
         loop {
             let (_, row) = self.ask(Method::Get, &format!("/api/runs/{run}"), None).await;
             if row["run"]["state"] == "failed" {
-                if row.to_string().contains("sandbox") {
+                // Only the words of `ConfineError::Unavailable`: any other refusal fails the test.
+                if row.to_string().contains("the sandbox does not work on this Mac") {
                     eprintln!("skipped: the sandbox does not work on this Mac");
                     return None;
                 }
@@ -307,7 +308,7 @@ async fn a_need_goes_through_research_build_tests_review_live_test_install_and_r
 
     // A repair whose health fails within a day goes back to the version before.
     let repair = json!({"need": "Repair the echo: 1.1.0-NEED", "capabilityId": "echo-script"});
-    let Some(second) = forge.proposed(repair).await else { return };
+    let second = forge.proposed(repair).await.expect("the sandbox worked for the first run");
     forge.prompt.answer(Some("tok_typed_in_prompt_e2e"));
     let (status, _) =
         forge.ask(Method::Post, &format!("/api/forge/proposals/{second}/live-test"), Some(json!({}))).await;
