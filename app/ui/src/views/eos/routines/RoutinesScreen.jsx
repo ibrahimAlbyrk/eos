@@ -3,7 +3,7 @@ import { refreshHome, useHome } from "../../../state/eos/homeStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
-import { Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
 import { EmptyState } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -115,7 +115,7 @@ export function RoutinesScreen() {
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
           ))}
         </div>}
-        {list === null && !listFailed && <Loading blocks={4} />}
+        {list === null && !listFailed && <LoadingRows rows={4} />}
         {list === null && listFailed && <LoadFailed what="routines" retry={() => void refreshRoutines()} />}
         {list !== null && rows.length === 0 && (
           <EmptyState

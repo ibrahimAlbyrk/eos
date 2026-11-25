@@ -3,7 +3,7 @@ import { fmtTimeAgo } from "../../../lib/format.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { ensureInboxLoaded, laterInboxItem, loadLastAnswered, refreshInbox, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
-import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { DevRunNote, LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
 import { EmptyState } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -131,7 +131,7 @@ export function NeedsYouList() {
       <EosHeader trail={[{ label: "Needs you" }]} />
       <div className="eos-body eos-needs">
         {devRun && <DevRunNote />}
-        {list === null && (listFailed ? <LoadFailed what="what needs you" retry={() => void refreshInbox()} /> : <Loading />)}
+        {list === null && (listFailed ? <LoadFailed what="what needs you" retry={() => void refreshInbox()} /> : <LoadingRows />)}
         {list && !empty && (
           <header className="eos-needs-head">
             <p className="eos-lead">{needsLead(all)}</p>

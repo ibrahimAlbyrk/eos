@@ -177,7 +177,7 @@ describe("the Needs-you list", () => {
   });
 
   it("draws many items, loading blocks, and a failed read in words", async () => {
-    expect(at("eos:/needs")).toContain('<div class="eos-skeleton" aria-busy="true" aria-label="Loading">');
+    expect(at("eos:/needs")).toContain('<div class="eos-skeleton eos-skeleton--rows" aria-busy="true" aria-label="Loading">');
     await loaded({});
     expect(at("eos:/needs")).toContain("Couldn&#x27;t load what needs you.");
     const many = Array.from({ length: 100 }, (_, n) => ({ ...inbox.items[3], id: `ib-${String(n).padStart(12, "0")}`, createdAt: 1763452990000 - n }));

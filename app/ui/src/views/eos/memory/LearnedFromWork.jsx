@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { loadMoreNotes, loadNotes, notesPath, useNotes } from "../../../state/eos/notesStore.js";
-import { LoadFailed, Loading } from "../capabilities/parts.jsx";
+import { LoadFailed, LoadingRows } from "../capabilities/parts.jsx";
 import { EmptyState } from "../frame.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
@@ -88,7 +88,7 @@ export function LearnedFromWork({ summary, query = "", selected, routineId }) {
   const open = (id) => openLocation(buildLocation({ screen: "memory", tab: "work", note: id }));
 
   let body;
-  if (!page) body = pagesFailed[path] ? <LoadFailed what="notes" retry={() => void loadNotes(path)} /> : <Loading />;
+  if (!page) body = pagesFailed[path] ? <LoadFailed what="notes" retry={() => void loadNotes(path)} /> : <LoadingRows />;
   else if (page.notes.length === 0) {
     body = chosen || kind || q.trim()
       ? <p className="eos-note">No note matches.</p>
