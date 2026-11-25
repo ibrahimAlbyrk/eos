@@ -27,6 +27,8 @@ function testParts(rule, put, key) {
   } else {
     part = { ...base, editor: "text", text: String(v), value: String(v), apply: set };
   }
+  // An item's changed files matched by a pattern read as what it touches.
+  if (op === "glob" && (rule.fact === "paths" || rule.fact === "files")) return ["it touches ", part];
   return [`${rule.fact} ${OP_WORDS[op]} `, part];
 }
 

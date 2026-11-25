@@ -53,7 +53,7 @@ describe("the When slot", () => {
       { after: { routine: "rt-a", outcome: "done" } },
     ] }, { routines });
     expect(words(parts.filter((p) => p.editor !== "act"))).toBe(
-      "github.pulls: opened in acme/game or a file is added in ~/Inbox named anything or new commits on main in /src/game or after Morning Paper finishes ",
+      "github pulls: opened in acme/game or a file is added in ~/Inbox named anything or new commits on main in /src/game or after Morning Paper finishes ",
     );
     const github = [{ id: "github", name: "GitHub" }];
     const named = whenParts({ on: [{ source: "github.pulls", events: ["opened"] }] }, { capabilities: github });
@@ -88,7 +88,7 @@ describe("the Which slot", () => {
 
   it("says the rules and the question, each value with its editor", () => {
     const parts = whichParts(which);
-    expect(words(parts)).toBe("Items where draft is no and paths matches docs/** or not (size is at least 100) and author is one of ana, bo, then it asks: Worth a run?");
+    expect(words(parts)).toBe("Items where draft is no and it touches docs/** or not (size is at least 100) and author is one of ana, bo, then it asks: Worth a run?");
     expect(part(parts, "rule.0").editor).toBe("menu");
     expect(part(parts, "rule.1.0").editor).toBe("glob");
     expect(part(parts, "rule.1.1.not").check("x")).toBe("A number");
@@ -176,7 +176,7 @@ describe("the Who, How and Goes-to slots", () => {
 
   it("names the slots that differ and says a slot as plain text", () => {
     expect(changedSlots({ who: { a: 1 }, freedom: { rung: "draft" } }, { who: { a: 2 }, freedom: { rung: "draft" } })).toEqual(["who"]);
-    expect(slotText(slot("how"), { how: { steps: ["Read"], checks: [], format: "" } })).toBe("Read · Any format");
+    expect(slotText(slot("how"), { how: { steps: ["Read"], checks: [], format: "" } })).toBe("Read");
   });
 });
 

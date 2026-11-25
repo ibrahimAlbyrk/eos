@@ -166,7 +166,9 @@
         "format": 1,
         "name": "Mail Triage",
         "takes": {
-          "label": "mail"
+          "label": "mail",
+          "source": "mail.inbox",
+          "kind": "mail.message"
         },
         "when": {
           "on": [
@@ -207,7 +209,8 @@
         ],
         "freedom": {
           "rung": "ask"
-        }
+        },
+        "summary": "Sorts new mail and drafts the replies that matter."
       }
     },
     {
@@ -225,7 +228,9 @@
         "format": 1,
         "name": "Mail Triage",
         "takes": {
-          "label": "mail"
+          "label": "mail",
+          "source": "mail.inbox",
+          "kind": "mail.message"
         },
         "when": {
           "on": [
@@ -275,7 +280,8 @@
         ],
         "freedom": {
           "rung": "draft"
-        }
+        },
+        "summary": "Sorts new mail and drafts the replies that matter."
       }
     }
   ]

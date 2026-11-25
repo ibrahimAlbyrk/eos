@@ -17,9 +17,10 @@ function Glyph({ icon, name }) {
 }
 
 // The name or the sentence: text, or with `put` a button opening its editor.
-function HeadText({ as: Tag, className, label, value, empty, put }) {
+// Read-only, an `optional` one left empty says nothing.
+function HeadText({ as: Tag, className, label, value, empty, put, optional = false }) {
   const [open, setOpen] = useState(false);
-  if (!put) return <Tag className={className}>{value || empty}</Tag>;
+  if (!put) return value || !optional ? <Tag className={className}>{value || empty}</Tag> : null;
   return (
     <>
       <Tag className={className}>
@@ -60,7 +61,7 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
         <Glyph icon={bp.icon} name={bp.name} />
         <div className="eos-bp-card__words">
           <HeadText as="h2" className="eos-bp-card__name" label="Name" value={bp.name} empty="Not named yet" put={put("name")} />
-          <HeadText as="p" className="eos-bp-card__sentence" label="What it does, in one sentence" value={bp.summary} empty="What it does, in one sentence" put={put("summary")} />
+          <HeadText as="p" className="eos-bp-card__sentence" label="What it does, in one sentence" value={bp.summary} empty="What it does, in one sentence" put={put("summary")} optional />
         </div>
       </div>
       <dl className="eos-bp-rows">

@@ -110,7 +110,7 @@ describe("an old version", () => {
   it("compares each changed slot before and after", () => {
     const html = renderToStaticMarkup(<VersionCompare version={v1Body.blueprint} current={routinePaused.head.blueprint} />);
     expect(html).toContain("<th scope=\"col\">This version</th><th scope=\"col\">In use</th>");
-    expect(html).toContain('<tr><th scope="row">How</th><td>Sort the mail · Any format</td><td>Sort the mail · Draft the replies that matter · Any format</td></tr>');
+    expect(html).toContain('<tr><th scope="row">How</th><td>Sort the mail</td><td>Sort the mail · Draft the replies that matter</td></tr>');
     expect(html).toContain('<tr><th scope="row">Freedom</th><td>Ask each time</td><td>Draft, I send</td></tr>');
     expect(renderToStaticMarkup(<VersionCompare version={v1Body.blueprint} current={v1Body.blueprint} />)).toContain("The same as the version in use.");
   });

@@ -194,7 +194,7 @@ describe("a routine being made", () => {
     expect(html).toContain('<div class="eos-bp-bubble">Review every pull request that touches the docs. Show me first.</div>');
     expect(html).toContain("Wrote the blueprint");
     expect(html).toContain('<div class="eos-bp-question__text"><md>Should it review **draft** pull requests too?</md></div>');
-    expect(html).toContain('<button type="button" class="eos-btn">Only when ready</button><button type="button" class="eos-btn">Drafts too</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Only when ready</button><button type="button" class="eos-btn">Drafts too</button>');
     expect(html).toContain('placeholder="Change anything by saying it"');
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);

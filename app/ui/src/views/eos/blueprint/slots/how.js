@@ -25,6 +25,6 @@ export function howParts(how) {
     });
   }
   parts.push({ key: "check.add", label: "New check", editor: "text", text: "Add a check", value: "", optional: true, add: true, apply: (v) => (v ? { ...h, checks: [...checks, { key: freeKey(checks), text: v }] } : h) });
-  parts.push({ break: true }, { key: "format", label: "Format", editor: "text", note: true, text: h.format || "Any format", value: h.format ?? "", apply: (v) => ({ ...h, format: v }) });
+  parts.push({ break: true }, { key: "format", label: "Format", editor: "text", note: true, optional: !h.format, text: h.format || "Any format", value: h.format ?? "", apply: (v) => ({ ...h, format: v }) });
   return parts;
 }
