@@ -81,7 +81,16 @@ const triggerStatus = { ...shiftedStatus, [routineDetail.routine.id]: onWeekdays
 const signals = later(signalsSample, signalsBy);
 
 // PR Review's week, so its page shows how it gets better.
-const withStats = { ...routineDetail, routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } } };
+// Its recent runs are the runs the gallery holds for it, newest first, so
+// Right now shows the one working and the one waiting, and Recent runs
+// those with the week's finished ones.
+const RECENT = ["rn-running01", "rn-waiting01", "rn-shown01", "rn-trial01", "rn-failed01", "rn-cancelled01"];
+const prRuns = RECENT.map((id) => runs.find((d) => d.run.id === id).run);
+const withStats = {
+  ...routineDetail,
+  runs: prRuns,
+  routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } },
+};
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
