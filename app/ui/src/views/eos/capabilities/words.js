@@ -57,8 +57,12 @@ export const CLASSES = {
 
 export const VERSION_STATUSES = { proposed: "Proposed", installed: "Kept", retired: "Retired", rejected: "Turned down" };
 
-// Why a call failed, by the failure kind the core names.
-export const FAILURES = { gone: "What it names is not there any more." };
+// Why a call failed, by the failure kind the core names, where the item's
+// own summary leaves out what to do.
+export const FAILURES = {
+  gone: "What it names is not there any more.",
+  validation: "The service did not take it as written. Edit it and try again.",
+};
 
 export const OUTCOMES = { ok: "Worked", error: "Failed", denied: "Not allowed", timeout: "Took too long", busy: "Busy" };
 
