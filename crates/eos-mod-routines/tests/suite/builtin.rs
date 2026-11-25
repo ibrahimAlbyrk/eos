@@ -164,7 +164,9 @@ async fn a_builtin_routines_lead_works_in_its_features_folder_and_its_agents_tak
     assert_eq!((builder.worker_definition.as_deref(), builder.cwd.as_str()), (Some("forge-builder"), folder.as_str()));
     let scope = scope_of(&bench, &builder.worker_id);
     assert!(!scope.allow.iter().any(|tool| tool == "WebFetch" || tool == "call_capability"), "{scope:?}");
-    assert!(scope.edit_regex.as_deref().is_some_and(|re| re.ends_with(r"(?!\.claude/)")), "{scope:?}");
+    // Its edits never reach the folder's sandbox settings (eos-domain's run scope).
+    let settings_kept = r"(?![.][cC][lL][aA][uU][dD][eE](?:/|$))";
+    assert!(scope.edit_regex.as_deref().is_some_and(|re| re.ends_with(settings_kept)), "{scope:?}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
