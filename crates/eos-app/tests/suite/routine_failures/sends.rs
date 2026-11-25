@@ -62,6 +62,9 @@ async fn a_send_that_failed_interrupts_as_a_delivery_problem() {
 async fn a_send_that_may_have_gone_out_interrupts_as_a_delivery_problem() {
     let (_home, app, problem) = sent_into(SendErrorKind::Uncertain, Idempotency::None).await;
     assert_eq!(problem["item"]["attention"], "interrupt", "{problem}");
-    assert!(problem["item"]["summary"].as_str().is_some_and(|s| s == "Eos could not tell whether it went out. Did it?"), "{problem}");
+    assert!(
+        problem["item"]["summary"].as_str().is_some_and(|s| s == "Eos could not tell whether it went out. Did it?"),
+        "{problem}"
+    );
     app.shutdown(Duration::from_secs(5)).await;
 }

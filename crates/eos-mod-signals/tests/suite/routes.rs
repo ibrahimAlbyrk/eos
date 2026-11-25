@@ -338,7 +338,8 @@ async fn move_here_takes_up_the_away_computers_cursor_and_decides_again_what_it_
     let scope: String = rig.bench.temp.text(&format!("SELECT scope_hash FROM signal_sources WHERE id = '{SOURCE_ID}'"));
     let key: String = rig.bench.temp.text("SELECT key FROM signals WHERE id = 1");
     let marks = json!({ "sources": { scope.clone(): { "etag": "from-air" } }, "schedules": {}, "keys": [key] });
-    *leases.handoff.lock().expect("not poisoned") = Some(Handoff { routine_id: "rt-a".into(), epoch: 2, watermarks: Some(marks) });
+    *leases.handoff.lock().expect("not poisoned") =
+        Some(Handoff { routine_id: "rt-a".into(), epoch: 2, watermarks: Some(marks) });
     let (status, moved) = rig.ask(Method::Post, "/api/runners/claim", Some(claim)).await;
     assert_eq!((status, moved["claimed"].as_bool(), moved["epoch"].as_i64()), (200, Some(true), Some(2)), "{moved}");
     let cursor = rig.bench.temp.text(&format!("SELECT cursor_json FROM signal_sources WHERE id = '{SOURCE_ID}'"));

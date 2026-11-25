@@ -76,7 +76,9 @@ async fn every_feature_that_contributes_data_syncs_it_to_the_vault() {
         let domains = || {
             let records = vault.records(&keys.vault_id);
             let opened = records.iter().filter_map(|record| keys.open(&record.key, &record.data).ok());
-            opened.filter(|plain| serde_json::from_slice::<Value>(plain).is_ok_and(|v| v.get("lease").is_none())).count()
+            opened
+                .filter(|plain| serde_json::from_slice::<Value>(plain).is_ok_and(|v| v.get("lease").is_none()))
+                .count()
         };
         while domains() < 5 {
             let _ = events.recv().await;

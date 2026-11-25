@@ -136,7 +136,10 @@ async fn a_read_of_the_leases_lets_this_computer_act_and_adopt_what_no_lease_nam
     module.ingest(SOURCE_ID, one_pull()).await.expect("kept");
     module.after_ready().await.expect("ready");
     bench.until(|| bench.sleeper.pending().len() == 1).await;
-    assert!(leases.adopted.lock().expect("not poisoned").is_empty(), "nothing is adopted before a read: its lease may exist");
+    assert!(
+        leases.adopted.lock().expect("not poisoned").is_empty(),
+        "nothing is adopted before a read: its lease may exist"
+    );
 
     *leases.confirmed_at.lock().expect("not poisoned") = Some(bench.clock.now_ms());
     pass(&bench).await;
