@@ -88,8 +88,11 @@ pub(crate) enum Attempt {
 /// Why the user is asked about a delivery.
 pub(crate) enum Problem {
     Failed(SendError),
-    /// A send that may have gone out, through a channel that cannot tell.
-    Unknown,
+    /// A send that may have gone out, through a channel that cannot tell;
+    /// `closed` when Eos closed while sending it.
+    Unknown {
+        closed: bool,
+    },
     ApprovedBeforeQuit {
         approved_at: i64,
     },
@@ -109,7 +112,7 @@ impl Problem {
                 (SendErrorKind::Permanent, _) => FailureKind::Validation,
                 _ => FailureKind::Service,
             },
-            Problem::Unknown => FailureKind::Service,
+            Problem::Unknown { .. } => FailureKind::Service,
             Problem::ApprovedBeforeQuit { .. } | Problem::Halted => FailureKind::Internal,
         };
         kind.as_str()
@@ -129,7 +132,8 @@ impl Problem {
                 (SendErrorKind::Transient, _) => format!("It could not be sent after {MAX_ATTEMPTS} tries."),
                 _ => "It could not be sent.".to_owned(),
             },
-            Problem::Unknown => "Eos closed while it was sending. Did it go out?".to_owned(),
+            Problem::Unknown { closed: true } => "Eos closed while it was sending. Did it go out?".to_owned(),
+            Problem::Unknown { closed: false } => "Eos could not tell whether it went out. Did it?".to_owned(),
             Problem::ApprovedBeforeQuit { approved_at } => {
                 let local = approved_at + i64::from(at.zone.offset_minutes_at(*approved_at)) * 60_000;
                 let minutes = local.rem_euclid(DAY_MS) / 60_000;

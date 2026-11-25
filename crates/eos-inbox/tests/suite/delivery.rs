@@ -219,6 +219,20 @@ async fn an_answer_lost_in_flight_is_found_and_never_sent_twice() {
 }
 
 #[tokio::test]
+async fn a_send_its_channel_could_not_tell_about_asks_without_saying_eos_closed() {
+    let sender = Sender::new();
+    sender.queue("dl-1", "sms", "me", "queued", "auto", sender.rig.clock.now_ms()).await;
+    sender.channels.script(Err(failure(SendErrorKind::Uncertain, "timeout")));
+    sender.pass().await;
+    assert_eq!(sender.row("dl-1").await.state, "uncertain");
+    sender.pass().await;
+    let problems = sender.problems().await;
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].1, "Eos could not tell whether it went out. Did it?");
+    assert_eq!(sender.sent(), ["dl-1"], "never sent again");
+}
+
+#[tokio::test]
 async fn one_send_at_a_time_goes_to_a_target_in_the_order_they_were_made() {
     let sender = Sender::new();
     let now = sender.rig.clock.now_ms();

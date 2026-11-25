@@ -27,6 +27,10 @@ pub(crate) enum Found {
     Later,
 }
 
+/// The error kind of a send Eos closed during, as against one its channel
+/// could not tell about.
+const INTERRUPTED: &str = "interrupted";
+
 /// Every row a crash left `sending` becomes `uncertain`, due now.
 pub(crate) fn launch_in(tx: &dyn Tx, out: &mut Outbox, now: i64) -> Result<usize, Error> {
     let rows = tx.inbox_deliveries().in_state(SENDING)?;
@@ -34,6 +38,7 @@ pub(crate) fn launch_in(tx: &dyn Tx, out: &mut Outbox, now: i64) -> Result<usize
         row.state = UNCERTAIN.to_owned();
         row.next_attempt_at = Some(now);
         row.updated_at = now;
+        row.last_error_kind = Some(INTERRUPTED.to_owned());
         tx.inbox_deliveries().update(&row)?;
         announce(out, &row);
     }
@@ -69,7 +74,8 @@ pub(crate) fn settle_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, id: &st
             // Asked once; it stays unknown until the user answers.
             row.next_attempt_at = None;
             update(tx, out, &row)?;
-            return problem_in(tx, out, at, &row, Problem::Unknown);
+            let closed = row.last_error_kind.as_deref() == Some(INTERRUPTED);
+            return problem_in(tx, out, at, &row, Problem::Unknown { closed });
         }
         Found::Later => row.next_attempt_at = Some(at.now + RECHECK_MS),
         Found::Sent(_) => return Ok(()),
