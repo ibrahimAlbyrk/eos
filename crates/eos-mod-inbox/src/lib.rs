@@ -196,9 +196,11 @@ impl InboxModule {
     }
 
     /// From now on, items expire and come back at their times, and those
-    /// that ended long ago are deleted, at least once an hour.
+    /// that ended long ago are deleted, at least once an hour. An item put
+    /// off wakes it, so one put off until soon comes back on time.
     fn sweep(&self) {
         let (items, clock, sleeper) = (self.parts.items.clone(), self.clock.clone(), self.sleeper.clone());
+        let mut changes = self.bus.subscribe(&INBOX_CHANGE, CHANGES_QUEUED);
         self.keep(tokio::spawn(async move {
             loop {
                 let next = match items.sweep().await {
@@ -209,7 +211,19 @@ impl InboxModule {
                     }
                 };
                 let wait = next.map_or(SWEEP_EVERY_MS, |at| (at - clock.now_ms()).clamp(0, SWEEP_EVERY_MS));
-                sleeper.sleep(wait).await;
+                let sleep = sleeper.sleep(wait);
+                tokio::pin!(sleep);
+                loop {
+                    tokio::select! {
+                        () = &mut sleep => break,
+                        change = changes.recv() => match change {
+                            Ok(event) if event.payload_as::<InboxChange>().is_ok_and(|c| c.state == eos_domain::inbox::ItemState::Later.as_str()) => break,
+                            Ok(_) => {}
+                            Err(RecvError::Lagged(_)) => break,
+                            Err(RecvError::Closed) => return,
+                        },
+                    }
+                }
             }
         }));
     }
