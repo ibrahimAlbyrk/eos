@@ -148,6 +148,26 @@ pub(crate) async fn suspend(engine: &Engine, worker_id: &str) {
     }
 }
 
+/// Counts again, from now, every routine's architect whose session is live
+/// after Eos started, so it takes its room and is suspended once idle.
+pub(crate) async fn rejoin(engine: &Engine) -> Result<(), Error> {
+    let drafts = engine
+        .store
+        .read(|tx| {
+            let mut architects = Vec::new();
+            for routine in tx.routines().list()? {
+                architects.extend(tx.routines().draft(&routine.id)?.and_then(|draft| draft.architect_id));
+            }
+            Ok(architects)
+        })
+        .await?;
+    let now = engine.clock.now_ms();
+    for worker_id in drafts.into_iter().filter(|worker_id| engine.sessions.is_live(worker_id)) {
+        Engine::locked(&engine.architects).insert(worker_id, now);
+    }
+    Ok(())
+}
+
 /// Suspends every architect idle for [`IDLE_MS`].
 pub(crate) async fn sweep(engine: &Engine) {
     let now = engine.clock.now_ms();
