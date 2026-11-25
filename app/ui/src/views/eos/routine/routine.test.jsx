@@ -112,7 +112,7 @@ describe("the routine page", () => {
     expect(html).toContain('<header class="eos-rlead"><p class="eos-label">Standing routine · Draft, I send</p>');
     expect(html).toContain('<p class="eos-rlead__now">Three things wait for you.</p>');
     expect(html).toContain('<ol class="eos-beat__line" aria-label="Its runs, oldest first, then the next">');
-    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--done eos-beat__stop--newest"><button type="button" class="eos-beat__mark" aria-label="Fix the login, Done in 3 min" title="Fix the login">');
+    expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--done eos-beat__stop--newest"><button type="button" class="eos-beat__mark" aria-label="Fix the login, Done in 3 min"><span class="eos-beat__tip" aria-hidden="true">Fix the login</span>');
     expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--ahead">');
   });
 

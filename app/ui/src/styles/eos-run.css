@@ -101,6 +101,30 @@
   -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
   mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
 }
+/* Room above the marks for a run's title, inside the line's mask; the room
+   lies over what is above, so only the marks take the pointer. */
+.eos-beat__line { padding-top: 44px; padding-bottom: 8px; margin-top: -44px; margin-bottom: -8px; pointer-events: none; }
+.eos-beat__mark { position: relative; pointer-events: auto; }
+.eos-beat__tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: max-content;
+  max-width: 220px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--raised);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--fg-strong);
+  text-align: center;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  pointer-events: none;
+  transition: opacity calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), transform calc(160ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+button.eos-beat__mark:hover .eos-beat__tip, button.eos-beat__mark:focus-visible .eos-beat__tip { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { .eos-beat__tip { transform: translate(-50%, 0); } }
 .eos-beat__stop { position: relative; display: flex; justify-content: center; min-width: 0; }
 .eos-beat__stop::before, .eos-beat__stop::after { content: ""; position: absolute; top: 4px; height: 1px; background: var(--fg-dim2); opacity: 0.7; }
 .eos-beat__stop::before { left: 0; right: calc(50% + 10px); }
