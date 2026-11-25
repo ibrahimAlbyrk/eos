@@ -209,6 +209,8 @@
 .eos-point {
   position: absolute;
   z-index: 5;
+  /* Room for the header above and the sticky whole-page line below. */
+  scroll-margin: 88px 0 168px;
   width: 320px;
   max-width: calc(100% - 16px);
   box-sizing: border-box;

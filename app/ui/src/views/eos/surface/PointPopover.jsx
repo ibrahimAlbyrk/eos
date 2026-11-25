@@ -21,9 +21,14 @@ export function popoverPlace(rect, frameWidth, frameHeight, width = 320, height 
 export function PointPopover({ pointed, place, busy, onSay, onArrange, onClose }) {
   const [text, setText] = useState("");
   const ref = useRef(null);
+  const card = useRef(null);
   useEffect(() => {
     setText("");
-    ref.current?.focus();
+    ref.current?.focus({ preventScroll: true });
+    // A part low on screen opens the card under the whole-page line that
+    // sticks at the foot: bring the card into view above it (scroll-margin).
+    const still = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    card.current?.scrollIntoView?.({ block: "nearest", behavior: still ? "auto" : "smooth" });
   }, [pointed.part, pointed.index]);
   const name = partName(pointed.part);
   const say = (e) => {
@@ -32,6 +37,7 @@ export function PointPopover({ pointed, place, busy, onSay, onArrange, onClose }
   };
   return (
     <div
+      ref={card}
       className="eos-point"
       role="dialog"
       aria-label={`Change ${name}`}
