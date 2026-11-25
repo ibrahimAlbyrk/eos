@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { notify } from "../../../lib/notify.js";
 import { mailPreview, printIssue, revealFile, shareDocument } from "../../../state/eos/pageStore.js";
 
@@ -43,6 +44,7 @@ export function ShareMenu({ surface, row }) {
     else notify.error("The file could not be made.", { title: "Save as a file" });
   };
   const [open, setOpen] = useState(false);
+  const wrapRef = useMenuDismiss(open, () => setOpen(false));
   const items = [
     { label: "Mail preview", run: showMail },
     { label: printing ? "Printing…" : "Save as PDF", run: pdf, busy: printing },
@@ -54,7 +56,7 @@ export function ShareMenu({ surface, row }) {
   };
   return (
     <>
-      <span className="eos-menu-wrap">
+      <span className="eos-menu-wrap" ref={wrapRef}>
         <button type="button" className="eos-btn eos-btn--quiet" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {printing ? "Printing…" : "Share"}
         </button>
