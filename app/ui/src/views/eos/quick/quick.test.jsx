@@ -6,7 +6,7 @@ import { doorOf, heldThings } from "./held.js";
 import { sentenceOf } from "../input/useHomeActs.js";
 import { AccessLine } from "./AccessNote.jsx";
 import { OfferCard, offerShown } from "./LoginOffer.jsx";
-import { QuickPanel, WIDTH } from "./QuickPanel.jsx";
+import { fromWords, QuickPanel, WIDTH } from "./QuickPanel.jsx";
 
 afterEach(() => setEosTransport(null));
 
@@ -52,6 +52,18 @@ describe("what a door holds for the quick panel", () => {
     const html = renderToStaticMarkup(<QuickPanel doors={null} />);
     expect(html).toContain(`class="eos-quick" style="width:${WIDTH}px"`);
     expect(html).toContain("What should Eos take care of?");
+    expect(html).toContain('<span class="eos-label eos-quick__name">Eos</span>');
+    expect(html).toContain("Say what Eos should take care of, or type / for your routines.");
+  });
+
+  it("says at its top where what it holds came from, and nothing when it opened empty", () => {
+    expect(fromWords(shortcut)).toBe("Holding what you selected in Safari");
+    expect(fromWords({ source: "services", app: "Mail", parts: [{ kind: "text", text: "hi" }] })).toBe("From the Services menu in Mail");
+    expect(fromWords({ source: "share", app: "Photos", parts: [{ kind: "file", path: "/a.png" }] })).toBe("Shared from Photos");
+    expect(fromWords({ source: "dock", parts: [{ kind: "file", path: "/a.txt" }] })).toBe("Dropped on Eos in the Dock");
+    expect(fromWords({ source: "link", parts: [{ kind: "text", text: "hi" }] })).toBe("From a link");
+    expect(fromWords({ source: "shortcut", parts: [] })).toBeNull();
+    expect(fromWords(null)).toBeNull();
   });
 });
 

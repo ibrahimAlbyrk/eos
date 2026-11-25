@@ -1,12 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ensureRoutinesLoaded } from "../../../state/eos/routinesStore.js";
 import { HomeInput } from "../input/HomeInput.jsx";
+import { PANEL_HINT } from "../input/intent/intentWords.js";
 import { doorOf, heldThings } from "./held.js";
 import { AccessNote } from "./AccessNote.jsx";
 import { LoginOffer } from "./LoginOffer.jsx";
 
 // The panel's width; its height follows what it shows.
 export const WIDTH = 600;
+
+// Where what the panel holds came from, said at its top; nothing when it
+// opened empty.
+export function fromWords(item) {
+  if (!item?.parts?.length) return null;
+  const app = item.app ? ` in ${item.app}` : "";
+  switch (item.source) {
+    case "shortcut": return `Holding what you selected${app}`;
+    case "services": return `From the Services menu${app}`;
+    case "share": return `Shared${item.app ? ` from ${item.app}` : ""}`;
+    case "dock": return "Dropped on Eos in the Dock";
+    case "link": return "From a link";
+    default: return null;
+  }
+}
 
 // The quick panel (07 §4.3, RunOutside.dc.html): the Home input folded small
 // over whatever app is in front, holding what a door brought (the selection,
@@ -42,11 +58,19 @@ export function QuickPanel({ doors = globalThis.window?.eosDoors }) {
     return () => fit.disconnect();
   }, [doors]);
 
+  const from = fromWords(item);
   return (
     <div ref={rootRef} className="eos-quick" style={{ width: WIDTH }}>
-      <HomeInput held={held} door={doorOf(item)} inputRef={inputRef} />
-      <AccessNote doors={doors} />
-      <LoginOffer doors={doors} />
+      <div className="eos-quick__sheet">
+        <div className="eos-quick__head">
+          <span className="eos-label eos-quick__name">Eos</span>
+          {from && <span className="eos-quick__from">{from}</span>}
+          <span className="eos-quick__esc"><span className="eos-intent__key">esc</span> to close</span>
+        </div>
+        <HomeInput held={held} door={doorOf(item)} inputRef={inputRef} idleHint={PANEL_HINT} />
+        <AccessNote doors={doors} />
+        <LoginOffer doors={doors} />
+      </div>
     </div>
   );
 }

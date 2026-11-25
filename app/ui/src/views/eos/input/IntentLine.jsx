@@ -9,10 +9,10 @@ import {
 const ANNOUNCE_AFTER_MS = 500;
 
 // What the line says now: { text, enter (↵ shown), dim, hint }.
-export function lineOf({ verdict, options, input, byId, previous }) {
+export function lineOf({ verdict, options, input, byId, previous, idleHint }) {
   if (input.pendingEnter) return { text: DECIDING_LINE, enter: false, dim: true };
   switch (verdict.kind) {
-    case "idle": return { text: byId?.size === 0 ? FIRST_HINT : IDLE_HINT, enter: false, hint: true };
+    case "idle": return { text: idleHint ?? (byId?.size === 0 ? FIRST_HINT : IDLE_HINT), enter: false, hint: true };
     case "menu": return { text: MENU_LINE, enter: false };
     case "sure": return { text: choiceLine(options[input.tab % options.length], byId), enter: true };
     case "choices": return { text: UNSURE_LINE, enter: false, unsure: true };
@@ -65,10 +65,10 @@ function VerbMenu({ forced, onForce }) {
 // The line under the input (RunIntent.dc.html): ↵ and what Enter will do,
 // "Tab for other choices" while there are two or more; when unsure, the
 // choices. While the core decides, the last line stays dimmed.
-export function IntentLine({ intent, byId, onMenu }) {
+export function IntentLine({ intent, byId, onMenu, idleHint }) {
   const { verdict, options, input, dispatch, choose } = intent;
   const previous = useRef(null);
-  const line = lineOf({ verdict, options, input, byId, previous: previous.current });
+  const line = lineOf({ verdict, options, input, byId, previous: previous.current, idleHint });
   useEffect(() => {
     if (!line.dim && line.enter) previous.current = line;
   });

@@ -12,8 +12,8 @@ export function AccessNote({ doors }) {
 
 export function AccessLine({ onOpen }) {
   return (
-    <div className="eos-quick__note">
-      <span>Allow Eos in Accessibility, and this panel arrives holding what you selected in the app in front.</span>
+    <div className="eos-quick__note" role="status">
+      <span className="eos-quick__note-text">Allow Eos in Accessibility, and this panel arrives holding what you selected in the app in front.</span>
       <button type="button" className="eos-btn" onClick={onOpen}>Open Settings</button>
     </div>
   );

@@ -4,6 +4,8 @@
 export const IDLE_HINT = "Click a routine around the input, drop a file on one, or just type.";
 // Before the first routine there is nothing around the input to click.
 export const FIRST_HINT = "Say what Eos should take care of, or drop a file here.";
+// Over another app there is nothing around the input: `/` lists the routines.
+export const PANEL_HINT = "Say what Eos should take care of, or type / for your routines.";
 export const MENU_LINE = "Pick a routine";
 export const MAKE_LINE = "Make a new routine. You see its blueprint and a trial first";
 export const ONCE_LINE = "Do it once, here. Nothing is sent. You can keep it as a routine afterwards";
