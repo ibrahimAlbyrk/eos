@@ -15,7 +15,7 @@ import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
 import drafts from "./sample/blueprint-drafts.json";
 import versionBodies from "./sample/blueprint-version-bodies.json";
-import { makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
+import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
 const PAPER = paper.surface.id;
 // Mail Triage's View that asks two things, arrived ten minutes before the
@@ -55,6 +55,19 @@ const readyDocs = (s) => ({
     trialRuns: [trial("rn-dtrial000001", "Fix broken links in the setup guide", "Two comments, one of them blocking"), trial("rn-dtrial000002", "Rename the CLI flags in the reference", "Nothing a reader is told changes")],
   },
 });
+// Docs Review while the architect writes, then its first version arriving:
+// the reads change under the screen and the routine's change is announced,
+// as the core does, so the slots fill as they would in the app.
+let written = null;
+const writtenDocs = (s) => {
+  written = { reads: writingDocs(s), samples: s };
+  return written.reads;
+};
+const writtenArrives = () => setTimeout(() => {
+  if (!written) return;
+  Object.assign(written.reads, readyDocs(written.samples));
+  applyBlueprintChange({ routineId: DOCS });
+}, 1400);
 // Docs Review made to post in Slack, with Add a Slack channel or person open
 // on what Slack lists: the picker with its channels and a person.
 const candidates = (item) => `${ROUTES.capabilityCandidates}?${new URLSearchParams({ item, limit: "20" })}`;
@@ -143,6 +156,7 @@ export const GALLERY_STATES = [
   { id: "routine-change", label: "Routine · a change to look at", location: `eos:/routines/${routinePaused.routine.id}?tab=blueprint` },
   { id: "routine-writing", label: "Routine · being made, the architect writing", location: `eos:/routines/${DOCS}`, reads: writingDocs },
   { id: "routine-ready", label: "Routine · being made, tried and ready", location: `eos:/routines/${DOCS}`, reads: readyDocs },
+  { id: "routine-written", label: "Routine · being made, its first version arriving", location: `eos:/routines/${DOCS}`, reads: writtenDocs, then: writtenArrives },
   { id: "routine-slack", label: "Routine · being made, adding a Slack channel", location: `eos:/routines/${DOCS}`, reads: slackDocs, then: slackOpen },
   { id: "routine-refused", label: "Routine · being made, an edit refused", location: `eos:/routines/${DOCS}`, ...refusedEdit },
   { id: "version-old", label: "Routine · an earlier version", location: `eos:/routines/${routinePaused.routine.id}/versions/1` },

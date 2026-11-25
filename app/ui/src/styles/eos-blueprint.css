@@ -173,15 +173,18 @@
 .eos-bp-row__bar { display: block; width: 46%; height: 10px; margin-top: 5px; border-radius: 5px; background: var(--raised); animation: eos-bp-bar calc(1800ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
 .eos-bp-row:nth-child(even) .eos-bp-row__bar { width: 62%; }
 .eos-bp-row:nth-child(3n) .eos-bp-row__bar { width: 34%; }
-/* A blueprint that just arrived fills its slots one after another. */
-.eos-bp--making .eos-bp-row--filled .eos-bp-row__value { animation: eos-bp-in calc(420ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; }
-.eos-bp--making .eos-bp-row--filled:nth-child(2) .eos-bp-row__value { animation-delay: calc(40ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(3) .eos-bp-row__value { animation-delay: calc(80ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(4) .eos-bp-row__value { animation-delay: calc(120ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(5) .eos-bp-row__value { animation-delay: calc(160ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(6) .eos-bp-row__value { animation-delay: calc(200ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(7) .eos-bp-row__value { animation-delay: calc(240ms * var(--k, 1)); }
-.eos-bp--making .eos-bp-row--filled:nth-child(8) .eos-bp-row__value { animation-delay: calc(280ms * var(--k, 1)); }
+/* A blueprint that just arrived fills its slots one after another, top to
+   bottom: each mark is lit as the pen reaches it and settles to filled while
+   its words rise into place, 90 ms after the slot above. */
+.eos-bp-row:nth-child(2) { --i: 1; }
+.eos-bp-row:nth-child(3) { --i: 2; }
+.eos-bp-row:nth-child(4) { --i: 3; }
+.eos-bp-row:nth-child(5) { --i: 4; }
+.eos-bp-row:nth-child(6) { --i: 5; }
+.eos-bp-row:nth-child(7) { --i: 6; }
+.eos-bp-row:nth-child(8) { --i: 7; }
+.eos-bp--making .eos-bp-row--filled .eos-bp-row__value { animation: eos-bp-in calc(420ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(90ms * var(--i, 0) * var(--k, 1)); }
+.eos-bp--making .eos-bp-row--filled .eos-bp-row__dot { animation: eos-bp-reach calc(640ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(90ms * var(--i, 0) * var(--k, 1)); }
 
 @keyframes eos-bp-wait {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
@@ -190,6 +193,11 @@
 @keyframes eos-bp-bar { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 @keyframes eos-bp-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 @keyframes eos-bp-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes eos-bp-reach {
+  0% { border-color: var(--accent); background: var(--panel); }
+  35% { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+  100% { border-color: var(--fg-dim2); background: var(--fg-dim2); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 
 /* Narrow card: the slot's name over its words, the spine kept. */
 @container eos-bp-card (max-width: 520px) {
