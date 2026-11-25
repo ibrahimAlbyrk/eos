@@ -6,6 +6,8 @@ import { useOpenMemory } from "../../hooks/useOpenMemory.js";
 import { workflowTabId } from "../../lib/panelTabs.js";
 import { isRunning } from "../../lib/jobs.js";
 import { notify } from "../../lib/notify.js";
+import { openAgent } from "../../lib/openAgent.js";
+import { isListedAgent } from "../../lib/agentIndex.js";
 
 const POLL_MS = 1000;
 const KEEP_CHARS = 64 * 1024;
@@ -76,9 +78,11 @@ function JobActions({ job, output }) {
       setBusy(false);
     }
   };
-  const goToChat = () => ui.setSelectedId(job.workerId);
+  // A run agent's job opens its run in Eos; a chat's selects the chat.
+  const goToChat = () => openAgent(job.workerId, { setActiveView: ui.setActiveView, selectAgent: ui.setSelectedId });
+  const inChat = Boolean(job.workerId) && isListedAgent(job.workerId);
   const askToFix = () => {
-    goToChat();
+    ui.setSelectedId(job.workerId);
     const what = job.command ?? job.title;
     pushTextHandoff(ui.paneId, `\`${what}\` failed${job.exitCode !== null ? ` (exit ${job.exitCode})` : ""}. Look at its output and fix it.`);
   };
@@ -90,12 +94,12 @@ function JobActions({ job, output }) {
   const running = isRunning(job);
   const actions = [
     running && job.canStop && { id: "stop", label: job.kind === "transfer" ? "Cancel" : "Stop", danger: true, run: () => act(() => api.stopJob(job.id)) },
-    job.status === "failed" && job.kind === "shell" && job.workerId && { id: "fix", label: "Ask agent to fix", run: askToFix },
+    job.status === "failed" && job.kind === "shell" && inChat && { id: "fix", label: "Ask agent to fix", run: askToFix },
     job.kind === "workflow" && job.workerId && job.callId && { id: "live", label: "Open live view", run: () => ui.openPanel(workflowTabId(job.workerId, job.callId)) },
     job.kind === "transfer" && { id: "transfers", label: "Open transfers", run: () => ui.openPanel("transfer") },
     job.kind === "dream" && { id: "journal", label: "Open journal", run: openMemory },
     job.hasOutput && output && { id: "copy", label: "Copy output", run: copy },
-    job.workerId && { id: "chat", label: "Go to chat", run: goToChat },
+    job.workerId && { id: "chat", label: inChat ? "Go to chat" : "Open", run: () => void goToChat() },
     !running && { id: "dismiss", label: "Dismiss", run: () => act(() => api.dismissJob(job.id)) },
   ].filter(Boolean);
   if (!actions.length) return null;
