@@ -112,7 +112,7 @@ export function NoteDetail({ id }) {
       {!note.forgottenAt && !editing && (
         <div className="eos-mem-detail__actions">
           <button type="button" className="eos-btn" onClick={() => setEditing(true)}>Edit</button>
-          <button type="button" className="eos-btn" onClick={() => void forgetNote(id)}>Forget</button>
+          <button type="button" className="eos-btn eos-btn--ghost eos-btn--stop" onClick={() => void forgetNote(id)}>Forget</button>
           <button type="button" className="eos-btn eos-btn--quiet eos-mem-detail__close" onClick={close}>Close</button>
         </div>
       )}

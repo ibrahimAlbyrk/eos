@@ -19,7 +19,7 @@ export function StrengthBar({ strength }) {
 
 export function NoteRow({ row, selected, onOpen }) {
   return (
-    <li className="eos-mem-row">
+    <li className={row.state === "cooling" ? "eos-mem-row eos-mem-row--cooling" : "eos-mem-row"}>
       <button type="button" className="eos-mem-row__open" aria-current={selected ? "true" : undefined} onClick={onOpen}>
         <span className="eos-mem-row__text">{row.text}</span>
         <span className="eos-mem-row__why">{provenance(row)}</span>
@@ -49,8 +49,9 @@ function groupsOf(notes, scopes, routines) {
 // The chips: everything, each project and routine with notes, then the kinds.
 function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
   const places = placed ? [] : (scopes ?? []).filter((s) => s.level === "project" || s.level === "routine");
-  const chip = (on, label, onClick, key) => (
-    <button key={key} type="button" className="eos-chip eos-mem-filter" aria-pressed={on} onClick={onClick}>{label}</button>
+  // A place is a chip; a kind is its word alone, as Memory.dc.html draws them.
+  const chip = (on, label, onClick, key, kindOf = false) => (
+    <button key={key} type="button" className={kindOf ? "eos-chip eos-mem-filter eos-mem-filter--kind" : "eos-chip eos-mem-filter"} aria-pressed={on} onClick={onClick}>{label}</button>
   );
   return (
     <nav className="eos-mem-filters" aria-label="Filter notes">
@@ -60,7 +61,7 @@ function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
         return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
       })}
       {!placed && <span className="eos-mem-filters__sep" aria-hidden="true" />}
-      {KIND_FILTERS.map((k) => chip(kind === k.kind, k.label, () => onKind(kind === k.kind ? undefined : k.kind), k.kind))}
+      {KIND_FILTERS.map((k) => chip(kind === k.kind, k.label, () => onKind(kind === k.kind ? undefined : k.kind), k.kind, true))}
     </nav>
   );
 }
