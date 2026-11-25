@@ -1,7 +1,7 @@
 //! `GET`/`PUT /api/settings/attention` (03 §4.7): quiet hours, digest times
 //! and which items may interrupt, kept in `config.json`'s `attention`
 //! section, which only this route writes. Both answer the settings as they
-//! stand.
+//! stand, and only to the user's own dashboard (03 §6).
 
 use std::sync::Arc;
 
@@ -41,5 +41,5 @@ pub(super) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
             Ok(Response::json(200, &saved.attention))
         }
     });
-    vec![read.access(Access::open()), write.access(Access::ui_token())]
+    vec![read.access(Access::ui_token()), write.access(Access::ui_token())]
 }
