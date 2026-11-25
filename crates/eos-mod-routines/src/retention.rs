@@ -101,6 +101,10 @@ async fn pass(engine: Arc<Engine>, now: i64) {
         Ok(forgotten) => cleared.asks = forgotten,
         Err(error) => warn("one-off notes", &error),
     }
+    let before = now - crate::sync::RUN_SUMMARIES_KEPT_MS;
+    if let Err(error) = engine.store.write(move |tx, _| tx.synced_runs().prune(before)).await {
+        warn("other computers' run summaries", &error);
+    }
     let Cleared { transcripts, runs, routines, asks, left } = cleared;
     if transcripts + runs + routines + asks + left > 0 {
         let ms = engine.clock.now_ms() - now;

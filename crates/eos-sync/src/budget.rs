@@ -10,12 +10,18 @@ use eos_domain::sync::key::{NONCE_BYTES, TAG_BYTES};
 pub(crate) const SEAL_OVERHEAD: u64 = (NONCE_BYTES + TAG_BYTES) as u64;
 
 /// The most memory's notes and counters keep in the vault.
-pub const EXPERIENCE_BUDGET: u64 = 120 * 1024 * 1024;
+pub const EXPERIENCE_BUDGET: u64 = 120 * MB;
+
+const MB: u64 = 1024 * 1024;
 
 /// The budgets the app syncs with. The domains not named share the
 /// headroom and have none of their own.
 pub fn vault_budgets() -> Vec<(SyncDomainName, u64)> {
-    vec![(SyncDomainName::Experience, EXPERIENCE_BUDGET)]
+    vec![
+        (SyncDomainName::Experience, EXPERIENCE_BUDGET),
+        (SyncDomainName::Routine, 16 * MB),
+        (SyncDomainName::Run, 8 * MB),
+    ]
 }
 
 /// How full one domain is, as of the last pass.

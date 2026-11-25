@@ -17,6 +17,10 @@ pub enum SyncDomainName {
     Worker,
     /// What Eos learned from work: notes (`n-`) and each Mac's counters (`c-`).
     Experience,
+    /// Routines (`<rid>`) and their kept versions (`<rid>/<vid>`).
+    Routine,
+    /// Summaries of finished runs, 30 days.
+    Run,
 }
 
 impl Validate for SyncDomainName {}

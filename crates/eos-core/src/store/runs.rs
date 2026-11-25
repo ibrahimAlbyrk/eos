@@ -113,6 +113,8 @@ pub struct RunMove {
 
 pub trait RunRepo {
     fn insert(&self, run: &StoredRun) -> Result<(), Error>;
+    /// Runs that ended at or after `since`, newest first, at most `limit`.
+    fn ended_since(&self, since: i64, limit: i64) -> Result<Vec<StoredRun>, Error>;
     fn find(&self, id: &str) -> Result<Option<StoredRun>, Error>;
     /// A routine's newest `limit` runs, newest first.
     fn by_routine(&self, routine_id: &str, limit: i64) -> Result<Vec<StoredRun>, Error>;
@@ -198,4 +200,29 @@ pub trait RunResultRepo {
     fn by_run(&self, run_id: &str) -> Result<Vec<StoredRunResult>, Error>;
     /// The check's verdict on one round's result, as JSON.
     fn set_verdict(&self, run_id: &str, attempt: i64, verdict: &str) -> Result<(), Error>;
+}
+
+/// A row of `synced_runs`: a run another computer finished, as its summary
+/// came through sync.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredSyncedRun {
+    pub id: String,
+    pub routine_id: String,
+    /// The computer that ran it.
+    pub device: String,
+    pub ended_at: i64,
+    /// Its `RunSummary` as JSON.
+    pub summary_json: String,
+}
+
+pub trait SyncedRunRepo {
+    /// Writes the summary in place of the one before.
+    fn put(&self, run: &StoredSyncedRun) -> Result<(), Error>;
+    fn find(&self, id: &str) -> Result<Option<StoredSyncedRun>, Error>;
+    fn delete(&self, id: &str) -> Result<(), Error>;
+    /// Those that ended at or after `since`, of one routine when given,
+    /// newest first, at most `limit`.
+    fn ended_since(&self, routine_id: Option<&str>, since: i64, limit: i64) -> Result<Vec<StoredSyncedRun>, Error>;
+    /// Drops those that ended before `before`; answers how many.
+    fn prune(&self, before: i64) -> Result<usize, Error>;
 }

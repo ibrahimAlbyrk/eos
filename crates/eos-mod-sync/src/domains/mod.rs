@@ -1,5 +1,6 @@
 //! Sync domains over the data that has a service as its one write path: profile
-//! fields, the avatar, memories, pages and what Eos learned from work. Each lists the portable form (project
+//! fields, the avatar, memories, pages, what Eos learned from work, and the
+//! records a feature keeps itself (routines and their runs). Each lists the portable form (project
 //! folders as project keys, no local revisions or chat links) and applies it back
 //! through that service, so open views refresh off the usual change events.
 
@@ -9,13 +10,14 @@ mod memory;
 mod page;
 mod profile;
 mod project_ref;
+mod record;
 
 use std::sync::Arc;
 
 use eos_contracts::SyncDomainName;
 use eos_core::Error;
 use eos_core::git::ProjectKeys;
-use eos_core::net::sync::SyncDomain;
+use eos_core::net::sync::{RecordSync, SyncDomain};
 use eos_core::pages::PageSync;
 use eos_core::profile::{UserMemorySync, UserProfileSync};
 use eos_runtime::module::SyncContribution;
@@ -25,6 +27,7 @@ pub use experience::ExperienceDomain;
 pub use memory::MemoryDomain;
 pub use page::PageDomain;
 pub use profile::ProfileDomain;
+pub use record::RecordDomain;
 
 /// The order domains are pushed in (and listed in the status).
 pub(crate) fn push_order(name: SyncDomainName) -> u8 {
@@ -36,6 +39,8 @@ pub(crate) fn push_order(name: SyncDomainName) -> u8 {
         SyncDomainName::Worker => 4,
         SyncDomainName::Experience => 6,
         SyncDomainName::Page => 5,
+        SyncDomainName::Routine => 7,
+        SyncDomainName::Run => 8,
     }
 }
 
@@ -57,6 +62,10 @@ pub(crate) fn from_contribution(
         ))
     };
     let handle = &contribution.handle;
+    let record = |name: SyncDomainName| -> Result<Arc<dyn SyncDomain>, Error> {
+        let records = handle.downcast_ref::<Arc<dyn RecordSync>>().ok_or_else(wrong)?.clone();
+        Ok(Arc::new(RecordDomain::new(name, records)))
+    };
     Ok(match contribution.domain {
         "profile" => {
             Arc::new(ProfileDomain::new(handle.downcast_ref::<Arc<dyn UserProfileSync>>().ok_or_else(wrong)?.clone()))
@@ -75,6 +84,8 @@ pub(crate) fn from_contribution(
         "experience" => Arc::new(ExperienceDomain::new(
             handle.downcast_ref::<Arc<dyn eos_core::experience::ExperienceSync>>().ok_or_else(wrong)?.clone(),
         )),
+        "routine" => record(SyncDomainName::Routine)?,
+        "run" => record(SyncDomainName::Run)?,
         other => return Err(Error::Rule(format!("no sync domain is called \"{other}\""))),
     })
 }
