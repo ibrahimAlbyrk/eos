@@ -16,6 +16,7 @@ import { BlueprintCard, slotState } from "./BlueprintCard.jsx";
 import { FreedomLadder } from "./FreedomLadder.jsx";
 import { makingLead, Note, shownVersion } from "./BlueprintEditor.jsx";
 import { HAND_BLUEPRINT } from "./words.js";
+import { ImportDialog, readChosen } from "./ImportRoutine.jsx";
 import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import routines from "../gallery/sample/routines.json";
@@ -83,7 +84,7 @@ describe("a new routine", () => {
     openLocation("eos:/routines/new");
     const html = draw();
     expect(html).toContain('<h1 class="eos-title">New routine</h1>');
-    expect(html).toContain('<main class="eos-screen eos-screen--read">');
+    expect(html).toContain('<main class="eos-screen eos-screen--read eos-new-drop">');
     expect(html).toContain(">What should Eos take care of?</h2>");
     expect(html).toContain('aria-label="Describe what Eos should take care of"');
     expect(html).toContain(">Write me a morning paper from my feeds</button>");
@@ -461,5 +462,26 @@ describe("the blueprint's spine", () => {
     expect(html).toContain('<h2 class="eos-lead">One question, then it is ready.</h2>');
     expect(html).not.toContain('role="tablist"');
     expect(html).not.toContain(">Change it</button>");
+  });
+});
+
+describe("a routine file chosen or dropped on New routine", () => {
+  const ask = (text, name = "pr-review.json") => renderToStaticMarkup(
+    <ImportDialog chosen={readChosen({ name, text })} onClose={() => {}} onMade={() => {}} onOther={() => {}} />,
+  );
+
+  it("asks before it makes a draft, saying which file and what it holds, Cancel first", () => {
+    const html = ask(JSON.stringify({ format: 1, routine: { name: "PR Review" }, versions: [{}, {}, {}] }));
+    expect(html).toContain('<h2 id="eos-import-title" class="eos-ask__title">Make a draft of PR Review?</h2>');
+    expect(html).toContain('<dt>File</dt><dd><span class="eos-ask__mono">pr-review.json</span></dd>');
+    expect(html).toContain("<dt>Versions</dt><dd>Three versions</dd>");
+    expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf(">Make the draft<"));
+  });
+
+  it("says when a file is no routine and offers another, sending nothing", () => {
+    const html = ask("Buy milk", "notes.txt");
+    expect(html).toContain(">This file is not a routine.</h2>");
+    expect(html).toContain(">Choose another file</button>");
+    expect(html).not.toContain("Make the draft");
   });
 });
