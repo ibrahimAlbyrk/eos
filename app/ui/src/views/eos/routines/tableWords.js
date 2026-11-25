@@ -33,13 +33,18 @@ export function lastWord(run, now) {
   return { text: run.state === "done" ? "Done" : text, tone };
 }
 
+// The status in words; a paused or archived routine that still has things
+// waiting says how many, since the table has no column of its own for them.
+export const statusWords = ({ line, waiting }) => (waiting > 0 && !line.endsWith("waiting") ? `${line}, ${waiting} waiting` : line);
+
 export const usd = (n) => (n == null ? null : `$${n.toFixed(2)}`);
 
 // The value a column sorts by; a routine without one goes last either way.
 const SORTS = {
   name: (r) => r.routine.name.toLowerCase(),
   kind: (r) => kindWord(r.routine.kind),
-  status: (r) => r.line,
+  // What waits for the user first, the most first; then by the words.
+  status: (r) => `${String(999 - Math.min(r.waiting ?? 0, 999)).padStart(3, "0")} ${r.line}`,
   next: (r) => r.nextAt,
   last: (r) => r.routine.lastRun?.endedAt ?? r.routine.lastRun?.createdAt,
   waiting: (r) => r.waiting,
