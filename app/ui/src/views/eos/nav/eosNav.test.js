@@ -12,6 +12,7 @@ const LOCATIONS = [
   ["eos:/needs/nd-0a1b2c3d4e5f", { screen: "need", itemId: "nd-0a1b2c3d4e5f" }],
   ["eos:/routines", { screen: "routines" }],
   ["eos:/routines/new", { screen: "new-routine" }],
+  ["eos:/routines/new?say=Tell+me+when+the+build+breaks", { screen: "new-routine", say: "Tell me when the build breaks" }],
   [`eos:/routines/${RT}`, { screen: "routine", routineId: RT }],
   [`eos:/routines/${RT}?tab=overview`, { screen: "routine", routineId: RT, tab: "overview" }],
   [`eos:/routines/${RT}?tab=runs`, { screen: "routine", routineId: RT, tab: "runs" }],

@@ -5,7 +5,8 @@ import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetRunSheet, registerHost } from "../../../state/eos/runSheetStore.js";
-import { _resetEosNav, openLocation } from "../nav/eosNav.js";
+import { _resetEosNav, buildLocation, openLocation } from "../nav/eosNav.js";
+import { NEW_STARTERS } from "../blueprint/words.js";
 import { EosMain } from "../EosMain.jsx";
 import { nextWord, routinesLead, soonestLine, sortRows } from "./tableWords.js";
 import { timeAt } from "../routine/words.js";
@@ -78,14 +79,29 @@ describe("all routines", () => {
     expect(soonestLine([r("C", 0)], now)).toBeNull();
   });
 
-  it("says what routines are for when there are none, with the way to make one", async () => {
+  it("with none yet, says how one begins and offers sentences that open New routine written in", async () => {
     setEosTransport(fixtureTransport({ [ROUTES.routines]: [], [ROUTES.inbox]: inbox }));
     await refreshRoutines();
     const html = draw();
-    expect(html).toContain('<p class="eos-empty__title">No routines yet.</p>');
-    expect(html).toContain(">Make the first one</button>");
+    expect(html).toContain('<h2 class="eos-first__ask">No routines yet.</h2>');
+    expect([...html.matchAll(/<span class="eos-first__say">([^<]*)</g)].map((m) => m[1])).toEqual(NEW_STARTERS);
+    expect(html).toContain(">Or say your own</button>");
     expect(html).not.toContain("eos-lead");
     expect(html).not.toContain("eos-seg");
+    expect(buildLocation({ screen: "new-routine", say: NEW_STARTERS[3] })).toBe("eos:/routines/new?say=Tell+me+when+the+build+breaks");
+  });
+
+  it("opens New routine with a starter's sentence in its input", () => {
+    openLocation(buildLocation({ screen: "new-routine", say: NEW_STARTERS[3] }));
+    expect(draw()).toMatch(/<textarea[^>]*>Tell me when the build breaks<\/textarea>/);
+  });
+
+  it("says when every routine is paused or archived, without offering to make the first", async () => {
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: routines.map((r) => ({ ...r, state: "paused" })), [ROUTES.inbox]: inbox }));
+    await refreshRoutines();
+    const html = draw();
+    expect(html).toContain('<p class="eos-lead">Nothing active.</p><p class="eos-lead__sub">Each of your routines is paused or archived. Resume one to have it run again.</p>');
+    expect(html).not.toContain("eos-first");
   });
 
   it("says the next run by its day", () => {

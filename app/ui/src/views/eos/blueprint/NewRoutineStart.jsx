@@ -20,8 +20,8 @@ const FILE = "M4 1.5h5L12.5 5v9.5h-8.5zM9 1.5V5h3.5M6.5 9.5L8 11l1.5-1.5M8 6.5V1
 // line; and the blueprint Eos will write, its eight slots empty on their
 // spine, each saying what it holds. `onHand` opens the card to fill by
 // hand, `onFile` the file picker.
-export function NewRoutineStart({ note, onHand, onFile }) {
-  const [text, setText] = useState("");
+export function NewRoutineStart({ say, note, onHand, onFile }) {
+  const [text, setText] = useState(say ?? "");
   const [sending, setSending] = useState(false);
   const field = useRef(null);
   const send = async (e) => {
@@ -48,6 +48,7 @@ export function NewRoutineStart({ note, onHand, onFile }) {
       <form className="eos-input eos-new__input" onSubmit={send}>
         <textarea
           ref={field}
+          autoFocus={say !== undefined}
           className="eos-input__text eos-new__text"
           rows={2}
           aria-label="Describe what Eos should take care of"
