@@ -21,13 +21,17 @@ export function _resetKeptForms() {
   kept.clear();
 }
 
-// Where the sheet opens, by what opened it: right of a sidebar row's Run
-// button, under the routine page's Run now, centred otherwise. A sidebar row
-// is the sidebar door; the rest open from a routine's own screens.
+// Where the sheet opens, by what opened it: level with a sidebar row's Run
+// button, right of the sidebar's edge, under the routine page's Run now,
+// centred otherwise. A sidebar row is the sidebar door; the rest open from a
+// routine's own screens.
 export function sheetPlace(anchor) {
   if (!anchor?.getBoundingClientRect) return { where: "centre", door: "routine_page" };
   const side = Boolean(anchor.classList?.contains("eos-side-run"));
-  return { where: side ? "side" : "below", door: side ? "sidebar" : "routine_page", rect: anchor.getBoundingClientRect() };
+  const rect = anchor.getBoundingClientRect();
+  if (!side) return { where: "below", door: "routine_page", rect };
+  const edge = anchor.closest?.("aside")?.getBoundingClientRect().right;
+  return { where: "side", door: "sidebar", rect: edge ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: edge } : rect };
 }
 
 // The sheet's position for an anchor's rectangle, kept inside the window.
