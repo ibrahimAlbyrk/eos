@@ -46,9 +46,9 @@ export function ShareMenu({ surface, row }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useMenuDismiss(open, () => setOpen(false));
   const items = [
-    { label: "Mail preview", run: showMail },
-    { label: printing ? "Printing…" : "Save as PDF", run: pdf, busy: printing },
-    { label: "Save as a file", run: share },
+    { label: "Mail preview", line: "The issue as the mail will look", run: showMail },
+    { label: printing ? "Printing…" : "Save as PDF", line: "On your region's paper, shown in Finder", run: pdf, busy: printing },
+    { label: "Save as a file", line: "One .html file that opens anywhere", run: share },
   ];
   const choose = (item) => {
     setOpen(false);
@@ -64,7 +64,10 @@ export function ShareMenu({ surface, row }) {
           <ul className="eos-menu" role="menu" onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
             {items.map((item) => (
               <li key={item.label} role="none">
-                <button type="button" role="menuitem" className="eos-menu__item" disabled={item.busy} onClick={() => choose(item)}>{item.label}</button>
+                <button type="button" role="menuitem" className="eos-menu__item" disabled={item.busy} onClick={() => choose(item)}>
+                  <span className="eos-menu__name">{item.label}</span>
+                  <span className="eos-menu__line">{item.line}</span>
+                </button>
               </li>
             ))}
           </ul>

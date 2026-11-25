@@ -326,34 +326,6 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-better__week--now { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eos-better__axis { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--fg-dim2); }
 
-.eos-menu-wrap { position: relative; }
-.eos-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 20;
-  min-width: 200px;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  border-radius: 12px;
-  background: var(--raised);
-  box-shadow: var(--sh-modal);
-}
-.eos-menu__item {
-  width: 100%;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-  color: var(--fg);
-  cursor: pointer;
-}
-.eos-menu__item:hover, .eos-menu__item:focus-visible { background: var(--chip); }
-
 /* ── A project routine (SurfaceApp): steps, the team's word, the side panel ── */
 /* A project: its steps on a spine in the main column, the side panel in
    the aside, columns 56 apart as the routine's own. */

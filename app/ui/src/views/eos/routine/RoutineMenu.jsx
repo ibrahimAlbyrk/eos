@@ -32,6 +32,7 @@ export function menuActions(routine) {
   if (routine.state !== "archived") actions.push({ label: "Archive", run: () => setRoutineState(routine.id, "archived") });
   actions.push({
     label: "Delete to trash",
+    danger: true,
     run: async () => {
       if (await deleteRoutine(routine.id)) openLocation("eos:/");
     },
@@ -62,7 +63,8 @@ export function RoutineMenu({ routine }) {
         <ul className="eos-menu" role="menu" onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}>
           {menuActions(routine).map((a) => (
             <li key={a.label} role="none">
-              <button type="button" role="menuitem" className="eos-menu__item" onClick={() => choose(a)}>{a.label}</button>
+              {a.danger && <span className="eos-menu__sep" role="separator" />}
+              <button type="button" role="menuitem" className={a.danger ? "eos-menu__item eos-menu__item--danger" : "eos-menu__item"} onClick={() => choose(a)}>{a.label}</button>
             </li>
           ))}
         </ul>
