@@ -431,16 +431,23 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 /* ── All routines ─────────────────────────────────────────────────────────── */
 .eos-routines { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; container-type: inline-size; }
 .eos-routines > .eos-note, .eos-routines > .eos-skeleton { align-self: stretch; }
+.eos-routines__head { padding-top: 16px; }
+.eos-routines > .eos-seg { margin-top: 8px; }
 .eos-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-mute); }
 .eos-dot--ok { background: var(--ok); }
 .eos-dot--active { background: var(--accent); }
 .eos-dot--warn { background: var(--warn); }
 .eos-dot--err { background: var(--err); }
-/* Wide tables scroll inside their card, never the page. */
-.eos-rtable-wrap { align-self: stretch; padding: 6px 8px; overflow-x: auto; }
+/* The table sits on hairlines, no card; a wide one scrolls inside its own
+   box, never the page. */
+.eos-rtable-wrap { align-self: stretch; overflow-x: auto; }
 .eos-rtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); color: var(--fg-mid); white-space: nowrap; }
 .eos-rtable th, .eos-rtable td { padding: 11px 12px; text-align: left; font-weight: 400; vertical-align: middle; }
-.eos-rtable tbody tr + tr > * { border-top: 1px solid var(--line); }
+.eos-rtable tbody tr > * { border-top: 1px solid var(--line); }
+.eos-rtable tbody tr:last-child > * { border-bottom: 1px solid var(--line); }
+.eos-rtable th:first-child, .eos-rtable td:first-child { padding-left: 0; }
+.eos-rtable th:last-child, .eos-rtable td:last-child { padding-right: 0; }
+.eos-rtable tbody tr:hover > * { background: color-mix(in srgb, var(--row-on) 40%, transparent); }
 /* Every row as tall as one with its Run button, so a draft row does not sit shorter. */
 .eos-rtable tbody td { height: 52px; box-sizing: border-box; }
 .eos-rtable thead th { padding-top: 8px; padding-bottom: 8px; }

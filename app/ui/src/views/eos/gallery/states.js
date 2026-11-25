@@ -50,6 +50,7 @@ export const GALLERY_STATES = [
   { id: "need-view-plain", label: "Needs you · a View with no facts or aside, from outside text", location: `eos:/needs/${decision.item.id}`, reads: withPlainDecision },
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
+  { id: "routines-empty", label: "Routines · none yet", location: "eos:/routines", reads: (s) => ({ ...s, [ROUTES.routines]: [] }) },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
   { id: "routine-making", label: "Routine · being made, the architect asking", location: `eos:/routines/${routineDraft.routine.id}?tab=blueprint` },

@@ -59,3 +59,22 @@ export function sortRows(rows, key, dir) {
     return (x < y ? -1 : x > y ? 1 : 0) * sign;
   });
 }
+
+const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const word = (n) => WORDS[n] ?? String(n);
+
+// The screen's lead: how many routines are in this view, and how many of
+// them wait for the user.
+export function routinesLead(rows) {
+  const n = rows.length;
+  const waiting = rows.filter((r) => r.waiting > 0).length;
+  const head = `${word(n)} ${n === 1 ? "routine" : "routines"}`;
+  if (!waiting) return `${head}.`;
+  return `${head}, ${waiting === n ? (n === 1 ? "waiting" : "all waiting") : `${word(waiting).toLowerCase()} of them waiting`} for you.`;
+}
+
+// The line under the lead: the soonest next run, or nothing.
+export function soonestLine(rows, now) {
+  const next = rows.filter((r) => r.nextAt != null && r.nextAt > now).sort((a, b) => a.nextAt - b.nextAt)[0];
+  return next ? `Next: ${next.routine.name}, ${nextWord(next.nextAt, now).replace(/^[A-Z]/, (c) => c.toLowerCase())}.` : null;
+}

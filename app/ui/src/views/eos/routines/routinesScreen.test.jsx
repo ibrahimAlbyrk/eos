@@ -7,7 +7,7 @@ import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetRunSheet, registerHost } from "../../../state/eos/runSheetStore.js";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { EosMain } from "../EosMain.jsx";
-import { nextWord, sortRows } from "./tableWords.js";
+import { nextWord, routinesLead, soonestLine, sortRows } from "./tableWords.js";
 import { timeAt } from "../routine/words.js";
 import routines from "../gallery/sample/routines.json";
 import inbox from "../gallery/sample/inbox.json";
@@ -58,6 +58,29 @@ describe("all routines", () => {
     expect(sortRows(rows, "next", "ascending").map((r) => r.routine.name)).toEqual(["C", "B", "A"]);
     expect(sortRows(rows, "next", "descending").map((r) => r.routine.name)).toEqual(["B", "C", "A"]);
     expect(sortRows(rows, "name", "descending").map((r) => r.routine.name)).toEqual(["C", "B", "A"]);
+  });
+
+  it("leads with how many routines there are and how many wait, then the soonest run", () => {
+    const html = draw();
+    expect(html).toContain('<p class="eos-lead">Four routines, two of them waiting for you.</p>');
+    expect(html).not.toContain("eos-card eos-rtable-wrap");
+    const r = (name, waiting, nextAt) => ({ routine: { name }, waiting, nextAt });
+    expect(routinesLead([r("A", 0)])).toBe("One routine.");
+    expect(routinesLead([r("A", 2)])).toBe("One routine, waiting for you.");
+    expect(routinesLead([r("A", 1), r("B", 3)])).toBe("Two routines, all waiting for you.");
+    const now = new Date(2026, 10, 25, 9, 0).getTime();
+    expect(soonestLine([r("A", 0, now + 7200_000), r("B", 0, now + 3600_000), r("C", 0)], now)).toBe("Next: B, today 10:00.");
+    expect(soonestLine([r("C", 0)], now)).toBeNull();
+  });
+
+  it("says what routines are for when there are none, with the way to make one", async () => {
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: [], [ROUTES.inbox]: inbox }));
+    await refreshRoutines();
+    const html = draw();
+    expect(html).toContain('<p class="eos-empty__title">No routines yet.</p>');
+    expect(html).toContain(">Make the first one</button>");
+    expect(html).not.toContain("eos-lead");
+    expect(html).not.toContain("eos-seg");
   });
 
   it("says the next run by its day", () => {
