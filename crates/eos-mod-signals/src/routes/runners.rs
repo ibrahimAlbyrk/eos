@@ -76,8 +76,13 @@ pub(super) fn claim(routes: &Arc<Routes>) -> RouteDef {
                 Err(RunnerError::Missing { capability }) => {
                     return Err(ApiError::Conflict(format!("Connect {capability} on this Mac first")));
                 }
-                Err(RunnerError::Unreachable | RunnerError::Off) => {
+                Err(RunnerError::Unreachable) => {
                     return Err(ApiError::Unreachable("the sync vault could not be reached".into()));
+                }
+                Err(RunnerError::Off) => {
+                    return Err(ApiError::Unreachable(
+                        "sync is not open on this Mac: a routine moves here only through it".into(),
+                    ));
                 }
             };
             let (routing, ids, taken) = (routes.router.routing(), routes.ids.clone(), routine.clone());
