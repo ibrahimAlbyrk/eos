@@ -174,3 +174,24 @@ async fn start_another_like_this_copies_a_project_with_a_brief_of_its_own() {
     assert_eq!(blueprint["project"]["brief"], "Build the shop's app.");
     assert_eq!(blueprint["project"]["milestones"], project()["project"]["milestones"]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lead_whose_turn_ends_before_it_is_told_of_its_next_milestone_is_not_reminded() {
+    let bench = Bench::new(true);
+    let (_, run, lead) = at_work(&bench).await;
+    bench.module.tools().complete_milestone(&lead, done("login")).await.expect("handed in");
+    bench.eventually(|| checkers(&bench).len() == 1).await;
+    bench.agents.settled().await;
+    for checker in checkers(&bench) {
+        bench.temp.exec(&format!("UPDATE workers SET state = 'IDLE' WHERE id = '{checker}'"));
+    }
+    // The run is back at work on its next milestone; the note that says so has not reached the
+    // lead yet, which is held until it does.
+    bench.temp.exec(&format!("UPDATE runs SET state = 'running', station = 'work' WHERE id = '{run}'"));
+    let hooks = eos_runtime::idle::IdleHooks::new(eos_runtime::module::Module::idle_hooks(bench.module.as_ref()));
+    hooks.run(&lead).await;
+    hooks.run(&lead).await;
+    let nudges =
+        bench.temp.count(&format!("SELECT COUNT(*) FROM run_events WHERE run_id = '{run}' AND kind = 'idle_nudge'"));
+    assert_eq!((nudges, bench.state(&run)), (0, RunState::Running), "it waits to be told");
+}

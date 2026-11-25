@@ -1,6 +1,6 @@
 //! A run's lead that goes quiet or whose session dies (01 G16, G39). A lead
-//! that ends its turn without a result while none of its team works is
-//! reminded once; the second time
+//! that ends its turn without a result while none of its team works and
+//! Eos owes it no word (it is not held) is reminded once; the second time
 //! the run fails as `no_result`. A lead whose session ends unexpectedly is
 //! resumed once with a message; the second time the run fails as
 //! `crashed`. Both count from the run's own timeline, so a restart forgets
@@ -94,6 +94,10 @@ async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
         check::checker_failed(engine, worker_id).await?;
         return Ok(false);
     };
+    // Eos has not told it of what it works on now (its next milestone): the lead waits.
+    if check::holds(engine, worker_id) {
+        return Ok(false);
+    }
     // Eos runs the milestone at work itself: the lead waits.
     if super::system::at_step(engine, &run.run_id).await {
         return Ok(false);
