@@ -96,3 +96,27 @@ async fn a_routine_leaving_for_good_takes_its_surfaces_folders_to_the_trash_and_
     assert_eq!(rig.ask(Method::Get, "/api/surfaces/pins", None).await.1, json!({"surfaceIds": ["sf-other"]}));
     assert_eq!(rig.ask(Method::Get, "/api/surfaces/sf-other", None).await.0, 200, "another routine's surface stays");
 }
+
+#[tokio::test]
+async fn a_surface_that_cannot_leave_does_not_keep_the_routine_s_others() {
+    let rig = Rig::new().await;
+    rig.seed(
+        vec![
+            surface("sf-a", "rt-1", Level::View, Place::NeedsYou, 1),
+            surface("sf-b", "rt-1", Level::View, Place::NeedsYou, 1),
+        ],
+        vec![],
+        vec![],
+    )
+    .await;
+    for id in ["sf-a", "sf-b"] {
+        std::fs::create_dir_all(rig.dir.path().join("surfaces").join(id)).expect("a folder");
+    }
+    rig.trash.refuse(rig.dir.path().join("surfaces/sf-a"));
+
+    let answer = rig.author().remove_for_routine("rt-1").await;
+
+    assert!(answer.is_err(), "the failure is answered, so the routine tries again");
+    assert_eq!(rig.ask(Method::Get, "/api/surfaces/sf-b", None).await.0, 404, "the other one left");
+    assert_eq!(rig.ask(Method::Get, "/api/surfaces/sf-a", None).await.0, 200, "the refused one stays for the next try");
+}

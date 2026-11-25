@@ -15,11 +15,17 @@ pub struct FakeTrash {
     dir: PathBuf,
     trashed: Mutex<Vec<PathBuf>>,
     written: Mutex<usize>,
+    refused: Mutex<Vec<PathBuf>>,
 }
 
 impl FakeTrash {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        Self { dir: dir.into(), trashed: Mutex::default(), written: Mutex::default() }
+        Self { dir: dir.into(), trashed: Mutex::default(), written: Mutex::default(), refused: Mutex::default() }
+    }
+
+    /// From now on, trashing `path` fails as a full or locked disk would.
+    pub fn refuse(&self, path: impl Into<PathBuf>) {
+        self.refused.lock().unwrap_or_else(|p| p.into_inner()).push(path.into());
     }
 
     /// The paths trashed, in order.
@@ -107,6 +113,9 @@ impl FileSystem for FakeTrash {
 
     fn trash<'a>(&'a self, path: &'a Path) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(async move {
+            if self.refused.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|r| r == path) {
+                return Err(Error::Storage(format!("{}: refused", path.display())));
+            }
             let mut trashed = self.trashed.lock().unwrap_or_else(|p| p.into_inner());
             let to = self.kept(trashed.len());
             std::fs::create_dir_all(&self.dir).map_err(Error::storage)?;

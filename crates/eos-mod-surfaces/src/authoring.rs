@@ -51,6 +51,25 @@ fn shape_of(makes: &str) -> Option<(Level, Place, Role)> {
 }
 
 impl SurfaceAuthor {
+    /// One surface leaves for good: its folder to the trash, then its rows.
+    async fn remove_one(&self, surface: StoredSurface) -> Result<(), Error> {
+        let dir = self.root.join(&surface.id);
+        if self.trash.exists(&dir).await {
+            self.trash.trash(&dir).await?;
+        }
+        let gone = surface.clone();
+        self.store
+            .write(move |tx, out| {
+                crate::pins::unpin(tx, out, &gone.id)?;
+                tx.surfaces().remove(&gone.id)?;
+                changed(out, &gone, "removed");
+                Ok(())
+            })
+            .await?;
+        tracing::info!(surface = %surface.id, "a routine's surface left for good");
+        Ok(())
+    }
+
     pub fn new(
         store: Arc<dyn Store>,
         clock: Arc<dyn Clock>,
@@ -156,23 +175,17 @@ impl SurfaceAuthoring for SurfaceAuthor {
         Box::pin(async move {
             let id = routine_id.to_owned();
             let surfaces = self.store.read(move |tx| tx.surfaces().of_routine(&id)).await?;
+            // One surface that cannot leave does not keep the others: each goes
+            // on its own, and the first failure is answered once all were tried.
+            let mut first = None;
             for surface in surfaces {
-                let dir = self.root.join(&surface.id);
-                if self.trash.exists(&dir).await {
-                    self.trash.trash(&dir).await?;
+                let id = surface.id.clone();
+                if let Err(error) = self.remove_one(surface).await {
+                    tracing::warn!(surface = %id, %error, "a routine's surface could not leave");
+                    first.get_or_insert(error);
                 }
-                let gone = surface.clone();
-                self.store
-                    .write(move |tx, out| {
-                        crate::pins::unpin(tx, out, &gone.id)?;
-                        tx.surfaces().remove(&gone.id)?;
-                        changed(out, &gone, "removed");
-                        Ok(())
-                    })
-                    .await?;
-                tracing::info!(surface = %surface.id, "a routine's surface left for good");
             }
-            Ok(())
+            first.map_or(Ok(()), Err)
         })
     }
 }
