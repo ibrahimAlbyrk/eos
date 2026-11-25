@@ -148,3 +148,18 @@ async fn without_eos_window_the_tests_wait_and_a_passing_review_shows_nothing() 
     review(&rig, "w-reviewer1", json!({"verdict": "pass", "findings": []})).await.expect("recorded");
     assert_eq!(row(&rig, 1).await.status, VersionStatus::Checking, "never shown before its tests pass");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_apps_version_is_kept_from_this_macs_dashboard_only() {
+    let rig = game().await;
+    proposed(&rig).await;
+    review(&rig, "w-reviewer1", json!({"verdict": "pass", "findings": []})).await.expect("recorded");
+    let keep = "/api/surfaces/sf-app/versions/1/keep";
+    let phone = eos_runtime::access::Caller::Phone { grant: eos_runtime::access::Tier::High, mutate: true };
+    let (status, _) = rig.ask_as(phone, eos_runtime::http::Method::Post, keep, None).await;
+    assert_eq!(status, 403, "the phone shows no line of access to decide by");
+    assert_eq!(row(&rig, 1).await.status, VersionStatus::Candidate);
+    let (status, _) = rig.ask(eos_runtime::http::Method::Post, keep, None).await;
+    assert_eq!(status, 200);
+    assert_eq!(row(&rig, 1).await.status, VersionStatus::Kept);
+}
