@@ -142,6 +142,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/signals/replay"),
     // A source's webhook: made on the relay and at the service, as the user.
     ("POST", "/api/signals/sources/{sourceId}/push"),
+    // Moves a routine here: it writes the lease in the sync vault.
+    ("POST", "/api/runners/claim"),
     // Needs you: an answer lets a run start, a routine resume or a change be kept.
     ("POST", "/api/inbox/{id}/answer"),
     // A surface's button runs a declared action: it may start a run or answer for the user.

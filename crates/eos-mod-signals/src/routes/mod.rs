@@ -7,6 +7,7 @@
 mod preview;
 mod push;
 mod replay;
+mod runners;
 mod settings;
 mod status;
 mod summary;
@@ -46,6 +47,9 @@ pub(crate) struct Routes {
     pub(crate) push: Option<Arc<crate::push::Push>>,
     /// The sources the capabilities declare: which of them can push.
     pub(crate) sources: Arc<dyn SignalSources>,
+    /// Decides again what a routine that moved here takes up.
+    pub(crate) router: Arc<crate::router::Router>,
+    pub(crate) ids: Arc<dyn eos_core::Ids>,
 }
 
 impl Routes {
@@ -72,6 +76,8 @@ pub(crate) fn all(routes: Routes) -> Vec<RouteDef> {
         settings::route(&routes),
         summary::route(&routes),
         push::route(&routes),
+        runners::list(&routes),
+        runners::claim(&routes),
     ]
 }
 

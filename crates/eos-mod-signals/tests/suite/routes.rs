@@ -24,7 +24,14 @@ struct Rig {
 
 impl Rig {
     async fn new(routines: Vec<RoutineTriggers>, autostart: bool) -> Self {
-        let bench = Bench::new(routines);
+        let rig = Self::over(Bench::new(routines), autostart).await;
+        // The source's first poll settles before the test looks at it.
+        let bench = &rig.bench;
+        bench.until(|| bench.temp.count("SELECT count(*) FROM signal_sources WHERE next_poll_at IS NULL") == 0).await;
+        rig
+    }
+
+    async fn over(bench: Bench, autostart: bool) -> Self {
         let intake: Arc<dyn RunIntake> = Arc::new(TableIntake::new(bench.clock.clone()));
         let module = Arc::new(bench.module(bench.temp.store.clone(), intake, autostart));
         let runtime =
@@ -33,8 +40,6 @@ impl Rig {
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        // The source's first poll settles before the test looks at it.
-        bench.until(|| bench.temp.count("SELECT count(*) FROM signal_sources WHERE next_poll_at IS NULL") == 0).await;
         Self { bench, module, runtime }
     }
 
@@ -302,4 +307,52 @@ async fn the_summary_counts_each_kind_since_a_time_for_every_routine_and_each() 
     assert_eq!(rig.ask(Method::Get, "/api/signals/summary?since=soon", None).await.0, 400);
     let (_, later) = rig.ask(Method::Get, "/api/signals/summary?since=999999999", None).await;
     assert_eq!(later["counts"]["ignored"], 0, "nothing since then");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn move_here_takes_up_the_away_computers_cursor_and_decides_again_what_it_never_saw() {
+    use eos_core::signals::{DeviceSeen, Handoff, Holder};
+    let leases = Arc::new(crate::runner::Leases::default());
+    leases.hold("rt-a", Holder::Elsewhere { device_id: "dev-2".into(), epoch: 1 });
+    *leases.confirmed_at.lock().unwrap() = Some(0);
+    let away =
+        DeviceSeen { device_id: "dev-2".into(), name: "MacBook Air".into(), seen_at: 0, routines: vec!["rt-a".into()] };
+    leases.devices.lock().unwrap().push(away);
+    let mut bench = Bench::new(active());
+    bench.runner = leases.clone();
+    bench.clock.set(3 * 60 * 60_000);
+    let rig = Rig::over(bench, true).await;
+    rig.pulls(2).await;
+    let decisions =
+        |rig: &Rig| rig.bench.routes().into_iter().map(|(id, _, decision, ..)| (id, decision)).collect::<Vec<_>>();
+    assert_eq!(decisions(&rig), [(1, "elsewhere".to_owned()), (2, "elsewhere".to_owned())]);
+
+    let (status, runners) = rig.ask(Method::Get, "/api/runners", None).await;
+    assert_eq!((status, runners["devices"][0]["awaySince"].as_i64()), (200, Some(0)), "{runners}");
+
+    // Without a handoff the claim is lost: told who holds it.
+    let claim = json!({ "routineId": "rt-a" });
+    let (status, lost) = rig.ask(Method::Post, "/api/runners/claim", Some(claim.clone())).await;
+    assert_eq!((status, lost["claimed"].as_bool(), lost["holder"].as_str()), (200, Some(false), Some("dev-2")));
+
+    let scope: String = rig.bench.temp.text(&format!("SELECT scope_hash FROM signal_sources WHERE id = '{SOURCE_ID}'"));
+    let key: String = rig.bench.temp.text("SELECT key FROM signals WHERE id = 1");
+    let marks = json!({ "sources": { scope.clone(): { "etag": "from-air" } }, "schedules": {}, "keys": [key] });
+    *leases.handoff.lock().unwrap() = Some(Handoff { routine_id: "rt-a".into(), epoch: 2, watermarks: Some(marks) });
+    let (status, moved) = rig.ask(Method::Post, "/api/runners/claim", Some(claim)).await;
+    assert_eq!((status, moved["claimed"].as_bool(), moved["epoch"].as_i64()), (200, Some(true), Some(2)), "{moved}");
+    let cursor = rig.bench.temp.text(&format!("SELECT cursor_json FROM signal_sources WHERE id = '{SOURCE_ID}'"));
+    assert_eq!(cursor, r#"{"etag":"from-air"}"#, "the source goes on from the away computer's cursor");
+    assert_eq!(decisions(&rig), [(1, "elsewhere".to_owned()), (2, "run".to_owned())], "what it saw is not run again");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn move_here_is_refused_without_a_source_the_routine_needs() {
+    let mut deaf = routine("rt-b", RoutineState::Active, &["opened"], None);
+    deaf.when =
+        serde_json::from_value(json!({ "on": [{ "source": "slack.messages", "scope": {}, "events": ["posted"] }] }))
+            .expect("a When");
+    let rig = Rig::over(Bench::new(vec![deaf]), true).await;
+    let (status, body) = rig.ask(Method::Post, "/api/runners/claim", Some(json!({ "routineId": "rt-b" }))).await;
+    assert_eq!((status, body["error"].as_str()), (409, Some("Connect slack on this Mac first")), "{body}");
 }

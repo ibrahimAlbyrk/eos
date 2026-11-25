@@ -300,6 +300,31 @@ impl Routing {
         tx.signals().mark_routed(id)
     }
 
+    /// Decides the signal for the routine again, in place of the decision
+    /// it had (`elsewhere`, before the routine moved here).
+    pub(crate) fn decide_again_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        routine: &RoutineTriggers,
+        signal: &StoredSignal,
+    ) -> Result<(), Error> {
+        let facts: Facts =
+            signal.signal.facts_json.as_deref().and_then(|json| serde_json::from_str(json).ok()).unwrap_or_default();
+        let (decision, reason, run_id) = self.decide(tx, out, routine, signal, &facts)?;
+        let route = StoredSignalRoute {
+            signal_id: signal.id,
+            routine_id: routine.id.clone(),
+            routine_version: routine.version.clone(),
+            decision,
+            reason,
+            run_id,
+            model_asked: false,
+            decided_at: self.now,
+        };
+        self.keep_in(tx, out, routine, signal, route, false)
+    }
+
     /// Keeps the routine's decision on the signal, with what it brings: the
     /// batch closed when full, the day's over-limit notice, and
     /// `signals:change`.
