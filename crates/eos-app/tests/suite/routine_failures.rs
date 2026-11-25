@@ -6,6 +6,7 @@
 mod runs;
 mod sends;
 mod signals;
+mod surfaces;
 
 use eos_app::App;
 use eos_runtime::http::Method;
