@@ -15,7 +15,7 @@ import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
 import { PageEnding } from "./PageEnding.jsx";
 import { PageFirst, PageGone, PageLoading } from "./PageStates.jsx";
-import { AppSurface } from "./AppSurface.jsx";
+import { AppActions, AppSurface } from "./AppSurface.jsx";
 import { olderDesignLine, todayDesignLine } from "./words.js";
 
 // eos:/surfaces/<id>?issue=<n>&mode=reshape&button=&index= — a routine's Page: the issue in
@@ -66,7 +66,9 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   if (surface?.level === "app") {
     return (
       <main className="eos-screen eos-screen--wide">
-        <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} />
+        <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]}>
+          <AppActions surfaceId={surfaceId} />
+        </EosHeader>
         <div className="eos-body eos-page">
           {devRun && <DevRunNote />}
           <AppSurface surfaceId={surfaceId} />

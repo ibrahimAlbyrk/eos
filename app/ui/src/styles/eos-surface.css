@@ -383,13 +383,23 @@
 .eos-gallery-bar__slow { display: inline-flex; align-items: center; gap: 4px; }
 
 /* ── A routine's App (SurfaceApp.dc.html) ─────────────────────────────────── */
-.eos-app { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 10px; }
-.eos-app--panel { max-width: none; padding: 12px 0 16px; }
-.eos-app__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 16px; }
+/* A routine's App as a tool: the lead of an object's page (who made it, what
+   it does, its version), where it runs as a fact with the lock, then the App
+   on its own ground across the measure. In the side panel: a compact head,
+   the App, the access line under it. */
+.eos-app { width: 100%; display: flex; flex-direction: column; gap: 24px; }
+.eos-app__lead { padding-top: 8px; gap: 12px; }
+.eos-app__lead .eos-lead { margin: 0; }
+.eos-app__access { margin: 0; display: flex; align-items: flex-start; gap: 8px; max-width: 72ch; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-app__access strong { font-weight: 500; color: var(--fg-mid); }
+.eos-app__access svg { flex: none; margin-top: 2px; fill: none; stroke: var(--fg-dim2); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.eos-app-ghost { min-height: 420px; margin-top: 0; padding: 20px 24px; border-radius: 16px; justify-content: flex-start; }
+.eos-app-ghost .eos-page-ghost__word { margin: auto; }
+.eos-app-ghost__bar { height: 22px; width: 220px; border-radius: 999px; border: 1px solid var(--line); }
+.eos-app__stage { display: flex; flex-direction: column; gap: 10px; }
+.eos-app--panel { gap: 12px; padding: 12px 16px 16px; }
+.eos-app__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .eos-app__name { flex: 1 1 160px; min-width: 0; }
-.eos-app__title { font-size: var(--text-md); font-weight: 600; color: var(--fg-strong); }
-.eos-app__maker { font-size: var(--text-xs); color: var(--fg-dim); }
-.eos-app__stage { margin: 0 16px; display: flex; flex-direction: column; gap: 10px; }
-.eos-app__access { margin: 0 16px; display: flex; gap: 8px; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
-.eos-app__access svg { flex: none; margin-top: 3px; fill: none; stroke: var(--fg-dim2); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.eos-app .eos-note { margin: 0 16px; }
+.eos-app__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-app__maker { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-app--panel .eos-app__access { font-size: var(--text-xs); }
