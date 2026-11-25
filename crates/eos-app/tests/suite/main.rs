@@ -15,6 +15,7 @@ mod capabilities;
 mod crash;
 mod first_run;
 mod flows;
+mod forge_e2e;
 mod injection;
 mod injection_pages;
 mod injection_sending;

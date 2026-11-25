@@ -51,7 +51,10 @@ pub(crate) fn run_scope(
     fence: Option<&ToolScope>,
     edit_folder: &str,
 ) -> Result<String, Error> {
-    let scope = scope_for(role, trust, &[CALL_CAPABILITY_TOOL], fence, edit_folder);
+    // The engine starts a session in the folder's real path (`/private/var`
+    // for `/var`): edits are bound to that name, which the agent writes to.
+    let real = std::fs::canonicalize(edit_folder).ok().and_then(|path| path.to_str().map(str::to_owned));
+    let scope = scope_for(role, trust, &[CALL_CAPABILITY_TOOL], fence, real.as_deref().unwrap_or(edit_folder));
     serde_json::to_string(&scope).map_err(|e| Error::storage(e.to_string()))
 }
 
