@@ -1,6 +1,7 @@
 import { openLocation } from "../nav/eosNav.js";
 import { runLocation } from "../routine/RoutineRuns.jsx";
 import { hasEnded, stateChip } from "../run/words.js";
+import { numberWord } from "../home/homeWords.js";
 
 // How a trial's mark is drawn: done in ok, failed in err, still going lit.
 const TONE = { done: "ok", failed: "err", cancelled: "quiet" };
@@ -12,7 +13,7 @@ export function TrialCards({ runs, now }) {
   if (!runs?.length) return null;
   return (
     <section className="eos-bp-trials-wrap" aria-label="Trial">
-      <h2 className="eos-label">Trial on {runs.length === 1 ? "one past item" : `${runs.length} past items`}, nothing was sent</h2>
+      <h2 className="eos-label">Trial on {runs.length === 1 ? "one past item" : `${numberWord(runs.length)} past items`}, nothing was sent</h2>
       <ul className="eos-bp-trials">
         {runs.map((run) => (
           <li key={run.id} className={`eos-bp-trial eos-bp-trial--${TONE[run.state] ?? (hasEnded(run) ? "quiet" : "active")}`}>
