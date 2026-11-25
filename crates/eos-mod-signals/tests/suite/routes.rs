@@ -348,6 +348,34 @@ async fn move_here_takes_up_the_away_computers_cursor_and_decides_again_what_it_
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn move_here_is_refused_from_every_door_while_the_holder_was_seen_within_two_hours() {
+    use eos_core::signals::{DeviceSeen, Holder};
+    let hour = 60 * 60_000;
+    let leases = Arc::new(crate::runner::Leases::default());
+    leases.hold("rt-a", Holder::Elsewhere { device_id: "dev-2".into(), epoch: 1 });
+    *leases.confirmed_at.lock().expect("not poisoned") = Some(0);
+    let seen =
+        DeviceSeen { device_id: "dev-2".into(), name: "mini".into(), seen_at: hour, routines: vec!["rt-a".into()] };
+    leases.devices.lock().expect("not poisoned").push(seen);
+    let mut bench = Bench::new(active());
+    bench.runner = leases.clone();
+    bench.clock.set(3 * hour - 1);
+    let rig = Rig::over(bench, false).await;
+
+    let claim = json!({ "routineId": "rt-a" });
+    let refused = "mini still runs this routine. It can move here once mini has been away for two hours.";
+    let phone = Caller::Phone { grant: Tier::High, mutate: true };
+    for caller in [Caller::DASHBOARD, phone.clone()] {
+        let (status, body) = rig.ask_as(caller, Method::Post, "/api/runners/claim", Some(claim.clone())).await;
+        assert_eq!((status, body["error"].as_str()), (409, Some(refused)), "{body}");
+    }
+
+    rig.bench.clock.set(3 * hour);
+    let (status, lost) = rig.ask_as(phone, Method::Post, "/api/runners/claim", Some(claim)).await;
+    assert_eq!((status, lost["claimed"].as_bool()), (200, Some(false)), "away for two hours: the claim is tried");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn move_here_is_refused_without_a_source_the_routine_needs() {
     let mut deaf = routine("rt-b", RoutineState::Active, &["opened"], None);
     deaf.when =
