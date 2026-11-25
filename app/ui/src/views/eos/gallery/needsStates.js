@@ -8,6 +8,7 @@ import paper from "./sample/paper.json";
 const MIN = 60 * 1000;
 const DRAFT = "ib-8m2n6b0v4c1x";
 const PAGE = "ib-pg7b3m1c0003";
+const PROPOSAL = "ib-3c8v1b5n9m2q";
 const at = (id) => `eos:/needs/${encodeURIComponent(id)}`;
 
 // The item `id` changed by `change(detail)`, in its read and in the list.
@@ -21,6 +22,19 @@ const withItem = (change) => changed(DRAFT, (d) => ({ ...d, item: { ...d.item, .
 // The draft after its Send: its deliveries, and once it is out, answered here.
 const withDeliveries = (deliveries, out = false) => changed(DRAFT, (d) => ({
   ...d, item: out ? { ...d.item, state: "done" } : d.item, deliveries: deliveries(), ...(out ? { answeredBy: "dashboard" } : {}),
+}));
+
+// The proposed capability with a live test due, at `state`: it texts the
+// user's phone, so it asks for the number first.
+const withLiveTest = (state) => changed(PROPOSAL, (d) => ({
+  ...d,
+  item: { ...d.item, title: "Add SMS?", summary: "Texts your phone when Mail Triage finds a mail worth it." },
+  payload: {
+    ...d.payload, capabilityId: "sms", name: "SMS", summary: "Sends a text message to your own number through your iPhone.",
+    actions: [{ name: "send_to_me", summary: "Text your own number", class: "tell_user" }], reach: { hosts: [], apps: ["com.apple.MobileSMS"], files: [] },
+    routines: [{ id: "rt-mail", name: "Mail Triage" }], settings: [{ name: "phone_number", label: "Your mobile number" }],
+    liveTest: { action: "send_to_me", state },
+  },
 }));
 
 // Every sample item waiting in the list, each as the list reads it.
@@ -91,7 +105,10 @@ export const NEEDS_STATES = [
   kind("ib-1q5w9e3r7t0y", "a send that failed", "need-problem"),
   { id: "need-problem-edit", label: "Needs you · a failed send being edited", location: at("ib-1q5w9e3r7t0y"), then: clickText("Edit and retry") },
   kind("ib-6f2g8h4j0k1l", "more freedom offered", "need-freedom"),
-  kind("ib-3c8v1b5n9m2q", "a capability proposed", "need-install"),
+  kind(PROPOSAL, "a capability proposed", "need-install"),
+  ...[["not_run", "test"], ["sent", "sent"], ["failed", "failed"], ["alerted", "reached"], ["not_alerted", "missed"]].map(([state, name]) => ({
+    id: `need-install-${name}`, label: `Needs you · a capability's live test, ${state.replace("_", " ")}`, location: at(PROPOSAL), reads: withLiveTest(state),
+  })),
   kind("ib-7x2z6c0v4b8n", "a capability needs a look", "need-attention"),
   kind("sugg:um-2p6o0i4u8y", "a guess about you", "need-about"),
   kind("ib-9c3v7b1n5m2k", "a change to confirm", "need-confirm"),

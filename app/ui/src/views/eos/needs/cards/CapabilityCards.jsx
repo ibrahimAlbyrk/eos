@@ -50,7 +50,7 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
       <p className="eos-needs-card__lead"><strong>{name ?? detail.item.title}</strong>{summary ? ` · ${summary}` : ""}</p>
       {p.replaces && <ReplacedVersion replaces={p.replaces} />}
       <AskRows rows={rows} />
-      {live && <Fact tone={LIVE_TONES[live]} role="status">{LIVE_WORDS[live] ?? live}</Fact>}
+      {live && <LiveTest state={live} />}
       {live && live !== "alerted" && live !== "sent" && settings.map((s) => {
         const field = `eos-setting-${s.name}`;
         return (
@@ -74,6 +74,49 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
         </div>
       )}
     </div>
+  );
+}
+
+// The live test as three stations on one line, as a run's are drawn: the
+// way behind solid, the station it is at lit in its tone (breathing while
+// Eos waits for the user's word), the way ahead dashed; then what it means
+// as a fact in the same tone.
+const STATIONS = ["Test", "Sent", "Reached you"];
+const LIVE_AT = { not_run: 0, failed: 1, sent: 1, alerted: 2, not_alerted: 2 };
+const LIVE_STOP_WORDS = {
+  not_run: ["Not sent yet", "", ""],
+  failed: ["", "Did not go out", ""],
+  sent: ["", "Waiting for your word", ""],
+  alerted: ["", "", "It did"],
+  not_alerted: ["", "", "It did not"],
+};
+
+function LiveTest({ state }) {
+  const at = LIVE_AT[state] ?? 0;
+  const tone = LIVE_TONES[state];
+  const stop = (i) => {
+    if (i > at) return "eos-beat__stop eos-beat__stop--ahead";
+    if (i < at) return "eos-beat__stop";
+    return `eos-beat__stop eos-beat__stop--newest eos-beat__stop--${tone}${state === "sent" ? " eos-beat__stop--working" : ""}`;
+  };
+  return (
+    <section className="eos-needs-live" aria-label="One real test">
+      <p className="eos-label">One real test before it is yours</p>
+      <div className={at === STATIONS.length - 1 ? "eos-beat eos-beat--ends eos-needs-live__line" : "eos-beat eos-needs-live__line"} aria-hidden="true">
+        <ol className="eos-beat__line">
+          {STATIONS.map((name, i) => (
+            <li key={name} className={stop(i)}>
+              <span className="eos-beat__mark">
+                <span className="eos-beat__dot" />
+                <span className="eos-beat__tag">{name}</span>
+                <span className={i === at ? `eos-beat__word eos-beat__word--${tone}` : "eos-beat__word"}>{(LIVE_STOP_WORDS[state] ?? [])[i] || "\u00a0"}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <Fact tone={tone} role="status">{LIVE_WORDS[state] ?? state}</Fact>
+    </section>
   );
 }
 

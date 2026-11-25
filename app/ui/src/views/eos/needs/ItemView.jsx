@@ -15,7 +15,11 @@ export function PageItem({ surfaceId, issueId, routineName }) {
   return (
     <div className="eos-page-item">
       <IssueBody surface={surface} row={shown.issue} shown={shown} maker={routineName} />
-      <section className="eos-card eos-page__edit" aria-label="Edit before it goes">
+      <section className="eos-page__edit" aria-label="Edit before it goes">
+        <div className="eos-section__head">
+          <h2 className="eos-label">Before it goes</h2>
+          <span className="eos-section__aside">Kept as you leave a field</span>
+        </div>
         <PageDataEditor key={issueId} surfaceId={surfaceId} issue={shown.issue} data={shown.body?.data} />
       </section>
     </div>
