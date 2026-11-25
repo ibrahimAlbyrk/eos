@@ -43,7 +43,7 @@ export function Band({ tone, role, children, action }) {
 
 const never = () => () => {};
 // True in a window, false while drawn to markup: a portal has no server form.
-const useInWindow = () => useSyncExternalStore(never, () => true, () => false);
+export const useInWindow = () => useSyncExternalStore(never, () => true, () => false);
 
 const FOCUSABLE = "button:not([disabled]), input, textarea, select, [href], [tabindex]:not([tabindex='-1'])";
 

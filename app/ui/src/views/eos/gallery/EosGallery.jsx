@@ -206,17 +206,18 @@ function pick(id) {
 
 // Eos's columns in the app's grid, the sidebar sliding out for the field as
 // EosView does, and the run sheet App hosts, inside the app's UI context that
-// a View draws in, with Memory's About you as the app hands it in. The chrome around them (the mode switcher, the account
+// a View draws in, with Memory's About you as the app hands it in; a
+// Settings state opens the app's Settings modal over them. The chrome around them (the mode switcher, the account
 // footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
   const { quick, settings } = stateOf(state);
-  if (quick || settings) {
+  if (quick) {
     return (
       <UiProvider>
         <div className="app eos-mode">
           <GalleryBar current={state} onPick={pick} />
-          {quick ? <QuickStage quick={quick} /> : <SettingsStage settings={settings} />}
+          <QuickStage quick={quick} />
         </div>
       </UiProvider>
     );
@@ -230,6 +231,7 @@ export function EosGallery({ state = "home" }) {
         </aside>
         <section className="center"><AboutYouSlot.Provider value={AboutYouTab}><EosMain /></AboutYouSlot.Provider></section>
         <RunSheet />
+        {settings && <SettingsStage settings={settings} />}
       </div>
     </UiProvider>
   );
