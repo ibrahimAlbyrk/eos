@@ -335,56 +335,6 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 }
 @media (prefers-reduced-transparency: reduce) { .eos-ask-shade { background: rgba(0, 0, 0, 0.8); } }
 
-/* ── Capabilities ─────────────────────────────────────────────────────────── */
-.eos-caps { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.eos-cap-settings { display: grid; gap: 10px; }
-.eos-cap-settings input, .eos-cap-settings select {
-  min-width: 0; max-width: 260px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
-  background: var(--bg); font: inherit; font-size: var(--text-sm); color: var(--fg-strong);
-}
-.eos-cap-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
-/* The state and its fix go under the name when both no longer fit beside it. */
-.eos-cap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 52px; box-sizing: border-box; padding: 14px 0; border-bottom: 1px solid var(--line); }
-.eos-cap-row__side { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.eos-cap-row__open:hover .eos-cap-row__name { text-decoration: underline; text-underline-offset: 3px; }
-.eos-cap-row__open {
-  flex: 1 1 300px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.eos-cap-row__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-cap-row__facts { margin: 2px 0 0; font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-cap-state { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.eos-cap-line { font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-cap-section { display: flex; flex-direction: column; gap: 12px; }
-.eos-cap-summary { margin: 0; font-size: var(--text-base); color: var(--fg); }
-.eos-cap-list { margin: 0; padding: 0; list-style: none; }
-.eos-cap-item { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 10px 0; }
-.eos-cap-item + .eos-cap-item { border-top: 1px solid var(--line); }
-.eos-cap-item__main { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--fg); }
-.eos-cap-item__side { font-size: var(--text-xs); color: var(--fg-dim2); }
-/* The sign-in code, to read off and type. */
-.eos-code {
-  margin: 0;
-  padding: 14px;
-  border-radius: 12px;
-  background: var(--bg);
-  font-family: var(--font-mono);
-  font-size: 26px;
-  letter-spacing: 0.12em;
-  text-align: center;
-  color: var(--fg-strong);
-  user-select: all;
-}
-
 /* Read by screen readers, not drawn. */
 .eos-sr {
   position: absolute;

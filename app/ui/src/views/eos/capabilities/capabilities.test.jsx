@@ -8,6 +8,7 @@ import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capab
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { capabilitiesLead } from "./CapabilitiesScreen.jsx";
+import { needsLine } from "./words.js";
 import { SignInSheet } from "./SignInSheet.jsx";
 import samples from "../gallery/sample/capabilities.json";
 import signInFailed from "../gallery/sample/sign-in-failed.json";
@@ -25,7 +26,7 @@ function at(location) {
 }
 
 // The list's row of one capability.
-const rowHtml = (html, name) => html.split('<li class="eos-cap-row">').find((part) => part.includes(`eos-cap-row__name">${name}<`));
+const rowHtml = (html, name) => html.split(/<li class="eos-cap-row[^"]*">/).find((part) => part.includes(`eos-cap-row__name">${name}<`));
 
 beforeEach(() => {
   _resetCapabilities();
@@ -46,12 +47,12 @@ describe("the Capabilities list", () => {
     expect(html).toContain('<h1 class="eos-title">Capabilities</h1>');
 
     const expected = {
-      GitHub: ["eos-status eos-status--warn\">Needs setup", "Eos has no GitHub client id to sign in with.", "Sign in"],
-      SMS: ["eos-status eos-status--ok\">Ready", null, null],
-      Linear: ["eos-status eos-status--warn\">Needs sign-in", "The service no longer accepts its sign-in.", "Check now"],
-      Weather: ["eos-status eos-status--warn\">Slow", "The service is limiting how often Eos may ask.", "Check now"],
-      "RSS feeds": ["eos-status eos-status--err\">Broken", "Its answers no longer have the shape it promised.", "Check now"],
-      Notify: ["eos-status\">Disabled", "You turned it off.", "Enable"],
+      GitHub: ["eos-cap-row__state eos-cap-row__state--warn\">Needs setup", "Eos has no GitHub client id to sign in with.", "Sign in"],
+      SMS: ["eos-cap-row__state eos-cap-row__state--ok\">Ready", null, null],
+      Linear: ["eos-cap-row__state eos-cap-row__state--warn\">Needs sign-in", "The service no longer accepts its sign-in.", "Check now"],
+      Weather: ["eos-cap-row__state eos-cap-row__state--warn\">Slow", "The service is limiting how often Eos may ask.", "Check now"],
+      "RSS feeds": ["eos-cap-row__state eos-cap-row__state--err\">Broken", "Its answers no longer have the shape it promised.", "Check now"],
+      Notify: ["eos-cap-row__state\">Disabled", "You turned it off.", "Enable"],
     };
     for (const [name, [chip, line, fix]] of Object.entries(expected)) {
       const row = rowHtml(html, name);
@@ -61,15 +62,21 @@ describe("the Capabilities list", () => {
       if (fix) expect(row, name).toContain(`<button type="button" class="eos-btn">${fix}</button>`);
       else expect(row, name).not.toContain('class="eos-btn');
     }
-    expect(rowHtml(html, "GitHub")).toContain("Built in · Used by 1 routine");
-    expect(rowHtml(html, "SMS")).toContain("Script · Made by the Forge · Version 1.0.1 · No routine uses it");
-    expect(rowHtml(html, "Weather")).toContain("MCP server · From a registry · Version 1.2.0 · Used by 2 routines");
+    expect(rowHtml(html, "GitHub")).toContain('<span class="eos-cap-row__facts">Built in</span>');
+    expect(rowHtml(html, "GitHub")).toContain('<span class="eos-cap-row__used">1 routine</span>');
+    expect(rowHtml(html, "SMS")).toContain('<span class="eos-cap-row__facts">Script · Made by the Forge</span>');
+    expect(rowHtml(html, "SMS")).toContain('<span class="eos-cap-row__summary">Sends you a text message through Messages.</span>');
+    expect(rowHtml(html, "SMS")).toContain('<span class="eos-cap-row__used">Unused</span>');
+    expect(rowHtml(html, "Weather")).toContain('<span class="eos-cap-row__used">2 routines</span>');
   });
 
   it("leads with how many need a look and groups them: needs a look, ready, turned off", async () => {
     await refreshCapabilities();
     const html = at("eos:/capabilities");
     expect(html).toContain('<p class="eos-lead">Six capabilities, four of them need a look.</p>');
+    expect(html).toContain('<p class="eos-rlead__now">GitHub needs setting up; Linear needs a sign-in; RSS feeds stopped working; Weather is slow.</p>');
+    expect(needsLine([{ name: "A", state: "ready" }])).toBe("Each one works as it should.");
+    expect(needsLine([{ name: "A", state: "broken" }, { name: "B", state: "broken" }, { name: "C", state: "broken" }])).toBe("A, B and C stopped working.");
     const groups = [...html.matchAll(/<h2 id="eos-caps-[a-z]+" class="eos-label">([^<]+)<\/h2><span class="eos-section__aside">(\d+)/g)].map((m) => `${m[1]} ${m[2]}`);
     expect(groups).toEqual(["Needs a look 4", "Ready 1", "Turned off 1"]);
     expect(capabilitiesLead([{ state: "ready" }])).toBe("One capability, all of them in order.");
@@ -80,7 +87,8 @@ describe("the Capabilities list", () => {
 
     setEosTransport(fixtureTransport({}));
     await refreshCapabilities();
-    expect(at("eos:/capabilities")).toContain("Couldn&#x27;t load capabilities. <button type=\"button\" class=\"eos-link\">Try again</button>");
+    expect(at("eos:/capabilities")).toContain('<p class="eos-lead">Couldn&#x27;t load capabilities.</p>');
+    expect(at("eos:/capabilities")).toContain(">Try again</button>");
 
     setEosTransport(fixtureTransport({ [ROUTES.capabilities]: [] }));
     await refreshCapabilities();
@@ -101,28 +109,31 @@ describe("a capability's page", () => {
     return at(`eos:/capabilities/${id}`);
   }
 
-  it("shows what it does and reaches, its secrets as set or missing, and Sign in for GitHub", async () => {
+  it("shows what it does and reaches, its sign-in as set or missing, and Sign in for GitHub", async () => {
     const html = await page("github");
     expect(html).toContain('<button type="button" class="eos-crumb">Capabilities</button>');
     expect(html).toContain('<h1 class="eos-title">GitHub</h1>');
-    expect(html).toContain("Needs setup");
-    expect(html).toContain("List open pull requests</span><span class=\"eos-cap-item__side\">Only reads</span>");
-    expect(html).toContain("Post a review on a pull request</span><span class=\"eos-cap-item__side\">Speaks for you to others · Withdraw review takes it back</span>");
-    expect(html).toContain("Cannot be taken back, or costs money");
-    expect(html).toContain("<dt>Websites</dt><dd>api.github.com</dd>");
-    expect(html).toContain("<dt>GitHub sign-in</dt><dd>Missing</dd>");
+    expect(html).toContain('<p class="eos-label">Built in · Any of your Macs</p>');
+    expect(html).toContain('<p class="eos-lead">Reads pull requests and posts reviews on GitHub.</p>');
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--warn">Needs setup: Eos has no GitHub client id to sign in with.</p>');
+    expect(html).toContain('<li class="eos-cap-act"><span class="eos-cap-act__main"><span class="eos-cap-act__name">List open pull requests</span></span><span class="eos-cap-act__class">Only reads</span></li>');
+    expect(html).toContain('<span class="eos-cap-act__name">Post a review on a pull request</span><span class="eos-cap-act__undo">Withdraw review takes it back</span></span><span class="eos-cap-act__class">Speaks for you to others</span>');
+    expect(html).toContain('<li class="eos-cap-act eos-cap-act--final">');
+    expect(html).toContain('<dt>Websites</dt><dd><span class="eos-cap-place">api.github.com</span></dd>');
+    expect(html).toContain('<h2 class="eos-label">Sign-in</h2>');
+    expect(html).toContain('<span class="eos-cap-fact__name">GitHub sign-in</span><span class="eos-cap-fact__value eos-cap-fact__value--warn">Missing</span>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Sign in</button>');
-    expect(html).toContain('<button type="button" class="eos-btn">Check now</button>');
-    expect(html).toContain('<button type="button" class="eos-btn">Disable</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Check now</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Disable</button>');
     expect(html).not.toContain(">Remove<");
     expect(html).toContain("Not called yet.");
   });
 
   it("offers the app's own prompt for a secret, never a field on the page, and none for a sign-in", async () => {
     const html = await page("linear-issues");
-    expect(html).toContain("<dt>Linear API key</dt><dd>Set</dd>");
-    expect(html).toContain('<button type="button" class="eos-btn">Replace Linear API key</button>');
-    expect(html).toContain('<button type="button" class="eos-btn">Forget Linear API key</button>');
+    expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">Set</span>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Replace Linear API key</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Forget Linear API key</button>');
     expect(html).not.toContain("<input");
     const missing = { ...byId["linear-issues"], secrets: [{ name: "api_key", label: "Linear API key", set: false }] };
     setEosTransport(fixtureTransport(reads([missing])));
@@ -148,8 +159,8 @@ describe("a capability's page", () => {
   it("shows who it is signed in as, as plain text, when GitHub needs signing in again", async () => {
     setEosTransport(fixtureTransport(reads([{ ...byId.github, state: "needs_sign_in", stateCode: "http_401", accountLabel: "<b>octocat</b>" }])));
     const html = await page("github");
-    expect(html).toContain("Needs sign-in");
-    expect(html).toContain("Signed in as &lt;b&gt;octocat&lt;/b&gt;");
+    expect(html).toContain("Needs sign-in: the service no longer accepts its sign-in.");
+    expect(html).toContain('<p class="eos-fact">Signed in as &lt;b&gt;octocat&lt;/b&gt;</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Sign in</button>');
   });
 
@@ -158,11 +169,14 @@ describe("a capability's page", () => {
     const github = { ...byId.github, state: "ready", stateCode: undefined, accountLabel: "octocat", secrets: [{ name: "token", label: "GitHub sign-in", set: true }] };
     setEosTransport(fixtureTransport({ ...reads([github]), [ROUTES.routines]: [{ id: "rt-4k2n8q1x7m3p", name: "PR Review" }] }));
     let html = await page("github");
-    expect(html).toContain('<button type="button" class="eos-btn">Forget sign-in</button>');
-    expect(html).toContain("Used by 1 routine");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Forget sign-in</button>');
+    expect(html).toContain('<button type="button" class="eos-btn">Sign in again</button>');
+    expect(html).toContain("Ready, and in use.");
     await refreshRoutines();
     html = at("eos:/capabilities/github");
-    expect(html).toContain("Used by PR Review · Signed in as octocat");
+    expect(html).toContain("Ready, and PR Review uses it.");
+    expect(html).toContain('<button type="button" class="eos-cap-link">PR Review</button>');
+    expect(html).toContain('<p class="eos-fact eos-fact--ok">Signed in as octocat</p>');
     expect(await page("sms-messages")).not.toContain(">Forget sign-in<");
     _resetRoutines();
   });
@@ -206,42 +220,44 @@ describe("a capability's page", () => {
 
   it("shows a working capability's settings, versions and recent calls, with Remove", async () => {
     const html = await page("sms-messages");
-    expect(html).toContain("Ready");
-    expect(html).toContain("<dt>Apps</dt><dd>com.apple.MobileSMS</dd>");
+    expect(html).toContain("Ready. No routine uses it yet.");
+    expect(html).toContain('<dt>Apps</dt><dd><span class="eos-cap-place">com.apple.MobileSMS</span></dd>');
     expect(html).toContain('<span>Your phone number</span><input type="tel" placeholder="Not set" value="+15550100"/>');
-    expect(html).toContain("Version 1.0.1</span><span class=\"eos-cap-item__side\">In use · ");
-    expect(html).toContain('<button type="button" class="eos-btn">Go back to this version</button>');
-    expect(html).toContain("send_sms</span><span class=\"eos-cap-item__side\">Worked · 840 ms · ");
-    expect(html).toContain('<button type="button" class="eos-btn">Remove</button>');
+    expect(html).toContain('<span class="eos-cap-fact__mono">1.0.1</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">In use · ');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Go back to this version</button>');
+    expect(html).toContain('<li class="eos-cap-call eos-cap-call--ok"><span class="eos-cap-call__when">');
+    expect(html).toContain('<span class="eos-cap-call__action">send_sms</span><span class="eos-cap-call__outcome">Worked</span><span class="eos-cap-call__ms">840 ms</span>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Remove</button>');
     expect(html).not.toContain("eos-btn--primary");
     expect(html).not.toContain(">Sign in<");
   });
 
   it("offers going back to a kept version when it broke, never to a retired one", async () => {
     const html = await page("rss-feeds");
-    expect(html).toContain("Broken");
+    expect(html).toContain("Broken: its answers no longer have the shape it promised.");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
     expect(html.match(/Go back to this version/g)).toHaveLength(1);
-    expect(html).toContain("Version 1.4.0</span><span class=\"eos-cap-item__side\">Kept · ");
-    expect(html).toContain("Version 1.3.0</span><span class=\"eos-cap-item__side\">Retired · ");
-    expect(html).toContain("latest_items</span><span class=\"eos-cap-item__side\">Failed · 450 ms · ");
+    expect(html).toContain('<span class="eos-cap-fact__mono">1.4.0</span><span class="eos-cap-fact__value">Kept · ');
+    expect(html).toContain('<span class="eos-cap-fact__mono">1.3.0</span><span class="eos-cap-fact__value">Retired · ');
+    expect(html).toContain('<span class="eos-cap-call__action">latest_items</span><span class="eos-cap-call__outcome">Failed</span><span class="eos-cap-call__ms">450 ms</span>');
+    expect(html).toContain('<span class="eos-cap-place eos-cap-place--any">Any website</span>');
   });
 
   it("shows a slow one, one that needs signing in again and a disabled one with the action that fixes each", async () => {
     let html = await page("weather");
-    expect(html).toContain("Slow");
+    expect(html).toContain("Slow: the service is limiting how often Eos may ask.");
     expect(html).toContain('<span>City</span><input type="text" placeholder="Not set" value=""/>');
     expect(html).toContain('<button type="submit" class="eos-btn" disabled="">Save settings</button>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
-    expect(html).toContain("forecast</span><span class=\"eos-cap-item__side\">Took too long · 30000 ms · ");
+    expect(html).toContain('<span class="eos-cap-call__action">forecast</span><span class="eos-cap-call__outcome">Took too long</span><span class="eos-cap-call__ms">30000 ms</span>');
 
     html = await page("linear-issues");
-    expect(html).toContain("Needs sign-in");
-    expect(html).toContain("<dt>Linear API key</dt><dd>Set</dd>");
+    expect(html).toContain("Needs sign-in: the service no longer accepts its sign-in.");
+    expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">Set</span>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
 
     html = await page("notify");
-    expect(html).toContain("Disabled");
+    expect(html).toContain("Disabled: you turned it off.");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Enable</button>');
     expect(html).toContain("Nothing outside Eos.");
     expect(html).not.toContain(">Remove<");
@@ -257,7 +273,7 @@ describe("a capability's page", () => {
     };
     setEosTransport(transport);
     const html = await page("weather");
-    expect(html).toContain("It is set up on another Mac. Install it here to use it on this one.");
+    expect(html).toContain("Not installed: it is set up on another Mac. Install it here to use it on this one.");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Install on this Mac</button>');
     expect(html).not.toContain(">Check now<");
     await installCapabilityHere("weather");
@@ -297,11 +313,11 @@ describe("the sign-in sheet", () => {
     expect(html).toContain("Open GitHub");
     expect(html).toContain("Copy code");
     expect(html).toContain("Cancel");
-    expect(html).not.toContain("Waiting for GitHub…");
+    expect(html).not.toContain("Waiting for GitHub…</p>");
 
     html = await sheetAfter({ ok: true, status: 200, body: CODE }, [{ ok: true, status: 200, body: { state: "pending" } }], 2000);
     expect(html).toContain("WDJB-MJHT");
-    expect(html).toContain('<p class="eos-note" role="status">Waiting for GitHub…</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--active" role="status">Waiting for GitHub…</p>');
   });
 
   it("says who it signed in as once it is ready", async () => {
@@ -344,7 +360,7 @@ describe("the sign-in sheet", () => {
     expect(window.open).toHaveBeenCalledWith(page.verificationUri, "_blank", "noopener,noreferrer");
 
     html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "pending" } }], 2000, "slack");
-    expect(html).toContain('<p class="eos-note" role="status">Waiting for Slack…</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--active" role="status">Waiting for Slack…</p>');
     html = await sheetAfter({ ok: true, status: 200, body: page }, [{ ok: true, status: 200, body: { state: "signed_in", accountLabel: "Acme as ibrahim" } }], 2000, "slack");
     expect(html).toContain("Connected to Acme as ibrahim.");
   });
@@ -362,14 +378,14 @@ describe("the sign-in sheet", () => {
 
   it("says this is a dev run", async () => {
     const html = await sheetAfter({ ok: false, status: 403, body: { error: "refused in a dev run: x" } });
-    expect(html).toContain(`<p class="eos-note" role="status">${DEV_RUN_TEXT}</p>`);
+    expect(html).toContain(`<p class="eos-fact" role="status">${DEV_RUN_TEXT}</p>`);
   });
 
   it("stops waiting when the sign-in did not work, and offers to try again", async () => {
     const html = await sheetAfter({ ok: true, status: 200, body: CODE }, [{ ok: true, status: 200, body: { state: "pending" } }, { ok: true, status: 200, body: signInFailed }], 4000);
-    expect(html).toContain('<p class="eos-note" role="status">The sign-in did not work.</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--err" role="status">The sign-in did not work.</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Try again</button>');
-    expect(html).not.toContain("Waiting for GitHub…");
+    expect(html).not.toContain("Waiting for GitHub…</p>");
     expect(html).not.toContain("WDJB-MJHT");
   });
 
@@ -387,7 +403,7 @@ describe("the sign-in sheet", () => {
 
   it("says Eos could not start it when the core answered without a reason", async () => {
     const html = await sheetAfter({ ok: false, status: 500, body: null });
-    expect(html).toContain('<p class="eos-note" role="status">Eos could not start the sign-in.</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--err" role="status">Eos could not start the sign-in.</p>');
     expect(html).not.toContain("Eos isn&#x27;t reachable.");
   });
 });

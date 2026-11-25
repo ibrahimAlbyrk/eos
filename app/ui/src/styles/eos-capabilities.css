@@ -1,0 +1,179 @@
+/* eos-capabilities.css — Eos › Capabilities (eos:/capabilities) and one
+   capability's page (eos:/capabilities/<id>). Built from eos.css's parts;
+   text is never dimmer than --fg-dim2 (eos.css's contrast note holds here too). */
+
+.eos-cap-offline { margin: 0; padding: 0 var(--eos-frame-x, 28px); font-size: var(--text-sm); color: var(--warn); }
+
+/* ── The list ─────────────────────────────────────────────────────────────── */
+.eos-caps-lead { padding-top: 8px; margin-bottom: 16px; }
+.eos-caps-lead > .eos-label { margin: 0 0 -2px; }
+.eos-caps-lead > .eos-rlead__now { margin-top: -12px; }
+
+/* A row: the form's glyph in its ring, the name with how it is made and why
+   it is in its state, then who uses it, its state in words and its fix, in
+   columns that line up down the list. */
+.eos-caps { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); container: eos-caps / inline-size; }
+.eos-cap-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 96px 132px 112px;
+  align-items: center;
+  column-gap: 16px;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  transition: background-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), box-shadow calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-cap-row:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-cap-row:hover .eos-ring { color: var(--fg-strong); }
+.eos-cap-row__open {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-cap-row__open::after { content: ""; position: absolute; inset: 0; }
+.eos-cap-row__open:focus-visible { outline: none; }
+.eos-cap-row:has(.eos-cap-row__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.eos-cap-row__title { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; row-gap: 2px; }
+.eos-cap-row__name { font-size: var(--text-base); font-weight: 500; line-height: 1.4; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-cap-row__facts { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-row__summary, .eos-cap-line { font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); text-wrap: pretty; }
+.eos-cap-row__used { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); text-align: right; }
+.eos-cap-row__state { font-size: var(--text-sm); color: var(--fg-dim); text-align: right; }
+.eos-cap-row__state--ok { color: var(--fg-mid); }
+.eos-cap-row__state--active { color: var(--accent); }
+.eos-cap-row__state--warn { color: var(--warn); }
+.eos-cap-row__state--err { color: var(--err); }
+.eos-cap-row__fix { position: relative; display: flex; justify-content: flex-end; }
+.eos-cap-row__fix .eos-btn { height: 30px; padding: 0 14px; }
+.eos-cap-row:hover .eos-cap-row__fix .eos-btn { background: var(--solid-btn-bg); color: var(--solid-btn-fg); }
+.eos-cap-row--off .eos-cap-row__name { color: var(--fg-mid); }
+@container eos-caps (max-width: 720px) {
+  .eos-cap-row { grid-template-columns: 30px minmax(0, 1fr) auto; row-gap: 8px; }
+  .eos-cap-row__used { display: none; }
+  .eos-cap-row__fix { grid-column: 2 / -1; justify-content: flex-start; }
+  .eos-cap-row__fix:empty { display: none; }
+}
+
+/* ── One capability ───────────────────────────────────────────────────────── */
+.eos-cap-lead .eos-rlead__acts { margin-top: 4px; }
+.eos-cap-cols { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 48px 56px; margin-top: 32px; }
+.eos-cap-main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
+.eos-cap-aside { flex: 1 1 280px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
+.eos-cap-part { display: flex; flex-direction: column; gap: 12px; }
+.eos-cap-part__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.eos-cap-part__head .eos-label { margin: 0; }
+.eos-cap-part__aside { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-part > .eos-cap-part__head + * { border-top: 1px solid var(--line); }
+.eos-cap-quiet { margin: 0; padding-top: 14px; font-size: var(--text-sm); color: var(--fg-dim); }
+
+/* What it can do: each action on a hairline with what it counts as, a hollow
+   mark for one that only reads, solid for one that acts, warn for one that
+   cannot be taken back. */
+.eos-cap-acts { margin: 0; padding: 0; list-style: none; }
+.eos-cap-act { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; column-gap: 14px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.eos-cap-act::before { content: ""; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); transform: translateY(1px); }
+.eos-cap-act--acts::before { background: var(--fg-dim2); }
+.eos-cap-act--speaks::before { border-color: var(--fg-mid); background: var(--fg-mid); }
+.eos-cap-act--final::before { border-color: var(--warn); background: var(--warn); }
+.eos-cap-act__main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.eos-cap-act__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-cap-act__undo { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-act__class { font-size: var(--text-sm); color: var(--fg-dim); text-align: right; }
+.eos-cap-act--final .eos-cap-act__class { color: var(--warn); }
+
+/* What it reaches: a kind per hairline, its places in mono. */
+.eos-cap-reach { margin: 0; display: flex; flex-direction: column; }
+.eos-cap-reach > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: 16px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.eos-cap-reach dt { font-size: var(--text-sm); color: var(--fg-dim2); }
+.eos-cap-reach dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.eos-cap-place { font-family: var(--font-mono); font-size: var(--text-xs); line-height: 22px; padding: 0 8px; border-radius: 6px; background: var(--raised); color: var(--fg); overflow-wrap: anywhere; }
+.eos-cap-place--any { background: none; padding: 0; font-family: inherit; font-size: var(--text-sm); color: var(--warn); }
+
+/* Recent calls: time, action, how it went in its tone, how long. */
+.eos-cap-calls { margin: 0; padding: 0; list-style: none; }
+.eos-cap-call { display: grid; grid-template-columns: 9px 92px minmax(0, 1fr) auto 72px; column-gap: 14px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
+.eos-cap-call::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-dim2); transform: translateY(-1px); }
+.eos-cap-call--ok::before { background: var(--ok); }
+.eos-cap-call--err::before { background: var(--err); }
+.eos-cap-call--warn::before { background: var(--warn); }
+.eos-cap-call__when, .eos-cap-call__ms { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-call__ms { text-align: right; }
+.eos-cap-call__action { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg); overflow-wrap: anywhere; }
+.eos-cap-call__outcome { color: var(--fg-dim); }
+.eos-cap-call--err .eos-cap-call__outcome { color: var(--err); }
+.eos-cap-call--warn .eos-cap-call__outcome { color: var(--warn); }
+
+/* The aside's lists: a fact per hairline with its quiet moves under it. */
+.eos-cap-facts { margin: 0; padding: 0; list-style: none; }
+.eos-cap-fact { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.eos-cap-fact__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: var(--text-sm); }
+.eos-cap-fact__name { color: var(--fg); overflow-wrap: anywhere; }
+.eos-cap-fact__value { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-fact__value--ok { color: var(--ok); }
+.eos-cap-fact__value--warn { color: var(--warn); }
+.eos-cap-fact__value--active { color: var(--accent); }
+.eos-cap-fact__acts { display: flex; flex-wrap: wrap; gap: 4px; margin-left: -10px; }
+.eos-cap-fact__acts .eos-btn { height: 28px; padding: 0 10px; font-size: var(--text-sm); }
+.eos-cap-fact__acts .eos-btn--quiet { color: var(--fg-mid); }
+.eos-cap-fact__mono { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-strong); }
+.eos-cap-fact--on .eos-cap-fact__name { color: var(--fg-strong); }
+.eos-cap-fact--asks .eos-cap-fact__mono { color: var(--accent); }
+.eos-cap-link { padding: 0; border: 0; background: none; font: inherit; color: var(--fg); text-align: left; cursor: pointer; }
+.eos-cap-link:hover { color: var(--fg-strong); text-decoration: underline; text-underline-offset: 3px; }
+.eos-cap-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Settings: a mono label over a well each, saved together. */
+.eos-cap-settings { display: flex; flex-direction: column; gap: 14px; padding-top: 14px; }
+.eos-cap-setting { display: flex; flex-direction: column; gap: 6px; }
+.eos-cap-setting > span { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-cap-setting input, .eos-cap-setting select {
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-strong);
+  transition: border-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-cap-setting input:focus, .eos-cap-setting select:focus { outline: none; border-color: var(--accent); }
+.eos-cap-setting input::placeholder { color: var(--fg-dim2); }
+.eos-cap-settings__acts { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.eos-cap-settings__acts .eos-cap-part__aside { margin-right: auto; }
+
+/* Gone: said as the lead, with the way back. */
+.eos-cap-gone .eos-rlead__now { margin-top: -12px; }
+
+/* ── The sign-in dialog ───────────────────────────────────────────────────── */
+/* The code in a well to read off, Copy beside it; then the way through the
+   service as stations, inside the dialog. */
+.eos-code-well { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding: 10px 10px 10px 20px; border-radius: 12px; background: var(--bg); }
+.eos-code {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 26px;
+  line-height: 1.4;
+  letter-spacing: 0.14em;
+  color: var(--fg-strong);
+  user-select: all;
+}
+.eos-code-well .eos-btn { flex: none; }
+.eos-sign-in .eos-beat { margin-top: 26px; }
+.eos-beat--inset { --bleed: 0px; margin-left: 0; margin-right: 0; }
+.eos-beat--inset .eos-beat__line { -webkit-mask-image: none; mask-image: none; }
+.eos-beat--inset .eos-beat__stop:first-child::before, .eos-beat--inset .eos-beat__stop:last-child::after { display: none; }
+.eos-sign-in .eos-fact { margin-top: 14px; }
+.eos-sign-in__quiet { margin: 10px 0 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-ask .eos-beat__dot { --bg: var(--raised); }

@@ -135,3 +135,32 @@ export function FailedLead({ what, retry }) {
     </header>
   );
 }
+
+// A hand-off of a few steps drawn as stations on one line, as a run's are:
+// `names` in order, the one it is `at` lit in its `tone` with its word from
+// `words` under its name (breathing while `working`), the way behind solid,
+// the way ahead dashed; the line is whole once the last station is reached.
+// It runs on into the gutter and fades, or stays in its box with `inset`.
+export function Stations({ names, at, tone, words = [], working = false, inset = false, className }) {
+  const stop = (i) => {
+    if (i > at) return "eos-beat__stop eos-beat__stop--ahead";
+    if (i < at) return "eos-beat__stop";
+    return `eos-beat__stop eos-beat__stop--newest eos-beat__stop--${tone}${working ? " eos-beat__stop--working" : ""}`;
+  };
+  const classes = ["eos-beat", at === names.length - 1 && "eos-beat--ends", inset && "eos-beat--inset", className].filter(Boolean).join(" ");
+  return (
+    <div className={classes} aria-hidden="true">
+      <ol className="eos-beat__line">
+        {names.map((name, i) => (
+          <li key={name} className={stop(i)}>
+            <span className="eos-beat__mark">
+              <span className="eos-beat__dot" />
+              <span className="eos-beat__tag">{name}</span>
+              <span className={i === at ? `eos-beat__word eos-beat__word--${tone}` : "eos-beat__word"}>{words[i] || "\u00a0"}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
