@@ -12,17 +12,17 @@ export function toolClass(tool) {
   return CLASSES[TOOL_CLASSES[tool]] ?? OTHER_WORDS[tool] ?? null;
 }
 
-// A run's permission ask, worded as the Agents banner words one: the tool,
-// what it counts as, and its target.
+// A run's permission ask, worded as the Agents banner words one: what the
+// tool counts as over its target, the target as the run wrote it. Who asks
+// for which tool is the lead's.
 export function PermissionCard({ detail }) {
   const { toolName, input } = detail.payload ?? {};
   const { detail: target } = permissionTarget(toolName, typeof input === "object" && input ? input : {});
   const kind = toolClass(toolName);
   return (
-    <div className="eos-needs-card">
-      <p className="eos-needs-card__lead">A run wants to use <strong>{toolName}</strong>.</p>
-      {kind && <p className="eos-needs-card__class">{kind}</p>}
-      {target && <pre className="eos-code eos-needs-card__target">{target}</pre>}
+    <div className="eos-needs-card eos-needs-ask">
+      <p className="eos-label eos-needs-ask__tool">{toolName}{kind && <span className="eos-needs-card__class">{kind}</span>}</p>
+      {target && <pre className="eos-needs-ask__target">{target}</pre>}
     </div>
   );
 }

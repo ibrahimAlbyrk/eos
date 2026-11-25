@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
-import { fmtTimeAgo } from "../../../lib/format.js";
 import { shortcutLabel } from "../../../lib/platform.js";
 import {
   discardInboxItem, ensureInboxLoaded, keepNextTime, laterInboxItem, loadInboxItem, useInbox,
 } from "../../../state/eos/inboxStore.js";
-import { loadRun } from "../../../state/eos/runsStore.js";
+import { loadRun, useRuns } from "../../../state/eos/runsStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { useSurfaces } from "../../../state/eos/surfacesStore.js";
-import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { DevRunNote } from "../capabilities/parts.jsx";
+import { Fact, FailedLead } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { actionsOf, cardOf } from "./cards/index.js";
-import { followReplacement } from "./cards/DraftCard.jsx";
+import { followReplacement, isStale } from "./cards/DraftCard.jsx";
 import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
 import { StreakLine } from "./StreakLine.jsx";
@@ -20,7 +20,9 @@ import { ItemView } from "./ItemView.jsx";
 import { ViewAside, ViewSubmit } from "./SurfaceCard.jsx";
 import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
-import { closedLine, isShownOnly } from "./words.js";
+import { AnswerBar, ItemGhost, ItemLead } from "./ItemParts.jsx";
+import { SendState } from "./SendState.jsx";
+import { closedLine, isShownOnly, staleLine } from "./words.js";
 
 const WAITING = new Set(["open", "later"]);
 const OFFLINE = "Reconnecting…";
@@ -36,14 +38,17 @@ function after(order, at) {
 function Closed({ detail, refused }) {
   const line = closedLine(refused ?? { state: detail.item.state, answeredBy: detail.answeredBy });
   return (
-    <p className="eos-needs-closed" role="status">
+    <Fact tone="done" role="status" className="eos-needs-closed">
       {line}
       {detail.replacedBy && (
         <> <button type="button" className="eos-link" onClick={() => followReplacement(detail)}>Open the newer draft</button></>
       )}
-    </p>
+    </Fact>
   );
 }
+
+// A draft the user sent here is said by its sends, not as answered.
+const saidBySends = (detail, refusal) => !refusal && detail.answeredBy === "dashboard" && detail.deliveries?.length > 0;
 
 // eos:/needs/<id> — one item: its content by kind, its actions, Later and
 // Discard, and what the run that made it did. J and K page through the list.
@@ -59,6 +64,9 @@ export function NeedsItemScreen({ id }) {
   const detail = details[id];
   const runId = detail?.item.runId;
   const viewBody = useSurfaces().byIssue[detail?.item.view?.issueId]?.body;
+  const run = useRuns().details[runId];
+  // The aside holds what the run did, or what a View's run wrote beside it.
+  const hasAside = Boolean(run) || viewBody?.aside?.length > 0;
   useEffect(() => {
     ensureInboxLoaded();
     void loadInboxItem(id);
@@ -114,8 +122,18 @@ export function NeedsItemScreen({ id }) {
 
   const title = detail?.item.title ?? "Item";
   const { Body } = cardOf(detail?.item.kind);
+  const routineName = nameOf(detail?.item.routineId);
+  const isDraft = detail?.item.kind === "draft";
+  const setAside = stored && (
+    <>
+      {detail?.item.state === "open" && (
+        <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
+      )}
+      <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
+    </>
+  );
   return (
-    <main className="eos-screen eos-screen--wide">
+    <main className={hasAside ? "eos-screen eos-screen--wide" : "eos-screen eos-screen--read"}>
       <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
         {at >= 0 && (
           <nav className="eos-needs-pager" aria-label="Items">
@@ -129,47 +147,41 @@ export function NeedsItemScreen({ id }) {
           </nav>
         )}
       </EosHeader>
-      {offline && <p className="eos-needs-offline" role="status">{OFFLINE}</p>}
       <div className="eos-body eos-needs-item">
         {devRun && <DevRunNote />}
-        {!detail && failed[id] === "gone" && <p className="eos-note">This is no longer in Needs you.</p>}
-        {!detail && failed[id] === "error" && <LoadFailed what="this item" retry={() => void loadInboxItem(id)} />}
-        {!detail && !failed[id] && <Loading blocks={2} />}
+        {!detail && failed[id] === "gone" && (
+          <header className="eos-rlead eos-failed">
+            <p className="eos-lead">This is no longer in Needs you.</p>
+            <p className="eos-rlead__now">It was answered, or what asked for it no longer needs it.</p>
+            <div className="eos-rlead__acts"><button type="button" className="eos-btn" onClick={() => openLocation("eos:/needs")}>Back to Needs you</button></div>
+          </header>
+        )}
+        {!detail && failed[id] === "error" && <FailedLead what="this item" retry={() => void loadInboxItem(id)} />}
+        {!detail && !failed[id] && <ItemGhost />}
         {detail && (
           <div className="eos-needs-item__columns">
             <div className="eos-needs-item__main">
-              <header className="eos-needs-item__head">
-                <p className="eos-label">{nameOf(detail.item.routineId) ?? "Eos"}<span className="eos-needs-item__when">{fmtTimeAgo(detail.item.createdAt)}</span></p>
-                <h2 className="eos-lead">{title}</h2>
-              </header>
-              {!open && <Closed detail={detail} refused={refused[id]} />}
+              <ItemLead detail={detail} routineName={routineName}>
+                {offline && <Fact key="offline" tone="warn" role="status" className="eos-needs-offline">{OFFLINE}</Fact>}
+                {!open && !saidBySends(detail, refused[id]) && <Closed key="closed" detail={detail} refused={refused[id]} />}
+                {isDraft && open && isStale(detail) && <Fact key="stale" tone="warn" role="status" className="eos-needs-stale">{staleLine(detail.item.staleReason)}</Fact>}
+                {isDraft && <SendState key="send" detail={detail} />}
+              </ItemLead>
               {detail.item.view
-                ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} onSubmitOffer={setViewSubmit} />
-                : <article className="eos-needs-item__card"><Body detail={detail} values={values} setValue={setValue} routineName={nameOf(detail.item.routineId)} /></article>}
+                ? <ItemView item={detail.item} routineName={routineName} onSubmitOffer={setViewSubmit} />
+                : <div className={`eos-needs-item__object eos-needs-item__object--${detail.item.kind}`}><Body detail={detail} values={values} setValue={setValue} routineName={routineName} /></div>}
               {open && (
-                <div className="eos-actions eos-needs-item__actions">
-                  {detail.item.view && viewSubmit && <ViewSubmit offer={viewSubmit} shortcut={shortcutLabel("mod+return")} disabled={offline} />}
-                  {actions.map((a) => (
-                    <button
-                      key={a.label}
-                      type="button"
-                      className={a.primary ? "eos-btn eos-btn--primary" : "eos-btn"}
-                      disabled={blocked(a)}
-                      title={a.write && offline ? OFFLINE : undefined}
-                      onClick={() => void doing(a)}
-                    >
-                      {a.label}{a.primary && <span className="eos-needs-key"> {shortcutLabel("mod+return")}</span>}
-                    </button>
-                  ))}
-                  {stored && detail.item.state === "open" && (
-                    <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
-                  )}
-                  {stored && (
-                    <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
-                  )}
-                  {asksNextTime && detail.item.routineId && <StreakLine routineId={detail.item.routineId} />}
-                </div>
+                <AnswerBar
+                  kind={detail.item.kind}
+                  actions={actions}
+                  blocked={blocked}
+                  offline={offline}
+                  onAct={(a) => void doing(a)}
+                  lead={detail.item.view && viewSubmit && <ViewSubmit offer={viewSubmit} shortcut={shortcutLabel("mod+return")} disabled={offline} />}
+                  aside={setAside}
+                />
               )}
+              {open && asksNextTime && detail.item.routineId && <StreakLine routineId={detail.item.routineId} />}
               {asksNextTime && (
                 <div className="eos-needs-next">
                   <label htmlFor="eos-needs-next">Next time</label>
@@ -183,7 +195,7 @@ export function NeedsItemScreen({ id }) {
                 </div>
               )}
             </div>
-            {(runId || viewBody?.aside?.length > 0) && (
+            {hasAside && (
               <ChecksPanel runId={runId} lead={viewBody?.aside?.length > 0 ? <ViewAside notes={viewBody.aside} /> : null} />
             )}
           </div>

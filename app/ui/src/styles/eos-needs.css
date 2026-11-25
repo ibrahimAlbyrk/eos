@@ -72,83 +72,199 @@
 .eos-needs-what .eos-ring { margin-top: 1px; }
 
 /* ── One item ─────────────────────────────────────────────────────────────── */
-.eos-needs-offline { margin: 0; padding: 12px var(--eos-frame-x) 0; font-size: var(--text-sm); color: var(--warn); }
+/* An item is one question for the user, asked as an object's page leads:
+   its routine and age, its title, where it stands in a dimmer line of the
+   same size, the facts about it now. Then the thing itself (the draft on its
+   sheet, a command in its well, a ladder, facts on hairlines), then the
+   answers: the primary lit, Later and Discard apart at the right, what an
+   answer does under them. The run's account sits in the aside. With no
+   aside the item takes the reading measure. */
 .eos-needs-pager { display: flex; align-items: center; gap: 4px; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-needs-pager > span { margin-right: 8px; font-variant-numeric: tabular-nums; }
-.eos-needs-closed { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }
-.eos-needs-stale { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--warn); }
-.eos-send-state { display: flex; flex-direction: column; gap: 8px; }
-.eos-send-state__line { margin: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }
-.eos-send-state__left { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
-.eos-needs-item__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; }
-.eos-needs-item__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
-.eos-needs-item__head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.eos-needs-pager > span { margin-right: 8px; font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--fg-dim2); }
+.eos-needs-item__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; }
+.eos-needs-item__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+.eos-needs-item__head { padding-top: 16px; gap: 10px; }
+.eos-needs-item__head > .eos-label { margin-bottom: 6px; }
+.eos-needs-item__head > .eos-rlead__now { margin-top: -10px; }
+.eos-rlead .eos-rlead__now--long { font-size: var(--text-xl); line-height: 1.5; letter-spacing: 0; font-weight: 400; color: var(--fg-dim); }
+.eos-rlead .eos-rlead__now--long.eos-rlead__now--warn::before, .eos-rlead .eos-rlead__now--long.eos-rlead__now--err::before { top: 0.6em; }
 .eos-needs-item__when { margin-left: 12px; font-family: var(--font-ui); font-size: var(--text-xs); letter-spacing: 0; text-transform: none; }
-/* With no aside the item keeps the width it has beside one, so a View's
-   fields do not run the window's width. */
-.eos-needs-item__main:only-child { max-width: 748px; }
+.eos-needs-item__facts { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.eos-needs-item__facts > .eos-send-state:empty { display: none; }
+.eos-needs-item__object:empty { display: none; }
 /* The screen's header already says the View's title. */
 .eos-needs-item .eos-frame .gv-head { display: none; }
 .eos-needs-item .eos-frame .gv-body { padding: 0; }
-.eos-needs-item__card { border-radius: 16px; background: var(--panel); padding: 24px 26px; }
-.eos-needs-item__actions { align-items: center; gap: 10px 12px; }
-.eos-needs-item__actions .eos-btn { height: 38px; padding: 0 16px; font-size: var(--text-base); }
-.eos-needs-item__actions .eos-btn--primary { padding: 0 18px; font-weight: 500; }
-.eos-needs-key { margin-left: 4px; font-family: var(--font-mono); font-size: 11.5px; color: inherit; opacity: 0.7; }
-.eos-needs-item__actions .eos-btn--quiet { color: var(--fg-dim); }
+
+/* The answers. */
+.eos-needs-answer { display: flex; flex-direction: column; gap: 12px; }
+.eos-needs-item__actions { align-items: center; gap: 8px; }
+.eos-needs-item__actions .eos-btn { height: 38px; padding: 0 18px; font-size: var(--text-base); }
+.eos-needs-item__actions .eos-btn--primary { padding: 0 20px; font-weight: 500; }
+.eos-needs-item__actions .eos-btn--quiet { padding: 0 12px; color: var(--fg-dim); }
 .eos-needs-item__actions .eos-btn--quiet:hover { color: var(--fg-strong); }
-.eos-needs-card { display: flex; flex-direction: column; gap: 8px; }
-.eos-needs-card__lead { margin: 0; font-size: var(--text-base); color: var(--fg); }
+.eos-needs-answer__aside { display: inline-flex; gap: 2px; margin-left: auto; }
+.eos-needs-answer__says { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
+.eos-needs-key { margin-left: 6px; font-family: var(--font-mono); font-size: 11.5px; color: inherit; opacity: 0.6; }
+
+/* A draft on its sheet: the one object here a user acts on whole. */
+.eos-draft { display: flex; flex-direction: column; gap: 18px; }
+.eos-needs-sheet { padding: 28px 32px 30px; border-radius: 16px; background: var(--panel); }
+.eos-needs-sheet--editing { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* How a send stands, as facts under the lead. */
+.eos-send-state { display: flex; flex-direction: column; gap: 10px; }
+.eos-send-state__left { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); font-variant-numeric: tabular-nums; }
+.eos-send-state__line--holding { color: var(--fg); }
+.eos-send-state__line--holding::before { animation: eos-beat-breathe calc(2400ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+.eos-send-state__drain { display: inline-block; width: 120px; height: 1px; background: var(--line); }
+.eos-send-state__drain > span { display: block; height: 100%; background: var(--accent); transform-origin: left center; animation: eos-send-drain linear forwards; }
+@keyframes eos-send-drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .eos-send-state__line--holding::before, .eos-send-state__drain > span { animation: none; }
+}
+
+/* A run's ask: the tool and what it counts as, the target in a well. */
+.eos-needs-ask { display: flex; flex-direction: column; gap: 10px; }
+.eos-needs-ask__tool { display: flex; align-items: baseline; gap: 12px; }
+.eos-needs-ask__tool .eos-needs-card__class { font-family: var(--font-ui); font-size: var(--text-xs); letter-spacing: 0; text-transform: none; }
+.eos-needs-ask__target {
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: var(--panel);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg-strong);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.eos-needs-ask__target::before { content: "$ "; color: var(--fg-dim2); }
+
+/* What a card holds beyond its lead. */
+.eos-needs-card { display: flex; flex-direction: column; gap: 12px; }
+.eos-needs-card__lead { margin: 0; font-size: var(--text-base); line-height: 1.55; color: var(--fg); }
+.eos-needs-card__lead strong { color: var(--fg-strong); font-weight: 600; }
 .eos-needs-card__class { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-needs-card__target { white-space: pre-wrap; overflow-wrap: anywhere; }
-.eos-needs-questions { gap: 18px; }
-.eos-needs-question { display: flex; flex-direction: column; gap: 8px; }
-.eos-needs-question__text { font-size: var(--text-base); color: var(--fg); }
+.eos-needs-card__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg); }
+.eos-needs-card .eos-ask__rows { margin: 0; }
+.eos-needs-card .eos-ask__rows > div { padding: 12px 0; }
+.eos-needs-card .eos-ask__rows dt { width: 96px; padding-top: 2px; }
+.eos-needs-card .eos-ask__rows dd { font-size: var(--text-sm); color: var(--fg); }
+.eos-needs-card .eos-ask__rows .eos-fact { display: inline-flex; color: var(--fg); }
+.eos-needs-limits { display: flex; flex-direction: column; gap: 8px; }
+.eos-needs-limits .eos-needs-card__list { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-needs-replaces { display: flex; flex-direction: column; gap: 6px; }
+.eos-needs-replaces .eos-needs-card__list { padding-left: 21px; }
+
+/* Questions: each a choice of the run's options, then the user's words. */
+.eos-needs-questions { gap: 28px; }
+.eos-needs-question { display: flex; flex-direction: column; gap: 12px; }
+.eos-needs-question__text { font-size: var(--text-md); line-height: 1.5; color: var(--fg-strong); }
+.eos-needs-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.eos-needs-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 18px 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--fg);
+  cursor: pointer;
+  transition: box-shadow calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1), background calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
+}
+.eos-needs-option::before { content: ""; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
+.eos-needs-option:hover { background: var(--row-on); }
+.eos-needs-option[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); color: var(--fg-strong); }
+.eos-needs-option[aria-pressed="true"]::before { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eos-needs-question__answer {
   width: 100%;
+  box-sizing: border-box;
   resize: vertical;
-  padding: 8px 10px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--raised);
+  background: var(--bg);
   font: inherit;
-  font-size: var(--text-sm);
-  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg-strong);
 }
+.eos-needs-question__answer::placeholder { color: var(--fg-dim2); }
+.eos-mode .eos-needs-question__answer:focus-visible { outline: 0; border-color: var(--accent); }
+.eos-needs-well { gap: 10px; }
 .eos-chip[aria-pressed="true"] { background: var(--chip); color: var(--fg-strong); }
 
+/* More freedom offered: the ladder's rungs on one line, the streak under it. */
+.eos-needs-offer { gap: 28px; }
+.eos-needs-ladder { margin-top: 8px; }
+.eos-beat__stop--from .eos-beat__dot { border-color: var(--fg-strong); background: var(--fg-strong); }
+.eos-beat__stop--from .eos-beat__tag { color: var(--fg-strong); }
+.eos-needs-ladder .eos-beat__stop--active .eos-beat__tag { color: var(--fg-strong); }
+.eos-needs-ladder .eos-beat__stop--active .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* A streak: one mark per send, the one that brings the offer ringed. */
+.eos-needs-streak { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-streak { display: inline-flex; align-items: center; gap: 5px; }
+.eos-streak__mark { width: 7px; height: 7px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-faint); }
+.eos-streak__mark--done { border-color: var(--fg-dim2); background: var(--fg-dim2); }
+.eos-streak__mark--offer { border-color: var(--accent); }
+.eos-streak__mark--done.eos-streak__mark--offer, .eos-streak__mark--done:last-child { border-color: var(--accent); background: var(--accent); }
+
+/* "Next time": what to do differently, a bare field on a hairline. */
+.eos-needs-next { display: flex; align-items: baseline; gap: 16px; padding: 4px 0 10px; border-bottom: 1px solid var(--line); transition: border-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1); }
+.eos-needs-next label { flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-needs-next input { flex: 1; min-width: 0; height: 30px; padding: 0; border: 0; background: none; color: var(--fg-strong); font: inherit; font-size: var(--text-base); }
+.eos-needs-next input::placeholder { color: var(--fg-dim2); }
+.eos-mode .eos-needs-next input:focus-visible { outline: 0; }
+.eos-needs-next:focus-within { border-bottom-color: var(--accent); }
+
+/* An item still coming: its lead's shape and its object's. */
+.eos-needs-ghost { display: flex; flex-direction: column; gap: 28px; padding-top: 16px; }
+.eos-needs-ghost__object { height: 220px; border-radius: 16px; background: var(--panel); }
+
 /* The result a draft holds. */
-.eos-result { display: flex; flex-direction: column; gap: 12px; font-size: var(--text-base); color: var(--fg); }
-.eos-result__event { margin: 0; align-self: flex-start; padding: 3px 10px; border-radius: var(--r-pill); background: var(--chip); font-size: var(--text-xs); color: var(--fg-mid); }
-.eos-result__event--request_changes { background: rgba(201, 161, 99, 0.16); color: #e3c08a; }
-.eos-result__event--approve { background: rgba(111, 174, 134, 0.16); color: #9fd2b0; }
+.eos-result { display: flex; flex-direction: column; gap: 16px; font-size: var(--text-base); line-height: 1.6; color: var(--fg); }
+.eos-result__event { margin: 0; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 10px; border-radius: var(--r-pill); background: var(--chip); font-size: var(--text-xs); color: var(--fg-mid); }
+.eos-result__event::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--fg-dim2); }
+.eos-result__event--request_changes { color: var(--warn); }
+.eos-result__event--request_changes::before { background: var(--warn); }
+.eos-result__event--approve { color: var(--ok); }
+.eos-result__event--approve::before { background: var(--ok); }
 .eos-result__text > :first-child { margin-top: 0; }
 .eos-result__text > :last-child { margin-bottom: 0; }
-.eos-result__comments { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
-.eos-result__comment { padding: 16px 0 0; border-top: 1px solid var(--line); color: var(--fg-mid); }
-.eos-result__comment + .eos-result__comment { margin-top: 16px; }
-.eos-result__place { display: block; margin-bottom: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
-.eos-result__to { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-result__comments { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.eos-result__comment { display: grid; grid-template-columns: minmax(0, 168px) minmax(0, 1fr); gap: 4px 24px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--fg); }
+.eos-result__comment:last-child { border-bottom: 0; padding-bottom: 0; }
+.eos-result__place { display: block; padding-top: 3px; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); overflow-wrap: anywhere; }
+@container (max-width: 760px) { .eos-result__comment { grid-template-columns: minmax(0, 1fr); } }
+.eos-result__to { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-result__fixed { font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-result__subject { margin: 0; font-weight: 500; color: var(--fg-strong); }
-.eos-result__para { margin: 0; white-space: pre-wrap; }
+.eos-result__subject { margin: 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
+.eos-result__subject + .eos-result__para { margin-top: 4px; }
+.eos-result__para { margin: 0; max-width: 64ch; white-space: pre-wrap; }
 
-/* The aside: the run's checks and team. */
-.eos-needs-aside { flex: 1 1 300px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 26px; }
-.eos-needs-aside__part { display: flex; flex-direction: column; gap: 8px; }
-.eos-needs-aside__lead { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-needs-aside__text { margin: 0; font-size: 13.5px; color: var(--fg-mid); overflow-wrap: anywhere; }
-.eos-needs-checks, .eos-needs-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--fg); }
-.eos-needs-checks { gap: 8px; color: var(--fg-mid); }
-.eos-needs-checks li { display: flex; align-items: flex-start; gap: 9px; }
-.eos-needs-checks__mark { flex: none; display: inline-flex; margin-top: 4px; }
+/* The aside: the run's account, each part a label, a hairline, its content. */
+.eos-needs-aside { flex: 1 1 300px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 36px; padding-top: 24px; }
+.eos-needs-aside__part { display: flex; flex-direction: column; gap: 12px; }
+.eos-needs-aside__part > .eos-label + * { padding-top: 12px; border-top: 1px solid var(--line); }
+.eos-needs-aside__lead { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-needs-aside__text { margin: 0; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-mid); overflow-wrap: anywhere; }
+.eos-needs-checks, .eos-needs-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm); color: var(--fg); }
+.eos-needs-checks li { display: flex; align-items: flex-start; gap: 10px; line-height: 1.5; }
+.eos-needs-checks__mark { flex: none; display: inline-flex; margin-top: 3px; }
 .eos-needs-checks__mark svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .eos-needs-checks__mark--ok { color: var(--ok); }
 .eos-needs-checks__mark--err { color: var(--err); }
 .eos-needs-checks__note { color: var(--fg-mid); }
-.eos-needs-team li { display: flex; justify-content: space-between; gap: 8px; }
-.eos-needs-team__side { font-size: var(--text-xs); color: var(--fg-dim2); }
-
+.eos-needs-team li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.eos-needs-team__side { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* A routine's View in Needs you: Eos's strip above it, Eos's own asks below. */
 .eos-frame { border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 12px; }
@@ -160,9 +276,6 @@
 .eos-frame__eos { padding: 12px 16px; border-top: 1px solid var(--line); }
 .eos-frame__ask { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .eos-frame__ask-text { flex: 1; margin: 0; font-size: var(--text-sm); color: var(--fg); }
-.eos-needs-card__list { margin: 0; padding-left: 18px; font-size: var(--text-sm); color: var(--fg); }
-.eos-needs-offer { margin: 0; font-size: var(--text-base); color: var(--fg-dim); }
-.eos-needs-offer strong { color: var(--fg-strong); font-weight: 600; }
 .eos-needs-view { display: flex; flex-direction: column; gap: 8px; }
 .eos-needs-view__aside { align-self: flex-end; }
 
@@ -201,31 +314,27 @@
 .eos-frame__content .gv-form__fields > .gv-stepper { justify-content: flex-start; }
 .eos-frame__content .gv-stepper__label { font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-frame__content .gv-stepper__ctl { margin-left: 0; }
-/* "Next time" under the actions: a label and a bare input in one quiet field. */
-.eos-needs-next {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px 4px 16px;
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.eos-needs-next label { flex: none; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-needs-next input {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--fg-strong);
-  font: inherit;
+/* A draft being edited: its parts stay where the sheet showed them, each a
+   label over a field in a well; a finding on its hairline, kept or left out. */
+.eos-needs-sheet .eos-edit { gap: 22px; }
+.eos-needs-sheet .eos-edit__label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
+.eos-needs-sheet .eos-edit__field { gap: 10px; }
+.eos-needs-sheet .eos-edit__line, .eos-needs-sheet .eos-edit__text {
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  background: var(--bg);
   font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--fg-strong);
 }
-/* The field draws the focus ring, not the bare input inside it. */
-.eos-mode .eos-needs-next input:focus-visible { outline: 0; }
-.eos-needs-next:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* How far the routine is from the offer of more freedom (Review.dc.html). */
-/* The streak sits under the actions, a quiet line of its own. */
-.eos-needs-streak { flex: 1 0 100%; margin-top: 2px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-sheet .eos-edit__code { font-size: var(--text-xs); }
+.eos-mode .eos-needs-sheet .eos-edit__line:focus-visible, .eos-mode .eos-needs-sheet .eos-edit__text:focus-visible { outline: 0; border-color: var(--accent); }
+.eos-needs-sheet .eos-edit__findings { gap: 0; border-top: 1px solid var(--line); }
+.eos-needs-sheet .eos-edit__finding { gap: 10px; padding: 16px 0; border-radius: 0; background: none; border-bottom: 1px solid var(--line); }
+.eos-needs-sheet .eos-edit__finding:last-child { border-bottom: 0; padding-bottom: 0; }
+.eos-needs-sheet .eos-edit__include { gap: 10px; cursor: pointer; }
+.eos-needs-sheet .eos-edit__include input { margin: 0; accent-color: var(--accent); }
+.eos-needs-sheet .eos-edit__finding--out .eos-result__place { color: var(--fg-dim2); }
+.eos-needs-sheet .eos-edit__revert { font-size: var(--text-sm); }
+.eos-needs-item__facts:empty { display: none; }

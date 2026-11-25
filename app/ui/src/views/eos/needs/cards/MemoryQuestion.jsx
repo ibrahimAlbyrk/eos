@@ -1,21 +1,19 @@
-// A guess about the user, asked back: "Is this right about you?". After
-// Edit, the guess sits in a field and is kept in the user's words.
-export function MemoryQuestion({ detail, values = {}, setValue }) {
+// A guess about the user, asked back by the lead ("Is this right about
+// you?"); after Edit, the guess sits in a field and is kept in the user's
+// words. Before Edit there is nothing more to show than the lead.
+export function MemoryQuestion({ values = {}, setValue }) {
+  if (values.text === undefined) return null;
   return (
-    <div className="eos-needs-card">
-      {values.text === undefined
-        ? <p className="eos-needs-card__lead">{detail.item.title}</p>
-        : (
-          <textarea
-            className="eos-needs-question__answer"
-            aria-label="In your words"
-            maxLength={500}
-            rows={3}
-            value={values.text}
-            onChange={(e) => setValue("text", e.target.value)}
-          />
-        )}
-      <p className="eos-needs-card__class">Is this right about you?</p>
+    <div className="eos-needs-card eos-needs-well">
+      <label className="eos-label" htmlFor="eos-needs-guess">In your words</label>
+      <textarea
+        id="eos-needs-guess"
+        className="eos-needs-question__answer"
+        maxLength={500}
+        rows={3}
+        value={values.text}
+        onChange={(e) => setValue("text", e.target.value)}
+      />
     </div>
   );
 }

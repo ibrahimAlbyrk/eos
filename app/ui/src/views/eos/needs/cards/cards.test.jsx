@@ -72,9 +72,9 @@ afterEach(() => {
 describe("a run's permission ask", () => {
   it("names the tool, what it counts as and its target, with Allow once and Deny only", async () => {
     const html = await screen("permission");
-    expect(html).toContain("A run wants to use <strong>Bash</strong>.");
-    expect(html).toContain('<p class="eos-needs-card__class">Runs a command on this Mac</p>');
-    expect(html).toContain('<pre class="eos-code eos-needs-card__target">git push origin review/470</pre>');
+    expect(html).toContain("wants to use Bash.");
+    expect(html).toContain('<p class="eos-label eos-needs-ask__tool">Bash<span class="eos-needs-card__class">Runs a command on this Mac</span></p>');
+    expect(html).toContain('<pre class="eos-needs-ask__target">git push origin review/470</pre>');
     expect(buttons(html)).toEqual(["Allow once", "Deny"]);
     expect(html).not.toContain("Always");
   });
@@ -97,9 +97,9 @@ describe("a run's permission ask", () => {
 describe("a run's question", () => {
   it("asks each question with a text answer, the run's options filling it in", async () => {
     const html = await screen("question");
-    expect(html).toContain('<label for="eos-q-0" class="eos-needs-question__text">Which branch should the review compare against?</label>');
-    expect(html).toContain('<button type="button" class="eos-chip" aria-pressed="false">release/2.4</button>');
-    expect(html).toContain('<textarea id="eos-q-0" class="eos-needs-question__answer" rows="2"></textarea>');
+    expect(html).toContain('<p class="eos-label">Branch</p><label for="eos-q-0" class="eos-needs-question__text eos-sr">Which branch should the review compare against?</label>');
+    expect(html).toContain('<button type="button" class="eos-chip eos-needs-option" aria-pressed="false">release/2.4</button>');
+    expect(html).toContain('<textarea id="eos-q-0" class="eos-needs-question__answer" rows="2" placeholder="Or say it in your own words"></textarea>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary" disabled="">Send answers');
   });
 
@@ -134,7 +134,7 @@ describe("the other cards", () => {
     expect(await screen("confirm_change")).toContain("Post reviews to acme/game as you, instead of showing them only here.");
     const problem = await screen("delivery_problem");
     expect(problem).toContain("GitHub says the pull request is not there any more.");
-    expect(problem).toContain('<p class="eos-needs-card__class">What it names is not there any more.</p>');
+    expect(problem).toContain('<p class="eos-fact eos-needs-card__class">What it names is not there any more.</p>');
     const guess = await screen("about_you");
     expect(guess).toContain("You prefer short reviews with the blocking findings first.");
     expect(guess).toContain("Is this right about you?");
@@ -144,7 +144,7 @@ describe("the other cards", () => {
     const proposal = await screen("capability_install");
     expect(proposal).toContain("<strong>Calendar</strong> · Reads today&#x27;s events from the Calendar app.");
     expect(proposal).toContain("List today&#x27;s events");
-    expect(proposal).toContain("Reaches com.apple.iCal");
+    expect(proposal).toContain("<dt>Reaches</dt><dd>com.apple.iCal</dd>");
     const problem = await screen("capability_attention");
     expect(problem).toContain("macOS has not let it control the app it needs.");
     const offer = await screen("freedom_offer");
@@ -194,7 +194,7 @@ describe("the other cards", () => {
       installScripts: [],
     };
     const html = await screen("capability_install", { ...sample, payload: { ...sample.payload, source } });
-    expect(html).toContain("Runs acme-echo 2.1.0 from npm, published by someone other than the service (community).");
+    expect(html).toContain("<dt>Runs</dt><dd><span>acme-echo 2.1.0 from npm, published by someone other than the service (community).</span>");
     expect(html).toContain("<li>left-pad@1.3.0</li>");
   });
 

@@ -255,7 +255,7 @@ describe("a draft whose pull request moved", () => {
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: stale });
     await loadInboxItem(DRAFT);
     const html = at(`eos:/needs/${DRAFT}`);
-    expect(html).toContain('<p class="eos-needs-stale" role="status">3 new commits since this draft. Check it before you send it.</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--warn eos-needs-stale" role="status">3 new commits since this draft. Check it before you send it.</p>');
     expect(html.indexOf("eos-needs-stale")).toBeLessThan(html.indexOf("eos-result__event"));
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Send anyway<span class="eos-needs-key">');
     const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: stale });
@@ -298,10 +298,12 @@ describe("a send in its hold, and after it went out", () => {
     setEosTransport(t);
     at(`eos:/needs/${DRAFT}`);
     press("Enter", { metaKey: true });
-    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("Answered on this Mac."));
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain("Sending…"));
     expect(eosLocation()).toBe(`eos:/needs/${DRAFT}`);
     let html = at(`eos:/needs/${DRAFT}`);
-    expect(html).toContain('<span>Sending… Undo</span><span class="eos-send-state__left">10 s left</span><button type="button" class="eos-btn">Stop</button>');
+    expect(html).not.toContain("Answered on this Mac.");
+    expect(html).toContain('<span>Sending…</span><span class="eos-send-state__left">10 s left</span><span class="eos-send-state__drain" aria-hidden="true">');
+    expect(html).toContain('<button type="button" class="eos-btn">Stop</button>');
     expect(html).not.toContain(">Send<");
 
     applyEosEvent("inbox:delivery", { id: "dl-1", itemId: DRAFT, runId: "rn-x", state: "holding", sendAt: T + 4_000 });
@@ -321,7 +323,7 @@ describe("a send in its hold, and after it went out", () => {
     const waiting = sentDraft([{ id: "dl-3", state: "queued" }]);
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting });
     await loadInboxItem(DRAFT);
-    expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-send-state__line" role="status"><span>Waiting to send.</span><button type="button" class="eos-btn">Stop</button></p>');
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-send-state__line eos-fact" role="status"><span>Waiting to send.</span><button type="button" class="eos-btn">Stop</button></p>');
     const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting }, async () => ({ ok: true, status: 200, body: { id: "dl-3", state: "stopped" } }));
     setEosTransport(t);
     expect(await stopDelivery(DRAFT, "dl-3")).toBe(true);
@@ -329,7 +331,7 @@ describe("a send in its hold, and after it went out", () => {
 
     applyEosEvent("inbox:delivery", { id: "dl-3", itemId: DRAFT, runId: "rn-x", state: "sending" });
     const html = at(`eos:/needs/${DRAFT}`);
-    expect(html).toContain('<p class="eos-send-state__line" role="status">Sending now.</p>');
+    expect(html).toContain('<p class="eos-send-state__line eos-fact eos-fact--active" role="status">Sending now.</p>');
     expect(html).not.toContain("Waiting to send.");
     expect(html).not.toContain(">Stop<");
   });
@@ -339,7 +341,7 @@ describe("a send in its hold, and after it went out", () => {
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent });
     await loadInboxItem(DRAFT);
     let html = at(`eos:/needs/${DRAFT}`);
-    expect(html).toContain('<span role="status">Sent.</span><button type="button" class="eos-btn">Undo</button><button type="button" class="eos-btn">That was wrong</button>');
+    expect(html).toContain('<span role="status">Sent.</span><button type="button" class="eos-btn">Undo</button><button type="button" class="eos-btn eos-btn--quiet">That was wrong</button>');
 
     const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent }, async () => ({ ok: false, status: 409, body: { error: "cannot_undo" } }));
     setEosTransport(t);
@@ -381,7 +383,7 @@ describe("a send in its hold, and after it went out", () => {
     expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxDeliveryWrong("dl-2"), {}]]);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
-    expect(html).toContain('<button type="button" class="eos-btn" disabled="">That was wrong</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet" disabled="">That was wrong</button>');
   });
 
   it("keeps That was wrong said after a reload, from the send's wrong field", async () => {
@@ -390,7 +392,7 @@ describe("a send in its hold, and after it went out", () => {
     await loadInboxItem(DRAFT);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
-    expect(html).toContain('<button type="button" class="eos-btn" disabled="">That was wrong</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet" disabled="">That was wrong</button>');
   });
 
   it("lets That was wrong be pressed again when the core refused it", async () => {
@@ -401,7 +403,7 @@ describe("a send in its hold, and after it went out", () => {
     setEosTransport(recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: sent }, async () => ({ ok: false, status: 409, body: { error: "Only a send that went out can be wrong." } })));
     expect(await flagDeliveryWrong(DRAFT, "dl-2")).toBe(false);
     expect(toast).toHaveBeenCalledWith("Only a send that went out can be wrong.", { title: "Needs you" });
-    expect(at(`eos:/needs/${DRAFT}`)).toContain('<button type="button" class="eos-btn">That was wrong</button>');
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<button type="button" class="eos-btn eos-btn--quiet">That was wrong</button>');
     toast.mockRestore();
   });
 });
@@ -413,7 +415,7 @@ describe("an item that no longer waits", () => {
     const answered = { ...detailOf[DRAFT], item: { ...detailOf[DRAFT].item, state: "answered", rev: 3 }, answeredBy: "phone" };
     setEosTransport(fixtureTransport({ ...reads, [ROUTES.inboxItem(DRAFT)]: answered }));
     applyInboxChange({ id: DRAFT, kind: "draft", state: "answered", rev: 3, open: 4 });
-    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-needs-closed" role="status">Answered on your iPhone.</p>'));
+    await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-fact eos-fact--done eos-needs-closed" role="status">Answered on your iPhone.</p>'));
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).not.toContain(">Send<");
     expect(html).toContain('<p class="eos-result__event eos-result__event--request_changes">Request changes</p>');
@@ -472,7 +474,7 @@ describe("answers", () => {
     setEosTransport({ get: async () => { throw new Error("offline"); }, send: async () => { throw new Error("offline"); } });
     await refreshInbox();
     const html = at(`eos:/needs/${DRAFT}`);
-    expect(html).toContain('<p class="eos-needs-offline" role="status">Reconnecting…</p>');
+    expect(html).toContain('<p class="eos-fact eos-fact--warn eos-needs-offline" role="status">Reconnecting…</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary" disabled="" title="Reconnecting…">Send');
     expect(html).toContain('<p class="eos-result__event eos-result__event--request_changes">Request changes</p>');
   });
@@ -530,7 +532,7 @@ describe("the streak beside a draft's actions", () => {
     await refreshInbox();
     await loadInboxItem(DRAFT);
     await loadFreedom(ROUTINE);
-    expect(at(`eos:/needs/${DRAFT}`)).toContain('<span class="eos-needs-streak">Nine in a row went out unedited.');
+    expect(at(`eos:/needs/${DRAFT}`)).toContain('<span>Nine in a row went out unedited.');
     streak = 0;
     applyEosEvent("inbox:freedom", { routineId: ROUTINE, rung: "draft", streak: 0, offer: "none" });
     await vi.waitFor(() => expect(at(`eos:/needs/${DRAFT}`)).not.toContain("eos-needs-streak"));
