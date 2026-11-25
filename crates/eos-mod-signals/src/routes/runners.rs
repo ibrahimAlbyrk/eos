@@ -1,14 +1,16 @@
 //! `GET /api/runners` (the user's computers as the leases show them, with
 //! the ones away for two hours) and `POST /api/runners/claim` (Move here:
 //! the routine is held here from now on and takes up where the computer
-//! before left it). Nothing moves by itself (D19).
+//! before left it). Nothing moves by itself (D19), and nothing moves from
+//! a computer that is still there (L15): the refusal is here, so every door
+//! (the dashboard, the phone) meets it.
 
 use std::sync::Arc;
 
 use eos_contracts::Trigger;
 use eos_contracts::{ClaimRequest, ClaimResponse, RunnerDevice, RunnerView};
 use eos_core::routine::RoutineTriggers;
-use eos_core::signals::{Runner, RunnerError};
+use eos_core::signals::{Holder, Runner, RunnerError};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -47,6 +49,14 @@ fn missing_source(routes: &Routes, routine: &RoutineTriggers) -> Option<String> 
     })
 }
 
+/// The name of the other computer that holds the routine and has sent a
+/// heartbeat within [`AWAY_MS`]; a holder never heard from counts as away.
+fn holder_still_there(runner: &dyn Runner, routine_id: &str, now: i64) -> Option<String> {
+    let Holder::Elsewhere { device_id, .. } = runner.holder(routine_id) else { return None };
+    let device = runner.devices().into_iter().find(|device| device.device_id == device_id)?;
+    away_since(device.seen_at, now).is_none().then_some(device.name)
+}
+
 pub(super) fn list(routes: &Arc<Routes>) -> RouteDef {
     let routes = routes.clone();
     RouteDef::get("/api/runners", move |_req: Request| {
@@ -66,6 +76,11 @@ pub(super) fn claim(routes: &Arc<Routes>) -> RouteDef {
             // A source this computer cannot read would leave the routine deaf here.
             if let Some(missing) = missing_source(&routes, &routine) {
                 return Err(ApiError::Conflict(format!("Connect {missing} on this Mac first")));
+            }
+            if let Some(name) = holder_still_there(routes.runner.as_ref(), &routine_id, routes.clock.now_ms()) {
+                return Err(ApiError::Conflict(format!(
+                    "{name} still runs this routine. It can move here once {name} has been away for two hours."
+                )));
             }
             let handoff = match routes.runner.claim(&routine_id).await {
                 Ok(handoff) => handoff,
