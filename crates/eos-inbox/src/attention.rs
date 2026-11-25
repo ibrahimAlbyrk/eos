@@ -55,8 +55,8 @@ impl std::fmt::Debug for NotifierParts {
     }
 }
 
-/// Where the notifier stands. In memory: after a restart the items that
-/// waited before it are told in the next digest, not one by one.
+/// Where the notifier stands. In memory: after a restart items made since
+/// the last digest time may interrupt, the older ones wait for the next digest.
 #[derive(Debug, Clone, Copy)]
 struct Mark {
     /// Items made from then on may still interrupt.
@@ -81,8 +81,10 @@ impl std::fmt::Debug for Notifier {
 impl Notifier {
     pub fn new(parts: NotifierParts) -> Self {
         let now = parts.clock.now_ms();
-        let next_digest = next_digest(&parts.config.current().attention, parts.zone.as_ref(), now);
-        Self { parts: Arc::new(parts), mark: Arc::new(Mutex::new(Mark { since: now, next_digest })) }
+        let settings = &parts.config.current().attention;
+        let (since, next_digest) =
+            (last_digest(settings, parts.zone.as_ref(), now), next_digest(settings, parts.zone.as_ref(), now));
+        Self { parts: Arc::new(parts), mark: Arc::new(Mutex::new(Mark { since, next_digest })) }
     }
 
     fn mark(&self) -> MutexGuard<'_, Mark> {
@@ -110,16 +112,19 @@ impl Notifier {
         let now = self.parts.clock.now_ms();
         let settings = self.parts.config.current().attention.clone();
         let due = self.mark().next_digest;
-        if now >= due {
+        let quiet = is_quiet(&settings, self.parts.zone.as_ref(), now);
+        // A digest time inside quiet hours stays quiet: the one at their end counts it in.
+        if now >= due && !quiet {
             let told = self.parts.store.write(move |tx, out| digest_in(tx, out, now)).await?;
             if told > 0 {
                 tracing::info!(waiting = told, "a digest of what needs the user");
             }
+        }
+        if now >= due {
             let next = next_digest(&settings, self.parts.zone.as_ref(), now);
             *self.mark() = Mark { since: now, next_digest: next };
         }
         let since = self.mark().since;
-        let quiet = is_quiet(&settings, self.parts.zone.as_ref(), now);
         let interrupts = settings.interrupts;
         let (fired, seen, open) =
             self.parts.store.write(move |tx, out| interrupt_in(tx, out, now, since, interrupts, quiet)).await?;
@@ -253,9 +258,9 @@ fn is_quiet(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> bool
     if from < to { (from..to).contains(&minute) } else { minute >= from || minute < to }
 }
 
-/// The first digest after `now`: a digest time, or the end of quiet hours.
-/// A day ahead when none is set, so the caller still wakes.
-fn next_digest(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> i64 {
+/// The digest times and ends of quiet hours from the day before `now` to
+/// the day after.
+fn digest_slots(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> Vec<i64> {
     let offset = offset_at(zone);
     let wall = wall_clock(now, &offset);
     let midnight = wall - wall.rem_euclid(DAY_MS);
@@ -266,11 +271,20 @@ fn next_digest(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> i
         .map(String::as_str)
         .chain(quiet_end)
         .filter_map(minutes)
-        .flat_map(|at| (0..2).map(move |day| midnight + day * DAY_MS + at * MINUTE_MS))
+        .flat_map(|at| (-1..2).map(move |day| midnight + day * DAY_MS + at * MINUTE_MS))
         .map(|wall| instant_of(wall, &offset))
-        .filter(|at| *at > now)
-        .min()
-        .unwrap_or(now + DAY_MS)
+        .collect()
+}
+
+/// The first digest after `now`: a digest time, or the end of quiet hours.
+/// A day ahead when none is set, so the caller still wakes.
+fn next_digest(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> i64 {
+    digest_slots(settings, zone, now).into_iter().filter(|at| *at > now).min().unwrap_or(now + DAY_MS)
+}
+
+/// The last digest at or before `now`; a day back when none is set.
+fn last_digest(settings: &AttentionSettings, zone: &dyn TimeZone, now: i64) -> i64 {
+    digest_slots(settings, zone, now).into_iter().filter(|at| *at <= now).max().unwrap_or(now - DAY_MS)
 }
 
 #[cfg(test)]
@@ -324,6 +338,16 @@ mod tests {
         assert_eq!(next_digest(&settings(), &Fixed(60), at(12, 0)), at(16, 0), "17:00 at +1");
         let none = AttentionSettings { quiet_on: false, digests: Vec::new(), ..settings() };
         assert_eq!(next_digest(&none, &utc, at(12, 0)), at(36, 0));
+    }
+
+    #[test]
+    fn the_last_digest_is_the_latest_one_at_or_before_now() {
+        let utc = Fixed(0);
+        assert_eq!(last_digest(&settings(), &utc, at(12, 0)), at(9, 0));
+        assert_eq!(last_digest(&settings(), &utc, at(7, 0)), at(-7, 0), "17:00 the day before");
+        assert_eq!(last_digest(&settings(), &utc, at(8, 0)), at(8, 0), "the end of quiet hours");
+        let none = AttentionSettings { quiet_on: false, digests: Vec::new(), ..settings() };
+        assert_eq!(last_digest(&none, &utc, at(12, 0)), at(-12, 0));
     }
 
     #[test]
