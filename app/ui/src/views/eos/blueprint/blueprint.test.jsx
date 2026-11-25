@@ -99,7 +99,7 @@ describe("a new routine", () => {
     expect(await makeRoutine("Sort my mail")).toBe("rt-new000000001");
     expect(t.send).toHaveBeenCalledWith("POST", ROUTES.routinesArchitect, { sentence: "Sort my mail" });
 
-    const busy = { error: "too many architects are at work; finish or leave one first", code: "architects_busy" };
+    const busy = { error: "too many architects are at work; finish or leave one first", code: "architects_busy", drafts: [{ id: DOCS, name: "Docs Review" }] };
     setEosTransport(recording(async () => ({ ok: false, status: 409, body: busy })));
     await refreshRoutines();
     expect(await makeRoutine("Watch the build")).toBeNull();
