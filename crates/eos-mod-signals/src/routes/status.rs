@@ -33,7 +33,7 @@ pub(super) fn route(routes: &Arc<Routes>) -> RouteDef {
             let now = routes.clock.now_ms();
             let today = day_start(routes.zone.as_ref(), now);
             let zones = routes.zones.clone();
-            let holder = holder(routes.runner.as_ref(), &routine.id);
+            let holder = holder(routes.runner.as_ref(), &routine.id, routes.clock.now_ms());
             let status = routes
                 .store
                 .read(move |tx| {
@@ -103,7 +103,9 @@ pub(super) fn every(routes: &Arc<Routes>) -> RouteDef {
             let now = routes.clock.now_ms();
             let holders: Vec<Option<String>> = routines
                 .iter()
-                .map(|routine| holder(routes.runner.as_ref(), &routine.id).map(|holder| holder.device_id))
+                .map(|routine| {
+                    holder(routes.runner.as_ref(), &routine.id, routes.clock.now_ms()).map(|holder| holder.device_id)
+                })
                 .collect();
             let zones = routes.zones.clone();
             let rows = routes
@@ -146,13 +148,16 @@ pub(super) fn every(routes: &Arc<Routes>) -> RouteDef {
 }
 
 /// Who acts on the routine's triggers, as this computer last knew.
-pub(super) fn holder(runner: &dyn Runner, routine_id: &str) -> Option<RoutineHolder> {
+pub(super) fn holder(runner: &dyn Runner, routine_id: &str, now: i64) -> Option<RoutineHolder> {
     let (device_id, here) = match runner.holder(routine_id) {
         Holder::Here { .. } => (runner.device_id().to_owned(), true),
         Holder::Elsewhere { device_id, .. } => (device_id, false),
         Holder::Unknown => return None,
     };
-    Some(RoutineHolder { device_id, name: None, here, away_since: None })
+    let seen = runner.devices().into_iter().find(|device| device.device_id == device_id);
+    let name = seen.as_ref().map(|device| device.name.clone());
+    let away_since = seen.and_then(|device| super::runners::away_since(device.seen_at, now));
+    Some(RoutineHolder { device_id, name, here, away_since })
 }
 
 /// A schedule's next slot after `now`, on its zone's clock; none for a zone

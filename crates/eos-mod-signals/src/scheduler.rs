@@ -25,6 +25,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use eos_contracts::{RoutineState, Schedule, Trigger};
 use eos_core::os::ZoneRules;
 use eos_core::routine::RoutineTriggers;
+use eos_core::signals::Holder;
 use eos_core::store::{NewSignal, Outbox, Store, StoredSignalSchedule, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
 use eos_domain::routine::blueprint::hash;
@@ -36,6 +37,7 @@ use tokio::sync::Notify;
 use crate::after::follow_in;
 use crate::awake::{Awake, OFFER_LATE_MS};
 use crate::local::Local;
+use crate::moves::{HEARTBEAT_MS, report_in};
 use crate::polls::Polls;
 use crate::retention::{self, SWEEP_EVERY_MS};
 use crate::router::{CLOCK, Router, Routing, error_kind, halted_in, run_in};
@@ -63,6 +65,8 @@ pub(crate) struct Scheduler {
     pub(crate) awake: Arc<Awake>,
     /// When old signals were last cleared.
     pub(crate) swept_at: AtomicI64,
+    /// When this computer's heartbeat last went to the other computers.
+    pub(crate) reported_at: AtomicI64,
     /// Rings when a pass should run now.
     pub(crate) kick: Arc<Notify>,
 }
@@ -154,6 +158,9 @@ impl Scheduler {
             self.swept_at.store(now, Ordering::SeqCst);
             retention::sweep(&self.store, now).await;
         }
+        if now - self.reported_at.load(Ordering::SeqCst) >= HEARTBEAT_MS {
+            self.report().await;
+        }
         self.polls.ensure(&held).await?;
         let next = earliest(next, self.polls.start_due().await?);
         Ok(earliest(next, self.local.pass(&held).await?))
@@ -161,6 +168,35 @@ impl Scheduler {
 }
 
 impl Scheduler {
+    /// Writes this computer's heartbeat with how far it got on each routine
+    /// it holds, while the leases are shared.
+    pub(crate) async fn report(&self) {
+        let runner = self.router.holding.runner.clone();
+        if !runner.shared() {
+            return;
+        }
+        let now = self.clock.now_ms();
+        self.reported_at.store(now, Ordering::SeqCst);
+        let routines = match self.router.directory.triggers().await {
+            Ok(routines) => routines,
+            Err(error) => return tracing::warn!(error = error_kind(&error), "the heartbeat could not be made"),
+        };
+        let held: Vec<(RoutineTriggers, i64)> = routines
+            .into_iter()
+            .filter_map(|routine| match runner.holder(&routine.id) {
+                Holder::Here { epoch } if epoch > 0 => Some((routine, epoch)),
+                _ => None,
+            })
+            .collect();
+        let report = match self.store.read(move |tx| report_in(tx, &held, now)).await {
+            Ok(report) => report,
+            Err(error) => return tracing::warn!(error = error_kind(&error), "the heartbeat could not be made"),
+        };
+        if let Err(error) = runner.report(&report).await {
+            tracing::info!(?error, "the heartbeat did not reach the other computers");
+        }
+    }
+
     /// Keeps the finished runs of every routine a held routine waits on, one
     /// write each; one that fails is tried again next pass.
     async fn follow(&self, held: &[Arc<RoutineTriggers>]) {

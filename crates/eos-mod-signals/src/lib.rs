@@ -54,6 +54,7 @@ mod holding;
 mod ingest;
 mod limits;
 mod local;
+mod moves;
 mod polls;
 mod push;
 mod retention;
@@ -97,6 +98,7 @@ pub use ask::{ASK_CACHE_MS, ASK_TIMEOUT_MS, ASKS_AT_ONCE, ASKS_PER_DAY, FACTS_TE
 pub use awake::OFFER_LATE_MS;
 pub use holding::FIRST_READ_WAIT_MS;
 pub use local::{FOLDER_ENTRIES_MAX, FOLDER_LISTING_MS, FOLDER_SETTLE_MS, FOLDERS_MAX, GIT_PATHS_MAX};
+pub use moves::AWAY_MS;
 pub use polls::{
     BACKOFF_MS, CATCH_UP_GAP_MS, LONG_SLOTS, PAGES_MAX, POLL_MAX_MS, POLL_MIN_MS, POLL_TIMEOUT_MS, SHORT_SLOTS,
     WAKE_GRACE_MS, WAKE_RETRY_MS,
@@ -263,6 +265,7 @@ impl SignalsModule {
             local,
             awake,
             swept_at: AtomicI64::new(i64::MIN / 2),
+            reported_at: AtomicI64::new(i64::MIN / 2),
             kick,
         });
         let push = parts.hooks.clone().map(|inbox| {
@@ -354,6 +357,8 @@ impl Module for SignalsModule {
             kick: self.scheduler.kick.clone(),
             push: self.push.clone(),
             sources: parts.sources.clone(),
+            router: self.router.clone(),
+            ids: parts.ids.clone(),
         })
     }
 
@@ -412,6 +417,8 @@ impl Module for SignalsModule {
                     let _ = task.await;
                 }
             }
+            // The last heartbeat says how far this computer got before it quit.
+            self.scheduler.report().await;
             self.scheduler.polls.stop().await;
             self.scheduler.local.release();
             self.scheduler.awake.release();

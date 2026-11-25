@@ -17,14 +17,17 @@ use crate::rig::{Bench, SOURCE_ID, SavedIntake, page, pull, routine};
 
 /// Leases as a test sets them; adopting takes a first lease.
 #[derive(Default)]
-struct Leases {
+pub(crate) struct Leases {
     holders: Mutex<HashMap<String, Holder>>,
-    confirmed_at: Mutex<Option<i64>>,
+    pub(crate) confirmed_at: Mutex<Option<i64>>,
     adopted: Mutex<Vec<String>>,
+    /// What a claim hands over; without one a claim is lost to `dev-2`.
+    pub(crate) handoff: Mutex<Option<Handoff>>,
+    pub(crate) devices: Mutex<Vec<DeviceSeen>>,
 }
 
 impl Leases {
-    fn hold(&self, routine: &str, holder: Holder) {
+    pub(crate) fn hold(&self, routine: &str, holder: Holder) {
         self.holders.lock().unwrap().insert(routine.into(), holder);
     }
 }
@@ -41,14 +44,21 @@ impl Runner for Leases {
         self.hold(routine_id, Holder::Here { epoch: 1 });
         Box::pin(std::future::ready(Ok(())))
     }
-    fn claim<'a>(&'a self, _routine_id: &'a str) -> BoxFuture<'a, Result<Handoff, RunnerError>> {
-        Box::pin(std::future::ready(Err(RunnerError::Off)))
+    fn claim<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<Handoff, RunnerError>> {
+        let claimed = match self.handoff.lock().unwrap().clone() {
+            Some(handoff) => {
+                self.hold(routine_id, Holder::Here { epoch: handoff.epoch });
+                Ok(handoff)
+            }
+            None => Err(RunnerError::Lost { holder: "dev-2".into(), epoch: 2 }),
+        };
+        Box::pin(std::future::ready(claimed))
     }
     fn report<'a>(&'a self, _report: &'a DeviceReport) -> BoxFuture<'a, Result<(), RunnerError>> {
         Box::pin(std::future::ready(Ok(())))
     }
     fn devices(&self) -> Vec<DeviceSeen> {
-        Vec::new()
+        self.devices.lock().unwrap().clone()
     }
     fn confirmed_at(&self) -> Option<i64> {
         *self.confirmed_at.lock().unwrap()
