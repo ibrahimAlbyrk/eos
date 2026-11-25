@@ -4,7 +4,8 @@ import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
 import { ensureRoutinesLoaded, offeredRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
-import { LoadFailed, Loading } from "../capabilities/parts.jsx";
+import { LoadingRows } from "../capabilities/parts.jsx";
+import { Band } from "../frame.jsx";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
 import { FieldLayer } from "../field/FieldLayer.jsx";
@@ -80,8 +81,15 @@ export function HomeScreen({ clock = Date.now }) {
   const inert = fieldOpen ? "" : undefined;
 
   let body;
-  if (home.failed) body = <div className="eos-home-part"><LoadFailed what="runs" retry={() => void refreshHome()} /></div>;
-  else if (home.runs === null) body = <div className="eos-home-part"><Loading blocks={3} /></div>;
+  if (home.failed) {
+    body = (
+      <div className="eos-home-part">
+        <Band tone="err" role="alert" action={<button type="button" className="eos-btn" onClick={() => void refreshHome()}>Try again</button>}>
+          Couldn&apos;t load runs, so what is coming up and what ran today are missing here.
+        </Band>
+      </div>
+    );
+  } else if (home.runs === null) body = <div className="eos-home-part"><LoadingRows rows={3} /></div>;
   else body = (
     <>
       {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}

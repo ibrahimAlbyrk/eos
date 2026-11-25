@@ -40,6 +40,19 @@ export function FixButton({ row, fix, primary = false }) {
   );
 }
 
+// The shape of a list still coming: a label, then rows on hairlines, each a
+// title and a line. Drawn only once a read has taken 300 ms (eos.css).
+export function LoadingRows({ rows = 3 }) {
+  return (
+    <div className="eos-skeleton eos-skeleton--rows" aria-busy="true" aria-label="Loading">
+      <span className="eos-skeleton__label" />
+      {Array.from({ length: rows }, (_, i) => (
+        <span key={i} className="eos-skeleton__row"><span /><span /></span>
+      ))}
+    </div>
+  );
+}
+
 // Skeleton blocks, drawn only once a read has taken 300 ms (eos.css).
 export function Loading({ blocks = 3 }) {
   return (

@@ -138,14 +138,16 @@ describe("Eos › Home", () => {
   it("loading: skeleton blocks, never a spinner", async () => {
     setEosTransport({ get: () => new Promise(() => {}), send: () => new Promise(() => {}) });
     const html = draw();
-    expect(html).toContain('class="eos-skeleton" aria-busy="true"');
+    expect(html).toContain('class="eos-skeleton eos-skeleton--rows" aria-busy="true"');
     expect(html).not.toContain("spin");
   });
 
   it("error: the runs could not be read, with Try again", async () => {
     const { [RUNS_PATH]: _, ...rest } = reads();
     await loaded(fixtureTransport(rest));
-    expect(draw()).toContain("Couldn&#x27;t load runs. <button");
+    const html = draw();
+    expect(html).toContain('<div class="eos-band eos-band--err" role="alert"><span class="eos-band__text">Couldn&#x27;t load runs, so what is coming up and what ran today are missing here.</span>');
+    expect(html).toContain('<button type="button" class="eos-btn">Try again</button>');
   });
 
   it("cannot read: the greeting claims nothing about what was handled", async () => {

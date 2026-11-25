@@ -76,7 +76,7 @@ describe("the Capabilities list", () => {
   });
 
   it("shows loading blocks, then an empty list or a failed read in words", async () => {
-    expect(at("eos:/capabilities")).toContain('<div class="eos-skeleton" aria-busy="true" aria-label="Loading">');
+    expect(at("eos:/capabilities")).toContain('<div class="eos-skeleton eos-skeleton--rows" aria-busy="true" aria-label="Loading">');
 
     setEosTransport(fixtureTransport({}));
     await refreshCapabilities();

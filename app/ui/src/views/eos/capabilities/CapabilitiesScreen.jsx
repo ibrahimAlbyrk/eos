@@ -4,7 +4,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { EmptyState, Section } from "../frame.jsx";
 import { numberWord } from "../home/homeWords.js";
-import { DevRunNote, FixButton, LoadFailed, Loading, OfflineNote } from "./parts.jsx";
+import { DevRunNote, FixButton, LoadFailed, LoadingRows, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
 import { fixFor, madeOf, stateLine, stateTone, stateWord, usedBy } from "./words.js";
 
@@ -58,7 +58,7 @@ export function CapabilitiesScreen() {
   useEffect(() => ensureCapabilitiesLoaded(), []);
 
   let body;
-  if (list === null) body = listFailed ? <LoadFailed what="capabilities" retry={() => void refreshCapabilities()} /> : <Loading />;
+  if (list === null) body = listFailed ? <LoadFailed what="capabilities" retry={() => void refreshCapabilities()} /> : <LoadingRows />;
   else if (list.length === 0) {
     body = (
       <EmptyState title="Nothing to reach yet">

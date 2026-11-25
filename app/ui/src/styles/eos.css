@@ -246,6 +246,14 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
   animation: eos-appear 0s linear 300ms forwards;
 }
 .eos-skeleton__block { height: 56px; border-radius: 16px; background: var(--raised); }
+.eos-skeleton--rows { gap: 0; }
+.eos-skeleton__label { width: 88px; height: 8px; margin: 4px 0 16px; border-radius: 4px; background: var(--raised); }
+.eos-skeleton__row { display: flex; flex-direction: column; gap: 9px; padding: 16px 0; border-top: 1px solid var(--line); }
+.eos-skeleton__row > span { height: 9px; border-radius: 5px; background: var(--raised); }
+.eos-skeleton__row > span:first-child { width: 38%; height: 11px; }
+.eos-skeleton__row > span:last-child { width: 62%; }
+.eos-skeleton__row:nth-of-type(3n + 2) > span:first-child { width: 30%; }
+.eos-skeleton__row:nth-of-type(3n) > span:last-child { width: 48%; }
 @keyframes eos-appear { to { opacity: 1; } }
 
 /* A labelled list of facts. */
