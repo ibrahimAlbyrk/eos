@@ -34,19 +34,16 @@ export function stationStates(run) {
   return STATIONS.map((s, i) => ({ ...s, state: i < at ? "done" : i === at ? here : "todo" }));
 }
 
-function Mark({ state }) {
-  if (state === "done") {
-    return <svg className="eos-station__mark" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>;
-  }
-  return <span className="eos-station__mark" aria-hidden="true" />;
-}
+// A station is a mark on one line, as Home's day is: the way behind solid,
+// the way ahead dashed, the station the run is at lit in its state's tone.
+const Mark = () => <span className="eos-station__mark" aria-hidden="true" />;
 
 export function RunStations({ run }) {
   return (
     <ol className="eos-stations" aria-label="Stations">
       {stationStates(run).map((s) => (
         <li key={s.key} className={`eos-station eos-station--${s.state}`} aria-current={s.state === "todo" || s.state === "done" ? undefined : "step"}>
-          <Mark state={s.state} />
+          <Mark />
           {s.label}
           <span className="eos-sr">, {WORDS[s.state]}</span>
         </li>

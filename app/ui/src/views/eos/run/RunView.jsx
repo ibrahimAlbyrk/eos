@@ -65,14 +65,14 @@ export function resultDoc(result) {
 // The Needs-you item the run's result waits in, from its timeline.
 const heldItem = (events) => events.findLast((e) => e.kind === "held")?.data?.itemId;
 
-function RunAgain({ detail }) {
+function RunAgain({ detail, primary = false }) {
   const { hosted } = useRunSheet();
   if (hosted === 0) return null;
   const { run, input } = detail;
   return (
     <button
       type="button"
-      className="eos-btn"
+      className={primary ? "eos-btn eos-btn--primary" : "eos-btn"}
       onClick={(e) => openRunSheet({ routineId: run.routineId, anchor: e.currentTarget, input, againOf: run.id })}
     >
       Run again
@@ -91,7 +91,7 @@ function WhatWentWrong({ detail }) {
           {failedChecks.map((c) => <li key={c.key}>{c.note}</li>)}
         </ul>
       )}
-      <div className="eos-actions"><RunAgain detail={detail} /></div>
+      <div className="eos-actions"><RunAgain detail={detail} primary /></div>
     </section>
   );
 }
@@ -106,6 +106,8 @@ function ShownResult({ detail, result }) {
     </section>
   );
 }
+
+const teamCount = (n) => (n === 1 ? "one agent" : `${n} agents`);
 
 function RunBody({ detail, options, result, lines, devRun }) {
   const { run } = detail;
@@ -128,9 +130,15 @@ function RunBody({ detail, options, result, lines, devRun }) {
           {run.state === "failed" && <WhatWentWrong detail={detail} />}
           {run.state === "done" && shownOnly && <ShownResult detail={detail} result={result} />}
           {detail.agents.length > 0 && (
-            <div className="eos-team" aria-label="The team">
-              {detail.agents.map((a) => <TeamCard key={a.workerId} agent={a} lines={lines[a.workerId]} />)}
-            </div>
+            <section className="eos-team" aria-label="The team">
+              <header className="eos-section__head">
+                <h2 className="eos-label">The team</h2>
+                <span className="eos-section__aside">{teamCount(detail.agents.length)}</span>
+              </header>
+              <div className="eos-team__cards">
+                {detail.agents.map((a) => <TeamCard key={a.workerId} agent={a} lines={lines[a.workerId]} />)}
+              </div>
+            </section>
           )}
           {TELLABLE.has(run.state) && <TellTeam runId={run.id} />}
         </section>
@@ -196,7 +204,8 @@ export function RunView({ id }) {
                 {stopping[id] ? "Stopping…" : "Stop"}
               </button>
             )}
-            <RunAgain detail={detail} />
+            {/* A failed run offers Run again beside what went wrong. */}
+            {run.state !== "failed" && <RunAgain detail={detail} />}
           </>
         )}
       </EosHeader>
