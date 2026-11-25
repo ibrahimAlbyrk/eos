@@ -311,11 +311,15 @@
 .eos-side-line--active { color: var(--accent); }
 .eos-side-line--warn { color: var(--warn); }
 .eos-side-line--err { color: var(--err); }
-/* The Run button shows on the row's hover or focus; it keeps its place. */
+/* The Run button shows on the row's hover or focus, over the status line,
+   so the line keeps its full width the rest of the time. */
 .eos-side-run {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  margin-top: -11px;
   width: 22px;
   height: 22px;
-  margin-left: 2px;
   flex: none;
   border: 0;
   border-radius: 7px;
@@ -329,6 +333,8 @@
 }
 .eos-side-routine:hover .eos-side-run,
 .eos-side-run:focus-visible { opacity: 1; }
+.eos-side-routine:has(.eos-side-run):hover .eos-side-line,
+.eos-side-routine:has(.eos-side-run:focus-visible) .eos-side-line { visibility: hidden; }
 .eos-side-run:hover { background: var(--lg-chip-bg); color: var(--fg-strong); }
 
 /* ── The user's display settings ──────────────────────────────────────────── */

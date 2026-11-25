@@ -46,12 +46,12 @@ afterEach(() => {
 });
 
 describe("the Eos sidebar's nav rows", () => {
-  it("lead to New routine, Home, Needs you with its open count, Routines and Capabilities", async () => {
+  it("lead to New routine, Home, Needs you with its open count, Routines, Memory and Capabilities", async () => {
     await load({ [ROUTES.routines]: routines, [ROUTES.inbox]: inbox });
     openLocation("eos:/needs");
     const html = draw();
     const labels = [...html.matchAll(/<span class="sb-nav-row__label">([^<]*)</g)].map((m) => m[1]);
-    expect(labels).toEqual(["New routine", "Home", "Needs you", "Routines", "Capabilities"]);
+    expect(labels).toEqual(["New routine", "Home", "Needs you", "Routines", "Memory", "Capabilities"]);
     expect(html).toContain('<span class="sb-nav-row__meta">⌘N</span>');
     expect(html).toContain('<span class="sb-nav-row__label">Needs you</span><span class="sb-nav-row__meta"><span class="eos-badge">5<span class="eos-sr"> waiting</span></span></span>');
     expect(html).toContain('<button class="sb-nav-row strong on"><span class="sb-nav-row__ic">');
