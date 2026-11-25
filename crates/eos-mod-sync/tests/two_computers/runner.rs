@@ -193,6 +193,31 @@ async fn a_lease_taken_before_the_vault_opened_is_written_at_the_first_read() {
 }
 
 #[tokio::test]
+async fn a_routine_held_elsewhere_is_not_moved_here_while_sync_is_off() {
+    let (vault, clock) = (FakeVault::new(VaultLimits::default()), Arc::new(FakeClock::at(1_000)));
+    let (air, pro) = (computer(&vault, "air", &clock), computer(&vault, "pro", &clock));
+    air.runner.adopt("rt-1").await.unwrap();
+    pro.pull().await;
+    let sink = LeaseSinkOf(pro.runner.clone());
+    sink.attach(None);
+    let claimed = pro.runner.claim("rt-1").await;
+    assert!(matches!(claimed, Err(RunnerError::Off)), "the other computer would never hear of it: {claimed:?}");
+
+    sink.attach(Some(LeaseVault { vault: pro_client(&vault), crypto: Arc::new(Plain) }));
+    pro.pull().await;
+    air.pull().await;
+    assert_eq!(pro.runner.holder("rt-1"), Holder::Elsewhere { device_id: "air".into(), epoch: 1 });
+    assert_eq!(air.runner.holder("rt-1"), Holder::Here { epoch: 1 });
+}
+
+#[tokio::test]
+async fn a_claim_before_sync_opened_waits_for_the_vault() {
+    let clock = Arc::new(FakeClock::at(1_000));
+    let runner = VaultRunner::new("pro", Arc::new(|| "PRO".into()), TempStore::new().store.clone(), clock.clone());
+    assert!(matches!(runner.claim("rt-1").await, Err(RunnerError::Off)));
+}
+
+#[tokio::test]
 async fn an_older_lease_put_back_in_the_vault_never_undoes_a_move() {
     let (vault, clock) = (FakeVault::new(VaultLimits::default()), Arc::new(FakeClock::at(1_000)));
     let (air, pro) = (computer(&vault, "air", &clock), computer(&vault, "pro", &clock));

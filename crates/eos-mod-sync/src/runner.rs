@@ -7,8 +7,8 @@
 //! The view lives in memory and in `signal_runners`, so a restart starts
 //! from what was last read. Until sync says whether a vault is open, the
 //! view counts as shared and unread, so nothing is acted on before a read.
-//! While no vault is open, a routine with no lease is held here and a claim
-//! moves it only on this computer.
+//! With sync off, a routine with no lease is held here and a routine held
+//! elsewhere stays there.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -336,9 +336,18 @@ impl Runner for VaultRunner {
             };
             let (base, epoch) = known.as_ref().map_or((0, 1), |lease| (lease.seq, lease.epoch + 1));
             let record = self.lease_record(routine_id, epoch);
-            match self.vault() {
+            let (vault, attached) = {
+                let view = locked(&self.view);
+                (view.vault.clone(), view.attached)
+            };
+            match vault {
+                // Without the vault the other computer never hears of a move:
+                // both would run the routine, also once sync is back.
+                None if !attached || known.as_ref().is_some_and(|lease| lease.holder != self.device_id) => {
+                    return Err(RunnerError::Off);
+                }
                 None => {
-                    self.take_lease(routine_id, base, &record);
+                    self.take_lease(routine_id, 0, &record);
                 }
                 Some(vault) => {
                     let key = vault.crypto.record_key(LEASE, routine_id);
