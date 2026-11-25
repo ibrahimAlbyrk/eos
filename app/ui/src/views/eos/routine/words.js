@@ -13,7 +13,7 @@ const PAUSED = {
 export const pausedLine = (reason) =>
   PAUSED[reason] ?? (reason?.startsWith("capability:") ? `Paused until ${reason.slice("capability:".length)} works again.` : "Paused.");
 
-const clock = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+const clock = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 // A time as the trigger lines say it: "Mon 09:00".
 export const timeAt = (ms) => clock.format(new Date(ms));

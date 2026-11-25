@@ -55,7 +55,7 @@ export function RunStations({ run }) {
   );
 }
 
-const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const clock = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 // Each time Eos stopped while the run worked, and when it carried on (01 G4):
 // "Interrupted at 14:02, resumed 09:10".
