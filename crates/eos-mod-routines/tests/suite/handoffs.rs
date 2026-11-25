@@ -119,6 +119,10 @@ async fn a_triggered_run_at_ask_waits_for_run_and_a_hand_run_never_asks() {
     bench.eventually(|| bench.run(&by_hand).station == Some(Station::Work)).await;
     assert_eq!(bench.items_of(&routine, ItemKind::RunStart).len(), 1, "starting it was the yes");
     assert_eq!(bench.state(&waiting), RunState::Queued, "still waits for the user");
+    let version = bench.run(&by_hand).version_id.expect("started on a version");
+    let (_, page) = routes.get("/api/runs").await;
+    let shown = page["runs"].as_array().into_iter().flatten().find(|run| run["id"] == json!(by_hand));
+    assert_eq!(shown.map(|run| &run["versionId"]), Some(&json!(version)), "the summary names its version");
 
     bench.answer(&ask, "dashboard", json!({"kind": "run_start", "choice": "run"}));
     bench.eventually(|| bench.state(&waiting) == RunState::Running).await;

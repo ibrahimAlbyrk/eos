@@ -51,16 +51,30 @@ function trialRunsOf(draft, page) {
 }
 
 // A routine being made whose shown version no trial went well on, while a
-// trial ran (on it, or on the architect's version an edit came after):
-// what the start would answer, so trying again comes first.
+// trial ran (on it, or on a version an edit came after): what the start
+// would answer, so trying again comes first. A draft's trials ran on the
+// architect's version; a routine made by hand names each trial's version.
 function untriedLine(draft, rows, versionId, trials) {
-  if (!draft || trials.length === 0) return null;
-  const passed = trials.some((run) => run.state === "done");
-  if (draft.draftVersionId === versionId && passed) return null;
+  if (trials.length === 0) return null;
   const shown = rows?.find((r) => r.id === versionId)?.number;
   if (shown === undefined) return null;
+  if (!draft) return untriedByRuns(rows, versionId, shown, trials);
+  const passed = trials.some((run) => run.state === "done");
+  if (draft.draftVersionId === versionId && passed) return null;
   if (draft.draftVersionId === versionId) return `No trial of version ${shown} went well yet.`;
   const tried = passed ? rows.find((r) => r.id === draft.draftVersionId)?.number : undefined;
+  return tried === undefined ? `Version ${shown} has not been tried.` : `Version ${shown} has not been tried. The trial ran on version ${tried}.`;
+}
+
+// Trials read from the runs, newest first: a run that has not started on a
+// version yet says nothing either way.
+function untriedByRuns(rows, versionId, shown, trials) {
+  const known = trials.filter((run) => run.versionId);
+  if (known.length === 0) return null;
+  const onShown = known.filter((run) => run.versionId === versionId);
+  if (onShown.some((run) => run.state === "done")) return null;
+  if (onShown.length > 0) return `No trial of version ${shown} went well yet.`;
+  const tried = rows.find((r) => r.id === known[0].versionId)?.number;
   return tried === undefined ? `Version ${shown} has not been tried.` : `Version ${shown} has not been tried. The trial ran on version ${tried}.`;
 }
 

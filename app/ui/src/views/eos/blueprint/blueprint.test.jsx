@@ -160,6 +160,35 @@ describe("a routine being made", () => {
     expect(html).not.toContain("Not a trial");
   });
 
+  it("made by hand, says which version its last trial ran on when an edit came after it", async () => {
+    const { [ROUTES.routineDraft(DOCS)]: _draft, ...withoutDraft } = reads;
+    const [first] = SAMPLE_READS[ROUTES.routineVersions(DOCS)];
+    const edited = { ...first, id: "rv-edited000001", number: 2, author: "user" };
+    const trial = {
+      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline: "One review drafted",
+      itemTitle: "Fix the docs links", needsUser: false, costUsd: 0.2, workMs: 60000, createdAt: 1763452800000, versionId: first.id,
+    };
+    const paths = {
+      ...withoutDraft,
+      [ROUTES.routineVersions(DOCS)]: [first, edited],
+      [ROUTES.routineVersion(DOCS, edited.id)]: { ...reads[ROUTES.routineVersion(DOCS, first.id)], ...edited },
+      [`${ROUTES.runs}?routineId=${DOCS}&limit=50`]: { runs: [trial] },
+    };
+    setEosTransport(fixtureTransport(paths));
+    await loadRuns(DOCS);
+    await editor(DOCS, fixtureTransport(paths));
+    await loadVersion(DOCS, edited.id);
+    let html = draw();
+    expect(html).toContain('<p class="eos-note" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
+
+    const again = { ...trial, id: "rn-trial0000002", state: "failed", versionId: edited.id };
+    setEosTransport(fixtureTransport({ ...paths, [`${ROUTES.runs}?routineId=${DOCS}&limit=50`]: { runs: [again, trial] } }));
+    await loadRuns(DOCS);
+    html = draw();
+    expect(html).toContain('<p class="eos-note" role="status">No trial of version 2 went well yet.</p>');
+  });
+
   it("shows the architect asking: the user's words, its question with its choices, and the card to start", async () => {
     const html = await editor(DOCS);
     expect(html).toContain('<div class="eos-bp-bubble">Review every pull request that touches the docs. Show me first.</div>');
