@@ -6,6 +6,7 @@ import { rowOf } from "../../../state/eos/capabilitiesStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { holdEosNavInMemory } from "../nav/eosNav.js";
 import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
+import { RunSheet } from "../runform/RunSheet.jsx";
 import routines from "./sample/routines.json";
 import routineDetail from "./sample/routine-detail.json";
 import routinePaused from "./sample/routine-paused.json";
@@ -138,7 +139,7 @@ function pick(id) {
 }
 
 // Eos's columns in the app's grid, the sidebar sliding out for the field as
-// EosView does. The chrome around them (the mode switcher,
+// EosView does, and the run sheet App hosts. The chrome around them (the mode switcher,
 // the account footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
@@ -149,6 +150,7 @@ export function EosGallery({ state = "home" }) {
         <div className="side-island side-island--agents"><EosSidebarRows /></div>
       </aside>
       <section className="center"><EosMain /></section>
+      <RunSheet />
     </div>
   );
 }
