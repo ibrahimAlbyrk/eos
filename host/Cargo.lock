@@ -2371,6 +2371,7 @@ dependencies = [
 name = "eos-capability-host"
 version = "0.0.1"
 dependencies = [
+ "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-kit-proc",
@@ -2776,6 +2777,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-inbox",
  "eos-runtime",
  "serde",
  "serde_json",
@@ -2822,14 +2824,19 @@ dependencies = [
 name = "eos-mod-forge"
 version = "0.0.1"
 dependencies = [
+ "eos-capabilities",
+ "eos-capability-host",
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-inbox",
  "eos-runtime",
+ "eos-store-files",
  "serde",
  "serde_json",
  "tokio",
  "tracing",
+ "zeroize",
 ]
 
 [[package]]
