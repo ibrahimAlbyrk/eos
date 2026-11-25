@@ -951,6 +951,12 @@ export const api = {
     if (!r.ok) throw new Error(`listUserMemories → ${r.status}`);
     return r.body.memories;
   },
+  // Where each rule the user stated in a chat was said; null when the core
+  // keeps no memory (the rows then say only who wrote them).
+  async listStatedRules() {
+    const r = await getJson(ROUTES.memoryStated);
+    return r.ok && Array.isArray(r.body?.rules) ? r.body.rules : null;
+  },
   async createUserMemory(input) {
     return postJson(ROUTES.userMemories, input, uiTokenHeader());
   },

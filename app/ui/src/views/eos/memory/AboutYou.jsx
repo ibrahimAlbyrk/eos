@@ -21,7 +21,7 @@ import { DreamLog } from "../../memory/DreamLog.jsx";
 // each owns the search and the "Add memory" button above it.
 export function AboutYou({ query, adding, onAddDone }) {
   const memState = useUserMemories();
-  const { memories, error } = memState;
+  const { memories, stated, error } = memState;
   const { profile } = useProfile();
   const { projects, loaded: projectsLoaded } = useProjects();
   const { openSettings } = useSettings();
@@ -80,7 +80,7 @@ export function AboutYou({ query, adding, onAddDone }) {
                 <span className="mem-group__count mono">{g.items.length}</span>
               </header>
               <ul className="mem-group__list">
-                {g.items.map((m) => <MemoryItem key={m.id} memory={m} />)}
+                {g.items.map((m) => <MemoryItem key={m.id} memory={m} statedIn={stated?.[m.id]} />)}
               </ul>
             </section>
           ))}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { deleteMemory, updateMemory } from "../../state/userMemoryStore.js";
 import { sourceLabel } from "../../lib/memoryGroups.js";
+import { agentNameOf } from "../../lib/agentIndex.js";
 
 const PinIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -15,8 +16,9 @@ const TrashIcon = () => (
 );
 
 // One kept memory: click the text to edit it (Enter saves, Esc cancels); the tier
-// chip flips always-on ⇄ on-demand; delete goes to the store's trash.
-export function MemoryItem({ memory }) {
+// chip flips always-on ⇄ on-demand; delete goes to the store's trash. A rule
+// the user stated in a chat names that chat (`statedIn`, its worker id).
+export function MemoryItem({ memory, statedIn }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(memory.text);
   const ref = useRef(null);
@@ -51,6 +53,7 @@ export function MemoryItem({ memory }) {
       )}
       <div className="mem-item__meta">
         <span className="mem-item__source">{sourceLabel(memory)}</span>
+        {statedIn && <span className="mem-item__chat">{statedLabel(statedIn)}</span>}
         <button
           type="button"
           className={`mem-tier${always ? " is-always" : ""}`}
@@ -65,4 +68,10 @@ export function MemoryItem({ memory }) {
       </div>
     </li>
   );
+}
+
+// "from chat X"; a chat no longer listed (archived) is still a chat.
+export function statedLabel(workerId) {
+  const name = agentNameOf(workerId);
+  return name ? `from chat ${name}` : "from an archived chat";
 }

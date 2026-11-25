@@ -7,8 +7,9 @@ import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { afterFirstPaint } from "../lib/firstPaint.js";
 
-// memories: null until loaded.
-let state = { memories: null, error: null };
+// memories: null until loaded. stated: memory id → the chat (worker id) the
+// user stated it in.
+let state = { memories: null, stated: {}, error: null };
 const subs = new Set();
 let loading = null;
 let refreshTimer = null;
@@ -34,8 +35,13 @@ export function useUserMemories() {
 export const pendingMemories = (s) => (s.memories ?? []).filter((m) => m.status === "suggested");
 
 export async function refreshUserMemories() {
-  const memories = await api.listUserMemories().catch(() => null);
-  if (memories) set({ memories });
+  const [memories, rules] = await Promise.all([
+    api.listUserMemories().catch(() => null),
+    api.listStatedRules().catch(() => null),
+  ]);
+  const patch = memories ? { memories } : {};
+  if (rules) patch.stated = Object.fromEntries(rules.map((r) => [r.memoryId, r.workerId]));
+  if (Object.keys(patch).length) set(patch);
   return memories;
 }
 
@@ -77,7 +83,7 @@ export function resyncUserMemories() {
 }
 
 export function _resetUserMemories() {
-  state = { memories: null, error: null };
+  state = { memories: null, stated: {}, error: null };
   loading = null;
   clearTimeout(refreshTimer);
   refreshTimer = null;

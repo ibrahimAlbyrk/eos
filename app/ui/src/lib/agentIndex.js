@@ -39,6 +39,12 @@ export function sessionNameOf(agentId) {
   return names.get(sessionRootOf(agentId)) ?? null;
 }
 
+// The display name of one agent (a chat), or null when it is not in the list
+// (archived, or nameless).
+export function agentNameOf(agentId) {
+  return names.get(agentId) ?? null;
+}
+
 // Root of the agent's parent chain — cycle-guarded, stopping at the last
 // RESOLVABLE node exactly like breadcrumb.js (a parent id the index doesn't
 // know ends the walk at its child). An unknown id resolves to itself (the
