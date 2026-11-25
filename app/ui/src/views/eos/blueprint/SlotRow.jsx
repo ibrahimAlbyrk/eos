@@ -103,7 +103,7 @@ export function SlotRow({ label, parts, onApply, state = "filled", preview, hint
     if (value !== undefined) onApply(opened.apply(value));
   };
   return (
-    <div className={rowClass(state)}>
+    <div className={opened && opened.editor !== "recipient" && opened.editor !== "slack" ? `${rowClass(state)} eos-bp-row--editing` : rowClass(state)}>
       <RowLabel label={label} state={state} />
       <dd className="eos-bp-row__value">
         {parts === null && (

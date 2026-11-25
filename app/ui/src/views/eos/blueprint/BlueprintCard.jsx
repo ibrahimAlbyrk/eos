@@ -22,21 +22,23 @@ function Glyph({ icon, name }) {
 function HeadText({ as: Tag, className, label, value, empty, put, optional = false }) {
   const [open, setOpen] = useState(false);
   if (!put) return value || !optional ? <Tag className={className}>{value || empty}</Tag> : null;
+  // Open, the words become their own field in their own size, in place.
+  if (open) {
+    return (
+      <TextEditor
+        part={{ label, value }}
+        size={className}
+        done={(next) => {
+          setOpen(false);
+          if (next !== undefined && next) put(next);
+        }}
+      />
+    );
+  }
   return (
-    <>
-      <Tag className={className}>
-        <button type="button" className="eos-bp-headvalue" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{value || empty}</button>
-      </Tag>
-      {open && (
-        <TextEditor
-          part={{ label, value }}
-          done={(next) => {
-            setOpen(false);
-            if (next !== undefined && next) put(next);
-          }}
-        />
-      )}
-    </>
+    <Tag className={className}>
+      <button type="button" className="eos-bp-headvalue" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>{value || empty}</button>
+    </Tag>
   );
 }
 
