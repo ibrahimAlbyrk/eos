@@ -4,19 +4,20 @@ import { release, retain, useRunLines } from "../../../state/eos/runLiveStore.js
 import { loadRun, loadRunResult, pauseRun, resumeRun, stopRun, useRuns } from "../../../state/eos/runsStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
-import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { DevRunNote, Loading } from "../capabilities/parts.jsx";
+import { FailedLead } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
-import { openLocation } from "../nav/eosNav.js";
 import { DocView } from "../needs/results/ResultView.jsx";
 import { RoutinePage } from "../routine/RoutinePage.jsx";
 import { splitItemNumber } from "../routine/RoutineRuns.jsx";
 import { RunCost } from "./RunCost.jsx";
 import { RunMemory } from "./RunMemory.jsx";
-import { Interruptions, RunStations } from "./RunStations.jsx";
+import { RunCheck } from "./RunCheck.jsx";
+import { RunGone, RunLead, RunLeadGhost } from "./RunLead.jsx";
 import { RunTook } from "./RunTook.jsx";
 import { TeamCard } from "./TeamCard.jsx";
 import { TellTeam } from "./TellTeam.jsx";
-import { hasEnded, isShownOnly, itemLine, originLine, reasonLine, stateChip } from "./words.js";
+import { hasEnded, isShownOnly, itemLine, reasonLine, stateChip } from "./words.js";
 
 // The user may tell the team something while it works, checks or waits for
 // them (01 G18); a run is stopped in any state but delivering and the ended ones.
@@ -62,9 +63,6 @@ export function resultDoc(result) {
   return { kind: result.kind, parts: [{ key: "body", role: "text", text }] };
 }
 
-// The Needs-you item the run's result waits in, from its timeline.
-const heldItem = (events) => events.findLast((e) => e.kind === "held")?.data?.itemId;
-
 function RunAgain({ detail, primary = false }) {
   const { hosted } = useRunSheet();
   if (hosted === 0) return null;
@@ -77,22 +75,6 @@ function RunAgain({ detail, primary = false }) {
     >
       Run again
     </button>
-  );
-}
-
-function WhatWentWrong({ detail }) {
-  const failedChecks = detail.verdict?.checks.filter((c) => !c.ok) ?? [];
-  return (
-    <section className="eos-card eos-run-wrong" aria-label="What went wrong">
-      <h2 className="eos-label">What went wrong</h2>
-      <p className="eos-run-wrong__reason">{reasonLine(detail.run)}</p>
-      {failedChecks.length > 0 && (
-        <ul className="eos-run-wrong__checks">
-          {failedChecks.map((c) => <li key={c.key}>{c.note}</li>)}
-        </ul>
-      )}
-      <div className="eos-actions"><RunAgain detail={detail} primary /></div>
-    </section>
   );
 }
 
@@ -109,25 +91,15 @@ function ShownResult({ detail, result }) {
 
 const teamCount = (n) => (n === 1 ? "one agent" : `${n} agents`);
 
-function RunBody({ detail, options, result, lines, devRun }) {
+function RunBody({ detail, options, result, lines, devRun, now }) {
   const { run } = detail;
   const shownOnly = isShownOnly(detail);
-  const itemId = run.state === "waiting_for_user" ? heldItem(detail.events) : undefined;
   return (
     <div className="eos-body eos-run">
       {devRun && <DevRunNote />}
+      <RunLead detail={detail} sentence={runSentence(detail)} now={now} act={run.state === "failed" ? <RunAgain detail={detail} primary /> : null} />
       <div className="eos-run__columns">
         <section className="eos-run__main" aria-label="The run">
-          <div>
-            <p className="eos-run__sentence">
-              {runSentence(detail)}
-              {itemId && <> <button type="button" className="eos-link" onClick={() => openLocation(`eos:/needs/${encodeURIComponent(itemId)}`)}>Open it</button></>}
-            </p>
-            {shownOnly && <p className="eos-run__shown">Shown to you only. Nothing will be sent from this run.</p>}
-          </div>
-          <RunStations run={run} />
-          <Interruptions events={detail.events} />
-          {run.state === "failed" && <WhatWentWrong detail={detail} />}
           {run.state === "done" && shownOnly && <ShownResult detail={detail} result={result} />}
           {detail.agents.length > 0 && (
             <section className="eos-team" aria-label="The team">
@@ -141,6 +113,7 @@ function RunBody({ detail, options, result, lines, devRun }) {
             </section>
           )}
           {TELLABLE.has(run.state) && <TellTeam runId={run.id} />}
+          <RunCheck verdict={detail.verdict} />
         </section>
         <aside className="eos-run-aside" aria-label="About this run">
           <RunTook input={detail.input} options={options} />
@@ -186,12 +159,7 @@ export function RunView({ id }) {
     <main className="eos-screen eos-screen--wide">
       <EosHeader
         trail={trail}
-        mark={run && (
-          <>
-            <span className="eos-chip">{originLine(run.origin)}</span>
-            <span className={chip.tone ? `eos-status eos-status--${chip.tone}` : "eos-status"}>{chip.text}</span>
-          </>
-        )}
+        mark={run && <span className={chip.tone ? `eos-status eos-status--${chip.tone}` : "eos-status"}>{chip.text}</span>}
       >
         {run && (
           <>
@@ -209,9 +177,9 @@ export function RunView({ id }) {
           </>
         )}
       </EosHeader>
-      {!detail && failed[id] === "gone" && <div className="eos-body"><p className="eos-note">This run is no longer here.</p></div>}
-      {!detail && failed[id] === "error" && <div className="eos-body"><LoadFailed what="this run" retry={() => void loadRun(id)} /></div>}
-      {!detail && !failed[id] && <div className="eos-body"><Loading blocks={3} /></div>}
+      {!detail && failed[id] === "gone" && <div className="eos-body eos-run"><RunGone /></div>}
+      {!detail && failed[id] === "error" && <div className="eos-body eos-run"><FailedLead what="this run" retry={() => void loadRun(id)} /></div>}
+      {!detail && !failed[id] && <div className="eos-body eos-run"><RunLeadGhost /></div>}
       {detail && (
         <RunBody
           detail={detail}
@@ -219,6 +187,7 @@ export function RunView({ id }) {
           result={showsResult ? results[id] : null}
           lines={lines}
           devRun={devRun}
+          now={now}
         />
       )}
     </main>

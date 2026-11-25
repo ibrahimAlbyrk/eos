@@ -7,59 +7,110 @@
 .eos-head__side { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
 
 /* ── The run ──────────────────────────────────────────────────────────────── */
-/* Too narrow for both side by side, the aside goes under the run, as a
-   Needs-you item's does. */
-.eos-run__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; }
-.eos-run__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 32px; container: eos-run-main / inline-size; }
-.eos-run__sentence { margin: 0; font-size: 24px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; }
-.eos-run__shown { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-run__interruptions { margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--fg-dim); }
+/* The lead as a routine's page leads (.eos-rlead): how it started, its
+   sentence, where it stands, its facts and its one act, then its stations.
+   Too narrow for both side by side, the aside goes under the run. */
+.eos-run__sentence { margin: 0; max-width: 34em; font-size: 24px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; overflow-wrap: anywhere; }
+.eos-run-lead__facts { display: flex; flex-direction: column; gap: 6px; margin-top: -2px; }
+.eos-run__interruptions { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.eos-rlead__now--active { position: relative; }
+.eos-rlead__now--active::before { content: ""; position: absolute; left: -22px; top: 0.5em; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-run__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; margin-top: 16px; flex: 1 0 auto; }
+.eos-run__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 40px; align-self: stretch; container: eos-run-main / inline-size; }
 
-/* The stations as Home draws the day: one line, each station a mark on it
-   with its name under; the way behind solid, the way ahead dashed, the
-   station the run is at lit in its tone with a halo. */
-.eos-stations { margin: 4px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 620px; }
-.eos-station { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; font-size: var(--text-sm); color: var(--fg-dim2); }
-.eos-station:not(:last-child)::after { content: ""; position: absolute; top: 4px; left: 19px; right: 10px; border-top: 1px dashed var(--fg-faint); }
-.eos-station--done:not(:last-child)::after { border-top: 1px solid var(--fg-dim2); }
-.eos-station__mark { flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-faint); background: var(--bg); }
+/* The stations as Home draws the day: one line across the measure that runs
+   on into the gutter and fades, each station a mark with its name under; the
+   way behind solid, the way ahead dashed, the station the run is at lit in
+   its tone with a halo and its word under its name, breathing while it works. */
+.eos-stations-wrap { --bleed: var(--eos-bleed); align-self: stretch; margin: 26px calc(-1 * var(--bleed)) 0; }
+.eos-stations {
+  margin: 0;
+  padding: 0 var(--bleed);
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
+}
+.eos-station { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; font-size: var(--text-sm); color: var(--fg-dim2); text-align: center; }
+.eos-station::before, .eos-station::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  height: 1px;
+  background: repeating-linear-gradient(to right, var(--fg-faint) 0 4px, transparent 4px 8px);
+}
+.eos-station::before { left: 0; right: calc(50% + 12px); }
+.eos-station::after { left: calc(50% + 12px); right: 0; }
+.eos-station:first-child::before { left: calc(-1 * var(--bleed)); }
+.eos-station:last-child::after { right: calc(-1 * var(--bleed)); }
+.eos-station:not(.eos-station--todo)::before, .eos-station--done::after { background: color-mix(in srgb, var(--fg-dim2) 70%, transparent); }
+.eos-station__mark { flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); background: var(--bg); }
+.eos-station__name { font-weight: 400; }
+.eos-station__word { margin-top: -6px; font-size: var(--text-xs); }
 .eos-station--done { color: var(--fg-mid); }
-.eos-station--done .eos-station__mark { border-color: var(--fg-dim2); background: var(--fg-dim2); }
-.eos-station--current, .eos-station--paused, .eos-station--failed { color: var(--fg-strong); font-weight: 500; }
+.eos-station--done .eos-station__mark { background: var(--fg-dim2); }
+.eos-station--current, .eos-station--paused, .eos-station--failed { color: var(--fg-strong); }
+.eos-station--current .eos-station__name, .eos-station--paused .eos-station__name, .eos-station--failed .eos-station__name { font-weight: 500; }
 .eos-station--current .eos-station__mark { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-station--current .eos-station__word { color: var(--accent); }
 .eos-station--paused .eos-station__mark { border-color: var(--warn); background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 22%, transparent); }
+.eos-station--paused .eos-station__word { color: var(--warn); }
 .eos-station--failed .eos-station__mark { border-color: var(--err); background: var(--err); box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 22%, transparent); }
+.eos-station--failed .eos-station__word { color: var(--err); }
 .eos-station--stopped { color: var(--fg-mid); }
-.eos-station--stopped .eos-station__mark { border-color: var(--fg-dim2); }
+.eos-station--stopped .eos-station__word { color: var(--fg-dim2); }
+.eos-stations--working .eos-station--current .eos-station__mark { animation: eos-beat-breathe calc(2400ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+@media (prefers-reduced-motion: reduce) { .eos-stations--working .eos-station--current .eos-station__mark { animation: none; } }
 
-.eos-run-wrong { display: flex; flex-direction: column; gap: 10px; box-shadow: inset 2px 0 0 var(--err); }
-.eos-run-wrong__reason { margin: 0; font-size: var(--text-base); color: var(--fg); }
-.eos-run-wrong__checks { margin: 0; padding-left: 18px; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-run-result { display: flex; flex-direction: column; gap: 10px; }
+.eos-run-result { display: flex; flex-direction: column; gap: 12px; }
+.eos-run-result > .eos-label + * { padding-top: 16px; border-top: 1px solid var(--line); }
 
+/* The check: each rule on a hairline after its mark; what it must fix under. */
+.eos-run-check__failed { color: var(--err); }
+.eos-run-check__rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.eos-run-check__rows > li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.eos-run-check__rows > .eos-fact--err { color: var(--fg); }
+.eos-run-check__fix { display: flex; flex-direction: column; gap: 6px; padding-left: 21px; }
+.eos-run-check__fix-label { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-run-check__fix ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg); }
+
+/* The team: each agent a card, side by side as space allows; its state a
+   mark before its name (accent and breathing while it works), its cost at
+   the right, its model and state in mono under, then what it did last. */
 .eos-team { display: flex; flex-direction: column; gap: 12px; }
-/* Each agent a card, side by side as space allows. */
-.eos-team__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.eos-team-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; }
-.eos-team-card__head { display: flex; flex-direction: column; gap: 2px; }
-.eos-team-card__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-team-card__side { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-team-card__lines { min-width: 0; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
+.eos-team__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.eos-team-card { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: 14px; }
+.eos-team-card__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 10px; row-gap: 4px; }
+.eos-team-card__mark { align-self: center; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
+.eos-team-card__mark--working { border-color: var(--accent); background: var(--accent); animation: eos-beat-breathe calc(2400ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+.eos-team-card__mark--starting { border-color: var(--accent); }
+.eos-team-card__mark--done { background: var(--fg-dim2); }
+.eos-team-card__mark--stopping { border-color: var(--warn); }
+@media (prefers-reduced-motion: reduce) { .eos-team-card__mark--working { animation: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } }
+.eos-team-card__name { min-width: 0; overflow-wrap: anywhere; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-team-card__cost { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-team-card__side { grid-column: 2 / -1; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-team-card__lines { min-width: 0; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--line); list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
 .eos-team-card__lines li:last-child { color: var(--fg); }
-.eos-team-card--working { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 80%, transparent); }
+.eos-team-card--working { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
 .eos-team-card--working .eos-team-card__lines { font-family: var(--font-mono); font-size: 12.5px; }
 
 /* Tell the team follows the team, not the window's foot, and stays in
    view while a long team scrolls. */
-.eos-run__columns { flex: 1 0 auto; }
-.eos-run__main { align-self: stretch; }
-.eos-run__tell { position: sticky; bottom: 16px; z-index: 1; }
+.eos-run__tell { position: sticky; bottom: 16px; z-index: 1; margin-top: -16px; }
 
-.eos-run-aside { flex: 1 1 280px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
+.eos-run-aside { flex: 1 1 280px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
 .eos-run-aside__part { display: flex; flex-direction: column; gap: 12px; }
-.eos-run-aside__part > .eos-label + * { padding-top: 12px; border-top: 1px solid var(--line); }
+.eos-run-aside__part > .eos-label + * { padding-top: 14px; border-top: 1px solid var(--line); }
 .eos-run-aside__part .eos-facts__row dt { flex-basis: 70px; }
-.eos-run-aside__text { margin: 0; font-size: var(--text-sm); color: var(--fg); }
+/* Time and cost as two figures, the usual under each. */
+.eos-run-cost { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.eos-run-cost__fig { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.eos-run-cost__fig dt { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-run-cost__fig dd { margin: 0; }
+.eos-run-cost__value { font-family: var(--font-mono); font-size: 20px; line-height: 1.3; color: var(--fg-strong); }
+.eos-run-cost__usual { font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* ── The routine ──────────────────────────────────────────────────────────── */
 /* The lead, as Home greets: a label of what kind of routine it is, what it
@@ -304,23 +355,35 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-menu__item:hover, .eos-menu__item:focus-visible { background: var(--chip); }
 
 /* ── A project routine (SurfaceApp): steps, the team's word, the side panel ── */
-.eos-project { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-.eos-project__main { flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.eos-project__aside { flex: 1 1 360px; max-width: 460px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+/* A project: its steps on a spine in the main column, the side panel in
+   the aside, columns 56 apart as the routine's own. */
+.eos-project { display: flex; flex-wrap: wrap; gap: 40px 56px; align-items: flex-start; padding-top: 8px; }
+.eos-project__main { flex: 999 1 480px; min-width: 0; gap: 16px; }
+.eos-project__aside { flex: 1 1 300px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.eos-project__head { padding-bottom: 12px; border-bottom: 1px solid var(--line); align-items: center; }
+.eos-project__toggle { height: 26px; padding: 0 10px; }
 .eos-project__panel { position: relative; width: 100%; min-height: 0; }
-.eos-project__said { padding: 14px 16px; }
-.eos-project__said-text { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
-.eos-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; font-size: var(--text-sm); }
-.eos-step { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0; }
-.eos-step + .eos-step { border-top: 1px solid var(--line); }
-.eos-step__title { flex: 1; min-width: 0; color: var(--fg); overflow-wrap: anywhere; }
+.eos-project__main .eos-run__tell { margin-top: 8px; }
+/* The steps hang on a spine as the blueprint's slots do: a 1 px line through
+   the marks, solid where the steps are done, dashed ahead; hairlines start
+   after the spine so the marks hang free. */
+.eos-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.eos-step { position: relative; display: grid; grid-template-columns: 28px 28px minmax(0, 1fr); align-items: baseline; row-gap: 6px; padding: 14px 0; font-size: var(--text-sm); }
+.eos-step + .eos-step::after { content: ""; position: absolute; top: -1px; left: 28px; right: 0; border-top: 1px solid var(--line); }
+.eos-step::before { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; border-left: 1px dashed var(--fg-faint); }
+.eos-step--done::before { border-left-style: solid; border-left-color: color-mix(in srgb, var(--fg-dim2) 70%, transparent); }
+.eos-step:first-child::before { top: 20px; }
+.eos-step:last-child::before { bottom: calc(100% - 20px); }
+.eos-step__mark { position: relative; z-index: 1; align-self: start; margin-top: 5px; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); background: var(--bg); }
+.eos-step--done .eos-step__mark { background: var(--fg-dim2); }
+.eos-step--now .eos-step__mark { border-color: var(--accent); background: var(--accent); animation: eos-beat-breathe calc(2400ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+@media (prefers-reduced-motion: reduce) { .eos-step--now .eos-step__mark { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); } }
+.eos-step__num { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; color: var(--fg-dim2); }
+.eos-step__title { min-width: 0; color: var(--fg-dim); overflow-wrap: anywhere; }
 .eos-step--done .eos-step__title { color: var(--fg-mid); }
-.eos-step--now .eos-step__title { color: var(--fg-strong); }
-.eos-step__line { flex: 0 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--fg-mid); overflow-wrap: anywhere; }
-.eos-step__mark { flex: none; width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; }
-.eos-step__mark--done { fill: none; stroke: var(--ok); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.eos-step__mark--now::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.eos-step__mark--next::before { content: ""; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim); }
+.eos-step--now .eos-step__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-step--now .eos-step__num { color: var(--accent); }
+.eos-step__line { grid-column: 3; min-width: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--fg-mid); overflow-wrap: anywhere; }
 .eos-routine__week .eos-facts__row dt { flex-basis: 150px; }
 
 /* Which Mac runs it, when another one does: a fact under the lead's words

@@ -175,6 +175,33 @@ const unconfirmedResume = {
 };
 const archivedPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => ["done", "cancelled", "failed"].includes(r.state)), routine: { ...d.routine, state: "archived", activeRuns: 0, lastRun: d.runs.find((r) => r.state === "done") } }));
 
+// The working run with a team of six: three more specialists, one of them
+// done, one starting, one with a long line of what it does.
+const crowdedRun = (s) => {
+  const path = ROUTES.run("rn-running01");
+  const detail = s[path];
+  const more = [
+    { workerId: "w-x1", role: "specialist", name: "Shader specialist", model: "claude-sonnet-4-5", state: "WORKING", costUsd: 0.08, lastActivity: "comparing ShopCarousel.shader against the paging change in CarouselPager.cs and the snapshot tests" },
+    { workerId: "w-x2", role: "specialist", name: "Test writer", model: "claude-haiku-4-5", state: "DONE", costUsd: 0.03, lastActivity: "wrote three paging tests" },
+    { workerId: "w-x3", role: "checker", model: "claude-haiku-4-5", state: "SPAWNING" },
+  ];
+  return { ...s, [path]: { ...detail, agents: [...detail.agents, ...more] } };
+};
+
+// PR Review as a project (01 G10): seven milestones, its newest run at the
+// fourth, or done with all of them.
+const MILESTONES = [
+  "Read the shop's code and its tests", "Plan the paging change", "Move the pager to its own module",
+  "Rework the carousel paging", "Add paging tests", "Check it on a slow device", "Open the pull request",
+].map((title, i) => ({ key: `m${i + 1}`, title }));
+const projectPrAt = (state, done) => (s) => prWith(s, (d) => {
+  const head = { ...d.head, blueprint: { ...d.head.blueprint, kind: "project", project: { repo: "acme/game", milestones: MILESTONES } } };
+  const lastRun = { ...d.runs[0], kind: "project", state, milestonesDone: done };
+  return { ...d, head, runs: [lastRun, ...d.runs.slice(1)], routine: { ...d.routine, kind: "project", lastRun } };
+});
+const projectPr = projectPrAt("running", 3);
+const projectPrDone = projectPrAt("done", 7);
+
 // The draft answered five minutes before the gallery opened, last of all.
 const answered = (s) => {
   const item = s[ROUTES.inboxItem("ib-8m2n6b0v4c1x")].item;
@@ -215,6 +242,8 @@ export const GALLERY_STATES = [
   { id: "routine-held-away", label: "Routine · its Mac is away", location: `eos:/routines/${PR}`, reads: heldPr(Date.now() - 26 * 60 * 60 * 1000) },
   { id: "routine-unconfirmed", label: "Routine · Resume waits for recipients", location: `eos:/routines/${routinePaused.routine.id}`, ...unconfirmedResume },
   { id: "routine-archived", label: "Routine · archived", location: `eos:/routines/${PR}`, reads: archivedPr },
+  { id: "routine-project", label: "Routine · a project at step four of seven", location: `eos:/routines/${PR}`, reads: projectPr },
+  { id: "routine-project-done", label: "Routine · a project, every step done", location: `eos:/routines/${PR}`, reads: projectPrDone },
   { id: "routine-runs", label: "Routine · Runs", location: `eos:/routines/${PR}?tab=runs` },
   { id: "routine-signals", label: "Routine · Signals", location: `eos:/routines/${PR}?tab=signals` },
   { id: "routine-signals-empty", label: "Routine · Signals, nothing came yet", location: `eos:/routines/${PR}?tab=signals`, reads: (s) => ({ ...s, [`${ROUTES.signals}?routine=${PR}`]: [] }) },
@@ -241,6 +270,15 @@ export const GALLERY_STATES = [
   { id: "run-waiting", label: "Run · waiting for you", location: "eos:/runs/rn-waiting01" },
   { id: "run-failed", label: "Run · failed", location: "eos:/runs/rn-failed01" },
   { id: "run-queued", label: "Run · queued", location: "eos:/runs/rn-queued01" },
+  { id: "run-checking", label: "Run · being checked", location: "eos:/runs/rn-checking01" },
+  { id: "run-shown", label: "Run · done, shown to you only", location: "eos:/runs/rn-shown01" },
+  { id: "run-trial", label: "Run · a trial", location: "eos:/runs/rn-trial01" },
+  { id: "run-paused", label: "Run · paused by the day's limit", location: "eos:/runs/rn-paused01" },
+  { id: "run-cancelled", label: "Run · stopped by you", location: "eos:/runs/rn-cancelled01" },
+  { id: "run-crowded", label: "Run · a team of six", location: "eos:/runs/rn-running01", reads: crowdedRun },
+  { id: "run-loading", label: "Run · loading", location: "eos:/runs/rn-running01", answer: "loading" },
+  { id: "run-error", label: "Run · cannot read", location: "eos:/runs/rn-running01", answer: "error" },
+  { id: "run-gone", label: "Run · no longer here", location: "eos:/runs/rn-gone" },
   { id: "memory", label: "Memory", location: "eos:/memory" },
   { id: "memory-note", label: "Memory · a note open", location: `eos:/memory?tab=work&note=${memory.details.find((d) => d.note.text.startsWith("Run lint"))?.note.id ?? memory.details[0].note.id}` },
   { id: "memory-about", label: "Memory · About you", location: "eos:/memory?tab=about" },

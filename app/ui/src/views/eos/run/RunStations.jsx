@@ -35,20 +35,29 @@ export function stationStates(run) {
 }
 
 // A station is a mark on one line, as Home's day is: the way behind solid,
-// the way ahead dashed, the station the run is at lit in its state's tone.
+// the way ahead dashed, the station the run is at lit in its state's tone
+// and saying so under its name. The line runs on into the gutter and fades.
 const Mark = () => <span className="eos-station__mark" aria-hidden="true" />;
+const SAID = new Set(["current", "paused", "failed", "stopped"]);
+// What the station it is at says under its name, by the run's state.
+const NOW_WORDS = { waiting_for_user: "waits for you", delivering: "sending" };
 
 export function RunStations({ run }) {
+  const working = run.state === "running" || run.state === "checking";
   return (
-    <ol className="eos-stations" aria-label="Stations">
-      {stationStates(run).map((s) => (
-        <li key={s.key} className={`eos-station eos-station--${s.state}`} aria-current={s.state === "todo" || s.state === "done" ? undefined : "step"}>
-          <Mark />
-          {s.label}
-          <span className="eos-sr">, {WORDS[s.state]}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="eos-stations-wrap">
+      <ol className={working ? "eos-stations eos-stations--working" : "eos-stations"} aria-label="Stations">
+        {stationStates(run).map((s) => (
+          <li key={s.key} className={`eos-station eos-station--${s.state}`} aria-current={s.state === "todo" || s.state === "done" ? undefined : "step"}>
+            <Mark />
+            <span className="eos-station__name">{s.label}</span>
+            {SAID.has(s.state)
+              ? <span className="eos-station__word"><span className="eos-sr">, </span>{s.state === "current" ? NOW_WORDS[run.state] ?? WORDS.current : WORDS[s.state]}</span>
+              : <span className="eos-sr">, {WORDS[s.state]}</span>}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -69,12 +78,13 @@ export function interruptionLines(events) {
   return lines;
 }
 
+// Each as a hollow fact under the lead: Eos stopping is no fault of the run.
 export function Interruptions({ events }) {
   const lines = interruptionLines(events);
   if (lines.length === 0) return null;
   return (
     <ul className="eos-run__interruptions">
-      {lines.map((line, i) => <li key={i}>{line}</li>)}
+      {lines.map((line, i) => <li key={i} className="eos-fact">{line}</li>)}
     </ul>
   );
 }
