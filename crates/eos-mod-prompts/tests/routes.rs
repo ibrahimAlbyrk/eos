@@ -21,6 +21,26 @@ fn prompts() -> Arc<PromptService> {
     Arc::new(PromptService::new(registry, tool_name_vars()))
 }
 
+/// How the memory fragments (worker `10c`, orchestrator `12c`, focused `01`)
+/// opened their rule line in the recording, and how they open it here: Eos
+/// keeps a rule the user states by itself (`fixtures/wire/rust-differences.toml`).
+const STATED_RULE: (&str, &str) = (
+    "When the user states how agents should work with them from now on (\"from now on…\", \"always…\"), or makes \
+     the same correction",
+    "Eos keeps a rule the user states for how agents should work with them from now on (\"from now on…\", \
+     \"always…\") by itself. When the user makes the same correction",
+);
+
+/// A recorded answer with the memory fragments' rule line as this app words it.
+fn reworded(value: Value) -> Value {
+    match value {
+        Value::String(text) => Value::String(text.replace(STATED_RULE.0, STATED_RULE.1)),
+        Value::Array(list) => Value::Array(list.into_iter().map(reworded).collect()),
+        Value::Object(map) => Value::Object(map.into_iter().map(|(key, value)| (key, reworded(value))).collect()),
+        other => other,
+    }
+}
+
 /// The profile block inside the recorded preview: what stands where the
 /// worker preamble has `{{USER_PROFILE}}`. The block itself is the profile
 /// feature's to render; here it comes from the TypeScript's own answer, so
@@ -33,21 +53,71 @@ fn recorded_profile(prompts: &PromptService) -> String {
     .expect("a context");
     let ours = assemble_system_prompt(prompts, &ctx, Vec::new()).text;
     let (before, after) = ours.split_once(MARK).expect("the preamble shows the profile");
-    let recorded = fixtures::recorded_response("33-settings", "prompt-preview");
+    let recorded = reworded(fixtures::recorded_response("33-settings", "prompt-preview"));
     let text = recorded["json"]["text"].as_str().expect("the recorded text");
     let profile = text.strip_prefix(before).and_then(|rest| rest.strip_suffix(after));
     profile.expect("the recorded preview is ours around the profile block").to_owned()
 }
 
 /// Prompts of features the TypeScript app did not have: the capability tools,
-/// reactions and a focused chat's subagent models.
-const ADDED: [&str; 6] = [
+/// reactions, a focused chat's subagent models, memory's reflection and
+/// recall, and routines with their lead, checker, specialists, pages, apps,
+/// signals and the Forge.
+const ADDED: &[&str] = &[
     "tool/call_capability",
     "tool/list_capabilities",
     "reactions",
     "tool/react",
     "tool/no_reply",
     "role/focused/06-models",
+    "memory/generalize-system",
+    "memory/generalize",
+    "memory/playbook-system",
+    "memory/playbook",
+    "memory/reflect-system",
+    "memory/reflect",
+    "micro-tasks/signal-match",
+    "role/focused/20-routine-architect",
+    "role/focused/21-routine-lead",
+    "role/focused/22-routine-checker",
+    "role/focused/23-routine-designer",
+    "role/worker/20-routine-specialist",
+    "routine/architect-change",
+    "routine/architect-make",
+    "routine/check-brief",
+    "routine/design-brief",
+    "routine/intent-system",
+    "routine/intent",
+    "routine/once-blueprint-system",
+    "routine/once-blueprint",
+    "routine/run-brief",
+    "routine/specialist-brief",
+    "routine/suggest",
+    "tool/app_propose",
+    "tool/app_review",
+    "tool/ask_choice",
+    "tool/complete_milestone",
+    "tool/fill_page",
+    "tool/find_past_items",
+    "tool/forge_report",
+    "tool/get_routine",
+    "tool/list_routines",
+    "tool/list_specialists",
+    "tool/message_specialist",
+    "tool/page_design_propose",
+    "tool/page_design_read",
+    "tool/propose_blueprint",
+    "tool/recall_experience",
+    "tool/report_failure",
+    "tool/report_progress",
+    "tool/request_capability",
+    "tool/return_view",
+    "tool/run_routine",
+    "tool/start_specialist",
+    "tool/start_trial",
+    "tool/stop_specialist",
+    "tool/submit_result",
+    "tool/submit_verdict",
 ];
 
 /// A recorded answer as this app gives it: the catalog without the goal loop's
@@ -105,13 +175,13 @@ async fn the_catalog_and_the_preview_answer_as_recorded() {
         ("prompt-preview", Method::Post, "/api/prompts/preview", Some(r#"{"role":"worker"}"#)),
         ("prompt-preview-invalid", Method::Post, "/api/prompts/preview", Some(r#"{"role":"king"}"#)),
     ] {
-        let recorded = fixtures::recorded_response("33-settings", step);
+        let recorded = reworded(fixtures::recorded_response("33-settings", step));
         let (status, json) = ask(&app, method, path, body).await;
         assert_eq!(Value::from(status), recorded["status"], "{step}");
         assert_eq!(json, shipped(recorded["json"].clone(), &json), "{step}");
     }
     // No body at all is the default worker (`90-gates`).
-    let recorded = fixtures::recorded_response("90-gates", "post-api-prompts-preview");
+    let recorded = reworded(fixtures::recorded_response("90-gates", "post-api-prompts-preview"));
     assert_eq!(ask(&app, Method::Post, "/api/prompts/preview", None).await.1, recorded["json"]);
 }
 
