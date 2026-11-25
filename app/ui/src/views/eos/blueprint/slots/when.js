@@ -48,13 +48,13 @@ function scheduleParts(s, put, n) {
 
 // What a capability's trigger is about: the item a run takes when it is
 // that source's ("A pull request is "), else the capability by its name and
-// the source's words ("GitHub pulls: "), never its id.
+// the source's words ("GitHub pulls: "), never its dotted id.
 function sourceLead(source, { capabilities = [], takes } = {}) {
   const item = takes?.source === source && takes.label;
   if (item) return [`${/^[aeiou]/i.test(item) ? "An" : "A"} ${item} is `];
   const [id, ...rest] = source.split(".");
   const name = capabilities.find((c) => c.id === id)?.name;
-  return [name ? `${[name, ...rest].join(" ").replace(/[_-]/g, " ")}: ` : `${source}: `];
+  return [`${[name ?? id, ...rest].join(" ").replace(/[_-]/g, " ")}: `];
 }
 
 // The parts of trigger `n`; `put` takes its replacement.

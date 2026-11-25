@@ -79,7 +79,7 @@ describe("#eos-gallery", () => {
     expect(new Set(ids).size).toBe(ids.length);
     for (const st of GALLERY_STATES) expect(parseLocation(st.location), st.id).not.toBeNull();
     const screens = new Set(GALLERY_STATES.map((st) => parseLocation(st.location).screen));
-    for (const screen of ["home", "needs", "need", "routines", "routine", "run", "memory", "capabilities", "surface"]) expect(screens).toContain(screen);
+    for (const screen of ["home", "needs", "need", "routines", "routine", "new-routine", "run", "memory", "capabilities", "surface"]) expect(screens).toContain(screen);
     const candidate = galleryTransport(stateOf("page-candidate"));
     expect((await candidate.get(ROUTES.surface(paper.surface.id))).body.candidateVersion).toBe(3);
     expect((await galleryTransport(stateOf("home-error")).get(ROUTES.routines)).status).toBe(500);

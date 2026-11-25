@@ -41,8 +41,8 @@ function Question({ routineId, draft }) {
       <div className="eos-bp-question__text" dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.question) }} />
       {draft.choices.length > 0 && (
         <div className="eos-actions">
-          {draft.choices.map((choice) => (
-            <button key={choice} type="button" className="eos-btn" onClick={() => void sayToArchitect(routineId, { choice })}>{choice}</button>
+          {draft.choices.map((choice, n) => (
+            <button key={choice} type="button" className={n === 0 ? "eos-btn eos-btn--primary" : "eos-btn"} onClick={() => void sayToArchitect(routineId, { choice })}>{choice}</button>
           ))}
         </div>
       )}
@@ -101,7 +101,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
     if (id) openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
   };
   const working = draft && WORKING[draft.status];
-  const quiet = !isNew && !making && !draft && said.length === 0 && !note;
+  const quiet = !making && !draft && said.length === 0 && !note;
   return (
     <section className="eos-bp-chat" aria-label="Conversation with the architect">
       {draft?.purpose && <div className="eos-bp-bubble">{draft.purpose}</div>}
@@ -113,7 +113,13 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
       {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} drafts={note.drafts} />}
       {note?.kind === "refusal" && <p className="eos-note" role="alert">{note.text}</p>}
-      {quiet && <p className="eos-bp-chat__hint">Say what to change. Eos writes a new version beside this one, and nothing changes until you use it.</p>}
+      {quiet && (
+        <p className="eos-bp-chat__hint">
+          {isNew
+            ? "Say in your own words what Eos should take care of, and it writes the blueprint here. Or fill it in by hand."
+            : "Say what to change. Eos writes a new version beside this one, and nothing changes until you use it."}
+        </p>
+      )}
       <span className="eos-bp-chat__fill" />
       {making && draft === null ? (
         <p className="eos-note">This routine was made by hand. Change it on the card; once it runs, say what to change here.</p>

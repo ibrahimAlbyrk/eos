@@ -46,6 +46,13 @@ function Part({ part, editable, open, setOpen, apply }) {
   );
 }
 
+// The parts a read-only row shows: no adders or acts, and no line break
+// that would only leave an empty line.
+function readOnly(parts) {
+  const kept = parts.filter((p) => typeof p === "string" || (p.editor !== "act" && !p.optional));
+  return kept.filter((p, n) => !p.break || (n > 0 && n < kept.length - 1 && !kept[n + 1].break));
+}
+
 // A row of the blueprint card: the slot's name and its words. With `onApply`
 // each value opens its own small editor, and a value chosen there
 // becomes the slot's new value. `changed` marks a slot that differs from
@@ -53,6 +60,7 @@ function Part({ part, editable, open, setOpen, apply }) {
 export function SlotRow({ label, parts, onApply, changed = false, preview }) {
   const [open, setOpen] = useState(null);
   const editable = Boolean(onApply);
+  const shown = editable ? parts : readOnly(parts);
   const opened = editable && parts.find((p) => typeof p === "object" && p.key === open);
   const done = (value) => {
     setOpen(null);
@@ -62,7 +70,7 @@ export function SlotRow({ label, parts, onApply, changed = false, preview }) {
     <div className={changed ? "eos-bp-row eos-bp-row--changed" : "eos-bp-row"}>
       <dt className="eos-bp-row__label">{label}{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
       <dd className="eos-bp-row__value">
-        {parts.map((p, n) => (
+        {shown.map((p, n) => (
           <Part key={typeof p === "object" && p.key ? p.key : n} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
         ))}
         {opened && <PartEditor part={opened} done={done} />}

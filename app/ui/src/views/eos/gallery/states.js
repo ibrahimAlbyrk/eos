@@ -9,6 +9,7 @@ import inbox from "./sample/inbox.json";
 import memory from "./sample/memory.json";
 import paper from "./sample/paper.json";
 import routineDetail from "./sample/routine-detail.json";
+import routineDraft from "./sample/routine-draft.json";
 import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
 
@@ -28,6 +29,9 @@ export const GALLERY_STATES = [
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
   { id: "routine-paused", label: "Routine · paused", location: `eos:/routines/${routinePaused.routine.id}` },
+  { id: "routine-making", label: "Routine · being made, the architect asking", location: `eos:/routines/${routineDraft.routine.id}?tab=blueprint` },
+  { id: "routine-change", label: "Routine · a change to look at", location: `eos:/routines/${routinePaused.routine.id}?tab=blueprint` },
+  { id: "new-routine", label: "New routine", location: "eos:/routines/new" },
   { id: "routine-error", label: "Routine · cannot read", location: `eos:/routines/${routineDetail.routine.id}`, answer: "error" },
   { id: "run", label: "Run", location: `eos:/runs/${runDetail.run.id}` },
   { id: "run-running", label: "Run · working", location: "eos:/runs/rn-running01" },
