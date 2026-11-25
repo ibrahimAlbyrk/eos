@@ -17,7 +17,7 @@
    gutter grows with the window (24 to 56 px); past the measure the rest is
    air on both sides, never a void on one. A screen picks its measure:
    reading 760 (Home's column), the default 1040, wide 1240 for a screen with
-   an aside or a table. The language: research/…/design/language.md. */
+   an aside or a table. */
 .eos-screen {
   --eos-measure: 1040px;
   --eos-frame-x: max(clamp(24px, 4%, 56px), calc((100% - var(--eos-measure)) / 2));
