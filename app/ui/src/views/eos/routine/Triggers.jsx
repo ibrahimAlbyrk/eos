@@ -129,8 +129,9 @@ export function TriggerLines({ status, head, routineId, now }) {
           <li className="eos-trigger">
             <Icon kind="batch" />
             <span className="eos-trigger__name">
-              {batch.items} {batch.items === 1 ? "item waits" : "items wait"} to run together, until {timeAt(batch.closesAt)}
+              {batch.items} {batch.items === 1 ? "item waits" : "items wait"} to run together
             </span>
+            <span className="eos-trigger__facts">Until {timeAt(batch.closesAt)}</span>
           </li>
         )}
       </ul>

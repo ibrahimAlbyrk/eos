@@ -89,12 +89,13 @@ describe("what starts a routine", () => {
     expect(lines(html, "eos-trigger__name")).toEqual([
       expect.stringMatching(/^Runs on weekdays at 05:00/),
       "github.pulls",
-      `3 items wait to run together, until ${timeAt(status.batch.closesAt)}`,
+      "3 items wait to run together",
     ]);
     expect(lines(html, "eos-trigger__facts")).toEqual([
       `Next ${timeAt(status.schedules[0].nextAt)} · last ${timeAt(status.schedules[0].lastAt)} · ran 2 h late · 2 missed while the Mac slept or Eos was closed, run as one`,
       expect.stringMatching(new RegExp(`^Last looked .* ago · next ${timeAt(status.sources[0].nextPollAt)}$`)),
       "14 items from while Eos was closed",
+      `Until ${timeAt(status.batch.closesAt)}`,
     ]);
     expect(html).toContain('<span class="eos-trigger__state eos-trigger__state--ok">Working</span>');
   });
