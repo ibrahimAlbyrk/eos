@@ -19,6 +19,7 @@ use serde_json::{Map, Value, json};
 
 use crate::router::Routing;
 use crate::sources::{SourceSpec, source_in};
+use crate::summary::HOUR_MS;
 
 /// How often a computer writes its heartbeat.
 pub(crate) const HEARTBEAT_MS: i64 = 10 * 60_000;
@@ -28,7 +29,6 @@ pub const AWAY_MS: i64 = 2 * 60 * 60_000;
 const LAST_KEYS: i64 = 50;
 /// The `elsewhere` signals a move decides again, at most.
 const REROUTE_MAX: i64 = 200;
-const HOUR_MS: i64 = 60 * 60_000;
 
 const CAPABILITY: &str = "capability";
 

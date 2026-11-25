@@ -232,4 +232,10 @@ pub trait Runner: Send + Sync {
     fn shared(&self) -> bool {
         false
     }
+    /// What another computer's last heartbeat said of a routine it holds:
+    /// when it was written and the runs decided in each hour before, the
+    /// newest last.
+    fn hourly_elsewhere(&self, _routine_id: &str) -> Option<(i64, Vec<i64>)> {
+        None
+    }
 }
