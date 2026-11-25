@@ -186,3 +186,57 @@ async fn a_routine_past_its_asks_for_the_day_does_not_keep_another_from_the_mode
     assert!(bench.model.asked()[0].prompt.contains("github:pr:acme/game#900"), "rt-b's signal is asked about");
     module.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn two_asks_at_once_never_pass_the_days_asks_together() {
+    let bench = Bench::new(vec![passing()]);
+    bench.model.answer(says(true)).answer(says(true));
+    bench.temp.exec(&format!(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < {}) \
+         INSERT INTO signal_routes (signal_id, routine_id, routine_version, decision, model_asked, decided_at) \
+         SELECT 1000 + i, 'rt-a', 'rv-rt-a', 'unmatched', 1, 5000 FROM n",
+        ASKS_PER_DAY - 1
+    ));
+    let module = started(&bench, true).await;
+    let items =
+        vec![pull(1, "abc", "opened", false, &["src/net.rs"]), pull(2, "abc", "opened", false, &["src/net.rs"])];
+    module.ingest(SOURCE_ID, page(items, json!({}))).await.expect("kept");
+    bench.until(|| bench.decided("run") == 1).await;
+    bench.until(|| decisions(&bench).iter().any(|route| route.1.as_deref() == Some("cap"))).await;
+    assert_eq!(bench.model.asked().len(), 1, "the last ask of the day is asked once");
+    module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_that_comes_after_eos_was_stopped_is_still_booked_as_spent() {
+    let bench = Bench::new(vec![passing()]);
+    let release = bench.model.hold();
+    bench.model.answer(says(true));
+    let module = started(&bench, true).await;
+    keep(&module, 1, "abc").await;
+    bench.model.until_asked(1).await;
+    bench.temp.exec("INSERT INTO inbox_halt (id, \"on\", since, by, updated_at) VALUES (1, 1, 1, 'dashboard', 1)");
+    release.notify_one();
+    bench.until(|| bench.temp.count("SELECT count(*) FROM routine_spend WHERE kind = 'match'") == 1).await;
+    assert_eq!(bench.decided("run"), 0, "nothing starts while Eos is stopped");
+    module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_slow_answer_does_not_hold_up_routing() {
+    let mut plain = routine("rt-b", RoutineState::Active, &["opened"], None);
+    plain.version = "rv-rt-b".into();
+    let bench = Bench::new(vec![passing(), plain]);
+    let release = bench.model.hold();
+    bench.model.answer(says(true));
+    let module = started(&bench, true).await;
+    keep(&module, 1, "abc").await;
+    bench.model.until_asked(1).await;
+    let draft = pull(2, "abc", "opened", true, &["src/net.rs"]);
+    module.ingest(SOURCE_ID, page(vec![draft], json!({}))).await.expect("kept");
+    bench.until(|| bench.decided("run") == 2).await;
+    assert_eq!(bench.decided("undecided"), 1, "the first still waits for the model");
+    release.notify_one();
+    bench.until(|| bench.decided("run") == 3).await;
+    module.stop().await;
+}

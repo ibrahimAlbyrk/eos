@@ -476,18 +476,28 @@ impl Router {
     }
 
     /// Routes until stopped: at once (what a crash left `received`), then
-    /// on each kick.
+    /// on each kick. The model's stage follows each pass beside it, so its
+    /// asks never hold up routing.
     pub(crate) async fn run(self: Arc<Self>) {
-        loop {
-            match self.pass().await {
-                Ok(0) => {}
-                Ok(routed) => tracing::info!(routed, "signals were routed"),
-                Err(error) => tracing::warn!(%error, "signals could not be routed"),
+        let routing = async {
+            loop {
+                match self.pass().await {
+                    Ok(0) => {}
+                    Ok(routed) => tracing::info!(routed, "signals were routed"),
+                    Err(error) => tracing::warn!(%error, "signals could not be routed"),
+                }
+                self.asks.kick.notify_one();
+                self.kick.notified().await;
             }
-            if let Err(error) = self.ask_pass().await {
-                tracing::warn!(error = error_kind(&error), "questions for the model could not be read");
+        };
+        let asking = async {
+            loop {
+                self.asks.kick.notified().await;
+                if let Err(error) = self.ask_pass().await {
+                    tracing::warn!(error = error_kind(&error), "questions for the model could not be read");
+                }
             }
-            self.kick.notified().await;
-        }
+        };
+        tokio::join!(routing, asking);
     }
 }
