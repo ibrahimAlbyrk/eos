@@ -108,6 +108,18 @@ describe("#eos-gallery", () => {
     expect(renderToStaticMarkup(rendered[0])).toContain('<div class="app eos-mode">');
   });
 
+  it("says PR Review's schedule last and next ran on weekdays at 05:00 around now", async () => {
+    const id = routines.find((r) => r.name === "PR Review")?.id ?? routines[0].id;
+    const [sc] = (await galleryTransport(stateOf("routine")).get(ROUTES.signalsRoutine(id))).body.schedules;
+    for (const at of [sc.nextAt, sc.lastAt]) {
+      const d = new Date(at);
+      expect([d.getHours(), d.getMinutes()]).toEqual([5, 0]);
+      expect([0, 6]).not.toContain(d.getDay());
+    }
+    expect(sc.lastAt).toBeLessThanOrEqual(Date.now());
+    expect(sc.nextAt).toBeGreaterThan(Date.now());
+  });
+
   it("draws a reconnecting state: each read answers once from the samples, then hears nothing", async () => {
     const reads = galleryTransport(stateOf("home-offline"));
     expect((await reads.get(ROUTES.routines)).body).toEqual(routines);
