@@ -8,6 +8,7 @@
 //   ui/notifications/size-changed → the frame's height (clamped inline)
 //   ui/open-link                  → the Eos browser panel, http(s) only, after a
 //                                   confirmation chip unless "Always" was chosen
+//                                   (a routine's App offers no "Always")
 //   ui/message                    → a confirmation chip, unless "Always" was chosen
 //   tools/call                    → an App surface's call, relayed to the core, which
 //                                   holds it to the App's manifest (only where the

@@ -84,6 +84,14 @@ describe("AppFrame chrome", () => {
     store.clear();
     expect(frame()).toContain("sends nothing without your OK");
   });
+
+  it("a routine's App asks before every link and message, whatever Always was chosen before", () => {
+    store.set("eos:genui:appsAlwaysSend", JSON.stringify(["v_abcdefghijkl"]));
+    const html = frame({ askEveryTime: true });
+    expect(html).toContain("sends nothing without your OK");
+    expect(html).not.toContain("Ask again");
+    store.clear();
+  });
 });
 
 describe("confirmation chip", () => {
@@ -102,6 +110,12 @@ describe("confirmation chip", () => {
     expect(html).toContain("https://example.com/?q=1");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Open</);
     expect(html).toContain('role="status" aria-live="polite"');
+  });
+
+  it("offers no Always where every link is asked", () => {
+    const html = renderToStaticMarkup(<ConfirmChip kind="link" text="https://example.com/?q=1" onSend={() => {}} onDismiss={() => {}} />);
+    expect(html).toMatch(/>Open</);
+    expect(html).not.toContain("Always for this app");
   });
 
   it("Send is not armed on first paint, so a click already on its way can't accept it", () => {

@@ -46,7 +46,7 @@ export function ConfirmChip({ text, kind = "send", onSend, onDismiss, onAlways, 
       <span className="gv-app-ask-actions">
         <button type="button" className="gv-app-btn gv-app-btn--primary" disabled={!armed} onClick={onSend}>{link ? "Open" : "Send"}</button>
         <button type="button" className="gv-app-btn" onClick={onDismiss}>Dismiss</button>
-        <button type="button" className="gv-app-btn gv-app-btn--quiet" disabled={!armed} onClick={onAlways}>Always for this app</button>
+        {onAlways && <button type="button" className="gv-app-btn gv-app-btn--quiet" disabled={!armed} onClick={onAlways}>Always for this app</button>}
       </span>
     </div>
   );

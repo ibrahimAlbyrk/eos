@@ -11,6 +11,7 @@ import { surfaceAppIdOf, surfaceAppTabId } from "../../../lib/panelTabs.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { tileAction, tileLocation } from "../home/PinnedTiles.jsx";
+import { setAlwaysSend } from "../../../genui/apps/trust.js";
 import { AppSurface } from "./AppSurface.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import "./registerSurfacePanel.js";
@@ -72,6 +73,15 @@ describe("a routine's App", () => {
     expect(html).toContain("Runs in a sandbox. This App can read levels/*.json in this project.");
     expect(html).toContain("Pin to Home");
     expect(html).toContain("Open as a tool");
+  });
+
+  it("asks before every link even when Always was chosen for it once", async () => {
+    await loaded();
+    setAlwaysSend(`surface-${SF}`, true);
+    const html = renderToStaticMarkup(<UiProvider><AppSurface surfaceId={SF} inPanel /></UiProvider>);
+    setAlwaysSend(`surface-${SF}`, false);
+    expect(html).toContain("sends nothing without your OK");
+    expect(html).not.toContain("Ask again");
   });
 
   it("opens as a tool on its own screen, without the panel's Open as a tool", async () => {
