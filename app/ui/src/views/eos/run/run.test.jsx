@@ -120,11 +120,11 @@ describe("the run view", () => {
     expect(states(html)).toEqual(["done", "current*", "todo", "todo", "todo"]);
     expect(html).toMatch(/Interrupted at [^<]*, resumed /);
     expect([...html.matchAll(/<span class="eos-team-card__name">([^<]*)</g)].map((m) => m[1])).toEqual(["Reader", "Unity specialist", "Allocation specialist"]);
-    expect(html).toContain('<span class="eos-team-card__side">opus-4-5 · working</span>');
+    expect(html).toContain('<span class="eos-team-card__side">Opus 4.5 · working</span>');
     expect(html).toContain("<li>reading CarouselPager.cs</li>");
-    expect(html).toContain('<label class="eos-sr" for="eos-tell-rn-running01">Tell the team</label>');
+    expect(html).toContain('aria-label="Tell the team something"');
     expect(html).toContain("<dt>Item</dt><dd>#470 Rework shop carousel paging</dd>");
-    expect(html).toContain("<dt>Depth</dt><dd>deep</dd>");
+    expect(html).toContain("<dt>Depth</dt><dd>Deep</dd>");
     expect(html).toContain("<dt>Note</dt><dd>This time also look at the shaders.</dd>");
     expect(html).toContain("<dt>Result</dt><dd>Show me only</dd>");
     expect(html).toContain('<h2 class="eos-label">So far</h2><p class="eos-run-aside__text">3 min and $0.210. A run usually takes 5 min and $0.550.</p>');
@@ -180,7 +180,7 @@ describe("the run view", () => {
     expect(paused).toContain("Paused. Today&#x27;s spending limit was reached.");
     expect(states(paused)).toEqual(["done", "paused*", "todo", "todo", "todo"]);
     expect(paused).toContain(">Stop</button>");
-    expect(paused).toContain('<span class="eos-team-card__side">sonnet-4-5 · resting</span>');
+    expect(paused).toContain('<span class="eos-team-card__side">Sonnet 4.5 · resting</span>');
   });
 
   it("says when the run is gone or could not be read", async () => {

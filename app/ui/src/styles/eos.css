@@ -168,6 +168,9 @@
   cursor: pointer;
 }
 
+.eos-link--quiet { align-self: flex-start; text-align: left; text-decoration: none; }
+.eos-link--quiet:hover { text-decoration: underline; }
+
 /* A read that takes longer than 300 ms shows blocks; a quicker one shows nothing. */
 .eos-skeleton {
   display: flex;

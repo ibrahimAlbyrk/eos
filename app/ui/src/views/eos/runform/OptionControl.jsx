@@ -1,7 +1,7 @@
 // One of the routine's options in the run form, by its type: a choice as a
 // radiogroup, a switch as a checkbox, text and numbers as fields.
 
-const valueWord = (value) => String(value).charAt(0).toUpperCase() + String(value).slice(1);
+export const valueWord = (value) => String(value).charAt(0).toUpperCase() + String(value).slice(1);
 
 export function OptionControl({ option, value, onChange }) {
   const id = `runform-opt-${option.key}`;

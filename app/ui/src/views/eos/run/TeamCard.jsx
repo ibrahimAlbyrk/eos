@@ -1,4 +1,4 @@
-import { modelShort } from "../../../lib/format.js";
+import { modelName } from "../../../lib/models.js";
 import { agentStateWord, ROLES } from "./words.js";
 
 // One agent of the run: its name or role, its model and state, and what it
@@ -8,10 +8,10 @@ export function TeamCard({ agent, lines }) {
   const shown = lines?.length ? lines : agent.lastActivity ? [agent.lastActivity] : [];
   const state = agentStateWord(agent.state);
   return (
-    <article className="eos-card eos-team-card" aria-label={agent.name ?? ROLES[agent.role] ?? agent.role}>
+    <article className={state === "working" ? "eos-card eos-team-card eos-team-card--working" : "eos-card eos-team-card"} aria-label={agent.name ?? ROLES[agent.role] ?? agent.role}>
       <div className="eos-team-card__head">
         <span className="eos-team-card__name">{agent.name ?? ROLES[agent.role] ?? agent.role}</span>
-        <span className="eos-team-card__side">{[agent.model && modelShort(agent.model), state].filter(Boolean).join(" · ")}</span>
+        <span className="eos-team-card__side">{[agent.model && modelName(agent.model), state].filter(Boolean).join(" · ")}</span>
       </div>
       {shown.length > 0 && (
         <ul className="eos-team-card__lines" role="status">

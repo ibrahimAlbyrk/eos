@@ -23,7 +23,7 @@ export function RunMemory({ runId }) {
         ))}
       </ul>
       {notes.length > SHOWN && (
-        <button type="button" className="eos-link" onClick={() => open(undefined)}>{count(notes.length)} in all</button>
+        <button type="button" className="eos-link eos-link--quiet" onClick={() => open(undefined)}>{count(notes.length)} in all</button>
       )}
     </section>
   );
