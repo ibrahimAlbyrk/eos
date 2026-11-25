@@ -175,8 +175,9 @@
   text-decoration: none;
   cursor: pointer;
 }
-/* The designs draw every link in the accent alone; the line comes on hover. */
-.eos-link:hover, .eos-link:focus-visible { text-decoration: underline; }
+/* The designs draw every link in the accent alone; the line comes on hover
+   (a keyboard focus has the ring). */
+.eos-link:hover { text-decoration: underline; }
 
 .eos-link--quiet { align-self: flex-start; text-align: left; }
 
