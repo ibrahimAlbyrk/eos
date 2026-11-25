@@ -128,6 +128,8 @@ async fn a_move_from_a_computer_away_for_a_week_starts_from_its_last_watermarks(
     let seen = pro.runner.devices();
     assert_eq!((seen.len(), seen[0].name.as_str(), seen[0].seen_at), (1, "AIR", 1_000));
     assert_eq!(seen[0].routines, vec!["rt-1".to_owned()]);
+    assert_eq!(pro.runner.hourly_elsewhere("rt-1"), Some((1_000, vec![0, 2, 1])), "its heartbeat's counts");
+    assert_eq!(air.runner.hourly_elsewhere("rt-1"), None, "a routine held here counts its own");
 
     clock.advance(7 * DAY);
     let handoff = pro.runner.claim("rt-1").await.unwrap();

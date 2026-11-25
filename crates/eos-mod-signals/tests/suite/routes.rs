@@ -357,3 +357,27 @@ async fn move_here_is_refused_without_a_source_the_routine_needs() {
     let (status, body) = rig.ask(Method::Post, "/api/runners/claim", Some(json!({ "routineId": "rt-b" }))).await;
     assert_eq!((status, body["error"].as_str()), (409, Some("Connect slack on this Mac first")), "{body}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_summary_adds_what_the_computer_holding_a_routine_counted_in_its_heartbeat() {
+    use eos_core::signals::Holder;
+    let hour = 60 * 60_000;
+    let leases = Arc::new(crate::runner::Leases::default());
+    leases.hold("rt-a", Holder::Here { epoch: 1 });
+    leases.hold("rt-b", Holder::Elsewhere { device_id: "dev-2".into(), epoch: 1 });
+    *leases.confirmed_at.lock().expect("not poisoned") = Some(0);
+    // Its heartbeat at hour 30: runs in the hours ending at 28, 29 and 30.
+    leases.hourly.lock().expect("not poisoned").insert("rt-b".into(), (30 * hour, vec![4, 2, 3]));
+    let mut bench = Bench::new(vec![active().remove(0), routine("rt-b", RoutineState::Active, &["opened"], None)]);
+    bench.runner = leases.clone();
+    let rig = Rig::over(bench, false).await;
+
+    let since = 28 * hour + 1;
+    let (status, summary) = rig.ask(Method::Get, &format!("/api/signals/summary?since={since}"), None).await;
+    assert_eq!(status, 200, "{summary}");
+    assert_eq!(summary["byRoutine"]["rt-b"]["handled"], 5, "the two hours that ended after since");
+    assert_eq!(summary["counts"]["handled"], 5);
+    let (_, all) = rig.ask(Method::Get, "/api/signals/summary?since=0", None).await;
+    assert_eq!(all["byRoutine"]["rt-b"]["handled"], 9);
+    assert_eq!(all["byRoutine"]["rt-a"]["handled"], 0, "a routine held here counts only its own runs");
+}

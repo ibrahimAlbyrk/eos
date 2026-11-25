@@ -407,4 +407,12 @@ impl Runner for VaultRunner {
     fn shared(&self) -> bool {
         locked(&self.view).vault.is_some()
     }
+
+    fn hourly_elsewhere(&self, routine_id: &str) -> Option<(i64, Vec<i64>)> {
+        let view = locked(&self.view);
+        let lease = view.leases.get(routine_id).filter(|lease| lease.holder != self.device_id)?;
+        let device = view.devices.get(&lease.holder)?;
+        let (_, _, hourly) = device.holds.get(routine_id)?;
+        Some((device.seen_at, hourly.as_array()?.iter().filter_map(Value::as_i64).collect()))
+    }
 }

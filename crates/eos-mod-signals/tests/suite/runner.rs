@@ -24,6 +24,8 @@ pub(crate) struct Leases {
     /// What a claim hands over; without one a claim is lost to `dev-2`.
     pub(crate) handoff: Mutex<Option<Handoff>>,
     pub(crate) devices: Mutex<Vec<DeviceSeen>>,
+    /// Another computer's heartbeat counts, by routine.
+    pub(crate) hourly: Mutex<HashMap<String, (i64, Vec<i64>)>>,
 }
 
 impl Leases {
@@ -65,6 +67,9 @@ impl Runner for Leases {
     }
     fn shared(&self) -> bool {
         true
+    }
+    fn hourly_elsewhere(&self, routine_id: &str) -> Option<(i64, Vec<i64>)> {
+        self.hourly.lock().expect("not poisoned").get(routine_id).cloned()
     }
 }
 
