@@ -95,7 +95,7 @@ export function RoutinePage({ id, tab, version }) {
         {!detail && !failed[id] && <RoutineLeadGhost />}
         {detail && (
           <>
-            <HolderLine routine={routine} />
+            {making && <HolderLine routine={routine} />}
             {making && <BlueprintTab detail={detail} version={version} />}
             {!making && <RoutineLead routine={routine} runs={detail.runs} waiting={waiting} refusal={unconfirmed[id]} now={now} />}
             {!making && <RoutineTabs routineId={id} tab={shown} />}

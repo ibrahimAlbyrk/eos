@@ -2,10 +2,11 @@ import { useEffect } from "react";
 import { setRoutineState } from "../../../state/eos/routinesStore.js";
 import { loadTriggerStatus, useSignals } from "../../../state/eos/signalsStore.js";
 import { RUNGS } from "../blueprint/FreedomLadder.jsx";
-import { openLocation } from "../nav/eosNav.js";
+import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { stateChip } from "../run/words.js";
 import { kindWord } from "../routines/tableWords.js";
 import { runLocation, splitItemNumber } from "./RoutineRuns.jsx";
+import { HolderLine } from "./Holder.jsx";
 import { UnconfirmedRecipients } from "./Unconfirmed.jsx";
 import { beatRuns, nextRunAt, nowLine, timeAt } from "./words.js";
 
@@ -73,13 +74,15 @@ export function Beat({ routine, runs, now }) {
 }
 
 // The actions a state asks for, under the words that say it: Resume and the
-// last run for a paused routine, the run that failed, Resume for an archived
+// last run for a paused routine (after Review the change while its Resume
+// waits for recipients), the run that failed, Resume for an archived
 // one. Each is here only, never also in the header.
 function StateActions({ routine, refusal, failed }) {
   const last = routine.lastRun;
   if (routine.state === "paused") {
     return (
       <div className="eos-rlead__acts">
+        {refusal && <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: routine.id, tab: "blueprint" }))}>Review the change</button>}
         <button type="button" className={refusal ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>
         {last && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(runLocation(last.id))}>Open the last run</button>}
       </div>
@@ -120,8 +123,9 @@ export function RoutineLead({ routine, runs, waiting, refusal, now }) {
           {standing.text}
         </p>
         {routine.triggerLine && <p className="eos-routine__line">{routine.triggerLine}</p>}
+        <HolderLine routine={routine} />
       </div>
-      {refusal && <UnconfirmedRecipients refusal={refusal} routineId={routine.id} />}
+      {refusal && <UnconfirmedRecipients refusal={refusal} />}
       <StateActions routine={routine} refusal={refusal} failed={tone === "err"} />
       <Beat routine={routine} runs={runs} now={now} />
     </header>
