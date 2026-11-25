@@ -173,7 +173,14 @@ async fn suggestion(engine: &Arc<Engine>, item: StoredItem) -> Result<bool, Erro
         })
         .await?;
     if let Some(sentence) = sentence {
-        match crate::architect::make(engine, &sentence, &[]).await {
+        let asked = eos_contracts::ArchitectRequest {
+            sentence,
+            attachments: Vec::new(),
+            rung: None,
+            project: None,
+            model: None,
+        };
+        match crate::architect::make(engine, &asked).await {
             Ok(saved) => tracing::info!(version_id = %saved.version_id, "a suggested routine went to its architect"),
             Err(error) => tracing::warn!(%error, "a suggested routine could not go to its architect"),
         }

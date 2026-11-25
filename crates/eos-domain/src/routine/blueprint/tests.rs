@@ -324,6 +324,10 @@ fn a_project_has_its_slot_and_no_per_run_cap() {
     project["project"]["milestones"] =
         json!([{"key": "a", "title": "A", "doneWhen": "x"}, {"key": "a", "title": "B", "doneWhen": "y"}]);
     assert_eq!(issues(&project), vec![issue("project.milestones.1.key", "An earlier entry has the same one")]);
+
+    let mut reads_one = pr_review();
+    reads_one["project"] = json!({"repo": "git:github.com/me/game", "baseBranch": "", "brief": ""});
+    assert_eq!(issues(&reads_one), Vec::new(), "another kind names a project for its repository alone");
 }
 
 #[test]

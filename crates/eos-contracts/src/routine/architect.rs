@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{DraftStatus, RunSummary};
+use crate::freedom::Rung;
 use crate::validate::{Issues, Validate};
 
 /// The longest sentence or message the user sends the architect.
@@ -16,6 +17,30 @@ fn text(cx: &mut Issues, key: &str, value: &str) {
     });
 }
 
+/// The longest project folder and model name the Home input's pills send.
+const PROJECT_MAX: usize = 4096;
+const MODEL_MAX: usize = 64;
+
+/// The project and model the Home input's pills chose: a folder, and a
+/// model name made of letters, digits, `.`, `-` and `_`.
+pub(crate) fn home_choices(cx: &mut Issues, project: Option<&str>, model: Option<&str>) {
+    if let Some(project) = project {
+        cx.at("project", |cx| {
+            cx.str_min(project.trim(), 1);
+            cx.str_max(project, PROJECT_MAX);
+        });
+    }
+    if let Some(model) = model {
+        cx.at("model", |cx| {
+            cx.str_min(model, 1);
+            cx.str_max(model, MODEL_MAX);
+            if !model.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+                cx.push("Invalid model name");
+            }
+        });
+    }
+}
+
 /// `POST /api/routines/architect`: a routine made from what the user wants.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -24,12 +49,28 @@ pub struct ArchitectRequest {
     /// Paths of the files the user gave with it.
     #[serde(default)]
     pub attachments: Vec<String>,
+    /// The rung the routine starts at; Draft when absent. Home offers no
+    /// more than Draft: more freedom is the blueprint's Freedom row, which
+    /// asks first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rung: Option<Rung>,
+    /// The project folder the routine works on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// The model of its architect and its agents; the user's default when
+    /// absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 impl Validate for ArchitectRequest {
     fn validate(&self, cx: &mut Issues) {
         text(cx, "sentence", &self.sentence);
         cx.at("attachments", |cx| cx.arr_max(self.attachments.len(), 20));
+        if self.rung.is_some_and(|rung| rung > Rung::Draft) {
+            cx.push_at("rung", "Home starts a routine at Draft at most");
+        }
+        home_choices(cx, self.project.as_deref(), self.model.as_deref());
     }
 }
 

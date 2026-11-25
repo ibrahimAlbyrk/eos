@@ -5,8 +5,9 @@
 //! a routine (`POST /api/routines/:id/keep`); a one-off nobody kept leaves
 //! with retention 7 days after its run. The third one-off of the same kind
 //! of task in 30 days opens one "Keep as a routine?" suggestion, never
-//! again for that kind. The text is never logged; the model's answer is
-//! booked as `once` spend.
+//! again for that kind. The Home input may name the agent's model and a
+//! project, a clone on this Mac that the agent reads; the rung stays Ask.
+//! The text is never logged; the model's answer is booked as `once` spend.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +20,7 @@ use eos_core::Error;
 use eos_core::agent::{OneShotError, OneShotRequest};
 use eos_core::routine::{NewRun, RunCreated, RunOrigin, StartError};
 use eos_core::store::{Outbox, StoredItem, StoredRoutine, StoredSuggestion, Tx};
+use eos_domain::git::project_key::split_git_key;
 use eos_domain::inbox::ItemKind;
 use eos_domain::routine::{limits::fill_defaults, slug};
 use eos_inbox::{NewItem, Opening, open_in};
@@ -68,8 +70,13 @@ struct Planned {
 /// Mac takes no start; a start refused after the plan leaves no routine.
 pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<OnceStarted, OnceRefused> {
     engine::taking_starts(engine, RunOrigin::Hand).await.map_err(OnceRefused::Start)?;
+    let project = match &asked.project {
+        Some(folder) => Some(project_key(engine, folder).await?),
+        None => None,
+    };
     let planned = plan(engine, &asked).await?;
-    let prepared = match engine::prepare(engine, blueprint(&planned)).await? {
+    let model = asked.model.as_deref().unwrap_or(MIDDLE_MODEL);
+    let prepared = match engine::prepare(engine, blueprint(&planned, model, project.as_deref())).await? {
         Ok(prepared) => prepared,
         Err(issues) => return Err(Error::Validation(format!("the one-off's blueprint was refused: {issues:?}")).into()),
     };
@@ -101,6 +108,17 @@ pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<On
     tracing::info!(routine_id = %routine_id, run_id = %run.id, "a one-off started");
     let run = StartedRun { id: run.id, state: run.state.as_str().to_owned(), not_before: run.not_before };
     Ok(OnceStarted { routine_id, name: planned.name, run })
+}
+
+/// The key of the clone at `folder`, when it is a project on this Mac; a
+/// folder that is not one is refused, so no door names a folder the agent
+/// would read outside the user's projects.
+async fn project_key(engine: &Engine, folder: &str) -> Result<String, Error> {
+    let key = engine.keys.to_key(folder).await;
+    if split_git_key(&key).is_none() || engine.keys.find_path(&key).await.is_none() {
+        return Err(Error::Validation("invalid request: project: not a clone of a project on this Mac".into()));
+    }
+    Ok(key)
 }
 
 /// The request as the run's lead reads it, with the files that came with it.
@@ -170,11 +188,13 @@ fn planned(data: &Value) -> Option<Planned> {
     })
 }
 
-/// One agent in a folder of its own, its answer shown in Eos and held.
-fn blueprint(planned: &Planned) -> Value {
+/// One agent in a folder of its own, or reading the project's clone, its
+/// answer shown in Eos and held.
+fn blueprint(planned: &Planned, model: &str, project: Option<&str>) -> Value {
+    let workspace = if project.is_some() { "read" } else { "none" };
     let agent = json!({
-        "key": "doer", "name": planned.name, "lead": true, "brief": planned.brief, "model": MIDDLE_MODEL,
-        "effort": "medium", "tools": {}, "readsOutside": false, "workspace": "none",
+        "key": "doer", "name": planned.name, "lead": true, "brief": planned.brief, "model": model,
+        "effort": "medium", "tools": {}, "readsOutside": false, "workspace": workspace,
     });
     let mut value = json!({
         "format": 1,
@@ -191,6 +211,9 @@ fn blueprint(planned: &Planned) -> Value {
         "freedom": {"rung": "ask"},
         "limits": {"perRunMinutes": RUN_MINUTES},
     });
+    if let Some(repo) = project {
+        value["project"] = json!({"repo": repo, "baseBranch": "", "brief": ""});
+    }
     fill_defaults(&mut value);
     value
 }

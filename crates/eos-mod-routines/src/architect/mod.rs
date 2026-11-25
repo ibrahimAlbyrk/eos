@@ -81,8 +81,15 @@ pub(crate) fn touch(engine: &Engine, worker_id: &str) {
 }
 
 /// Writes the architect's `routine_sessions` row, then starts its session
-/// in a scratch folder of its own with `prompt` as its first message.
-async fn spawn(engine: &Engine, routine_id: &str, name: &str, prompt: String) -> Result<String, Error> {
+/// in a scratch folder of its own with `prompt` as its first message, at
+/// `model` or the user's default.
+async fn spawn(
+    engine: &Engine,
+    routine_id: &str,
+    name: &str,
+    prompt: String,
+    model: Option<String>,
+) -> Result<String, Error> {
     room(engine, None)?;
     let worker_id = engine.ids.worker_id();
     let row = StoredRoutineSession {
@@ -100,8 +107,7 @@ async fn spawn(engine: &Engine, routine_id: &str, name: &str, prompt: String) ->
         cwd: Some(folder.clone()),
         name: Some(format!("{name} · Architect")),
         name_source: Some(NameSource::Auto),
-        // The user's default model.
-        model: None,
+        model,
         effort: Some("high".into()),
         role: Some(FOCUSED_ROLE.to_owned()),
         worker_definition: Some(DEFINITION.to_owned()),
