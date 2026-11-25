@@ -145,15 +145,18 @@ describe("the routine rows", () => {
 
   it("say when there are none, for each filter", async () => {
     await load({ [ROUTES.routines]: [], [ROUTES.inbox]: inbox });
-    expect(draw()).toContain('<p class="eos-side-note">No routines yet.</p>');
+    expect(draw()).toContain('<p class="eos-side-note">No routines yet.<span class="eos-side-note__more">');
+    await load({ [ROUTES.routines]: [{ ...routines[0], state: "paused" }], [ROUTES.inbox]: inbox });
+    expect(draw()).toContain('Every routine is paused. <button type="button" class="eos-link">Show paused</button>');
     localStorage.setItem("eos:sidebarFilter", "archived");
     await load({ [ROUTES.routines]: [routines[0]], [ROUTES.inbox]: inbox });
     expect(draw()).toContain('<p class="eos-side-note">No archived routines.</p>');
   });
 
-  it("show nothing while loading, and a failed read in words with Try again", async () => {
+  it("show ghost rows while loading, and a failed read in words with Try again", async () => {
     let html = draw();
     expect(html).not.toContain("eos-side-note");
+    expect(html).toContain('aria-label="Loading routines"');
     expect(names(html)).toEqual([]);
     await load({});
     html = draw();
