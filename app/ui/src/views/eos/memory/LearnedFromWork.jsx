@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { loadMoreNotes, loadNotes, notesPath, useNotes } from "../../../state/eos/notesStore.js";
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
+import { EmptyState } from "../frame.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
 import { KIND_FILTERS, provenance, scopeName, sourceWord, strengthSteps } from "./words.js";
@@ -89,12 +90,14 @@ export function LearnedFromWork({ summary, query = "", selected, routineId }) {
   let body;
   if (!page) body = pagesFailed[path] ? <LoadFailed what="notes" retry={() => void loadNotes(path)} /> : <Loading />;
   else if (page.notes.length === 0) {
-    body = <p className="eos-note">{chosen || kind || q.trim() ? "No note matches." : "Nothing learned yet. Eos writes notes down as you correct its work."}</p>;
+    body = chosen || kind || q.trim()
+      ? <p className="eos-note">No note matches.</p>
+      : <EmptyState title="Nothing learned yet">Eos writes a note down when you correct its work or a run fails and something fixes it. Each note shows here with what taught it.</EmptyState>;
   } else {
     body = (
       <>
         {groups.map((g) => (
-          <section key={g.key} className="eos-card eos-mem-group" aria-label={g.label}>
+          <section key={g.key} className="eos-mem-group" aria-label={g.label}>
             <header className="eos-mem-group__head">
               <h2 className="eos-mem-group__name">{g.label}</h2>
               <span className="eos-mem-group__count">{g.count ?? g.rows.length}</span>
