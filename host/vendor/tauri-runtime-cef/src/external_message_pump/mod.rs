@@ -67,6 +67,12 @@ const K_TIMER_DELAY_PLACEHOLDER: i64 = i32::MAX as i64;
 // DoWork().
 const K_MAX_TIMER_DELAY: i64 = 1000 / 30; // 30fps
 
+// The longest wait while no window of the app is on screen. Nothing paints then, and the
+// 30fps safety net alone would wake the app about 31 times a second. A window coming on
+// screen replaces a wait this long at once (see the macOS backend).
+#[cfg(target_os = "macos")]
+const K_MAX_HIDDEN_TIMER_DELAY: i64 = 1000;
+
 /// Runs one callback of the pump. A panic would unwind into the native loop, which
 /// aborts the app: it is caught, logged, and the pump starts over from its timer.
 fn guarded(state: &PumpState, what: &str, f: impl FnOnce()) {
@@ -76,6 +82,17 @@ fn guarded(state: &PumpState, what: &str, f: impl FnOnce()) {
     state.is_active.store(false, Ordering::SeqCst);
     state.on_schedule_message_pump_work(K_MAX_TIMER_DELAY);
   }
+}
+
+/// The longest the pump may wait before its next `DoWork()`. Runs on the owner thread.
+fn max_timer_delay(platform: &PlatformPump) -> i64 {
+  #[cfg(target_os = "macos")]
+  if !platform.is_any_window_shown() {
+    return K_MAX_HIDDEN_TIMER_DELAY;
+  }
+  #[cfg(not(target_os = "macos"))]
+  let _ = platform;
+  K_MAX_TIMER_DELAY
 }
 
 /// Handle to the external message pump. Cloning shares the same underlying
@@ -147,8 +164,9 @@ impl PumpState {
       self.do_work();
     } else if let Ok(mut platform) = self.platform.lock() {
       // Never wait longer than the maximum allowed time.
-      if delay_ms > K_MAX_TIMER_DELAY {
-        delay_ms = K_MAX_TIMER_DELAY;
+      let max_delay_ms = max_timer_delay(&platform);
+      if delay_ms > max_delay_ms {
+        delay_ms = max_delay_ms;
       }
 
       // Results in call to OnTimerTimeout() after the specified delay.
