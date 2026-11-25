@@ -31,18 +31,37 @@ pub fn build_folder(scratch: &std::path::Path, run_id: &str) -> PathBuf {
     scratch.join(format!("forge-{run_id}"))
 }
 
+/// What the builder's shell may still read in the user's home folder (L9):
+/// the toolchains it builds with, never their sign-ins (`~/.cargo`'s
+/// credentials, `~/.npmrc`).
+pub const TOOLCHAIN_READS: [&str; 10] = [
+    "~/.cargo/bin",
+    "~/.cargo/registry",
+    "~/.cargo/git",
+    "~/.rustup",
+    "~/.npm",
+    "~/.nvm",
+    "~/.volta",
+    "~/.pyenv",
+    "~/.bun",
+    "~/.deno",
+];
+
 /// The engine's sandbox for every shell command in the build folder: on,
 /// failing when the OS sandbox is missing, never bypassed by a command,
-/// writes held to the folder, the network to `REGISTRY_HOSTS`, no Apple
-/// Events. The folder's project settings are where the engine reads it;
-/// the builder's own file edits never reach them (its scope).
-fn sandbox_settings() -> String {
+/// writes held to the folder, the home folder unreadable but for `folder`
+/// and `TOOLCHAIN_READS`, the network to `REGISTRY_HOSTS`, no Apple Events.
+/// The folder's project settings are where the engine reads it; the
+/// builder's own file edits never reach them (its scope).
+fn sandbox_settings(folder: &std::path::Path) -> String {
+    let reads = std::iter::once(folder.to_string_lossy().into_owned()).chain(TOOLCHAIN_READS.map(str::to_owned));
     let settings = json!({"sandbox": {
         "enabled": true,
         "failIfUnavailable": true,
         "allowUnsandboxedCommands": false,
         "autoAllowBashIfSandboxed": false,
         "allowAppleEvents": false,
+        "filesystem": {"denyRead": ["~"], "allowRead": reads.collect::<Vec<_>>()},
         "network": {"allowedDomains": REGISTRY_HOSTS},
     }});
     format!("{settings:#}\n")
@@ -134,7 +153,7 @@ impl ForgeSteps {
 
     async fn prepare(&self, run_id: &str) -> Result<Option<String>, Error> {
         let folder = self.folder(run_id)?;
-        self.files.write_text(&folder.join(".claude/settings.json"), &sandbox_settings(), true).await?;
+        self.files.write_text(&folder.join(".claude/settings.json"), &sandbox_settings(&folder), true).await?;
         // npm reads it from the folder it installs in: a package installed
         // here runs no install script.
         self.files.write_text(&folder.join(".npmrc"), NPM_SETTINGS, true).await?;
