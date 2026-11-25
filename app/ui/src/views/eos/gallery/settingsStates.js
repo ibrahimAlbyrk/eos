@@ -2,6 +2,7 @@
 // every area read, Eos stopped, the notes forgotten with their way back,
 // asking before forgetting, a Mac whose doors need a step, and nothing read yet.
 import { ROUTES } from "../../../api/routes.js";
+import { notify } from "../../../lib/notify.js";
 
 export const SETTINGS_READS = {
   [ROUTES.routinesSettings]: { dayBudgetUsd: 5, maxParallelRuns: 2, planHeadroomPct: 20 },
@@ -26,5 +27,7 @@ export const SETTINGS_STATES = [
   { id: "settings-forgotten", label: "Settings › Eos · notes forgotten", location: "eos:/", settings: {}, reads: withSettings, sends: forgets,
     then: () => { press("Forget everything")(); setTimeout(() => [...document.querySelectorAll(".eos-ask button, .stg-body button")].reverse().find((b) => b.textContent.trim() === "Forget everything")?.click(), 300); } },
   { id: "settings-doors", label: "Settings › Eos · doors need a step", location: "eos:/", settings: { doors: { trusted: false, held: false, installed: false, login: "needs-approval" } }, reads: withSettings },
+  { id: "settings-notice", label: "Settings › Eos · a notice over the modal", location: "eos:/", settings: {}, reads: withSettings,
+    then: () => notify.error("Eos could not save quiet hours. Try again in a moment.", { title: "Settings" }) },
   { id: "settings-loading", label: "Settings › Eos · nothing read yet", location: "eos:/", settings: {}, answer: "loading" },
 ];

@@ -652,11 +652,12 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
    line each, as a menu's ground so it reads over a light page; the tone's
    9 px mark, the title strong over the words dim, Dismiss at the right. It
    rises 6 px on arrival; with reduced motion it fades. */
+.eos-notices-anchor { position: absolute; inset: 0; pointer-events: none; visibility: hidden; }
 .eos-notices {
-  position: absolute;
+  position: fixed;
   left: 50%;
   bottom: 24px;
-  z-index: 40;
+  z-index: 490; /* over Settings and Eos's dialogs, below the palette */
   width: min(560px, calc(100% - 48px));
   transform: translateX(-50%);
   display: flex;

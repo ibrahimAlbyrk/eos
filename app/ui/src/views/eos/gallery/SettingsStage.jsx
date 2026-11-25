@@ -20,7 +20,7 @@ export function settingsDoors({ trusted = true, held = true, installed = true, l
   };
 }
 
-// Settings › Eos inside the app's Settings modal, over an empty window.
+// Settings › Eos inside the app's Settings modal, over Eos's window.
 export function SettingsStage({ settings }) {
   if (globalThis.window && !window.eosDoors) window.eosDoors = settingsDoors(settings.doors);
   useEffect(() => () => { delete window.eosDoors; }, []);
