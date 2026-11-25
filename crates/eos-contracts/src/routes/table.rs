@@ -306,6 +306,8 @@ pub const ROUTINE_STATE: Route = Route::new("routineState", "/api/routines/:id/s
 pub const ROUTINE_UNDELETE: Route = Route::new("routineUndelete", "/api/routines/:id/undelete", &[Post]).added();
 pub const ROUTINE_KEEP: Route = Route::new("routineKeep", "/api/routines/:id/keep", &[Post]).added();
 pub const ROUTINE_COPY: Route = Route::new("routineCopy", "/api/routines/:id/copy", &[Post]).added();
+pub const ROUTINE_EXPORT: Route = Route::new("routineExport", "/api/routines/:id/export", &[Get]).added();
+pub const ROUTINES_IMPORT: Route = Route::new("routinesImport", "/api/routines/import", &[Post]).added();
 pub const ROUTINE_BLUEPRINT: Route = Route::new("routineBlueprint", "/api/routines/:id/blueprint", &[Put]).added();
 pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
 pub const ROUTINE_VERSION: Route =
@@ -737,6 +739,8 @@ pub const ROUTES: &[Route] = &[
     ROUTINE_UNDELETE,
     ROUTINE_KEEP,
     ROUTINE_COPY,
+    ROUTINE_EXPORT,
+    ROUTINES_IMPORT,
     ROUTINE_BLUEPRINT,
     ROUTINE_VERSION_RESTORE,
     ROUTINES_SETTINGS,

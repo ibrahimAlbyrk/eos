@@ -369,16 +369,18 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/routines/{id}"),
     ("GET", "/api/routines/{id}/versions"),
     ("GET", "/api/routines/{id}/versions/{versionId}"),
+    ("GET", "/api/routines/{id}/export"),
     ("PUT", "/api/routines/{id}/state"),
     ("DELETE", "/api/routines/{id}"),
     ("POST", "/api/routines/{id}/undelete"),
     ("POST", "/api/routines/{id}/keep"),
-    // Making a routine by hand, keeping, restoring and copying a version only write the data
-    // copy; nothing runs until it is started.
+    // Making a routine by hand or from a file, keeping, restoring and copying a version only
+    // write the data copy; nothing runs until it is started.
     ("POST", "/api/routines"),
     ("PUT", "/api/routines/{id}/blueprint"),
     ("POST", "/api/routines/{id}/versions/{versionId}/restore"),
     ("POST", "/api/routines/{id}/copy"),
+    ("POST", "/api/routines/import"),
     ("GET", "/api/routines/settings"),
     ("PUT", "/api/routines/settings"),
     // A routine's draft is read from the data copy; leaving it only suspends its architect.

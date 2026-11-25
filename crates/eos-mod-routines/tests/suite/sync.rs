@@ -2,7 +2,8 @@
 //! and its kept versions land on the second computer as they were made,
 //! a kept version never changes, a newer format is kept but not run, and
 //! built-in routines, drafts and trials stay. Finished runs travel as
-//! summaries for 30 days.
+//! summaries for 30 days. A routine exported to a file imports anywhere
+//! as a draft.
 
 use std::sync::Arc;
 
@@ -194,4 +195,35 @@ async fn finished_runs_travel_as_summaries_for_thirty_days_and_trials_stay() {
     assert!(records(&pro, "run").list().await.expect("lists").is_empty());
     records(&pro, "run").remove("rn-a").await.expect("removes");
     assert_eq!(pro.temp.count("SELECT count(*) FROM synced_runs"), 0);
+}
+
+#[tokio::test]
+async fn a_routine_exported_to_a_file_imports_on_any_computer_as_a_draft() {
+    let (air, pro) = (Bench::new(false), Bench::new(false));
+    let id = air.routine(RoutineState::Active, blueprint(1));
+    let module: Arc<dyn Module> = air.module.clone();
+    let runtime =
+        Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
+    let response = runtime
+        .router
+        .handle(Request::new(Method::Get, &format!("/api/routines/{id}/export"), Caller::DASHBOARD))
+        .await;
+    assert_eq!(response.status, 200);
+    let file: Value = serde_json::from_slice(&response.body.collect().await.expect("a body")).expect("json");
+    assert_eq!((file["format"].clone(), file["routine"]["name"].clone()), (json!(1), json!("PR Review")));
+    assert!(file.get("runs").is_none(), "no runs in a shared file");
+
+    let module: Arc<dyn Module> = pro.module.clone();
+    let runtime =
+        Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
+    let import = Request::new(Method::Post, "/api/routines/import", Caller::DASHBOARD).body(file.to_string());
+    let response = runtime.router.handle(import).await;
+    assert_eq!(response.status, 201);
+    let saved: Value = serde_json::from_slice(&response.body.collect().await.expect("a body")).expect("json");
+    assert_eq!((saved["row"]["state"].clone(), saved["row"]["name"].clone()), (json!("draft"), json!("PR Review")));
+    let origin = pro.temp.store.read_blocking(|tx| Ok(tx.routines().list()?.pop().map(|r| r.origin))).expect("reads");
+    assert_eq!(origin.as_deref(), Some("import"));
+
+    let refused = Request::new(Method::Post, "/api/routines/import", Caller::DASHBOARD).body(r#"{"format":7}"#);
+    assert_eq!(runtime.router.handle(refused).await.status, 400);
 }

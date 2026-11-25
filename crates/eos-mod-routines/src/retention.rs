@@ -30,13 +30,12 @@ use std::sync::Arc;
 use eos_contracts::{RoutineChange, RoutineChangeReason, RoutineState, RunSummary};
 use eos_core::Error;
 use eos_core::store::{EndedRun, Leaving, LeavingRoutine, Tx};
-use serde_json::json;
 use tokio::task::JoinHandle;
 
 use crate::ROUTINE_CHANGE;
 use crate::engine::Engine;
 use crate::once::REPEAT_WINDOW_MS;
-use crate::routes::{run_summaries, with_blueprint};
+use crate::routes::run_summaries;
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 pub(crate) const RUNS_KEPT: i64 = 500;
@@ -296,23 +295,9 @@ async fn export(engine: &Engine, routine: &LeavingRoutine) -> Result<(), Error> 
 }
 
 fn export_in(tx: &dyn Tx, routine_id: &str) -> Result<Vec<u8>, Error> {
-    let routine = tx.routines().find(routine_id)?.ok_or_else(|| Error::not_found("routine", routine_id))?;
-    let stored = tx.routine_versions().list(routine_id)?;
-    let versions =
-        stored.iter().enumerate().map(|(at, version)| with_blueprint(at, version)).collect::<Result<Vec<_>, _>>()?;
+    let mut export = crate::routes::export_of(tx, routine_id)?;
     let runs: Vec<RunSummary> = run_summaries(tx, &tx.runs().by_routine(routine_id, i64::MAX)?)?;
-    let export = json!({
-        "format": 1,
-        "routine": {
-            "id": routine.id,
-            "name": routine.name,
-            "kind": routine.kind,
-            "createdAt": routine.created_at,
-            "deletedAt": routine.deleted_at,
-        },
-        "versions": versions,
-        "runs": runs,
-    });
+    export["runs"] = serde_json::to_value(runs).map_err(Error::storage)?;
     serde_json::to_vec_pretty(&export).map_err(Error::storage)
 }
 
