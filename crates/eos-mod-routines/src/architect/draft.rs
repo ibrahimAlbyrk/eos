@@ -12,7 +12,7 @@ use eos_core::store::{StoredDraft, Tx};
 use eos_domain::routine::run::RunState;
 use serde_json::{Value, json};
 
-use super::{NO_ARCHITECT, say, suspend};
+use super::{restart, say, suspend};
 use crate::engine::{Engine, NEWER_FORMAT, announce_routine, blocks, check_in, editable, live, row};
 use crate::routes::{readable, run_summaries};
 
@@ -117,14 +117,19 @@ async fn update(
 }
 
 /// `POST /api/routines/:id/draft/message`: the user's words, or the choice
-/// that answers the architect's question, as the user's next message.
+/// that answers the architect's question, as the user's next message. A
+/// draft whose architect never started gets one first, which reads them
+/// after its first turn.
 pub(crate) async fn message(engine: &Engine, routine_id: &str, text: &str) -> Result<DraftView, Error> {
     let architect = update(engine, routine_id, |draft| {
         draft.question = None;
         draft.status = DraftStatus::Working;
     })
     .await?;
-    let architect = architect.ok_or_else(|| Error::Conflict(NO_ARCHITECT.into()))?;
+    let architect = match architect {
+        Some(architect) => architect,
+        None => restart(engine, routine_id).await?,
+    };
     say(engine, &architect, text).await?;
     view(engine, routine_id).await
 }

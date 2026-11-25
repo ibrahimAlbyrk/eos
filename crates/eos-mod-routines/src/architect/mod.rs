@@ -24,6 +24,7 @@ mod tools;
 mod trial_end;
 
 pub(crate) use draft::{Started, abandon, message, question_of, start, view};
+use make::restart;
 pub(crate) use make::{change, make};
 pub(crate) use tools::Architect;
 pub(crate) use trial_end::trial_ended;
@@ -51,9 +52,6 @@ const SUSPEND_REASON: &str = "routine_architect";
 /// The refusal of one more architect while [`LIVE_MAX`] are live; its
 /// route answers it with code `architects_busy`.
 pub(crate) const ARCHITECTS_BUSY: &str = "too many architects are at work; finish or leave one first";
-/// The refusal of a message to a draft no architect works on; its route
-/// answers it with code `no_architect`.
-pub(crate) const NO_ARCHITECT: &str = "the draft has no architect";
 
 /// The routine and draft row of the architect `worker_id`; refused for a
 /// worker that is not the architect of its routine now.

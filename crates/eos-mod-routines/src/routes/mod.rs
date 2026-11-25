@@ -29,7 +29,7 @@ pub(crate) use runs::start_refused;
 pub(crate) use settings::{current as current_settings, protected_settings, today};
 pub(crate) use share::export_of;
 
-use crate::architect::{ARCHITECTS_BUSY, NO_ARCHITECT};
+use crate::architect::ARCHITECTS_BUSY;
 use crate::engine::{Engine, NEWER_FORMAT};
 
 /// 409 `newer_format`: the routine's version was made by a newer Eos
@@ -45,7 +45,6 @@ pub(crate) fn refusal(error: Error) -> ApiError {
         Error::Conflict(message) if message == ARCHITECTS_BUSY => {
             ApiError::coded(409, ARCHITECTS_BUSY, "architects_busy")
         }
-        Error::Conflict(message) if message == NO_ARCHITECT => ApiError::coded(409, NO_ARCHITECT, "no_architect"),
         _ => error.into(),
     }
 }

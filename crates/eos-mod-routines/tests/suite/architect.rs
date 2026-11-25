@@ -268,7 +268,7 @@ async fn a_hand_save_after_the_architects_draft_is_the_version_that_starts() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_drafts_view_names_its_architect_and_a_draft_without_one_refuses_with_a_code() {
+async fn the_drafts_view_names_its_architect_and_a_draft_without_one_gets_a_new_one_from_the_sentence() {
     let routes = Routes::new();
     let (routine, architect) = routes.made("Review my pull requests").await;
     let (_, draft) = routes.get(&format!("/api/routines/{routine}/draft")).await;
@@ -287,9 +287,17 @@ async fn the_drafts_view_names_its_architect_and_a_draft_without_one_refuses_wit
         .expect("writes");
     let (_, draft) = routes.get(&format!("/api/routines/{routine}/draft")).await;
     assert!(draft.get("architectId").is_none(), "{draft}");
-    let (status, refused) =
+    let (status, draft) =
         routes.post(&format!("/api/routines/{routine}/draft/message"), json!({"text": "Hello"})).await;
-    assert_eq!((status, &refused["code"]), (409, &json!("no_architect")), "{refused}");
+    assert_eq!(status, 200, "{draft}");
+    let new = draft["architectId"].as_str().expect("a new architect").to_owned();
+    assert_ne!(new, architect);
+    let started = routes.bench.agents.started();
+    let spec = started.iter().find(|spec| spec.worker_id == new).expect("its session");
+    let boot = spec.prompt.clone().expect("a first message");
+    assert!(boot.contains("Review my pull requests"), "it starts from the user's sentence");
+    let bench = &routes.bench;
+    bench.eventually(|| bench.agents.sent(&new).iter().any(|text| text.ends_with("Hello"))).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
