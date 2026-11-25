@@ -101,9 +101,11 @@ const ARCHITECT_REFUSALS = {
   architects_busy: "Three architects are at work. Leave a draft to make room.",
   newer_format: "A newer version of Eos made this routine. It cannot be changed here.",
 };
+// `drafts`: the routines whose architects are at work, the ones worth leaving.
 const architectRefused = (body) => ({
   kind: body?.code === "architects_busy" ? "crowded" : "refusal",
   text: ARCHITECT_REFUSALS[body?.code] ?? body?.error ?? "Eos could not do that.",
+  drafts: body?.drafts ?? [],
 });
 
 // A version was written (RoutineSaved): its row, its detail and versions read again.

@@ -3,7 +3,6 @@ import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { renderMarkdown } from "../../../lib/markdown.js";
 import { buildBlocks } from "../../../lib/messageParser.js";
 import { clearNote, discardDraft, makeRoutine, NEW, sayToArchitect } from "../../../state/eos/blueprintStore.js";
-import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SLOTS } from "./slots/index.js";
 
@@ -67,10 +66,9 @@ function Replies({ workerId }) {
 }
 
 // Too many architects at work, and the drafts the user could leave to make
-// room.
-function Crowded({ routineId, text }) {
-  const { list } = useRoutines();
-  const others = (list ?? []).filter((r) => r.state === "draft" && r.id !== routineId);
+// room: those whose architects are at work, as the refusal named them.
+function Crowded({ routineId, text, drafts }) {
+  const others = drafts.filter((r) => r.id !== routineId);
   return (
     <div className="eos-band eos-band--warn" role="alert">
       <span className="eos-band__text">{text}</span>
@@ -112,7 +110,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
       {working && <p className="eos-note" role="status">{working}</p>}
       {draft?.status === "abandoned" && <p className="eos-note">You left this draft. Say what to change to start again.</p>}
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
-      {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} />}
+      {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} drafts={note.drafts} />}
       {note?.kind === "refusal" && <p className="eos-note" role="alert">{note.text}</p>}
       <span className="eos-bp-chat__fill" />
       {making && draft === null ? (

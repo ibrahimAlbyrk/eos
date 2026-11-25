@@ -195,6 +195,15 @@ async fn three_architects_work_at_once_and_leaving_a_draft_makes_room() {
     let (status, refused) = routes.post("/api/routines/architect", json!({"sentence": "Four"})).await;
     assert_eq!((status, &refused["code"]), (409, &json!("architects_busy")), "{refused}");
     assert_eq!(routes.get("/api/routines").await.1.as_array().map(Vec::len), Some(3), "nothing was made");
+    let offered = |refused: &Value| {
+        let drafts = refused["drafts"].as_array().cloned().unwrap_or_default();
+        drafts.iter().map(|draft| draft["id"].as_str().unwrap_or_default().to_owned()).collect::<Vec<_>>()
+    };
+    let mut ids: Vec<String> = made.iter().map(|(id, _)| id.clone()).collect();
+    ids.sort();
+    let mut named = offered(&refused);
+    named.sort();
+    assert_eq!(named, ids, "the drafts whose architects are at work: {refused}");
 
     let (routine, architect) = &made[0];
     let (status, left) = routes.delete(&format!("/api/routines/{routine}/draft")).await;

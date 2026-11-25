@@ -11,15 +11,28 @@ use std::sync::Arc;
 use eos_contracts::{
     ArchitectRequest, BlueprintRefused, ChangeRequest, DraftMessage, StartRoutineRequest, StartRunResponse, StartedRun,
 };
+use eos_core::Error;
 use eos_runtime::access::Access;
-use eos_runtime::http::{Request, Response};
+use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use serde_json::json;
 
 use super::{param, refusal, start_refused};
-use crate::architect::{self, Started};
+use crate::architect::{self, ARCHITECTS_BUSY, Started};
 use crate::engine::Engine;
 use crate::trial;
+
+/// A refusal as its route answers it; one more architect than there is room
+/// for names the drafts whose architects are at work, which the user may
+/// leave.
+async fn refused(engine: &Engine, error: Error) -> Result<Response, ApiError> {
+    if !matches!(&error, Error::Conflict(message) if message == ARCHITECTS_BUSY) {
+        return Err(refusal(error));
+    }
+    let drafts = architect::crowding(engine).await?;
+    let drafts: Vec<_> = drafts.into_iter().map(|(id, name)| json!({"id": id, "name": name})).collect();
+    Ok(Response::json(409, &json!({"error": ARCHITECTS_BUSY, "code": "architects_busy", "drafts": drafts})))
+}
 
 pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let making = engine.clone();
@@ -27,8 +40,10 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = making.clone();
         async move {
             let body: ArchitectRequest = req.parse()?;
-            let saved = architect::make(&engine, &body.sentence, &body.attachments).await.map_err(refusal)?;
-            Ok(Response::json(201, &saved))
+            match architect::make(&engine, &body.sentence, &body.attachments).await {
+                Ok(saved) => Ok(Response::json(201, &saved)),
+                Err(error) => refused(&engine, error).await,
+            }
         }
     });
     let starting = engine.clone();
@@ -58,8 +73,10 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = changing.clone();
         async move {
             let body: ChangeRequest = req.parse()?;
-            let view = architect::change(&engine, &param(&req, "id"), &body.text).await.map_err(refusal)?;
-            Ok(Response::json(200, &view))
+            match architect::change(&engine, &param(&req, "id"), &body.text).await {
+                Ok(view) => Ok(Response::json(200, &view)),
+                Err(error) => refused(&engine, error).await,
+            }
         }
     });
     let reading = engine.clone();
@@ -78,7 +95,10 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         async move {
             let body: DraftMessage = req.parse()?;
             let text = body.text.or(body.choice).unwrap_or_default();
-            Ok(Response::json(200, &architect::message(&engine, &param(&req, "id"), &text).await.map_err(refusal)?))
+            match architect::message(&engine, &param(&req, "id"), &text).await {
+                Ok(view) => Ok(Response::json(200, &view)),
+                Err(error) => refused(&engine, error).await,
+            }
         }
     });
     let trying = engine.clone();

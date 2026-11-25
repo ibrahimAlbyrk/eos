@@ -166,6 +166,25 @@ pub(crate) async fn rejoin(engine: &Engine) -> Result<(), Error> {
     Ok(())
 }
 
+/// The routines whose draft's architect is live, as `(id, name)`: the
+/// drafts a user may leave to make room for one more.
+pub(crate) async fn crowding(engine: &Engine) -> Result<Vec<(String, String)>, Error> {
+    let live: Vec<String> = Engine::locked(&engine.architects).keys().cloned().collect();
+    engine
+        .store
+        .read(move |tx| {
+            let mut drafts = Vec::new();
+            for routine in tx.routines().list()? {
+                let architect = tx.routines().draft(&routine.id)?.and_then(|draft| draft.architect_id);
+                if architect.is_some_and(|worker_id| live.contains(&worker_id)) {
+                    drafts.push((routine.id, routine.name));
+                }
+            }
+            Ok(drafts)
+        })
+        .await
+}
+
 /// Suspends every architect idle for [`IDLE_MS`].
 pub(crate) async fn sweep(engine: &Engine) {
     let now = engine.clock.now_ms();
