@@ -1,7 +1,7 @@
 {
  "about": "The Forge's worker definitions (eos-store-files `FORGE_DEFINITIONS`), by SHA-256 of each file: a change to one is made on purpose, with this file.",
  "sha256": {
-  "forge-builder.md": "8a8a8c3185da055edfccf1771b2df0738b4073031c9c1d3bf0eb8632d9b0952b",
+  "forge-builder.md": "417eca1e9c8297d9197980d8983bd6730358f821058d4a77a9f5eda23892981a",
   "forge-researcher.md": "b2c535dfc4135eddc5e143d65f7b4bc9675e83da15ba5d22a838d884fecb715f",
   "forge-reviewer.md": "1089b4855f0b4e8169ace21499e240fa70832c49cbc168aa39c3e163c74f1886"
  }

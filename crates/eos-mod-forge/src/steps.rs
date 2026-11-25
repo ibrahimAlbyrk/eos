@@ -17,8 +17,9 @@ use serde_json::json;
 pub const REGISTRY_HOSTS: [&str; 6] =
     ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org", "crates.io", "static.crates.io", "index.crates.io"];
 
-/// What npm is held to in the build folder.
-const NPM_SETTINGS: &str = "ignore-scripts=true\nsave-exact=true\n";
+/// What npm is held to in the build folder. No `.bin` links: Eos takes a
+/// package of plain files and folders only.
+const NPM_SETTINGS: &str = "ignore-scripts=true\nsave-exact=true\nbin-links=false\n";
 
 /// The system step that tests the package.
 pub const TEST_STEP: &str = "forge.test";

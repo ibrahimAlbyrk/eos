@@ -62,10 +62,11 @@ Rules the package is held to:
   `hosts`.
 - No install scripts, no code downloaded at run time, no `eval` of fetched
   text, nothing obfuscated. A dependency is pinned to one version and
-  installed with `npm install --ignore-scripts` or its equivalent.
+  installed with `npm install --ignore-scripts --no-bin-links` or its
+  equivalent: Eos refuses a package that holds a link.
 - A way that runs a published server (`official`, `community`) installs
   exactly the pinned package inside the package folder:
-  `npm install --ignore-scripts --save-exact <name>@<version>`, keeping
+  `npm install --ignore-scripts --no-bin-links --save-exact <name>@<version>`, keeping
   `package-lock.json`; or a `requirements.txt` of `name==version
   --hash=sha256:…` lines for every package, installed with
   `pip install --require-hashes --no-deps --target vendor -r requirements.txt`.
