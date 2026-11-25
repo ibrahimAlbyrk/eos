@@ -18,7 +18,7 @@ const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, by
 export const GALLERY_STATES = [
   { id: "home", label: "Home · typical", location: "eos:/" },
   { id: "home-empty", label: "Home · nothing waiting", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.inbox]: empty, [RUNS_PATH]: { runs: [] }, [ROUTES.surfaceTiles]: { tiles: [] } }) },
-  { id: "home-first", label: "Home · first run", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.routines]: [], [RUNS_PATH]: { runs: [] }, [ROUTES.inbox]: empty }) },
+  { id: "home-first", label: "Home · first run", location: "eos:/", reads: (s) => ({ ...s, [ROUTES.routines]: [], [RUNS_PATH]: { runs: [] }, [ROUTES.inbox]: empty, [ROUTES.signalsRoutines]: [], [ROUTES.surfaceTiles]: { tiles: [] } }) },
   { id: "home-loading", label: "Home · loading", location: "eos:/", answer: "loading" },
   { id: "home-error", label: "Home · cannot read", location: "eos:/", answer: "error" },
   { id: "needs", label: "Needs you", location: "eos:/needs" },

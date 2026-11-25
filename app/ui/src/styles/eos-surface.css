@@ -182,7 +182,7 @@
 .eos-pins__head { display: flex; align-items: baseline; gap: 12px; }
 .eos-pins__head .eos-label { flex: 1; }
 .eos-pins__count { font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-pins { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.eos-pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; }
 .eos-tile {
   border-radius: 14px;
   background: #1b1b1b;
