@@ -14,9 +14,9 @@ import routineDraft from "./sample/routine-draft.json";
 import blueprintDrafts from "./sample/blueprint-drafts.json";
 import blueprintVersions from "./sample/blueprint-versions.json";
 import blueprintVersionBodies from "./sample/blueprint-version-bodies.json";
-import runsPage from "./sample/runs-page.json";
-import runDetail from "./sample/run-detail.json";
-import runs from "./sample/runs.json";
+import runsPageSample from "./sample/runs-page.json";
+import runDetailSample from "./sample/run-detail.json";
+import runsSample from "./sample/runs.json";
 import runResults from "./sample/run-results.json";
 import inboxSample from "./sample/inbox.json";
 import inboxItemsSample from "./sample/inbox-items.json";
@@ -43,6 +43,19 @@ const newest = Math.max(...inboxSample.items.map((i) => i.createdAt));
 const by = Date.now() - 20 * MIN - newest;
 const inbox = { ...inboxSample, items: inboxSample.items.map((i) => shift(i, by)) };
 const inboxItems = inboxItemsSample.map((d) => ({ ...d, item: shift(d.item, by) }));
+
+// The runs' samples moved the same way, so the working run started three
+// minutes before the gallery opened: every time named `…At` in them moves.
+const later = (value, ms) => {
+  if (Array.isArray(value)) return value.map((v) => later(v, ms));
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, k.endsWith("At") && typeof v === "number" ? v + ms : later(v, ms)]));
+};
+const working = runsSample.find((d) => d.run.state === "running");
+const runsBy = Date.now() - 3 * MIN - working.run.startedAt;
+const runs = later(runsSample, runsBy);
+const runsPage = later(runsPageSample, runsBy);
+const runDetail = later(runDetailSample, runsBy);
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
