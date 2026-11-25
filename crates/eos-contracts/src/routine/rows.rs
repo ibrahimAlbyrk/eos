@@ -201,6 +201,9 @@ pub enum VersionAuthor {
     Restore,
     Sync,
     Once,
+    /// Read from a routine file: the user has not stood behind its Goes to
+    /// on this computer yet (L14).
+    Import,
 }
 
 impl Validate for VersionAuthor {}

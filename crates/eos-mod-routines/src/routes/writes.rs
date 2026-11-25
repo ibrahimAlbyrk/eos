@@ -32,7 +32,7 @@ fn blueprint_routes(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = creating.clone();
         async move {
             let body: CreateRoutineRequest = req.parse()?;
-            Ok(answer(engine::create(&engine, body.blueprint, body.note, "hand").await?, true))
+            Ok(answer(engine::create(&engine, body.blueprint, body.note, "hand", VersionAuthor::User).await?, true))
         }
     });
     let keeping = engine.clone();

@@ -227,13 +227,14 @@ pub(crate) fn free_slug(tx: &dyn Tx, name: &str, now: i64) -> Result<String, Err
     Ok(slug::unique(&slug::of_name(name), |slug| held.contains(slug)))
 }
 
-/// A new draft routine of `value`, made by hand (`hand`) or as a copy
-/// (`copy`), its one version a draft authored by the user.
+/// A new draft routine of `value`, made by hand (`hand`), as a copy
+/// (`copy`) or from a file (`import`), its one version a draft by `author`.
 pub(crate) async fn create(
     engine: &Arc<Engine>,
     value: Value,
     note: Option<String>,
     origin: &'static str,
+    author: VersionAuthor,
 ) -> Result<Saved, Error> {
     let prepared = match prepare(engine, value).await? {
         Ok(prepared) => prepared,
@@ -274,7 +275,7 @@ pub(crate) async fn create(
                 routine_id: &id,
                 parent_id: None,
                 status: VersionStatus::Draft,
-                author: VersionAuthor::User,
+                author,
                 note,
                 prepared: &prepared,
                 device: &device,
@@ -431,5 +432,5 @@ pub(crate) async fn copy(engine: &Arc<Engine>, routine_id: &str, brief: Option<S
     if let (Some(brief), Some(project)) = (brief, value.get_mut("project").filter(|project| project.is_object())) {
         project["brief"] = serde_json::Value::String(brief);
     }
-    create(engine, value, None, "copy").await
+    create(engine, value, None, "copy", VersionAuthor::User).await
 }
