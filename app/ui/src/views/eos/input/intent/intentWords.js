@@ -2,6 +2,8 @@
 // do, said from the routine's own row (what it takes, where its result goes).
 
 export const IDLE_HINT = "Click a routine around the input, drop a file on one, or just type.";
+// Before the first routine there is nothing around the input to click.
+export const FIRST_HINT = "Say what Eos should take care of, or drop a file here.";
 export const MENU_LINE = "Pick a routine";
 export const MAKE_LINE = "Make a new routine. You see its blueprint and a trial first";
 export const ONCE_LINE = "Do it once, here. Nothing is sent. You can keep it as a routine afterwards";

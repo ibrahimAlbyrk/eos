@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChoiceRow } from "./ChoiceRow.jsx";
 import { TAB_CYCLES_CHOICES } from "./intent/inputReducer.js";
 import {
-  choiceLine, DECIDING_LINE, FAILED_LINE, IDLE_HINT, MENU_LINE, READING_LINE, TAB_HINT, UNSURE_LINE, VERBS,
+  choiceLine, DECIDING_LINE, FAILED_LINE, FIRST_HINT, IDLE_HINT, MENU_LINE, READING_LINE, TAB_HINT, UNSURE_LINE, VERBS,
 } from "./intent/intentWords.js";
 
 const ANNOUNCE_AFTER_MS = 500;
@@ -11,7 +11,7 @@ const ANNOUNCE_AFTER_MS = 500;
 export function lineOf({ verdict, options, input, byId, previous }) {
   if (input.pendingEnter) return { text: DECIDING_LINE, enter: false, dim: true };
   switch (verdict.kind) {
-    case "idle": return { text: IDLE_HINT, enter: false, hint: true };
+    case "idle": return { text: byId?.size === 0 ? FIRST_HINT : IDLE_HINT, enter: false, hint: true };
     case "menu": return { text: MENU_LINE, enter: false };
     case "sure": return { text: choiceLine(options[input.tab % options.length], byId), enter: true };
     case "choices": return { text: UNSURE_LINE, enter: false, unsure: true };
