@@ -70,7 +70,7 @@ describe("a routine's App", () => {
     expect(html).toContain("Level preview");
     expect(html).toContain(`An app made by ${routines[0].name}`);
     expect(html).toContain('sandbox="allow-scripts allow-forms"');
-    expect(html).toContain("Runs in a sandbox. This App can read levels/*.json in this project.");
+    expect(html).toContain("<strong>Runs in a sandbox.</strong> This App can read levels/*.json in this project.");
     expect(html).toContain("Pin to Home");
     expect(html).toContain("Open as a tool");
   });
@@ -91,6 +91,9 @@ describe("a routine's App", () => {
     expect(html).toContain('sandbox="allow-scripts allow-forms"');
     expect(html).not.toContain("Open as a tool");
     expect(html).toContain("Make it an Extension");
+    expect(html.indexOf("Make it an Extension")).toBeLessThan(html.indexOf("eos-body"));
+    expect(html).toContain(`App · made by ${routines[0].name}`);
+    expect(html).toContain('<p class="eos-lead">Shows a level.</p>');
   });
 
   it("hands the App to the Forge to become an Extension", async () => {

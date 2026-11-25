@@ -22,6 +22,7 @@ import { CAPABILITY_STATES } from "./capabilityStates.js";
 import { PAGE_STATES } from "./pageStates.js";
 import { CHROME_STATES } from "./chromeStates.js";
 import { SETTINGS_STATES } from "./settingsStates.js";
+import { APP_STATES } from "./appStates.js";
 import { addHomeRuns, addOnce } from "../../../state/eos/homeRunsStore.js";
 import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
@@ -361,6 +362,7 @@ export const GALLERY_STATES = [
   ...PAGE_STATES,
   ...CHROME_STATES,
   ...SETTINGS_STATES,
+  ...APP_STATES,
 ];
 
 export const stateOf = (id) => GALLERY_STATES.find((s) => s.id === id) ?? GALLERY_STATES[0];
