@@ -72,6 +72,8 @@ export function SettingsModal() {
   useEffect(() => {
     if (!settingsOpen) return;
     const onKey = (e) => {
+      // A dialog an Eos pane opened (Forget everything) closes first, by itself.
+      if (e.key === "Escape" && document.querySelector(".eos-ask")) return;
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();

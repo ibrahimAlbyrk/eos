@@ -72,3 +72,86 @@
 .eos-how__title { font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
 .eos-how__line { font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim); }
 .eos-routine__section > .eos-seg { align-self: flex-start; }
+
+/* ── Settings › Eos ──────────────────────────────────────────────────────── */
+/* In the app's Settings modal, in Eos's hand: where Eos stands first, in the
+   stopped band's shape (the ok ring and Stop everything while it runs, the
+   err ring and Resume while stopped); then each area under Eos's mono label,
+   its settings on hairlines with what each does in --fg-dim; few choices as a
+   segmented choice; times and the limit in wells. */
+.eos-stg { --eos-stg-line: rgba(255, 255, 255, 0.07); max-width: 680px; padding-bottom: 32px; }
+.eos-stg__title { margin-bottom: 20px; }
+.eos-stg__standing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px 12px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--eos-stg-line);
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.eos-stg__standing .eos-halt__words { display: flex; flex-direction: column; gap: 2px; flex-basis: 300px; }
+.eos-stg__standing .eos-btn { height: 32px; padding: 0 16px; }
+.eos-stg__standing--stopped { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 45%, transparent); }
+.eos-stg__group { margin-top: 36px; }
+.eos-stg .stg-group + .stg-group { margin-top: 36px; }
+.eos-stg__label { margin: 0 0 4px; }
+.eos-stg .stg-row {
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 12px 0;
+  gap: 24px;
+  border-top: 1px solid var(--eos-stg-line);
+}
+.eos-stg .stg-row__text { flex: 1 1 auto; }
+.eos-stg .stg-row__label { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-stg .stg-row__desc { margin-top: 3px; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); text-wrap: pretty; }
+.eos-stg .stg-row__desc.eos-stg__desc--warn { color: var(--warn); }
+.eos-stg .stg-row__desc.eos-stg__desc--ok { color: var(--ok); }
+.eos-stg .stg-row > :not(.stg-row__text) { flex: none; }
+.eos-stg__note {
+  margin: 0;
+  padding: 12px 0 14px;
+  border-top: 1px solid var(--eos-stg-line);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--fg-dim);
+  text-wrap: pretty;
+}
+.eos-stg__note > span { display: block; max-width: 62ch; }
+.eos-stg__choice { background: rgba(0, 0, 0, 0.28); }
+.eos-stg__choice .eos-seg__opt { transition: background 140ms var(--ease), color 140ms var(--ease); }
+.eos-stg__choice .eos-seg__opt:hover { color: var(--fg-strong); }
+.eos-stg__choice .eos-seg__opt[aria-checked="true"] { background: var(--chip); }
+.eos-stg__money,
+.eos-stg__times {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--eos-stg-line);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.eos-stg__money:focus-within,
+.eos-stg__times:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
+.eos-stg__money { gap: 2px; cursor: text; }
+.eos-stg__money input { min-width: 1.5ch; max-width: 9ch; font: inherit; color: var(--fg-strong); }
+.eos-stg__money .eos-stg__unit { margin-left: 4px; }
+.eos-stg__unit { font-family: var(--font-ui); color: var(--fg-dim2); }
+.eos-stg__quiet { display: inline-flex; align-items: center; gap: 14px; }
+.eos-stg__times > span { font-family: var(--font-ui); color: var(--fg-dim2); }
+.eos-stg__times input { font: inherit; color: var(--fg-strong); background: none; border: 0; }
+.eos-stg__times input::-webkit-calendar-picker-indicator { display: none; }
+.eos-stg__times[aria-disabled="true"] { opacity: 0.45; }
+.eos-stg__ghost { padding: 0; }
+.eos-stg__ghost .eos-skeleton__row { border-top-color: var(--eos-stg-line); }
+@media (prefers-contrast: more) { .eos-stg { --eos-stg-line: rgba(255, 255, 255, 0.18); } }
