@@ -102,11 +102,12 @@ describe("a run's stations", () => {
 });
 
 describe("the run view", () => {
-  it("draws a queued run with its breadcrumb, origin and state, Stop and no team", async () => {
+  it("draws a queued run with its breadcrumb, state, origin as the lead's label, Stop and no team", async () => {
     const html = await screen("queued01");
     expect(html).toContain('<button type="button" class="eos-crumb">PR Review</button>');
-    expect(html).toContain('<h1 class="eos-title">Run on #471</h1><span class="eos-chip">Started by hand</span>');
-    expect(html).toContain('<span class="eos-chip">Started by hand</span><span class="eos-status">Queued</span>');
+    expect(html).toContain('<h1 class="eos-title">Run on #471</h1><span class="eos-status">Queued</span>');
+    expect(html).toMatch(/<p class="eos-label">Started by hand · [^<]+<\/p>/);
+    expect(html).toContain('<p class="eos-rlead__now">It starts as soon as Eos has room for it.</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--ghost eos-btn--stop">Stop</button>');
     expect(html).toContain("Waiting to start on #471 Pool the combo particles.");
     expect(states(html)).toEqual(["todo", "todo", "todo", "todo", "todo"]);
@@ -127,7 +128,11 @@ describe("the run view", () => {
     expect(html).toContain("<dt>Depth</dt><dd>Deep</dd>");
     expect(html).toContain("<dt>Note</dt><dd>This time also look at the shaders.</dd>");
     expect(html).toContain("<dt>Result</dt><dd>Show me only</dd>");
-    expect(html).toContain('<h2 class="eos-label">So far</h2><p class="eos-run-aside__text">3 min and $0.21. A run usually takes 5 min and $0.55.</p>');
+    expect(html).toMatch(/<p class="eos-rlead__now">Two agents at work, [^<]+ in\.<\/p>/);
+    expect(html).toContain('<span class="eos-station__word"><span class="eos-sr">, </span>now</span>');
+    expect(html).toContain('<h2 class="eos-label">So far</h2>');
+    expect(html).toContain('<dt>Time</dt><dd class="eos-run-cost__value">3 min</dd><dd class="eos-run-cost__usual">usually 5 min</dd>');
+    expect(html).toContain('<dt>Cost</dt><dd class="eos-run-cost__value">$0.21</dd><dd class="eos-run-cost__usual">usually $0.55</dd>');
   });
 
   it("draws a run being checked and one that waits for the user, with the way to its item", async () => {
@@ -139,7 +144,11 @@ describe("the run view", () => {
     const waiting = await screen("waiting01");
     expect(states(waiting)).toEqual(["done", "done", "done", "current*", "todo"]);
     expect(waiting).toContain('<span class="eos-status eos-status--active">Waiting for you</span>');
-    expect(waiting).toContain('The result waits for you in Needs you. <button type="button" class="eos-link">Open it</button>');
+    expect(waiting).toContain('<p class="eos-run__sentence">The result waits for you in Needs you.</p>');
+    expect(waiting).toContain('<p class="eos-rlead__now eos-rlead__now--active" role="status">Nothing goes out until you answer.</p>');
+    expect(waiting).toContain('<button type="button" class="eos-btn eos-btn--primary">Open it in Needs you</button>');
+    expect(waiting).toContain("waits for you</span>");
+    expect(waiting).toContain('<h2 class="eos-label">The check</h2><span class="eos-section__aside">Passed</span>');
   });
 
   it("shows a finished show-only run's result, read-only, and a trial's under its own heading", async () => {
@@ -153,19 +162,21 @@ describe("the run view", () => {
     expect(shown).toContain('<h2 class="eos-label">In all</h2>');
 
     const trial = await screen("trial01");
-    expect(trial).toContain('<span class="eos-chip">A trial</span>');
+    expect(trial).toMatch(/<p class="eos-label">A trial · [^<]+<\/p>/);
     expect(trial).toContain("Shown to you only. Nothing will be sent from this run.");
     expect(trial).toContain('<h2 class="eos-label">Trial, nothing was sent</h2>');
     expect(trial).toContain("<md>Looks good. Should the haptics follow the system setting?</md>");
   });
 
-  it("marks where a failed run failed and says what went wrong", async () => {
+  it("marks where a failed run failed, says why in its lead and which checks failed", async () => {
     const html = await screen("failed01");
     expect(html).toContain('<span class="eos-status eos-status--err">Failed</span>');
     expect(states(html)).toEqual(["done", "done", "failed*", "todo", "todo"]);
-    expect(html).toContain('<h2 class="eos-label">What went wrong</h2><p class="eos-run-wrong__reason">Its result failed the check twice.</p>');
-    expect(html).toContain("<li>Two findings name no line.</li>");
-    expect(html).not.toContain("Nothing secret-like");
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--err" role="status">Its result failed the check twice.</p>');
+    expect(html).toContain('<span class="eos-section__aside eos-run-check__failed">1 of 2 failed</span>');
+    expect(html).toContain('<li class="eos-fact eos-fact--err">Two findings name no line.<span class="eos-sr">, failed</span></li>');
+    expect(html).toContain('<li class="eos-fact eos-fact--done">Nothing secret-like in the text.<span class="eos-sr">, passed</span></li>');
+    expect(html).toContain("<li>Name the line of each finding.</li>");
     expect(html).not.toContain(">Stop</button>");
   });
 

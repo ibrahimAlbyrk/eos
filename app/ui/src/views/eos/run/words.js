@@ -2,6 +2,8 @@
 // where it came from, its state with how long it has been at it, why it
 // stopped, and who worked on it.
 
+import { fmtUsd } from "../../../lib/format.js";
+
 const ORIGINS = {
   hand: "Started by hand",
   trigger: "Started by a trigger",
@@ -116,4 +118,32 @@ export function itemLine(input) {
   if (item) return item.title ?? item.url ?? item.path ?? item.key ?? "an item";
   if (input.items?.length) return `${input.items.length} items`;
   return null;
+}
+
+const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+const NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const agentsWord = (n) => `${NUMBERS[n] ?? n} ${n === 1 ? "agent" : "agents"}`;
+const STATION_WORDS = { brief: "the brief", work: "the work", check: "the check", gate: "the gate", deliver: "sending" };
+
+// Where the run stands, said under its sentence as Home's second line says
+// the day: how long it has been at it and with whom, or how it ended, with
+// the tone of the mark that hangs before it when it needs the user or broke.
+export function standingLine({ run, agents }, now) {
+  const took = duration(elapsed(run, now));
+  const working = agents.filter((a) => agentStateWord(a.state) === "working").length;
+  const at = STATION_WORDS[run.station];
+  switch (run.state) {
+    case "queued": return { text: "It starts as soon as Eos has room for it." };
+    case "running":
+    case "checking":
+      return { text: working ? `${capital(agentsWord(working))} at work, ${took} in.` : `${capital(took)} in.` };
+    case "waiting_for_user": return { text: "Nothing goes out until you answer.", tone: "active" };
+    case "delivering": return { text: `Checked and passed, ${took} in.` };
+    case "paused": return { text: at ? `It waits at ${at} until it may go on.` : "It waits until it may go on.", tone: "warn" };
+    case "done": return { text: `Done in ${took} for ${fmtUsd(run.costUsd)}.` };
+    case "skipped": return { text: "It never started." };
+    case "cancelled": return { text: run.station ? `It stopped at ${at}, ${took} in.` : "It stopped before it started." };
+    case "failed": return { text: reasonLine(run), tone: "err" };
+    default: return { text: "" };
+  }
 }

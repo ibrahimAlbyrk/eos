@@ -22,25 +22,16 @@ export function stepLabel(done, total) {
   return `Step ${Math.min(done + 1, total)} of ${total}`;
 }
 
-function Mark({ kind }) {
-  if (kind === "done") {
-    return (
-      <svg aria-hidden="true" className="eos-step__mark eos-step__mark--done" width="13" height="13" viewBox="0 0 16 16">
-        <path d="M3.5 8.5l3 3 6-7" />
-      </svg>
-    );
-  }
-  return <span aria-hidden="true" className={`eos-step__mark eos-step__mark--${kind}`} />;
-}
-
 // The latest line any of the run's agents showed.
 function latestLine(lines) {
   const all = Object.values(lines).map((kept) => kept[kept.length - 1]).filter(Boolean);
   return all[all.length - 1] ?? null;
 }
 
-// The steps list (01 G10, 08 SurfaceApp): done, the one at work with what
-// its team does now, and those still to come.
+// The steps list (01 G10, 08 SurfaceApp) hung on a spine as the blueprint's
+// slots are: the steps done solid on a solid line, the one at work lit and
+// breathing with what its team does now under it, those to come hollow on a
+// dashed line.
 export function StepsList({ milestones, done, working, line }) {
   return (
     <ol className="eos-steps" aria-label="Steps">
@@ -48,9 +39,11 @@ export function StepsList({ milestones, done, working, line }) {
         const kind = n < done ? "done" : n === done && working ? "now" : "next";
         return (
           <li key={m.key} className={`eos-step eos-step--${kind}`} aria-current={kind === "now" ? "step" : undefined}>
-            <Mark kind={kind} />
+            <span aria-hidden="true" className="eos-step__mark" />
+            <span className="eos-step__num" aria-hidden="true">{String(n + 1).padStart(2, "0")}</span>
             <span className="eos-step__title">{m.title}</span>
             {kind === "now" && line && <span className="eos-step__line">{line}</span>}
+            <span className="eos-sr">{kind === "done" ? ", done" : kind === "now" ? ", at work" : ", to come"}</span>
           </li>
         );
       })}
@@ -58,9 +51,9 @@ export function StepsList({ milestones, done, working, line }) {
   );
 }
 
-// The project's page body: the steps of its run, the latest word from its
-// team, Tell the team while it works, and the side panel in the project's
-// folder.
+// The project's page body: its steps under a label that counts them, the
+// latest word from its team under the step at work, Tell the team while it
+// works, and the side panel in the project's folder.
 export function ProjectSteps({ detail, run }) {
   const milestones = milestonesOf(detail) ?? [];
   const runId = run?.id;
@@ -75,13 +68,12 @@ export function ProjectSteps({ detail, run }) {
   const line = latestLine(lines);
   return (
     <div className="eos-project">
-      <section className="eos-project__main" aria-label="The project">
+      <section className="eos-section eos-project__main" aria-label="The project">
+        <header className="eos-section__head">
+          <h2 className="eos-label">The project</h2>
+          <span className="eos-section__aside">{done === milestones.length ? "Every step done" : `${done} of ${milestones.length} done`}</span>
+        </header>
         <StepsList milestones={milestones} done={done} working={working} line={line} />
-        {line && (
-          <div className="eos-card eos-project__said">
-            <p className="eos-project__said-text">{line}</p>
-          </div>
-        )}
         {working && <TellTeam runId={runId} />}
       </section>
       <aside className="eos-project__aside" aria-label="Side panel">
