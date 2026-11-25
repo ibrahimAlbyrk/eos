@@ -10,7 +10,7 @@ import { _resetSurfaces, loadRoutineView } from "../../../state/eos/surfacesStor
 import { UiProvider } from "../../../state/ui.jsx";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
-import { menuActions } from "./RoutineMenu.jsx";
+import { fileName, menuActions } from "./RoutineMenu.jsx";
 import { pausedLine } from "./words.js";
 import routines from "../gallery/sample/routines.json";
 import routineDetail from "../gallery/sample/routine-detail.json";
@@ -251,9 +251,9 @@ describe("the routine page's writes", () => {
     expect(draw()).toContain(DEV_RUN_TEXT);
   });
 
-  it("offers Start another like this, Archive and Delete to trash in the menu", async () => {
-    expect(menuActions(routineDetail.routine).map((a) => a.label)).toEqual(["Start another like this", "Archive", "Delete to trash"]);
-    expect(menuActions({ ...routineDetail.routine, state: "archived" }).map((a) => a.label)).toEqual(["Start another like this", "Delete to trash"]);
+  it("offers Start another like this, Save to a file, Archive and Delete to trash in the menu", async () => {
+    expect(menuActions(routineDetail.routine).map((a) => a.label)).toEqual(["Start another like this", "Save to a file", "Archive", "Delete to trash"]);
+    expect(menuActions({ ...routineDetail.routine, state: "archived" }).map((a) => a.label)).toEqual(["Start another like this", "Save to a file", "Delete to trash"]);
 
     const copy = { ...routineDetail.routine, id: "rt-copy", state: "draft" };
     const transport = recording(async () => ({ ok: true, status: 201, body: { row: copy, versionId: "rv-copy", warnings: [] } }));
@@ -263,11 +263,24 @@ describe("the routine page's writes", () => {
     expect(eosLocation()).toBe("eos:/routines/rt-copy?tab=blueprint");
   });
 
+  it("saves the routine's file under its name", async () => {
+    const file = { format: 1, routine: { id: PR, name: "PR Review" }, versions: [] };
+    const saved = [];
+    globalThis.document = { createElement: () => ({ click() { saved.push(this.download); } }) };
+    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    setEosTransport({ ...fixtureTransport({ [ROUTES.routineExport(PR)]: file }) });
+    await menuActions(routineDetail.routine)[1].run();
+    expect(saved).toEqual(["pr-review.eos-routine.json"]);
+    expect(fileName("")).toBe("routine.eos-routine.json");
+    created.mockRestore();
+    delete globalThis.document;
+  });
+
   it("archives through the state route and deletes to trash, leaving the page", async () => {
     const archived = { ...routineDetail.routine, state: "archived" };
     const transport = recording(async (method) => ({ ok: true, status: 200, body: method === "PUT" ? archived : { ...archived, state: "deleted" } }));
     await page(`eos:/routines/${PR}`, transport);
-    const [, archive, remove] = menuActions(routineDetail.routine);
+    const [, , archive, remove] = menuActions(routineDetail.routine);
     await archive.run();
     expect(transport.send).toHaveBeenCalledWith("PUT", ROUTES.routineState(PR), { state: "archived" });
     expect(rowState(PR)).toBe("archived");
