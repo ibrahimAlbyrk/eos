@@ -37,6 +37,9 @@ const NOT_HERE: &str = "This routine's team or workspace needs a newer Eos.";
 const NOT_VALID: &str = "This routine's blueprint no longer passes its rules.";
 const NO_APPS: &str = "Building an App needs a newer Eos.";
 const NO_SIGN_IN: &str = "Eos is not signed in to Claude: sign in under Settings › Accounts.";
+/// A run in a folder its feature made works there under that folder's
+/// settings (L11); a run that read outside text would be moved out of it.
+const OWN_FOLDER_UNTRUSTED: &str = "This run was given outside text, so Eos did not start it in its build folder.";
 /// The provider every run session starts on.
 const PROVIDER: &str = "anthropic";
 
@@ -114,6 +117,9 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
         }
     }
     // A built-in routine's feature may give its run a folder of its own making.
+    if builtin && trust == Trust::Untrusted {
+        return Err((Reason::Invalid, Some(OWN_FOLDER_UNTRUSTED), None));
+    }
     let made = match builtin {
         true => engine.system_steps.prepare_folder(run_id).await.map_err(internal)?,
         false => None,
