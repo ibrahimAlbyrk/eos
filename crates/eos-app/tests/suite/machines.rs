@@ -73,7 +73,12 @@ async fn every_feature_that_contributes_data_syncs_it_to_the_vault() {
     // The first pass pushes one record each: profile identity, memory, template, worker, page.
     let mut events = app.runtime().kernel.bus.subscribe("sync:change", 64);
     let pushed = async {
-        while vault.records(&keys.vault_id).len() < 5 {
+        let domains = || {
+            let records = vault.records(&keys.vault_id);
+            let opened = records.iter().filter_map(|record| keys.open(&record.key, &record.data).ok());
+            opened.filter(|plain| serde_json::from_slice::<Value>(plain).is_ok_and(|v| v.get("lease").is_none())).count()
+        };
+        while domains() < 5 {
             let _ = events.recv().await;
         }
     };
@@ -81,14 +86,18 @@ async fn every_feature_that_contributes_data_syncs_it_to_the_vault() {
     let mut seen: Vec<(String, String)> = vault
         .records(&keys.vault_id)
         .iter()
-        .map(|record| {
+        .filter_map(|record| {
             let plain = keys.open(&record.key, &record.data).expect("sealed with this account's key");
             let envelope: Value = serde_json::from_slice(&plain).expect("an envelope");
+            // Who runs which routine travels beside the domains, as no domain's record.
+            if envelope.get("lease").is_some() {
+                return None;
+            }
             assert_eq!(envelope["device"], "Test Mac");
-            (
+            Some((
                 envelope["domain"].as_str().unwrap_or_default().to_owned(),
                 envelope["id"].as_str().unwrap_or_default().to_owned(),
-            )
+            ))
         })
         .collect();
     seen.sort();

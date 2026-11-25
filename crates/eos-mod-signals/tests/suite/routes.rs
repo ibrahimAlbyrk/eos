@@ -314,10 +314,10 @@ async fn move_here_takes_up_the_away_computers_cursor_and_decides_again_what_it_
     use eos_core::signals::{DeviceSeen, Handoff, Holder};
     let leases = Arc::new(crate::runner::Leases::default());
     leases.hold("rt-a", Holder::Elsewhere { device_id: "dev-2".into(), epoch: 1 });
-    *leases.confirmed_at.lock().unwrap() = Some(0);
+    *leases.confirmed_at.lock().expect("not poisoned") = Some(0);
     let away =
         DeviceSeen { device_id: "dev-2".into(), name: "MacBook Air".into(), seen_at: 0, routines: vec!["rt-a".into()] };
-    leases.devices.lock().unwrap().push(away);
+    leases.devices.lock().expect("not poisoned").push(away);
     let mut bench = Bench::new(active());
     bench.runner = leases.clone();
     bench.clock.set(3 * 60 * 60_000);
@@ -338,7 +338,7 @@ async fn move_here_takes_up_the_away_computers_cursor_and_decides_again_what_it_
     let scope: String = rig.bench.temp.text(&format!("SELECT scope_hash FROM signal_sources WHERE id = '{SOURCE_ID}'"));
     let key: String = rig.bench.temp.text("SELECT key FROM signals WHERE id = 1");
     let marks = json!({ "sources": { scope.clone(): { "etag": "from-air" } }, "schedules": {}, "keys": [key] });
-    *leases.handoff.lock().unwrap() = Some(Handoff { routine_id: "rt-a".into(), epoch: 2, watermarks: Some(marks) });
+    *leases.handoff.lock().expect("not poisoned") = Some(Handoff { routine_id: "rt-a".into(), epoch: 2, watermarks: Some(marks) });
     let (status, moved) = rig.ask(Method::Post, "/api/runners/claim", Some(claim)).await;
     assert_eq!((status, moved["claimed"].as_bool(), moved["epoch"].as_i64()), (200, Some(true), Some(2)), "{moved}");
     let cursor = rig.bench.temp.text(&format!("SELECT cursor_json FROM signal_sources WHERE id = '{SOURCE_ID}'"));

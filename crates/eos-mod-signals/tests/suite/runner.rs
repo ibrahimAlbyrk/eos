@@ -28,7 +28,7 @@ pub(crate) struct Leases {
 
 impl Leases {
     pub(crate) fn hold(&self, routine: &str, holder: Holder) {
-        self.holders.lock().unwrap().insert(routine.into(), holder);
+        self.holders.lock().expect("not poisoned").insert(routine.into(), holder);
     }
 }
 
@@ -37,15 +37,15 @@ impl Runner for Leases {
         "dev-1"
     }
     fn holder(&self, routine_id: &str) -> Holder {
-        self.holders.lock().unwrap().get(routine_id).cloned().unwrap_or(Holder::Unknown)
+        self.holders.lock().expect("not poisoned").get(routine_id).cloned().unwrap_or(Holder::Unknown)
     }
     fn adopt<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<(), RunnerError>> {
-        self.adopted.lock().unwrap().push(routine_id.into());
+        self.adopted.lock().expect("not poisoned").push(routine_id.into());
         self.hold(routine_id, Holder::Here { epoch: 1 });
         Box::pin(std::future::ready(Ok(())))
     }
     fn claim<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<Handoff, RunnerError>> {
-        let claimed = match self.handoff.lock().unwrap().clone() {
+        let claimed = match self.handoff.lock().expect("not poisoned").clone() {
             Some(handoff) => {
                 self.hold(routine_id, Holder::Here { epoch: handoff.epoch });
                 Ok(handoff)
@@ -58,10 +58,10 @@ impl Runner for Leases {
         Box::pin(std::future::ready(Ok(())))
     }
     fn devices(&self) -> Vec<DeviceSeen> {
-        self.devices.lock().unwrap().clone()
+        self.devices.lock().expect("not poisoned").clone()
     }
     fn confirmed_at(&self) -> Option<i64> {
-        *self.confirmed_at.lock().unwrap()
+        *self.confirmed_at.lock().expect("not poisoned")
     }
     fn shared(&self) -> bool {
         true
@@ -96,7 +96,7 @@ async fn a_routine_another_computer_holds_gets_elsewhere_and_no_run() {
     let leases = Arc::new(Leases::default());
     leases.hold("rt-here", Holder::Here { epoch: 1 });
     leases.hold("rt-away", Holder::Elsewhere { device_id: "dev-2".into(), epoch: 3 });
-    *leases.confirmed_at.lock().unwrap() = Some(6_000);
+    *leases.confirmed_at.lock().expect("not poisoned") = Some(6_000);
     let bench = bench(&leases);
     let module = bench.module(bench.temp.port(), Arc::new(SavedIntake::new(None)), true);
     module.ingest(SOURCE_ID, one_pull()).await.expect("kept");
@@ -136,12 +136,12 @@ async fn a_read_of_the_leases_lets_this_computer_act_and_adopt_what_no_lease_nam
     module.ingest(SOURCE_ID, one_pull()).await.expect("kept");
     module.after_ready().await.expect("ready");
     bench.until(|| bench.sleeper.pending().len() == 1).await;
-    assert!(leases.adopted.lock().unwrap().is_empty(), "nothing is adopted before a read: its lease may exist");
+    assert!(leases.adopted.lock().expect("not poisoned").is_empty(), "nothing is adopted before a read: its lease may exist");
 
-    *leases.confirmed_at.lock().unwrap() = Some(bench.clock.now_ms());
+    *leases.confirmed_at.lock().expect("not poisoned") = Some(bench.clock.now_ms());
     pass(&bench).await;
     bench.until(|| bench.received() == 0).await;
-    assert_eq!(*leases.adopted.lock().unwrap(), ["rt-away".to_owned()]);
+    assert_eq!(*leases.adopted.lock().expect("not poisoned"), ["rt-away".to_owned()]);
     assert_eq!(decisions(&bench), [("rt-away".into(), "run".into()), ("rt-here".into(), "run".into())]);
     module.stop().await;
 }
