@@ -53,6 +53,19 @@ function readOnly(parts) {
   return kept.filter((p, n) => !p.break || (n > 0 && n < kept.length - 1 && !kept[n + 1].break));
 }
 
+// The parts in groups of what may not part at a line's end: a remove
+// button stays with the value before it, so it never wraps alone.
+function grouped(parts) {
+  const groups = [];
+  for (const p of parts) {
+    const prev = groups.at(-1);
+    const removes = typeof p === "object" && p.editor === "act" && !p.add;
+    if (removes && prev && typeof prev[0] === "object" && !prev[0].break) prev.push(p);
+    else groups.push([p]);
+  }
+  return groups;
+}
+
 // A row of the blueprint card: the slot's name and its words. With `onApply`
 // each value opens its own small editor, and a value chosen there
 // becomes the slot's new value. `changed` marks a slot that differs from
@@ -70,9 +83,12 @@ export function SlotRow({ label, parts, onApply, changed = false, preview }) {
     <div className={changed ? "eos-bp-row eos-bp-row--changed" : "eos-bp-row"}>
       <dt className="eos-bp-row__label">{label}{changed && <span className="eos-bp-row__mark">Changed</span>}</dt>
       <dd className="eos-bp-row__value">
-        {shown.map((p, n) => (
-          <Part key={typeof p === "object" && p.key ? p.key : n} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
-        ))}
+        {grouped(shown).map((group, n) => {
+          const drawn = group.map((p, i) => (
+            <Part key={typeof p === "object" && p.key ? p.key : `${n}.${i}`} part={p} editable={editable} open={open === p.key} setOpen={setOpen} apply={onApply} />
+          ));
+          return group.length > 1 ? <span key={n} className="eos-bp-keep">{drawn}</span> : drawn;
+        })}
         {opened && <PartEditor part={opened} done={done} />}
         {preview}
       </dd>
