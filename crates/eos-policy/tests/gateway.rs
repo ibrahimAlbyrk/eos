@@ -580,7 +580,7 @@ impl eos_core::policy::KeptScripts for Scripts {
 
 /// A script routine's lead runs its kept script inline whatever the rules
 /// say, any other script of it is refused, and a session of no routine is
-/// the policy's; a subagent's Workflow call never gets the script.
+/// the policy's; a subagent's Workflow call inside a run session is refused.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_workflow_call_is_decided_by_the_kept_script_above_every_rule() {
     let f = fixture("bypassPermissions", json!({"default": "deny", "rules": []}));
@@ -603,7 +603,15 @@ async fn a_workflow_call_is_decided_by_the_kept_script_above_every_rule() {
     let theirs = gateway.decide(focused(json!({"name": "saved"}))).await.expect("decides");
     let plain = f.gateway.decide(focused(json!({"name": "saved"}))).await.expect("decides");
     assert_eq!(behavior(&theirs), behavior(&plain), "the policy decides as without scripts");
-    let sub = ToolCall { agent_id: Some("a1".into()), ..focused(json!({"scriptPath": "/kept.js"})) };
-    let ExternalDecision::Allow(allow) = gateway.decide(sub).await.expect("decides") else { return };
-    assert!(allow.updated_input.is_none_or(|input| !input.contains_key("script")), "never swapped for the script");
+    // An agent inside a run session is refused, never left to the policy
+    // (which allows everything here), whatever script it names.
+    for input in [json!({"scriptPath": "/kept.js"}), json!({"scriptPath": "/other.js"})] {
+        let sub = ToolCall { agent_id: Some("a1".into()), ..focused(input) };
+        let refused = gateway.decide(sub).await.expect("decides");
+        assert_eq!(behavior(&refused), "deny", "{refused:?}");
+        assert!(message(&refused).contains("runs no workflow"), "{refused:?}");
+    }
+    let sub = ToolCall { agent_id: Some("a1".into()), ..focused(json!({"name": "saved"})) };
+    let theirs = gateway.decide(sub).await.expect("decides");
+    assert_eq!(behavior(&theirs), behavior(&plain), "a session of no routine is still the policy's");
 }

@@ -89,6 +89,9 @@ impl Drop for Parked {
 
 /// The engine's tool that runs a workflow script.
 const WORKFLOW_TOOL: &str = "Workflow";
+/// Why an agent inside a run session may not call `Workflow`.
+const SUBAGENT_WORKFLOW: &str = "Refused: an agent inside a routine's run runs no workflow. Only the routine's lead \
+                                 runs its kept script.";
 
 fn denied(message: impl Into<String>) -> ExternalDecision {
     ExternalDecision::Deny(DenyVariant { message: message.into() })
@@ -162,11 +165,11 @@ impl PolicyGateway {
     /// its kept script inline or is refused; `None` lets the policy decide.
     async fn script_decision(&self, call: &ToolCall) -> Result<Option<Decision>, Error> {
         let Some(scripts) = self.scripts.as_ref().filter(|_| call.tool_name == WORKFLOW_TOOL) else { return Ok(None) };
-        if call.agent_id.is_some() {
-            return Ok(None);
-        }
         Ok(match scripts.check(&call.worker_id, &call.input).await? {
             ScriptCall::NotOurs => None,
+            // Only the run session itself runs its kept script, never an
+            // agent inside it, and the policy is never asked instead.
+            _ if call.agent_id.is_some() => Some(Decision::Deny(DenyVariant { message: SUBAGENT_WORKFLOW.into() })),
             ScriptCall::Run(input) => Some(Decision::Allow(AllowVariant { updated_input: Some(input), message: None })),
             ScriptCall::Refused(message) => Some(Decision::Deny(DenyVariant { message })),
         })
