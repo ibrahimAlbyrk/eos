@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AskRows, Band, Dialog, EmptyState, Section } from "./frame.jsx";
+import { AskRows, Band, Dialog, EmptyState, Section, askKey } from "./frame.jsx";
 
 describe("Eos's shared screen parts", () => {
   it("a section is labelled by its heading, with its aside at the right", () => {
@@ -27,5 +27,17 @@ describe("Eos's shared screen parts", () => {
     expect(html).toContain('<p class="eos-ask__from">A routine file</p><h2 id="d-title" class="eos-ask__title">Make a draft of PR Review?</h2><p class="eos-ask__line">Nothing runs yet.</p>');
     expect(html).toContain('<dl class="eos-ask__rows"><div><dt>File</dt><dd>pr.json</dd></div></dl>');
     expect(html.indexOf(">Cancel<")).toBeLessThan(html.indexOf(">Make the draft<"));
+  });
+
+  it("a dialog closes on Escape and keeps Tab inside, wrapping at either edge", () => {
+    const [cancel, act] = [{ name: "Cancel" }, { name: "Remove" }];
+    const all = [cancel, act];
+    expect(askKey("Escape", false, [], cancel)).toBe("close");
+    expect(askKey("Tab", false, all, act)).toBe(cancel);
+    expect(askKey("Tab", true, all, cancel)).toBe(act);
+    expect(askKey("Tab", false, all, cancel)).toBeNull();
+    expect(askKey("Tab", true, all, act)).toBeNull();
+    expect(askKey("Tab", false, [], null)).toBeNull();
+    expect(askKey("Enter", false, all, act)).toBeNull();
   });
 });

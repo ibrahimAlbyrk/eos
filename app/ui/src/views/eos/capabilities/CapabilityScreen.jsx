@@ -270,7 +270,7 @@ function Versions({ detail }) {
 }
 
 // Asks before it goes to the trash, naming the routines that lose it.
-function RemoveDialog({ detail, names, onClose }) {
+export function RemoveDialog({ detail, names, onClose }) {
   const users = (detail.usedBy ?? []).map((id) => names[id]).filter(Boolean);
   const remove = async () => {
     if (await removeCapability(detail.id)) openLocation(LIST);
