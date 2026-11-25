@@ -10,6 +10,7 @@ import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SurfaceCard } from "../needs/SurfaceCard.jsx";
 import { RoutinePageLink } from "../surface/RoutinePageLink.jsx";
 import { reasonLine } from "../run/words.js";
+import { HolderLine } from "./Holder.jsx";
 import { RoutineMenu } from "./RoutineMenu.jsx";
 import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
@@ -112,6 +113,7 @@ export function RoutinePage({ id, tab, version }) {
         {!detail && !failed[id] && <Loading blocks={3} />}
         {detail && (
           <>
+            <HolderLine routine={routine} />
             {routine.state === "paused" && <PausedBand routine={routine} refusal={unconfirmed[id]} />}
             {routine.state !== "paused" && routine.lastRun?.state === "failed" && <FailedBand run={routine.lastRun} />}
             <div>
