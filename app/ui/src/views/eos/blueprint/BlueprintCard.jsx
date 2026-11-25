@@ -62,7 +62,9 @@ export function slotState(key, bp, { changed = [], issues = [], writing = false 
 // written yet wait for the architect. `head` is the version line, `children`
 // what goes under the slots. With `routineId` the When and Which slots show
 // their previews.
-export function BlueprintCard({ blueprint, onEdit, changed = [], issues = [], writing = false, routines, head, routineId, children }) {
+// With `ghost` it is the outline of one not written yet: no ground, no
+// title, only the spine and what each slot holds.
+export function BlueprintCard({ blueprint, onEdit, changed = [], issues = [], writing = false, ghost = false, routines, head, routineId, children }) {
   const bp = blueprint ?? {};
   const capabilities = useCapabilities().list ?? [];
   useEffect(() => ensureCapabilitiesLoaded(), []);
@@ -73,15 +75,15 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], issues = [], wr
   };
   const marks = { changed, issues, writing };
   return (
-    <section className={writing ? "eos-card eos-bp-card eos-bp-card--writing" : "eos-card eos-bp-card"} aria-label="Blueprint" aria-busy={writing || undefined}>
-      <div className="eos-bp-card__title">
+    <section className={ghost ? "eos-bp-card eos-bp-card--ghost" : writing ? "eos-card eos-bp-card eos-bp-card--writing" : "eos-card eos-bp-card"} aria-label="Blueprint" aria-busy={writing || undefined}>
+      {!ghost && <div className="eos-bp-card__title">
         <Glyph icon={bp.icon} name={bp.name} />
         <div className="eos-bp-card__words">
           <HeadText as="h2" className="eos-bp-card__name" label="Name" value={bp.name} empty="Not named yet" put={put("name")} />
           <HeadText as="p" className="eos-bp-card__sentence" label="What it does, in one sentence" value={bp.summary} empty="What it does, in one sentence" put={put("summary")} optional />
         </div>
         {head && <div className="eos-bp-card__head">{head}</div>}
-      </div>
+      </div>}
       <dl className="eos-bp-rows">
         {SLOTS.map((slot) => (
           <SlotRow

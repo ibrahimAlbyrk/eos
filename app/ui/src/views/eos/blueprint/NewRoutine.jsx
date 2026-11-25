@@ -5,7 +5,8 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { BlueprintCard } from "./BlueprintCard.jsx";
 import { NewRoutineStart } from "./NewRoutineStart.jsx";
-import { issueLine, HAND_BLUEPRINT } from "./words.js";
+import { Note } from "./BlueprintEditor.jsx";
+import { HAND_BLUEPRINT } from "./words.js";
 
 // eos:/routines/new (⌘N). First one question in the reading measure: what
 // should Eos take care of; the words make the routine with its architect at
@@ -30,7 +31,7 @@ export function NewRoutine() {
   return (
     <main className="eos-screen eos-screen--read">
       <EosHeader trail={[{ label: "Routines", location: "eos:/routines" }, { label: "New routine" }]}>
-        <span className="eos-status">Draft, not running yet</span>
+        {blueprint && <span className="eos-status">Draft, not running yet</span>}
       </EosHeader>
       <div className="eos-body">
         {blueprint ? (
@@ -38,18 +39,16 @@ export function NewRoutine() {
             <div className="eos-new__head">
               <p className="eos-label">By hand</p>
               <h2 className="eos-lead">Set each part, then make it.</h2>
-              <p className="eos-lead__sub">Click any value to change it. The routine is kept as a draft and runs only when you start it.</p>
+              <p className="eos-lead__sub">Click any value to change it. Each mark on the left fills as its part is said.</p>
             </div>
-            {note?.kind === "refused" && (
-              <div className="eos-band eos-band--err" role="alert">
-                <span className="eos-band__text">{note.text}</span>
-                <ul className="eos-bp-issues">{note.issues.map((i) => <li key={issueLine(i)}>{issueLine(i)}</li>)}</ul>
-              </div>
-            )}
-            <BlueprintCard blueprint={blueprint} onEdit={setBlueprint} routines={list}>
-              <div className="eos-bp-actions">
-                <button type="button" className="eos-btn eos-btn--primary" onClick={() => void make()}>Make it</button>
-                <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setBlueprint(null)}>Describe it instead</button>
+            {note?.kind === "refused" && <Note note={note} />}
+            <BlueprintCard blueprint={blueprint} onEdit={setBlueprint} routines={list} issues={note?.kind === "refused" ? note.issues : []}>
+              <div className="eos-bp-end">
+                <p className="eos-bp-end__line">It is kept as a draft. A trial and Start come next, and nothing runs before them.</p>
+                <div className="eos-bp-actions">
+                  <button type="button" className="eos-btn eos-btn--primary" onClick={() => void make()}>Make it</button>
+                  <button type="button" className="eos-btn eos-btn--ghost" onClick={() => setBlueprint(null)}>Describe it instead</button>
+                </div>
               </div>
             </BlueprintCard>
           </div>
