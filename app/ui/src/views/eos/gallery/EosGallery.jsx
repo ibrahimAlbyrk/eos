@@ -89,7 +89,7 @@ const prRuns = RECENT.map((id) => runs.find((d) => d.run.id === id).run);
 const withStats = {
   ...routineDetail,
   runs: prRuns,
-  routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } },
+  routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, 0.68, 0.79], runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } },
 };
 
 // What the gallery's reads answer, by the path each store asks. The routines
