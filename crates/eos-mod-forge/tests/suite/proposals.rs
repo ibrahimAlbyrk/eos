@@ -131,7 +131,7 @@ async fn a_package_that_changed_after_its_review_or_its_proposal_is_never_instal
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_failing_test_fails_the_station_and_a_declined_proposal_is_rejected_with_its_secrets() {
+async fn a_failing_test_fails_the_station_and_a_declined_proposal_is_rejected_and_erases_no_kept_secret() {
     let rig = Rig::ready().await;
     package(&rig, "rn-1", "1.0.0", "");
     std::fs::write(rig.folder("rn-1").join("package/tests/run.sh"), "exit 1\n").expect("written");
@@ -143,11 +143,12 @@ async fn a_failing_test_fails_the_station_and_a_declined_proposal_is_rejected_wi
 
     package(&rig, "rn-3", "1.0.0", "");
     assert!(matches!(through_review(&rig, "rn-3", "1.0.0").await, StepResult::Done(_)));
-    rig.secrets.write("echo-script", "token", "tok_typed_for_it_9".to_owned().into()).await.expect("kept");
+    rig.secrets.write("echo-script", "token", "tok_kept_from_before_9".to_owned().into()).await.expect("kept");
     let (status, state) = answer(&rig, "rn-3", "decline").await;
     assert_eq!((status, state["state"].as_str()), (200, Some("answered")));
     assert_eq!(rig.temp.count("SELECT COUNT(*) FROM capability_versions WHERE status = 'rejected'"), 1);
-    assert!(!rig.secrets.has("echo-script", "token").await.expect("read"), "its secret goes with it");
+    let kept = rig.secrets.read("echo-script", "token").await.expect("read");
+    assert_eq!(kept.as_deref().map(String::as_str), Some("tok_kept_from_before_9"), "a kept secret is not its own");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -165,8 +166,10 @@ async fn the_live_test_runs_only_when_the_user_starts_it_and_install_waits_for_t
     let spec = &rig.confinement.specs()[audits];
     assert!(!spec.audit, "the live call has the reach it declares");
     assert_eq!(rig.prompt.asked().len(), 1, "its secret was asked in the app's prompt");
-    assert!(rig.secrets.has("echo-script", "token").await.expect("read"));
+    assert!(!rig.secrets.has("echo-script", "token").await.expect("read"), "nothing stored before Install");
     assert!(!live.to_string().contains("tok_typed"), "no secret on the wire");
+    assert_eq!(rig.ask(Method::Post, "/api/forge/proposals/rn-1/live-test", Some("{}")).await.0, 200);
+    assert_eq!(rig.prompt.asked().len(), 1, "asked once per proposal");
 
     assert_eq!(answer(&rig, "rn-1", "not_alerted").await.0, 200);
     assert_eq!(answer(&rig, "rn-1", "install").await.0, 409, "not while it did not reach the user");
@@ -174,6 +177,46 @@ async fn the_live_test_runs_only_when_the_user_starts_it_and_install_waits_for_t
     let (status, state) = answer(&rig, "rn-1", "install").await;
     assert_eq!((status, state["proposal"]["liveTest"]["state"].as_str()), (200, Some("alerted")), "{state}");
     assert_eq!(status_of(&rig, "1.0.0"), "installed");
+    let kept = rig.secrets.read("echo-script", "token").await.expect("read");
+    assert_eq!(kept.as_deref().map(String::as_str), Some("tok_typed_in_prompt_3"), "stored on Install");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_removed_capabilitys_kept_secret_never_reaches_a_new_package_with_its_id() {
+    let rig = Rig::ready().await;
+    package(&rig, "rn-1", "1.0.0", "");
+    assert!(matches!(through_review(&rig, "rn-1", "1.0.0").await, StepResult::Done(_)));
+    assert_eq!(answer(&rig, "rn-1", "install").await.0, 200);
+    rig.secrets.write("echo-script", "token", "tok_of_the_removed_7".to_owned().into()).await.expect("kept");
+    rig.service.remove("echo-script").await.expect("removed");
+    assert!(rig.secrets.has("echo-script", "token").await.expect("read"), "removal keeps its secrets");
+
+    // A builder takes the removed capability's id: its live test asks the secret again.
+    package(&rig, "rn-2", "2.0.0", "#live\n");
+    assert!(matches!(through_review(&rig, "rn-2", "2.0.0").await, StepResult::Done(_)));
+    let (_, state) = rig.ask(Method::Get, "/api/forge/proposals/rn-2", None).await;
+    assert!(state["proposal"]["replaces"].is_null(), "{state}");
+    let audits = rig.confinement.specs().len();
+    rig.prompt.answer(Some("tok_typed_for_new_8"));
+    assert_eq!(rig.ask(Method::Post, "/api/forge/proposals/rn-2/live-test", Some("{}")).await.0, 200);
+    assert_eq!(rig.prompt.asked().len(), 1, "the kept secret is not taken without asking");
+    let env = &rig.confinement.specs()[audits].env;
+    assert!(env.iter().any(|(_, value)| value == "tok_typed_for_new_8"), "the live call has the typed secret");
+    assert!(!env.iter().any(|(_, value)| value.contains("tok_of_the_removed")), "never the removed one's");
+    assert_eq!(answer(&rig, "rn-2", "decline").await.0, 200);
+    let kept = rig.secrets.read("echo-script", "token").await.expect("read");
+    assert_eq!(kept.as_deref().map(String::as_str), Some("tok_of_the_removed_7"), "Decline erases no kept secret");
+
+    // Installed without a live test, the kept secret is asked again or nothing installs.
+    package(&rig, "rn-3", "3.0.0", "");
+    assert!(matches!(through_review(&rig, "rn-3", "3.0.0").await, StepResult::Done(_)));
+    rig.prompt.answer(None);
+    assert_eq!(answer(&rig, "rn-3", "install").await.0, 409, "cancelled: not installed");
+    assert!(rig.service.get("echo-script").await.expect("read").is_none());
+    rig.prompt.answer(Some("tok_typed_at_install_9"));
+    assert_eq!(answer(&rig, "rn-3", "install").await.0, 200);
+    let kept = rig.secrets.read("echo-script", "token").await.expect("read");
+    assert_eq!(kept.as_deref().map(String::as_str), Some("tok_typed_at_install_9"), "the user's word replaced it");
 }
 
 #[tokio::test(flavor = "multi_thread")]

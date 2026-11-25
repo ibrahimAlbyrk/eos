@@ -2,9 +2,11 @@
 //! dashboard only: the live test they start and their word on whether it
 //! reached them, Install, Decline, or another way. Install takes the files
 //! whose hash was tested and reviewed, or nothing. Secrets the live test
-//! needs are typed in the app's own prompt and kept in the Keychain; the
-//! settings it needs are kept in memory for the install, never stored
-//! before it.
+//! needs are typed in the app's own prompt; they and the settings it needs
+//! are kept in memory for the install, never stored before it. A secret
+//! kept in the Keychain under the package's id never reaches the package
+//! unless that id is installed and the package replaces it: removing a
+//! capability keeps its secrets, and the id is the builder's choice.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -16,7 +18,7 @@ use eos_core::capability::CapabilityRegistry;
 use eos_core::forge::{ForgeCaller, ForgeRequest, ForgeStage};
 use eos_core::shell::{SecretAsk, SecretPrompt};
 use eos_core::store::{ItemAnswer, StoredItem};
-use eos_domain::capability::manifest::Manifest;
+use eos_domain::capability::manifest::{Manifest, Secret};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
@@ -38,6 +40,8 @@ pub(crate) struct Proposals {
     pub(crate) forge: Arc<ForgeService>,
     /// The settings given for a run's live test, for its install.
     settings: Mutex<HashMap<String, BTreeMap<String, String>>>,
+    /// The secrets typed for a run's live test, by name, for its install.
+    entered: Mutex<HashMap<String, HashMap<String, Zeroizing<String>>>>,
     live_calls: Mutex<HashMap<String, u32>>,
     /// Runs whose proposal is being acted on.
     busy: Mutex<HashSet<String>>,
@@ -65,6 +69,7 @@ impl Proposals {
             prompt,
             forge,
             settings: Mutex::default(),
+            entered: Mutex::default(),
             live_calls: Mutex::default(),
             busy: Mutex::default(),
         }
@@ -140,7 +145,7 @@ impl Proposals {
         let built = self.proposed_files(run_id, &proposal).await?;
         let manifest = &built.manifest;
         let mut env = given(manifest, &settings)?;
-        env.extend(self.secrets_for(manifest, proposal.replaces.is_some()).await?);
+        env.extend(self.secrets_for(run_id, manifest).await?);
         let input = live_input(manifest, &live.action)?;
         self.live_calls.lock().unwrap_or_else(PoisonError::into_inner).insert(run_id.to_owned(), calls + 1);
         let answer = self.steps.trial.live(&built.dir, manifest, input, env, &self.steps.tests_folder()).await;
@@ -153,45 +158,80 @@ impl Proposals {
         Ok(live)
     }
 
-    /// Each secret the package declares, asked in the app's prompt when the
-    /// Keychain has none for it yet. For a version that would replace an
-    /// installed one, every secret is asked again and goes only to this
-    /// call: the installed version's secrets never reach code the user has
-    /// not accepted, and are not overwritten before Install.
-    async fn secrets_for(
-        &self,
-        manifest: &Manifest,
-        replaces: bool,
-    ) -> Result<Vec<(String, Zeroizing<String>)>, Error> {
-        let secrets = self.capabilities.secrets();
+    /// Each secret the package declares, in its variable: asked in the
+    /// app's prompt once per proposal and kept in memory for the install.
+    /// The Keychain is never read here, so no stored secret, of an
+    /// installed version or of a removed capability with the same id,
+    /// reaches code the user has not accepted.
+    async fn secrets_for(&self, run_id: &str, manifest: &Manifest) -> Result<Vec<(String, Zeroizing<String>)>, Error> {
         let mut env = Vec::new();
         for secret in &manifest.secrets {
-            if replaces || !secrets.has(&manifest.id, &secret.name).await? {
-                let Some(prompt) = &self.prompt else {
-                    return Err(Error::Conflict("the secret prompt needs the app's window".into()));
-                };
-                let ask = SecretAsk {
-                    capability: manifest.name.clone(),
-                    label: secret.label.clone(),
-                    help: secret.help.clone(),
-                };
-                let Some(value) = prompt.ask(ask).await.filter(|value| !value.trim().is_empty()) else {
-                    return Err(Error::Conflict(format!("{} was not entered", secret.label)));
-                };
-                tracing::info!(capability = %manifest.id, "a proposed capability's secret was entered");
-                if replaces {
-                    if let Some(variable) = &secret.env {
-                        env.push((variable.clone(), value));
-                    }
-                    continue;
+            let known = self.entered_of(run_id, &secret.name);
+            let value = match known {
+                Some(value) => value,
+                None => {
+                    let value = self.ask(manifest, secret).await?;
+                    tracing::info!(capability = %manifest.id, "a proposed capability's secret was entered");
+                    self.entered
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .entry(run_id.to_owned())
+                        .or_default()
+                        .insert(secret.name.clone(), value.clone());
+                    value
                 }
-                secrets.write(&manifest.id, &secret.name, value).await?;
-            }
-            if let (Some(variable), Some(value)) = (&secret.env, secrets.read(&manifest.id, &secret.name).await?) {
+            };
+            if let Some(variable) = &secret.env {
                 env.push((variable.clone(), value));
             }
         }
         Ok(env)
+    }
+
+    fn entered_of(&self, run_id: &str, name: &str) -> Option<Zeroizing<String>> {
+        let entered = self.entered.lock().unwrap_or_else(PoisonError::into_inner);
+        entered.get(run_id).and_then(|values| values.get(name)).cloned()
+    }
+
+    /// The secret as the user types it in the app's prompt; refused when
+    /// there is no window or nothing was entered.
+    async fn ask(&self, manifest: &Manifest, secret: &Secret) -> Result<Zeroizing<String>, Error> {
+        let Some(prompt) = &self.prompt else {
+            return Err(Error::Conflict("the secret prompt needs the app's window".into()));
+        };
+        let ask =
+            SecretAsk { capability: manifest.name.clone(), label: secret.label.clone(), help: secret.help.clone() };
+        prompt
+            .ask(ask)
+            .await
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| Error::Conflict(format!("{} was not entered", secret.label)))
+    }
+
+    /// The secrets a package that is not installed yet takes with it: those
+    /// typed for its live test. One the Keychain keeps under its id from a
+    /// capability the user removed is asked again in the prompt, so it is
+    /// overwritten by the user's word or Install is refused; it is never
+    /// handed to the new package as it is. A capability installed under the
+    /// id keeps its own secrets.
+    async fn secrets_at_install(&self, run_id: &str, manifest: &Manifest) -> Result<(), Error> {
+        if self.capabilities.get(&manifest.id).await?.is_some() {
+            return Ok(());
+        }
+        let secrets = self.capabilities.secrets();
+        let mut values = Vec::new();
+        for secret in &manifest.secrets {
+            let value = match self.entered_of(run_id, &secret.name) {
+                Some(value) => value,
+                None if secrets.has(&manifest.id, &secret.name).await? => self.ask(manifest, secret).await?,
+                None => continue,
+            };
+            values.push((secret.name.clone(), value));
+        }
+        for (name, value) in values {
+            secrets.write(&manifest.id, &name, value).await?;
+        }
+        Ok(())
     }
 
     pub(crate) async fn answer(&self, run_id: &str, choice: ProposalChoice) -> Result<ProposalState, Error> {
@@ -222,6 +262,7 @@ impl Proposals {
         }
         let built = self.proposed_files(run_id, proposal).await?;
         let id = built.manifest.id.clone();
+        self.secrets_at_install(run_id, &built.manifest).await?;
         self.capabilities
             .install(Install {
                 package_dir: built.dir,
@@ -233,6 +274,7 @@ impl Proposals {
             .await?;
         tracing::info!(run_id, capability = %id, "a proposed capability was installed on the user's yes");
         let settings = self.settings.lock().unwrap_or_else(PoisonError::into_inner).remove(run_id);
+        self.entered.lock().unwrap_or_else(PoisonError::into_inner).remove(run_id);
         if let Some(settings) = settings.filter(|settings| !settings.is_empty()) {
             self.capabilities.set_settings(&id, settings.into_iter().collect()).await?;
         }
@@ -265,13 +307,8 @@ impl Proposals {
                 Ok(())
             })
             .await?;
-        // A capability that is not installed keeps no secret entered for its proposal.
-        if self.capabilities.get(&proposal.capability_id).await?.is_none() {
-            let secrets = self.capabilities.secrets();
-            for secret in &proposal.secrets {
-                secrets.delete(&proposal.capability_id, &secret.name).await?;
-            }
-        }
+        // The secrets typed for it were never stored; a kept one under its id is not its.
+        self.entered.lock().unwrap_or_else(PoisonError::into_inner).remove(run_id);
         self.settings.lock().unwrap_or_else(PoisonError::into_inner).remove(run_id);
         tracing::info!(run_id, choice, "a proposal was declined");
         Ok(())
