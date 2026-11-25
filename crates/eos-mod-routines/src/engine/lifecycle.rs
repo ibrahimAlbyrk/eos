@@ -94,6 +94,9 @@ pub(crate) async fn set_state(
                 return Ok((Err(refusal), before));
             }
             if routine.state != next {
+                if next == RoutineState::Active {
+                    super::failures::resumed_in(tx, &routine)?;
+                }
                 tx.routines().set_state(&id, next, reason, now)?;
                 skip_queued_in(tx, out, &id, next, now)?;
                 tracing::info!(routine_id = %id, state = ?next, "a routine's state was set");
