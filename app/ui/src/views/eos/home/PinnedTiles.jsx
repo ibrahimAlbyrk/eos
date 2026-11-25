@@ -62,6 +62,7 @@ function Tile({ tile, now }) {
         {when && <span className="eos-tile__when">{when}</span>}
         <button type="button" className="eos-tile__unpin" aria-label={`Unpin ${tile.title}`} title="Unpin" onClick={() => void drop()}>
           <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><path d={PIN_GLYPH} /></svg>
+          <span aria-hidden="true">Unpin</span>
         </button>
       </div>
       <p className="eos-tile__headline">{tile.headline ?? tileStatus(tile.status)}</p>
