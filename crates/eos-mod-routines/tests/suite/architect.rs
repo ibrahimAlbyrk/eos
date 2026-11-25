@@ -138,6 +138,18 @@ async fn a_draft_that_asks_for_more_freedom_or_new_places_opens_one_confirm_chan
             .collect::<Vec<_>>()
     };
     assert!(waiting(&routes).is_empty(), "drafts held for the user ask for nothing new");
+    let granted = |rung: &str| {
+        let mut granted = blueprint(1);
+        granted["freedom"] =
+            json!({"rung": "draft", "grants": [{"id": "docs", "when": {"fact": "draft", "is": false}, "rung": rung}]});
+        granted
+    };
+    routes.propose(&architect, granted("draft")).await;
+    assert!(waiting(&routes).is_empty(), "a grant at the confirmed rung raises nothing");
+    let raising = routes.propose(&architect, granted("on_its_own")).await;
+    let items = waiting(&routes);
+    assert_eq!(items.len(), 1, "a grant that lets some results go by themselves is confirmed first");
+    assert_eq!(version_of(&items[0].payload), json!(raising));
 
     let mut bolder = blueprint(1);
     bolder["freedom"] = json!({"rung": "send_then_tell"});
