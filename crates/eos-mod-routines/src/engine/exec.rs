@@ -184,7 +184,10 @@ pub(crate) async fn hand_in(
     let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
     let (kind, headline) = (result.kind, result.headline);
     let size = body.len();
-    engine
+    // Held from before the run moves to its check until the check lets it go, so nothing the
+    // user says after the move reaches the lead: it waits.
+    let newly_held = lead.is_some_and(|lead| Engine::locked(&engine.held).insert(lead.to_owned()));
+    let moved = engine
         .store
         .write(move |tx, out| {
             let run = tx.runs().find(&id)?.ok_or_else(|| Error::not_found("run", id.clone()))?;
@@ -205,12 +208,12 @@ pub(crate) async fn hand_in(
             let check = RunMove { state: RunState::Checking, station: Some(Station::Check), reason: None, at: now };
             move_run(tx, out, &run, check).map(drop)
         })
-        .await?;
-    Engine::locked(&engine.progress).remove(run_id);
-    if let Some(lead) = lead {
-        // Held until the check lets it go: what the user says meanwhile waits.
-        Engine::locked(&engine.held).insert(lead.to_owned());
+        .await;
+    if let (Err(_), Some(lead), true) = (&moved, lead, newly_held) {
+        Engine::locked(&engine.held).remove(lead);
     }
+    moved?;
+    Engine::locked(&engine.progress).remove(run_id);
     check::begin(engine, run_id);
     tracing::info!(run_id, worker_id = ?lead, bytes = size, files = kept.len(), "a run's result was handed in");
     Ok(())

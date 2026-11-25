@@ -69,6 +69,8 @@ async fn a_checker_reads_the_result_a_fail_goes_back_to_the_lead_once_and_the_le
     let tools = bench.module.tools();
     tools.submit_result(&lead, review("First")).await.expect("handed in");
     assert!(bench.module.holds_worker(&lead), "held while its result is checked");
+    assert!(tools.submit_result(&lead, review("Again")).await.is_err(), "one result at a time");
+    assert!(bench.module.holds_worker(&lead), "a refused hand-in does not let go of a held lead");
 
     let first = checker(&bench, 1).await;
     let spec = bench.agents.started().into_iter().find(|s| s.worker_id == first).expect("started");
