@@ -4,12 +4,13 @@ import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { ensureInboxLoaded, laterInboxItem, loadLastAnswered, refreshInbox, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { EmptyState } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { AgentsWaitingLine } from "./AgentsWaitingLine.jsx";
 import { onControl, plainKey } from "./keys.js";
 import { ItemView } from "./ItemView.jsx";
-import { GROUPS, groupOf, isShownOnly, primaryAction } from "./words.js";
+import { GROUPS, groupOf, isShownOnly, needsLead, primaryAction } from "./words.js";
 
 export const itemLocation = (id) => `eos:/needs/${encodeURIComponent(id)}`;
 
@@ -51,9 +52,11 @@ function Row({ item, routineName, current }) {
     <li className={current ? "eos-needs-row on" : "eos-needs-row"} aria-current={current ? "true" : undefined}>
       <Glyph name={routineName} />
       <button type="button" className="eos-needs-row__main" onClick={open}>
-        <span className="eos-needs-row__routine">{routineName ?? "Eos"}</span>
         <span className="eos-needs-row__title">{item.title}</span>
-        {item.summary && <span className="eos-needs-row__summary">{item.summary}</span>}
+        <span className="eos-needs-row__line">
+          <span className="eos-needs-row__routine">{routineName ?? "Eos"}</span>
+          {item.summary && <span className="eos-needs-row__summary">{item.summary}</span>}
+        </span>
       </button>
       <span className="eos-needs-row__time">{fmtTimeAgo(item.createdAt)}</span>
       <span className="eos-actions">
@@ -63,6 +66,16 @@ function Row({ item, routineName, current }) {
         )}
       </span>
     </li>
+  );
+}
+
+// A group's label, with how many it holds at the right.
+function GroupHead({ label, count }) {
+  return (
+    <div className="eos-section__head">
+      <h2 className="eos-label">{label}</h2>
+      <span className="eos-section__aside">{count}</span>
+    </div>
   );
 }
 
@@ -114,21 +127,29 @@ export function NeedsYouList() {
 
   const nameOf = (id) => routines?.find((r) => r.id === id)?.name;
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--read">
       <EosHeader trail={[{ label: "Needs you" }]} />
       <div className="eos-body eos-needs">
         {devRun && <DevRunNote />}
         {list === null && (listFailed ? <LoadFailed what="what needs you" retry={() => void refreshInbox()} /> : <Loading />)}
-        {list && <AgentsWaitingLine count={list.agentsWaiting} />}
+        {list && !empty && (
+          <header className="eos-needs-head">
+            <p className="eos-lead">{needsLead(all)}</p>
+            <AgentsWaitingLine count={list.agentsWaiting} />
+          </header>
+        )}
         {empty && (
-          <div className="eos-needs-empty">
-            <p className="eos-note">Nothing needs you.</p>
-            {lastAnswered && <p className="eos-needs-last">Last: {lastAnswered.title}, {fmtTimeAgo(lastAnswered.updatedAt)}.</p>}
-          </div>
+          <>
+            <EmptyState title="Nothing needs you.">
+              Drafts to check, questions and problems from your routines wait here until you answer them.
+              {lastAnswered && <span className="eos-needs-last"> Last: {lastAnswered.title}, {fmtTimeAgo(lastAnswered.updatedAt)}.</span>}
+            </EmptyState>
+            <AgentsWaitingLine count={list.agentsWaiting} />
+          </>
         )}
         {views.length > 0 && (
           <section className="eos-needs-group" aria-label="From your routines">
-            <h2 className="eos-label">From your routines</h2>
+            <GroupHead label="From your routines" count={views.length} />
             {views.map((item) => <ViewItem key={item.id} item={item} routineName={nameOf(item.routineId)} />)}
           </section>
         )}
@@ -137,8 +158,8 @@ export function NeedsYouList() {
           if (inGroup.length === 0) return null;
           return (
             <section key={g.id} className="eos-needs-group" aria-label={g.label}>
-              <h2 className="eos-label">{g.label}</h2>
-              <ul className="eos-card eos-needs-rows">
+              <GroupHead label={g.label} count={inGroup.length} />
+              <ul className="eos-rows eos-needs-rows">
                 {inGroup.map((item) => (
                   <Row key={item.id} item={item} routineName={nameOf(item.routineId)} current={current !== null && item.id === items[at].id} />
                 ))}
