@@ -3,7 +3,7 @@
    away list and the learned line, in one centred column on a faint glow.
    Text follows eos.css's contrast rule: never dimmer than --fg-dim2. */
 
-.eos-home { position: relative; }
+.eos-home { --eos-measure: 760px; position: relative; }
 .eos-home__drag { position: absolute; inset: 0 0 auto 0; z-index: 1; border-bottom: 0; background: transparent; }
 /* Reconnecting: a small pill centred over the arc, so the column does not
    move when the core comes back. */
@@ -147,7 +147,6 @@
 .eos-home-card__summary { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); }
 .eos-home-card__actions { display: flex; gap: 6px; margin-top: 8px; }
 .eos-home-card .eos-btn { height: 32px; }
-.eos-btn--quiet { background: none; }
 .eos-home-all { align-self: flex-start; font-size: var(--text-sm); text-decoration: none; }
 
 .eos-away { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
@@ -296,4 +295,4 @@
 }
 .eos-thing__remove:hover { color: var(--fg-strong); background: var(--row-on); }
 
-.eos-home__moved { margin: 12px 32px 0; }
+.eos-home__moved { margin: 12px var(--eos-frame-x) 0; }

@@ -27,7 +27,7 @@ export function NewRoutine() {
     if (id) openLocation(buildLocation({ screen: "routine", routineId: id, tab: "blueprint" }));
   };
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Routines", location: "eos:/routines" }, { label: "New routine" }]}>
         <span className="eos-status">Draft, not running yet</span>
       </EosHeader>

@@ -114,7 +114,7 @@ export function NeedsItemScreen({ id }) {
   const title = detail?.item.title ?? "Item";
   const { Body } = cardOf(detail?.item.kind);
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
         {at >= 0 && (
           <nav className="eos-needs-pager" aria-label="Items">

@@ -175,7 +175,7 @@ export function RunView({ id }) {
   ];
   const chip = run && stateChip(run, now);
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader
         trail={trail}
         mark={run && (

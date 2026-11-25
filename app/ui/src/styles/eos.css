@@ -12,15 +12,36 @@
    while Eos shows: the palette and popups drawn over it follow them too. */
 
 /* ── Screen frame ─────────────────────────────────────────────────────────── */
+/* Every screen sits in one measure, centred on the main column: the header's
+   words, the body and the halt band share its left and right edges. The
+   gutter grows with the window (24 to 56 px); past the measure the rest is
+   air on both sides, never a void on one. A screen picks its measure:
+   reading 760 (Home's column), the default 1040, wide 1240 for a screen with
+   an aside or a table. The language: research/…/design/language.md. */
 .eos-screen {
+  --eos-measure: 1040px;
+  --eos-frame-x: max(clamp(24px, 4%, 56px), calc((100% - var(--eos-measure)) / 2));
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
+.eos-screen--read { --eos-measure: 760px; }
+.eos-screen--wide { --eos-measure: 1240px; }
 
-/* The header rides on .pane-head (native drag strip, title-bar insets). */
-.eos-head { flex-wrap: wrap; gap: 8px 12px; }
+/* The header rides on .pane-head (native drag strip, title-bar insets); its
+   hairline runs the full width, its words keep to the measure. The inset that
+   clears the window's buttons counts toward the frame's left edge. */
+.eos-screen > .eos-head {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-left: max(0px, calc(var(--eos-frame-x) - var(--eos-inset, 0px)));
+  padding-right: var(--eos-frame-x);
+}
+.app.side-collapsed .eos-head { --eos-inset: 12px; }
+html.native .app.side-collapsed .eos-head { --eos-inset: 86px; }
+html.native.fullscreen .app.side-collapsed .eos-head { --eos-inset: 6px; }
+html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px; }
 .eos-crumbs { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
 .eos-crumb {
   padding: 0;
@@ -44,10 +65,10 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 28px 32px 32px;
+  padding: 32px var(--eos-frame-x) 56px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 24px;
 }
 .eos-note { margin: 0; font-size: var(--text-base); color: var(--fg-dim); }
 
@@ -61,6 +82,41 @@
   text-transform: uppercase;
   color: var(--fg-dim2);
 }
+
+/* A section: its label (and a quiet count or link at the right), then its
+   content 12 px under. Sections follow each other 40 px apart. */
+.eos-section { display: flex; flex-direction: column; gap: 12px; }
+.eos-section + .eos-section { margin-top: 16px; }
+.eos-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 18px; }
+.eos-section__aside { font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* The page's lead: what this screen is about, in one large line, with a
+   quieter line under it. One per screen at most. */
+.eos-lead { margin: 0; font-size: 24px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; }
+.eos-lead__sub { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
+
+/* Rows on hairlines: no card around a list, a rule between its rows. */
+.eos-rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.eos-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; min-height: 52px; box-sizing: border-box; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.eos-row__main { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eos-row__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-row__line { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-row__side { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* An empty screen or section: what it is for and the one next step, never
+   "Not set yet". A hollow mark like the horizon's scheduled dot leads it. */
+.eos-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 28px 0; }
+.eos-empty::before { content: ""; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); margin-bottom: 6px; }
+.eos-empty__title { margin: 0; font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
+.eos-empty__text { margin: 0; max-width: 52ch; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim); }
+.eos-empty .eos-actions { margin-top: 8px; }
+
+/* A band: one line of state across the measure, its tone in a 2 px edge. */
+.eos-band { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg); }
+.eos-band--warn { box-shadow: inset 2px 0 0 var(--warn); }
+.eos-band--err { box-shadow: inset 2px 0 0 var(--err); }
+.eos-band--ok { box-shadow: inset 2px 0 0 var(--ok); }
+.eos-band__text { flex: 1; min-width: 0; }
 
 .eos-card {
   border-radius: 16px;
@@ -144,8 +200,8 @@
 .eos-btn--primary:hover { background: var(--solid-btn-bg-hover); color: var(--solid-btn-fg); }
 .eos-btn:disabled { opacity: 0.45; cursor: default; }
 /* A second action beside a primary one: the words alone, a ground on hover. */
-.eos-btn--ghost { background: none; }
-.eos-btn--ghost:hover { background: var(--row-on); }
+.eos-btn--ghost, .eos-btn--quiet { background: none; }
+.eos-btn--ghost:hover, .eos-btn--quiet:hover { background: var(--row-on); }
 /* Stop says in its colour that it ends the work. */
 .eos-btn--stop, .eos-btn--stop:hover { color: var(--err); }
 /* A bare glyph button in a header or a row. */
@@ -420,9 +476,9 @@
 th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-rtable__none { color: var(--fg-dim2); }
 .eos-rtable__act { width: 1%; text-align: right; }
-/* Narrow: the kind, the week's cost and the freedom step aside so the Run
+/* Narrow (under 1000 px): the kind, the week's cost and the freedom step aside so the Run
    button stays in view; the routine's page has them. */
-@container (max-width: 860px) {
+@container (max-width: 1000px) {
   .eos-rtable__wide { display: none; }
   .eos-rtable th, .eos-rtable td { padding-left: 9px; padding-right: 9px; }
 }

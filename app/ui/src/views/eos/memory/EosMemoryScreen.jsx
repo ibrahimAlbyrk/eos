@@ -29,7 +29,7 @@ export function EosMemoryScreen({ tab = "work", note }) {
   const weekly = weeklyLine(summary?.weekly ?? 0);
 
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Memory" }]}>
         <input className="eos-mem-search" type="search" aria-label="Search memory" placeholder="Search memory" value={query} onChange={(e) => setQuery(e.target.value)} />
       </EosHeader>
