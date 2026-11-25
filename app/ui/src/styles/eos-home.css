@@ -5,11 +5,20 @@
 
 .eos-home { position: relative; }
 .eos-home__drag { position: absolute; inset: 0 0 auto 0; z-index: 1; border-bottom: 0; background: transparent; }
+/* Reconnecting: a small pill centred over the arc, so the column does not
+   move when the core comes back. */
 .eos-home__offline {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
   margin: 0;
-  padding: 6px 32px;
-  font-size: var(--text-sm);
-  color: var(--fg-dim);
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  background: var(--chip);
+  font-size: var(--text-xs);
+  color: var(--warn);
 }
 
 .eos-home__scroll {

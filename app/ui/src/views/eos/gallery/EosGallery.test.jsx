@@ -108,6 +108,14 @@ describe("#eos-gallery", () => {
     expect(renderToStaticMarkup(rendered[0])).toContain('<div class="app eos-mode">');
   });
 
+  it("draws a reconnecting state: each read answers once from the samples, then hears nothing", async () => {
+    const reads = galleryTransport(stateOf("home-offline"));
+    expect((await reads.get(ROUTES.routines)).body).toEqual(routines);
+    await expect(reads.get(ROUTES.routines)).rejects.toThrow();
+    await expect(reads.send("POST", ROUTES.routines, {})).rejects.toThrow();
+    expect(stateOf("need-offline").location).toBe(stateOf("need").location);
+  });
+
   it("keeps the app's own requests on the page: each is refused and no stream opens", async () => {
     const page = {};
     holdNetwork(page);
