@@ -39,6 +39,12 @@ export function sessionNameOf(agentId) {
   return names.get(sessionRootOf(agentId)) ?? null;
 }
 
+// Whether the agent is in the Agents list. Run agents never are (their rows
+// stay out of /workers).
+export function isListedAgent(agentId) {
+  return parents.has(agentId);
+}
+
 // The display name of one agent (a chat), or null when it is not in the list
 // (archived, or nameless).
 export function agentNameOf(agentId) {

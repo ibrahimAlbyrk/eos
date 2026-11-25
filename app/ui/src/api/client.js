@@ -948,6 +948,11 @@ export const api = {
     if (!r.ok) throw new Error(`listUserMemories → ${r.status}`);
     return r.body.memories;
   },
+  // The run a worker works for ({runId, routineId, role}); null for a chat.
+  async findRunAgent(workerId) {
+    const r = await getJson(ROUTES.runAgent(encodeURIComponent(workerId)));
+    return r.ok && r.body?.runId ? r.body : null;
+  },
   // Where each rule the user stated in a chat was said; null when the core
   // keeps no memory (the rows then say only who wrote them).
   async listStatedRules() {

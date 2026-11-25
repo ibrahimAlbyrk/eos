@@ -30,6 +30,7 @@ import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
 import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.jsx";
 import { LinkBanner } from "./components/machines/LinkBanner.jsx";
 import { RemotePicker } from "./components/machines/RemotePicker.jsx";
+import { openAgent } from "./lib/openAgent.js";
 import { openNativeRoute } from "./lib/nativeRoute.js";
 import { RunSheet } from "./views/eos/runform/RunSheet.jsx";
 
@@ -77,9 +78,10 @@ function Shell() {
   const hasAttention = ui.anyNeedsAttention(live.workers);
 
   // Native app notification tap → jump to the Code tab and select the worker
-  // (focuses its pane when a split already shows it, instead of duplicating it).
+  // (focuses its pane when a split already shows it, instead of duplicating it);
+  // a run agent's opens its run in Eos.
   useEffect(() => {
-    window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.selectAgent(id); };
+    window.__nativeNavigate = (id) => { void openAgent(id, { setActiveView: ui.setActiveView, selectAgent: ui.selectAgent }); };
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.selectAgent]);
 
