@@ -104,7 +104,7 @@ describe("the Needs-you list", () => {
     const draft = row("Review of #470 Fix the login");
     expect(draft).toContain('<span class="eos-needs-row__routine">PR Review</span>');
     expect(draft).toContain('<span class="eos-needs-row__summary">Two findings, one of them blocking.</span>');
-    expect(draft).toContain('<button type="button" class="eos-btn eos-btn--primary">Review</button><button type="button" class="eos-btn">Later</button>');
+    expect(draft).toContain('<button type="button" class="eos-btn eos-btn--primary">Review</button><button type="button" class="eos-btn eos-btn--quiet">Later</button>');
     expect(row("Allow Bash?")).toContain(">Decide</button>");
     expect(row("Allow Bash?")).not.toContain(">Later<");
     expect(row("Mail Triage is paused")).toContain('<span class="eos-needs-row__routine">Mail Triage</span>');
@@ -123,7 +123,7 @@ describe("the Needs-you list", () => {
     const html = renderToStaticMarkup(<UiProvider><EosMain /></UiProvider>);
     expect(groups(html)[0]).toBe("From your routines");
     expect(html).toContain("12 mails came in overnight.");
-    expect(html).toContain('<span class="eos-actions eos-needs-view__aside"><button type="button" class="eos-btn">Later</button>');
+    expect(html).toContain('<span class="eos-actions eos-needs-view__aside"><button type="button" class="eos-btn eos-btn--quiet">Later</button>');
     expect(titles(html)).not.toContain("Overnight mail");
   });
 
