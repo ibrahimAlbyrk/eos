@@ -136,3 +136,24 @@ export function learnedLine(weekly) {
 }
 
 export const STARTER_CHIPS = ["Review my pull requests", "Brief me every morning", "Watch my inbox", "Set up a new project"];
+
+// ── Coming up ─────────────────────────────────────────────────────────────
+export const COMING_UP = 4;
+
+// The routines' next runs, soonest first, four at most: [{ routineId, at }].
+export function comingUp(next, now) {
+  return next
+    .filter((n) => n.nextAt != null && n.nextAt > now)
+    .map((n) => ({ routineId: n.routineId, at: n.nextAt }))
+    .sort((a, b) => a.at - b.at)
+    .slice(0, COMING_UP);
+}
+
+// "In 18 min", "In 3 h", "Tomorrow", or the weekday.
+export function whenWords(at, now) {
+  const minutes = Math.max(1, Math.round((at - now) / 60000));
+  const start = dayStart(now);
+  if (at < start + DAY_MS) return minutes < 60 ? `In ${minutes} min` : `In ${Math.round(minutes / 60)} h`;
+  if (at < start + 2 * DAY_MS) return "Tomorrow";
+  return new Date(at).toLocaleDateString("en", { weekday: "long" });
+}

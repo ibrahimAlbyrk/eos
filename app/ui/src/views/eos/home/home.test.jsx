@@ -72,7 +72,7 @@ describe("Eos › Home", () => {
     expect(html).not.toContain("autofocus");
   });
 
-  it("empty: nothing ran and nothing waits, so only the arc, the greeting and the chips show", async () => {
+  it("empty: nothing ran, waits or is scheduled, so the arc, the greeting, the chips and Coming up saying so", async () => {
     await loaded(fixtureTransport(reads({
       [RUNS_PATH]: { runs: [] },
       [ROUTES.signalsRoutines]: [],
@@ -86,7 +86,31 @@ describe("Eos › Home", () => {
     expect(html).not.toContain("need you");
     expect(html).not.toContain("Needs you</h2>");
     expect(html).not.toContain("While you were away");
+    expect(html).not.toContain("Earlier today");
+    expect(html).toContain('<h2 id="eos-home-next" class="eos-label">Coming up</h2><p class="eos-home-quiet">Nothing is scheduled to run.</p>');
     expect(html).not.toContain("this week");
+  });
+
+  it("coming up: the routines' next runs, soonest first, each opening its routine", async () => {
+    await loaded(fixtureTransport(reads()));
+    const html = draw();
+    expect([...html.matchAll(/class="eos-next__name">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "PR Review", "Morning Paper"]);
+    expect(html).toContain('<span class="eos-next__when">In 18 min</span><span class="eos-next__clock">09:30</span>');
+    expect(html.indexOf("eos-home-next")).toBeLessThan(html.indexOf("eos-home-away"));
+  });
+
+  it("earlier today: with nothing new since the last visit, today's ended runs under their own label", async () => {
+    globalThis.localStorage = { getItem: () => String(NOW - 60 * 1000), setItem() {}, removeItem() {} };
+    try {
+      openHomeVisit();
+      await loaded(fixtureTransport(reads()));
+      const html = draw();
+      expect(html).not.toContain("While you were away");
+      expect(html).toContain('class="eos-label">Earlier today</h2>');
+      expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "Morning Paper", "PR Review", "Mail Triage"]);
+    } finally {
+      delete globalThis.localStorage;
+    }
   });
 
   it("first run: no routine yet, so the first-run line and the chips, nothing else", async () => {

@@ -51,8 +51,13 @@
 }
 
 /* ── Horizon ──────────────────────────────────────────────────────────────── */
-.eos-horizon { position: relative; width: 100%; aspect-ratio: 760 / 96; }
-.eos-horizon__arc { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* The sky spans the page, centred on the column (the column is centred on the
+   page); the scroll area clips it and the line's mask fades it out first. */
+.eos-horizon { position: relative; width: 100%; height: 96px; }
+.eos-horizon__sky { position: absolute; left: 50%; top: 0; height: 0; pointer-events: none; }
+.eos-horizon__line, .eos-horizon__marks { position: absolute; left: 0; top: 0; display: block; }
+.eos-horizon__marks { overflow: visible; }
+.eos-horizon__dot { pointer-events: auto; }
 .eos-horizon__day { fill: none; stroke: var(--dot-idle); stroke-width: 1; stroke-dasharray: 3 3; }
 .eos-horizon__past { fill: none; stroke: #5c5c5c; stroke-width: 1; }
 .eos-horizon__dot--done { fill: var(--fg-dim2); }
@@ -63,14 +68,14 @@
 .eos-horizon__now-halo { fill: color-mix(in srgb, var(--fg-strong) 10%, transparent); }
 .eos-horizon__clock {
   position: absolute;
-  top: 56%;
+  top: 54px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--fg-dim2);
 }
 .eos-horizon__clock--start { left: 0; }
 .eos-horizon__clock--end { right: 0; }
-.eos-horizon__clock--now { top: 26%; transform: translateX(-50%); color: var(--fg-mid); }
+.eos-horizon__clock--now { transform: translateX(-50%); color: var(--fg-mid); }
 
 /* ── Greeting ─────────────────────────────────────────────────────────────── */
 .eos-home__date {
@@ -161,6 +166,47 @@
 .eos-away__text { flex: 1 1 260px; min-width: 0; color: var(--fg-dim); }
 .eos-away__line .eos-link,
 .eos-home-learned .eos-link { text-decoration: none; }
+
+/* Coming up: slots hung from one hairline, each with the horizon's hollow
+   mark, so the strip reads as the rest of the day laid flat. */
+.eos-next {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border-top: 1px solid var(--line);
+}
+.eos-next__slot { position: relative; }
+.eos-next__slot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1px solid var(--fg-faint);
+  background: var(--bg);
+}
+.eos-next__open {
+  width: 100%;
+  padding: 16px 16px 4px 0;
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-next__when { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-next__clock { font-family: var(--font-mono); font-size: 20px; line-height: 1.3; font-variant-numeric: tabular-nums; color: var(--fg-strong); }
+.eos-next__name { font-size: var(--text-sm); color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-next__open:hover .eos-next__name { color: var(--fg-strong); }
+.eos-home-quiet { margin: 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: var(--text-sm); color: var(--fg-dim2); }
 
 .eos-home-learned { margin: 14px 0 0; font-size: 12.5px; color: var(--fg-dim2); }
 

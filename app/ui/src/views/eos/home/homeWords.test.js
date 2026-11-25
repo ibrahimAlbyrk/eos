@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  absenceWord, awayLines, BUCKETS, bucketTitle, handledLine, hello, horizonBuckets, horizonSummary, learnedLine, needLine, numberWord,
+  absenceWord, awayLines, BUCKETS, bucketTitle, comingUp, whenWords, handledLine, hello, horizonBuckets, horizonSummary, learnedLine, needLine, numberWord,
 } from "./homeWords.js";
 
 const at = (h, m = 0, day = 17) => new Date(2026, 10, day, h, m).getTime();
@@ -76,5 +76,27 @@ describe("while you were away", () => {
       ended("old", "rt-4", at(20, 0, 16)), ...["rt-5", "rt-6", "rt-7", "rt-8"].map((r, i) => ended(r, r, at(1, i))),
     ];
     expect(awayLines(runs, at(0)).map((r) => r.id)).toEqual(["b", "c", "rt-8", "rt-7", "rt-6"]);
+  });
+});
+
+describe("Home's coming up", () => {
+  it("keeps the next runs still to come, soonest first, four at most", () => {
+    const next = [
+      { routineId: "a", nextAt: at(14) },
+      { routineId: "b", nextAt: at(9, 30) },
+      { routineId: "c" },
+      { routineId: "d", nextAt: at(8) },
+      { routineId: "e", nextAt: at(5, 0, 18) },
+      { routineId: "f", nextAt: at(23) },
+      { routineId: "g", nextAt: at(22) },
+    ];
+    expect(comingUp(next, at(9, 12)).map((s) => s.routineId)).toEqual(["b", "a", "g", "f"]);
+  });
+
+  it("says when in minutes or hours today, then tomorrow, then the weekday", () => {
+    expect(whenWords(at(9, 30), at(9, 12))).toBe("In 18 min");
+    expect(whenWords(at(14), at(9, 12))).toBe("In 5 h");
+    expect(whenWords(at(5, 0, 18), at(9, 12))).toBe("Tomorrow");
+    expect(whenWords(at(5, 0, 20), at(9, 12))).toBe("Friday");
   });
 });
