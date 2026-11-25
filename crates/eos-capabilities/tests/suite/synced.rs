@@ -59,10 +59,25 @@ async fn one_from_another_computer_under_a_removed_capabilitys_id_asks_for_its_s
 
     let items = air.service.synced_list().await.expect("lists");
     pro.service.synced_apply("notes-db", &items[0].data).await.expect("applies");
-    pro.service.install_here("notes-db").await.expect("installs");
     assert!(!pro.secrets.has("notes-db", "api_key").await.expect("read"), "the removed one's key is not inherited");
+    pro.service.install_here("notes-db").await.expect("installs");
     let here = pro.service.get("notes-db").await.expect("reads").expect("there");
     assert_eq!(here.health.state, HealthState::NeedsSetup, "{here:?}");
+}
+
+#[tokio::test]
+async fn a_secret_entered_while_it_is_available_stays_through_install_here() {
+    let (air, pro) = (rig(Setup::default()).await, rig(Setup::default()).await);
+    air.install(&notes("1.0.0"), "h-1").await;
+    let items = air.service.synced_list().await.expect("lists");
+    pro.service.synced_apply("notes-db", &items[0].data).await.expect("applies");
+    pro.service.enter_secret("notes-db", "api_key", "nk_entered_here".to_owned().into()).await.expect("entered");
+    pro.service.synced_apply("notes-db", &items[0].data).await.expect("applies again");
+
+    pro.service.install_here("notes-db").await.expect("installs");
+    assert!(pro.secrets.has("notes-db", "api_key").await.expect("read"), "the key entered here is kept");
+    let here = pro.service.get("notes-db").await.expect("reads").expect("there");
+    assert_ne!(here.health.state, HealthState::NeedsSetup, "{here:?}");
 }
 
 #[tokio::test]
