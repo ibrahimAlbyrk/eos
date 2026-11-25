@@ -8,14 +8,14 @@ import { _resetRunSheet, registerHost } from "../../../state/eos/runSheetStore.j
 import { _resetEosNav, buildLocation, openLocation } from "../nav/eosNav.js";
 import { NEW_STARTERS } from "../blueprint/words.js";
 import { EosMain } from "../EosMain.jsx";
-import { nextWord, routinesLead, soonestLine, sortRows } from "./tableWords.js";
+import { nextWord, routinesLead, soonestLine, sortRows, statusWords } from "./tableWords.js";
 import { timeAt } from "../routine/words.js";
 import routines from "../gallery/sample/routines.json";
 import inbox from "../gallery/sample/inbox.json";
 
 const draw = () => renderToStaticMarkup(<EosMain />);
 const names = (html) => [...html.matchAll(/<span class="eos-rtable__title">([^<]*)</g)].map((m) => m[1]);
-const groups = (html) => [...html.matchAll(/<th scope="colgroup" colSpan="9"><span class="eos-label">([^<]*)<\/span><span class="eos-section__aside">(\d+)</g)].map((m) => `${m[1]} ${m[2]}`);
+const groups = (html) => [...html.matchAll(/<th scope="colgroup" colSpan="6"><span class="eos-label">([^<]*)<\/span><span class="eos-section__aside">(\d+)</g)].map((m) => `${m[1]} ${m[2]}`);
 
 beforeEach(async () => {
   _resetRoutines();
@@ -41,10 +41,19 @@ describe("all routines", () => {
     expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');
     expect(html).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="eos-rtable__sort">Routine<span aria-hidden="true"> ↑</span></button></th>');
     const pr = html.split("<tr>").find((row) => row.includes(">PR Review<"));
-    expect(pr).toContain("3 waiting");
+    // What waits is said once, in its tone; the freedom sits by the name.
+    expect(pr).toContain('<td class="eos-rtable__line eos-rtable__line--active">3 waiting</td>');
     expect(pr).toContain("$2.84");
-    expect(pr).toContain("Draft, I send");
+    expect(pr).toContain('<span class="eos-rtable__ctx">Draft, I send</span>');
+    expect(html).not.toContain(">Kind<");
+    expect(html).not.toContain(">Freedom<");
     expect(pr).toContain("Done");
+  });
+
+  it("says what still waits on a paused routine beside its state", () => {
+    expect(statusWords({ line: "Paused", waiting: 1 })).toBe("Paused, 1 waiting");
+    expect(statusWords({ line: "Paused", waiting: 0 })).toBe("Paused");
+    expect(statusWords({ line: "3 waiting", waiting: 3 })).toBe("3 waiting");
   });
 
   it("offers Run on each routine that can run once a run sheet is hosted, never on one being made", () => {
@@ -64,6 +73,12 @@ describe("all routines", () => {
     expect(sortRows(rows, "next", "ascending").map((r) => r.routine.name)).toEqual(["C", "B", "A"]);
     expect(sortRows(rows, "next", "descending").map((r) => r.routine.name)).toEqual(["B", "C", "A"]);
     expect(sortRows(rows, "name", "descending").map((r) => r.routine.name)).toEqual(["C", "B", "A"]);
+    const byStatus = [
+      { routine: { name: "A" }, waiting: 0, line: "Running" },
+      { routine: { name: "B" }, waiting: 3, line: "3 waiting" },
+      { routine: { name: "C" }, waiting: 1, line: "1 waiting" },
+    ];
+    expect(sortRows(byStatus, "status", "ascending").map((r) => r.routine.name)).toEqual(["B", "C", "A"]);
   });
 
   it("leads with how many routines there are and how many wait, then the soonest run", () => {

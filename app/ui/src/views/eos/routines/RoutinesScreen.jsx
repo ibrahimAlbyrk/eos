@@ -11,7 +11,7 @@ import { RoutinesFirst } from "./RoutinesFirst.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
-import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, usd } from "./tableWords.js";
+import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, statusWords, usd } from "./tableWords.js";
 
 const FILTERS = {
   active: { label: "Active", states: ["active", "draft"], empty: "Nothing active.", text: "Each of your routines is paused or archived. Resume one to have it run again." },
@@ -24,14 +24,16 @@ const namesOf = (list) => Object.fromEntries((list ?? []).map((r) => [r.id, r.na
 
 const COLUMNS = [
   { key: "name", label: "Routine" },
-  { key: "kind", label: "Kind", narrow: false },
   { key: "status", label: "Status" },
   { key: "next", label: "Next run" },
   { key: "last", label: "Last result" },
-  { key: "waiting", label: "Waiting", numeric: true },
   { key: "cost", label: "This week", numeric: true, narrow: false },
-  { key: "rung", label: "Freedom", narrow: false },
 ];
+
+// What sits beside a routine's name: its freedom, and its kind when it is not
+// the usual standing one. Said once per row instead of as two columns that
+// repeat the same words down the table.
+const contextOf = (routine) => [routine.kind !== "standing" && kindWord(routine.kind), rungWord(routine.rung)].filter(Boolean).join(" · ");
 
 const Dot = ({ tone }) => <span className={tone ? `eos-dot eos-dot--${tone}` : "eos-dot"} aria-hidden="true" />;
 
@@ -79,18 +81,18 @@ function Row({ row, now, hosted }) {
             <RoutineGlyph icon={routine.icon} name={routine.name} size={14} part="eos-rtable" />
           </span>
           <span className="eos-rtable__words">
-            <span className="eos-rtable__title">{routine.name}</span>
+            <span className="eos-rtable__head">
+              <span className="eos-rtable__title">{routine.name}</span>
+              <span className="eos-rtable__ctx">{contextOf(routine)}</span>
+            </span>
             {routine.summary && <span className="eos-rtable__summary">{routine.summary}</span>}
           </span>
         </button>
       </th>
-      <td className="eos-rtable__wide">{kindWord(routine.kind)}</td>
-      <td className="eos-rtable__line">{row.line}</td>
+      <td className={row.tone ? `eos-rtable__line eos-rtable__line--${row.tone}` : "eos-rtable__line"}>{statusWords(row)}</td>
       <td>{nextWord(row.nextAt, now) ?? <span className="eos-rtable__none">—</span>}</td>
       <td>{last ? <span className="eos-rtable__last"><Dot tone={last.tone} />{last.text}</span> : <span className="eos-rtable__none">—</span>}</td>
-      <td className="eos-rtable__num">{row.waiting > 0 ? <span className="eos-rtable__waiting">{row.waiting}</span> : <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__num eos-rtable__wide">{usd(routine.stats?.cost7d) ?? <span className="eos-rtable__none">—</span>}</td>
-      <td className="eos-rtable__wide">{rungWord(routine.rung)}</td>
       <td className="eos-rtable__act">
         {hosted > 0 && RUNNABLE.has(routine.state) && (
           <button type="button" className="eos-btn eos-btn--quiet" aria-label={`Run ${routine.name}`} onClick={(e) => openRunSheet({ routineId: routine.id, anchor: e.currentTarget })}>Run</button>
@@ -100,8 +102,9 @@ function Row({ row, now, hosted }) {
   );
 }
 
-// All routines (08 §5): one row each with what it is doing, when it runs
-// next, how its last run went, what waits and what it cost this week;
+// All routines (08 §5): one row each with its freedom, what it is doing (what
+// waits, in its tone), when it runs next, how its last run went and what it
+// cost this week;
 // sorted by any column, filtered by state, each with its Run button.
 export function RoutinesScreen() {
   const { list, listFailed } = useRoutines();
