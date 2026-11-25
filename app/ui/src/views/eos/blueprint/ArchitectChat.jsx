@@ -5,6 +5,7 @@ import { buildBlocks } from "../../../lib/messageParser.js";
 import { clearNote, discardDraft, makeRoutine, NEW, sayToArchitect } from "../../../state/eos/blueprintStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SLOTS } from "./slots/index.js";
+import { numberWord } from "../home/homeWords.js";
 
 const SLOT_LABELS = Object.fromEntries([...SLOTS.map((s) => [s.key, s.label]), ["freedom", "Freedom"]]);
 
@@ -25,7 +26,7 @@ export function checkLines(draft) {
   if (draft.draftVersionId && !draft.baseVersionId) lines.push("Wrote the blueprint");
   else if (draft.draftVersionId && slots.length) lines.push(`Changed ${slots.map((k) => SLOT_LABELS[k]).join(", ")}`);
   const n = draft.trialRuns.length;
-  if (n) lines.push(`Ran a trial on ${n === 1 ? "one past item" : `${n} past items`}`);
+  if (n) lines.push(`Ran a trial on ${n === 1 ? "one past item" : `${numberWord(n)} past items`}`);
   if (draft.status === "ready" && draft.draftVersionId) lines.push("The blueprint is ready for you to look at");
   return lines;
 }

@@ -340,8 +340,8 @@ describe("an architect's change of a running routine", () => {
     expect(html).not.toContain('class="eos-bp-value"');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Use this version", "Discard", "Run the trial again"]);
     expect(html).toContain("Changed Who");
-    expect(html).toContain("Ran a trial on 2 past items");
-    expect(html).toContain('<h2 class="eos-label">Trial on 2 past items, nothing was sent</h2>');
+    expect(html).toContain("Ran a trial on two past items");
+    expect(html).toContain('<h2 class="eos-label">Trial on two past items, nothing was sent</h2>');
     expect(html).toContain('<span class="eos-bp-trial__item">Invoice from Acme</span><span class="eos-bp-trial__line">Two replies drafted</span></span><button type="button" class="eos-link">Read the draft</button>');
   });
 
