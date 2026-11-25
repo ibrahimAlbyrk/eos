@@ -64,12 +64,26 @@ export function LinkDialog({ location, routine }) {
     if (answer.runs) return openLocation(buildLocation({ screen: "run", runId: answer.runs[0].id }));
     setRefused(answer.repeat ? `${routine.name} handled this item lately. Open it from the routine's runs.` : refusalText(answer));
   };
+  const title = routine ? `Run ${routine.name}${input.item ? ` on ${input.item.title}` : ""}?` : "This link names no routine here.";
   return (
     <div className="eos-runsheet eos-runsheet--centre" onMouseDown={(e) => { if (e.target === e.currentTarget) home(); }}>
-      <div className="eos-runsheet__panel eos-linkdialog" role="dialog" aria-label="A link wants to start a run">
-        <div className="eos-linkdialog__title">A link wants to start a run</div>
+      <div
+        className="eos-runsheet__panel eos-linkdialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="A link wants to start a run"
+        onKeyDown={(e) => { if (e.key === "Escape") home(); }}
+      >
+        <p className="eos-linkdialog__from">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1.2-1.2a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5l-1.2 1.2a2.5 2.5 0 0 1-3.5-3.5L5.5 8" /></svg>
+          A link wants to start a run
+        </p>
+        <h2 className="eos-linkdialog__title">{title}</h2>
+        <p className="eos-linkdialog__line">
+          {routine ? "A link never starts anything by itself. Look at what it sets, then run it or let it go." : `There is no routine named ${location.routine}. Nothing was started.`}
+        </p>
         <div className="eos-linkdialog__link">{linkText(location)}</div>
-        {routine ? (
+        {routine && (
           <dl className="eos-linkdialog__rows">
             <div><dt>Routine</dt><dd>{routine.name}</dd></div>
             {input.item && <div><dt>Item</dt><dd>{input.item.title}</dd></div>}
@@ -80,13 +94,12 @@ export function LinkDialog({ location, routine }) {
             {input.at !== undefined && <div><dt>When</dt><dd>{new Date(input.at).toLocaleString()}</dd></div>}
             <div><dt>Result</dt><dd>{resultWord(input.result)}</dd></div>
           </dl>
-        ) : (
-          <p className="eos-note">There is no routine named {location.routine}.</p>
         )}
         {refused && <p className="eos-note eos-runform__problem" role="alert">{refused}</p>}
         <div className="eos-linkdialog__acts">
-          {routine && <button type="button" className="eos-btn eos-btn--primary" disabled={starting} onClick={() => void run()}>Run</button>}
-          <button type="button" className="eos-btn" onClick={home}>Cancel</button>
+          {/* Cancel takes the focus first: a link never runs on a stray Enter. */}
+          <button type="button" className="eos-btn eos-btn--ghost" autoFocus onClick={home}>{routine ? "Cancel" : "Close"}</button>
+          {routine && <button type="button" className="eos-btn eos-btn--primary" disabled={starting} onClick={() => void run()}>{starting ? "Starting…" : "Run"}</button>}
         </div>
       </div>
     </div>
