@@ -55,6 +55,26 @@ const readyDocs = (s) => ({
     trialRuns: [trial("rn-dtrial000001", "Fix broken links in the setup guide", "Two comments, one of them blocking"), trial("rn-dtrial000002", "Rename the CLI flags in the reference", "Nothing a reader is told changes")],
   },
 });
+// Docs Review made to post in Slack, with Add a Slack channel or person open
+// on what Slack lists: the picker with its channels and a person.
+const candidates = (item) => `${ROUTES.capabilityCandidates}?${new URLSearchParams({ item, limit: "20" })}`;
+const slackDocs = (s) => {
+  const body = versionBodies[DOCS][0];
+  const blueprint = { ...body.blueprint, makes: { kind: "slack.message", description: "A message in the channel with what changed." } };
+  return {
+    ...readyDocs(s),
+    [ROUTES.routineVersion(DOCS, body.id)]: { ...body, blueprint },
+    [candidates("slack.conversation")]: [
+      { key: "C0DOCS0001", kind: "slack.conversation", title: "#docs", updatedAt: 0, data: { kind: "channel" } },
+      { key: "C0RELEASE1", kind: "slack.conversation", title: "#release-notes", updatedAt: 0, data: { kind: "channel" } },
+      { key: "C0WRITERS1", kind: "slack.conversation", title: "#writers", updatedAt: 0, data: { kind: "channel" } },
+    ],
+    [candidates("slack.person")]: [{ key: "U0MAYA0001", kind: "slack.person", title: "Maya Lindqvist", updatedAt: 0, data: { name: "maya" } }],
+  };
+};
+const slackOpen = () => setTimeout(() => {
+  [...document.querySelectorAll(".eos-bp-card button.eos-bp-add")].find((b) => /slack/i.test(b.textContent))?.click();
+}, 300);
 // A hand edit of Docs Review the rules refused, naming its Which and Goes to.
 const refusedEdit = {
   sends: async () => ({ ok: false, status: 400, body: { error: "the blueprint does not meet its rules", issues: [
@@ -123,6 +143,7 @@ export const GALLERY_STATES = [
   { id: "routine-change", label: "Routine · a change to look at", location: `eos:/routines/${routinePaused.routine.id}?tab=blueprint` },
   { id: "routine-writing", label: "Routine · being made, the architect writing", location: `eos:/routines/${DOCS}`, reads: writingDocs },
   { id: "routine-ready", label: "Routine · being made, tried and ready", location: `eos:/routines/${DOCS}`, reads: readyDocs },
+  { id: "routine-slack", label: "Routine · being made, adding a Slack channel", location: `eos:/routines/${DOCS}`, reads: slackDocs, then: slackOpen },
   { id: "routine-refused", label: "Routine · being made, an edit refused", location: `eos:/routines/${DOCS}`, ...refusedEdit },
   { id: "version-old", label: "Routine · an earlier version", location: `eos:/routines/${routinePaused.routine.id}/versions/1` },
   { id: "new-routine", label: "New routine", location: "eos:/routines/new" },

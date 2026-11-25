@@ -192,7 +192,7 @@ export function SlackRecipientDialog({ done }) {
         {choices === null && <p className="eos-note" role="status">Asking Slack…</p>}
         {choices?.length === 0 && <p className="eos-note" role="status">Slack lists nothing by that name.</p>}
         {choices?.length > 0 && (
-          <ul className="eos-bp-slack" role="listbox" aria-label="Slack channels and people">
+          <ul className={choices.length > 6 ? "eos-bp-slack eos-bp-slack--more" : "eos-bp-slack"} role="listbox" aria-label="Slack channels and people">
             {choices.map((c) => (
               <li key={c.key} role="none">
                 <button type="button" role="option" aria-selected="false" className="eos-bp-slack__item" onClick={() => done({ address: c.key, label: c.title })}>
