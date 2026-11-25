@@ -112,6 +112,7 @@
   color: var(--fg);
 }
 .eos-reshape__hint { color: var(--fg-dim); }
+.eos-reshape__bar--kept { color: var(--ok); }
 .eos-reshape__text { min-width: 0; }
 .eos-reshape__gap { flex: 1; }
 .eos-reshape__dot {

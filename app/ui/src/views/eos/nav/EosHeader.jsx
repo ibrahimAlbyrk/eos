@@ -8,7 +8,7 @@ import { HaltBand } from "./HaltBand.jsx";
 // and it clears the window's buttons while the sidebar is collapsed).
 // `children` sit after the title: a screen's chips and buttons. Under it,
 // on every screen, the band that says Eos is stopped.
-export function EosHeader({ trail, children }) {
+export function EosHeader({ trail, mark, children }) {
   const parents = trail.slice(0, -1);
   const title = trail[trail.length - 1].label;
   return (
@@ -26,6 +26,7 @@ export function EosHeader({ trail, children }) {
           </nav>
         )}
         <h1 className="eos-title">{title}</h1>
+        {mark}
         {children && <div className="eos-head__side">{children}</div>}
       </header>
       <HaltBand />

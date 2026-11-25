@@ -22,7 +22,7 @@ export function failedFindings(checks) {
 // The bar under the header in reshape mode: what to do, the designer at
 // work, or the new version with Before and After, Keep and Go back.
 export function ReshapeBar({ surface, candidate, failed, design, working, kept, showing, onShow, onKeep, onRevert, onStop }) {
-  if (kept) return <p className="eos-reshape__bar" role="status">Kept. The next issue follows version {kept}.</p>;
+  if (kept) return <p className="eos-reshape__bar eos-reshape__bar--kept" role="status">Kept. The next issue follows version {kept}.</p>;
   if (candidate && candidate.meta.status === "candidate") {
     return (
       <div className="eos-reshape__bar" role="status">
@@ -30,7 +30,7 @@ export function ReshapeBar({ surface, candidate, failed, design, working, kept, 
         <BeforeAfter showing={showing} onShow={onShow} />
         <span className="eos-reshape__gap" />
         <button type="button" className="eos-btn eos-btn--primary" onClick={onKeep}>Keep version {candidate.meta.version}</button>
-        <button type="button" className="eos-btn" onClick={onRevert}>Go back to {surface.currentVersion}</button>
+        <button type="button" className="eos-btn eos-btn--quiet" onClick={onRevert}>Go back to {surface.currentVersion}</button>
       </div>
     );
   }

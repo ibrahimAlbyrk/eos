@@ -79,6 +79,9 @@
   color: var(--fg-mid);
 }
 
+/* A mode the screen is in, beside its title. */
+.eos-chip--accent { background: var(--accent-soft); color: var(--accent); }
+
 /* A radiogroup of buttons (role="radio", aria-checked). */
 .eos-seg {
   display: inline-flex;
