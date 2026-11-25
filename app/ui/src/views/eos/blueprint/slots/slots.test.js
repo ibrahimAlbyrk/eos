@@ -100,6 +100,12 @@ describe("the Which slot", () => {
     expect(part(parts, "ask").apply("")).toEqual({ rule: which.rule, later: true });
   });
 
+  it("keeps a list a test is equal to as a list", () => {
+    const parts = whichParts({ rule: { fact: "labels", is: ["bug", "ui"] } });
+    expect(part(parts, "rule").value).toBe("bug, ui");
+    expect(part(parts, "rule").apply("bug, docs").rule).toEqual({ fact: "labels", is: ["bug", "docs"] });
+  });
+
   it("takes every item without a rule, and offers a question", () => {
     const parts = whichParts({});
     expect(words(parts.filter((p) => !p.optional))).toBe("Every item ");
