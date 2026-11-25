@@ -214,8 +214,8 @@ describe("reshape mode", () => {
 
   it("asks to point at a part, draws the issue in point mode, and offers the whole-page line", async () => {
     const html = await screen(`eos:/surfaces/${SF}?mode=reshape`);
-    expect(html).toContain('<span class="eos-chip">Changing the page</span>');
-    expect(html).toContain(">Done</button>");
+    expect(html).toContain('<h1 class="eos-title">Morning Paper</h1><span class="eos-chip eos-chip--accent">Changing the page</span>');
+    expect(html).toContain('<button type="button" class="eos-btn">Done</button>');
     expect(html).toContain("Click any part of the page, then say what should change there.");
     expect(html).toContain('aria-label="Or say what to change about the whole page"');
     expect(html).not.toContain(">Good issue</button>");
@@ -228,7 +228,7 @@ describe("reshape mode", () => {
     expect(html).toContain("Version 3. Live ops is gone; Tools has the room.");
     expect(html).toContain('role="radiogroup" aria-label="Compare versions"');
     expect(html).toContain(">Keep version 3</button>");
-    expect(html).toContain(">Go back to 2</button>");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Go back to 2</button>');
     expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html?version=3"`);
   });
 

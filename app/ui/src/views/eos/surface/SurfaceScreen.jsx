@@ -94,10 +94,9 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
 
   return (
     <main className="eos-screen">
-      <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]}>
-        {reshaping && <span className="eos-chip">Changing the page</span>}
+      <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
         {reshaping && (
-          <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>
+          <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>
         )}
         {!reshaping && row && <span className="eos-page__line">{issueLine(row)}</span>}
         {!reshaping && surface && (
