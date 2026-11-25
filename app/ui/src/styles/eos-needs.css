@@ -40,8 +40,8 @@
   cursor: pointer;
 }
 .eos-needs-row__routine { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-needs-row__title { flex: none; max-width: 50%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-base); color: var(--fg-strong); }
-.eos-needs-row__summary { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-row__title { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-base); color: var(--fg-strong); }
+.eos-needs-row__summary { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-needs-row__time { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* ── One item ─────────────────────────────────────────────────────────────── */
@@ -53,8 +53,8 @@
 .eos-send-state { display: flex; flex-direction: column; gap: 8px; }
 .eos-send-state__line { margin: 0; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg-mid); }
 .eos-send-state__left { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
-.eos-needs-item__columns { display: flex; align-items: flex-start; gap: 28px; }
-.eos-needs-item__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.eos-needs-item__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; }
+.eos-needs-item__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .eos-needs-item__card { border-radius: 16px; background: var(--panel); padding: 24px 26px; }
 .eos-needs-item__actions { align-items: center; gap: 10px 12px; }
 .eos-needs-item__actions .eos-btn { height: 38px; padding: 0 16px; font-size: var(--text-base); }
@@ -99,7 +99,7 @@
 .eos-result__para { margin: 0; white-space: pre-wrap; }
 
 /* The aside: the run's checks and team. */
-.eos-needs-aside { flex: 0 1 340px; min-width: 260px; display: flex; flex-direction: column; gap: 26px; }
+.eos-needs-aside { flex: 1 1 300px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 26px; }
 .eos-needs-aside__part { display: flex; flex-direction: column; gap: 8px; }
 .eos-needs-aside__lead { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-needs-checks, .eos-needs-team { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--fg); }
@@ -113,10 +113,6 @@
 .eos-needs-team li { display: flex; justify-content: space-between; gap: 8px; }
 .eos-needs-team__side { font-size: var(--text-xs); color: var(--fg-dim2); }
 
-@media (max-width: 960px) {
-  .eos-needs-item__columns { flex-direction: column; }
-  .eos-needs-aside { flex-basis: auto; width: 100%; }
-}
 
 /* A routine's View in Needs you: Eos's strip above it, Eos's own asks below. */
 .eos-frame { border-radius: 16px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); margin-bottom: 12px; }
