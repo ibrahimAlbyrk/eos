@@ -172,8 +172,9 @@ impl CapabilityService {
     }
 
     /// Installs here a capability that arrived from another computer: its
-    /// files must still be the ones it came with, and it stands where its
-    /// secrets on this computer put it.
+    /// files must still be the ones it came with, and it needs its secrets
+    /// entered on this computer: a removed capability's kept under its id
+    /// are forgotten.
     pub async fn install_here(&self, id: &str) -> Result<(), Error> {
         let loaded = self.load_one(id).await?.ok_or_else(|| Error::not_found("capability", id))?;
         if loaded.capability.health.state != HealthState::Available {
@@ -184,6 +185,8 @@ impl CapabilityService {
         if self.ports.files.hash(id, &version).await? != pinned {
             return Err(Error::Rule(format!("{id}: its files are not the ones it came with")));
         }
+        // What the Keychain keeps under the id here is a removed capability's.
+        self.forget_kept_secrets(&loaded.capability.manifest).await?;
         let health = self.fresh_health(&loaded.capability.manifest).await?;
         let (id, now) = (id.to_owned(), self.ports.clock.now_ms());
         self.ports

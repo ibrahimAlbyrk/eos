@@ -111,6 +111,34 @@ async fn removing_trashes_every_version_drops_the_row_and_keeps_the_secrets() {
 }
 
 #[tokio::test]
+async fn a_registry_package_under_a_removed_capabilitys_id_asks_for_its_secrets_again() {
+    let rig = rig(Setup::default()).await;
+    rig.install(&notes("1.0.0"), "h-1").await;
+    rig.service.remove("notes-db").await.expect("removes");
+    assert!(rig.secrets.has("notes-db", "api_key").await.expect("read"), "removal keeps it");
+
+    let from_registry = |version: &str, hash: &str| {
+        let manifest = notes(version);
+        eos_capabilities::Install {
+            package_dir: rig.package(&format!("registry-{version}"), &manifest),
+            manifest: eos_domain::capability::manifest::parse(&manifest).expect("a manifest"),
+            hash: hash.into(),
+            origin: "registry".into(),
+            source: "npm:notes-db@2.0.0".into(),
+        }
+    };
+    rig.service.install(from_registry("2.0.0", "h-2")).await.expect("installs");
+    assert!(!rig.secrets.has("notes-db", "api_key").await.expect("read"), "the removed one's key is not inherited");
+    let installed = rig.service.get("notes-db").await.expect("reads").expect("there");
+    assert_eq!(installed.health.state, HealthState::NeedsSetup, "{installed:?}");
+
+    // An update of the installed one keeps the key the user entered for it.
+    rig.secrets.write("notes-db", "api_key", "nk_entered".to_owned().into()).await.expect("the key");
+    rig.service.install(from_registry("2.1.0", "h-3")).await.expect("installs");
+    assert!(rig.secrets.has("notes-db", "api_key").await.expect("read"));
+}
+
+#[tokio::test]
 async fn installs_at_once_never_pass_the_limit() {
     let rig = rig(Setup::default()).await;
     for n in 1..INSTALLED_MAX {

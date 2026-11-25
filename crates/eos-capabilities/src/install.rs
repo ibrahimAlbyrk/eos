@@ -4,7 +4,10 @@
 //! goes through the trash too, and keeps the capability's secrets. The
 //! last [`KEPT_VERSIONS`] installed versions stay on disk to go back to;
 //! an older one is retired and its files go to the trash. A capability the
-//! user disabled stays disabled through an update or a rollback.
+//! user disabled stays disabled through an update or a rollback. A package
+//! from a registry that takes the id of a capability no longer installed
+//! never inherits the secrets that capability left: they are forgotten and
+//! asked again.
 
 use std::path::PathBuf;
 
@@ -25,6 +28,8 @@ const INSTALLED: &str = "installed";
 const RETIRED: &str = "retired";
 /// How many installed versions stay on disk (06 G9).
 pub const KEPT_VERSIONS: usize = 3;
+/// The origin of a package installed from a registry.
+const REGISTRY: &str = "registry";
 
 /// The health a capability takes on with a new active version: the one
 /// fresh from its check, unless the user disabled it.
@@ -69,7 +74,12 @@ impl CapabilityService {
             // Refused before any file is copied; the write checks again.
             self.ports.store.read(move |tx| admit(tx, &id, &version, &hash)).await?;
         }
+        let owned = id.clone();
+        let fresh = self.ports.store.read(move |tx| tx.capability_installs().find(&owned)).await?.is_none();
         self.ports.files.install(&package_dir, &id, &version, &hash).await?;
+        if fresh && origin == REGISTRY {
+            self.forget_kept_secrets(&manifest).await?;
+        }
         let health = self.fresh_health(&manifest).await?;
         let manifest_json = serde_json::to_string(&manifest).map_err(Error::storage)?;
         let now = self.ports.clock.now_ms();
@@ -124,6 +134,19 @@ impl CapabilityService {
             self.stop_runs(&manifest.id).await;
         }
         self.retire_old(&manifest.id).await
+    }
+
+    /// Forgets every secret `manifest` declares that the Keychain keeps under
+    /// its id: secrets a removed capability with the same id left, which a
+    /// new package never reads; the user enters them again.
+    pub(crate) async fn forget_kept_secrets(&self, manifest: &Manifest) -> Result<(), Error> {
+        for secret in &manifest.secrets {
+            if self.ports.secrets.has(&manifest.id, &secret.name).await? {
+                self.ports.secrets.delete(&manifest.id, &secret.name).await?;
+                tracing::info!(capability = %manifest.id, "a removed capability's kept secret was forgotten");
+            }
+        }
+        Ok(())
     }
 
     /// Retires every installed version past the newest [`KEPT_VERSIONS`],
