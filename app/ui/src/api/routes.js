@@ -316,6 +316,8 @@ export const ROUTES = {
   routineBlueprint: (id) => `/api/routines/${id}/blueprint`,
   routineVersionRestore: (id, versionId) => `/api/routines/${id}/versions/${versionId}/restore`,
   routineCopy: (id) => `/api/routines/${id}/copy`,
+  routineExport: (id) => `/api/routines/${id}/export`,
+  routinesImport: "/api/routines/import",
   routinesSettings: "/api/routines/settings",
   // A routine's life by hand: its state, Recently deleted and back, a one-off kept.
   routineState: (id) => `/api/routines/${id}/state`,

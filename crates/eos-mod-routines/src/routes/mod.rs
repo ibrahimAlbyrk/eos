@@ -13,6 +13,7 @@ mod run_agents;
 mod run_view;
 mod runs;
 mod settings;
+mod share;
 mod writes;
 
 use std::sync::Arc;
@@ -26,6 +27,7 @@ pub(crate) use estimate::usual;
 pub(crate) use routines::{BUILTIN, gone, param, readable, run_summaries, showing_version, summary, with_blueprint};
 pub(crate) use runs::start_refused;
 pub(crate) use settings::{current as current_settings, protected_settings, today};
+pub(crate) use share::export_of;
 
 use crate::architect::{ARCHITECTS_BUSY, NO_ARCHITECT};
 use crate::engine::{Engine, NEWER_FORMAT};
@@ -51,6 +53,7 @@ pub(crate) fn refusal(error: Error) -> ApiError {
 pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let mut routes = routines::all(&engine.store, &engine.clock, &engine.patterns);
     routes.extend(writes::all(engine));
+    routes.extend(share::all(engine));
     routes.extend(architect::all(engine));
     routes.extend(intent::all(engine));
     routes.extend(settings::all(engine));
