@@ -23,16 +23,18 @@ const MARKUP: &[char] = &['<', '>', '[', ']', '{', '}', '`', '*', '\\'];
 /// Schemes a link starts with when it has no `://`.
 const SCHEMES: &[&str] = &["mailto:", "javascript:", "vbscript:", "data:", "file:", "tel:", "sms:"];
 
+/// What a View holds beside itself, checked.
+pub(crate) struct Notes {
+    pub(crate) facts: Option<Vec<OptionFacts>>,
+    pub(crate) aside: Option<Vec<AsideNote>>,
+}
+
 /// The facts and the notes, or every problem with its path.
-pub(crate) fn checked(
-    view: &Value,
-    facts: Option<&Value>,
-    aside: Option<&Value>,
-) -> Result<(Option<Vec<OptionFacts>>, Option<Vec<AsideNote>>), Vec<Problem>> {
+pub(crate) fn checked(view: &Value, facts: Option<&Value>, aside: Option<&Value>) -> Result<Notes, Vec<Problem>> {
     let mut problems = Vec::new();
     let facts = facts.filter(|f| !f.is_null()).map(|f| read_facts(view, f, &mut problems));
     let aside = aside.filter(|a| !a.is_null()).map(|a| read_aside(a, &mut problems));
-    if problems.is_empty() { Ok((facts, aside)) } else { Err(problems) }
+    if problems.is_empty() { Ok(Notes { facts, aside }) } else { Err(problems) }
 }
 
 /// Every option label and value of the View's Choices.

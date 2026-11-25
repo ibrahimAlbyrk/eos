@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{AsideNote, OptionFacts, SurfacesIssue};
+use eos_contracts::SurfacesIssue;
 use eos_core::store::{Outbox, Store, StoredIssue, Tx};
 use eos_core::surface::{ReturnedView, SurfaceTools, ViewCard, ViewCards};
 use eos_core::{BoxFuture, Clock, Error, Ids};
@@ -22,6 +22,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::SURFACES_ISSUE;
+use crate::view_notes::Notes;
 
 const PLACES: [&str; 2] = ["result", "question"];
 const QUESTION: &str = "question";
@@ -41,8 +42,7 @@ pub(crate) struct ViewIssues {
 /// options and its notes.
 struct Checked {
     bindings: Vec<Binding>,
-    facts: Option<Vec<OptionFacts>>,
-    aside: Option<Vec<AsideNote>>,
+    notes: Notes,
 }
 
 /// Every problem of the View, its bindings, facts and notes, or what it holds.
@@ -60,7 +60,7 @@ fn checked(actions: &Actions, returned: &ReturnedView) -> Result<Checked, Vec<Pr
     let bindings = view_check(&returned.view, returned.bindings.as_ref(), |id| registry.action(id).is_some());
     let notes = crate::view_notes::checked(&returned.view, returned.facts.as_ref(), returned.aside.as_ref());
     match (bindings, notes) {
-        (Ok(bindings), Ok((facts, aside))) if problems.is_empty() => Ok(Checked { bindings, facts, aside }),
+        (Ok(bindings), Ok(notes)) if problems.is_empty() => Ok(Checked { bindings, notes }),
         (bindings, notes) => {
             problems.extend(bindings.err().into_iter().flatten());
             problems.extend(notes.err().into_iter().flatten());
@@ -82,10 +82,10 @@ fn stored_body(returned: &ReturnedView, checked: &Checked) -> Value {
         })
         .collect();
     let mut body = json!({ "place": returned.place, "view": returned.view, "bindings": bound });
-    if let Some(facts) = &checked.facts {
+    if let Some(facts) = &checked.notes.facts {
         body["facts"] = json!(facts);
     }
-    if let Some(aside) = &checked.aside {
+    if let Some(aside) = &checked.notes.aside {
         body["aside"] = json!(aside);
     }
     body
