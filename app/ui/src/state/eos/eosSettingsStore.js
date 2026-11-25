@@ -68,6 +68,13 @@ export async function sendTestPush() {
   return r.reason ?? "No iPhone takes notifications from this Mac yet.";
 }
 
+// Starts tidying memory now instead of tonight → what to say about it, or null.
+export async function tidyMemoryNow() {
+  const r = await write("POST", ROUTES.memoryTidy, {});
+  if (!r) return null;
+  return r.started ? "Tidying started. It shows under Jobs while it works." : "Tidying is under way already.";
+}
+
 export async function forgetAllLearned() {
   const r = await write("POST", ROUTES.memoryForgetAll, { confirm: true });
   if (r) set({ forgotten: r.forgotten ?? 0 });

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../state/eos/transport.js";
 import {
-  _resetEosSettings, changeEosSetting, forgetAllLearned, loadEosSettings, sendTestPush, undoForgetAll,
+  _resetEosSettings, changeEosSetting, forgetAllLearned, loadEosSettings, sendTestPush, tidyMemoryNow, undoForgetAll,
 } from "../state/eos/eosSettingsStore.js";
 import { _resetHalt, loadHalt, stopEos } from "../state/eos/haltStore.js";
 import { probeEosStatus } from "../state/eos/eosStatusStore.js";
@@ -26,6 +26,7 @@ function core() {
     if (path === ROUTES.routinesSettings) return { ok: true, status: 200, body: { ...READS[path], ...body } };
     if (path === ROUTES.eosHalt) return { ok: true, status: 200, body: { on: true, since: 1 } };
     if (path === ROUTES.memoryForgetAll) return { ok: true, status: 200, body: body.confirm ? { forgotten: 7 } : { restored: 7 } };
+    if (path === ROUTES.memoryTidy) return { ok: true, status: 202, body: { started: true } };
     if (path === ROUTES.remotePushTest) return { ok: true, status: 200, body: { sent: 1, failed: 0 } };
     return { ok: true, status: 200, body };
   });
@@ -104,12 +105,14 @@ describe("Settings › Eos", () => {
     await undoForgetAll();
     expect(row(renderToStaticMarkup(<EosSettings />), "Forget everything learned")).toContain(">Forget everything</button>");
     expect(await sendTestPush()).toBe("Sent to your iPhone.");
+    expect(await tidyMemoryNow()).toBe("Tidying started. It shows under Jobs while it works.");
     expect(await stopEos()).toBe(true);
     expect(row(renderToStaticMarkup(<EosSettings />), "Stop everything")).toContain(">Resume</button>");
     expect(send.mock.calls.map(([method, path, body]) => [method, path, body])).toEqual([
       ["POST", ROUTES.memoryForgetAll, { confirm: true }],
       ["POST", ROUTES.memoryForgetAll, { undo: true }],
       ["POST", ROUTES.remotePushTest, {}],
+      ["POST", ROUTES.memoryTidy, {}],
       ["POST", ROUTES.eosHalt, {}],
     ]);
   });
