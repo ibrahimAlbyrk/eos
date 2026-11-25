@@ -3,7 +3,9 @@ import { makeRoutine, NEW } from "../../../state/eos/blueprintStore.js";
 import { Band, Section } from "../frame.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { Crowded } from "./ArchitectChat.jsx";
-import { issueLine, NEW_STARTERS, SLOT_GUIDE } from "./words.js";
+import { BlueprintCard } from "./BlueprintCard.jsx";
+import { Note } from "./BlueprintEditor.jsx";
+import { NEW_STARTERS } from "./words.js";
 
 function Icon({ d }) {
   return (
@@ -14,9 +16,10 @@ const PEN = "M10.5 2.5l3 3L6 13H3v-3l7.5-7.5zM9 4l3 3";
 const FILE = "M4 1.5h5L12.5 5v9.5h-8.5zM9 1.5V5h3.5M6.5 9.5L8 11l1.5-1.5M8 6.5V11";
 
 // A new routine before anything is written: one question, asked as Home
-// asks it, with sentences to start from; the two other ways in; and what a
-// blueprint holds, so the user knows what Eos will write. `onHand` opens
-// the card to fill by hand, `onFile` the file picker.
+// asks it, with sentences to start from; the two other ways in on one quiet
+// line; and the blueprint Eos will write, its eight slots empty on their
+// spine, each saying what it holds. `onHand` opens the card to fill by
+// hand, `onFile` the file picker.
 export function NewRoutineStart({ note, onHand, onFile }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -72,41 +75,21 @@ export function NewRoutineStart({ note, onHand, onFile }) {
 
       {note?.kind === "crowded" && <Crowded routineId={NEW} text={note.text} drafts={note.drafts} />}
       {note?.kind === "refusal" && <Band tone="err" role="alert">{note.text}</Band>}
-      {note?.kind === "refused" && (
-        <div className="eos-band eos-band--err" role="alert">
-          <span className="eos-band__text">{note.text}</span>
-          <ul className="eos-bp-issues">{note.issues.map((i) => <li key={issueLine(i)}>{issueLine(i)}</li>)}</ul>
-        </div>
-      )}
+      {note?.kind === "refused" && <Note note={note} />}
 
-      <Section id="eos-new-other" label="Or start another way">
-        <div className="eos-new__ways">
-          <button type="button" className="eos-new__way" onClick={onHand}>
-            <Icon d={PEN} />
-            <span className="eos-new__waywords">
-              <span className="eos-new__waytitle">Fill it by hand</span>
-              <span className="eos-new__wayline">Set each part yourself, starting from one agent that reports to you.</span>
-            </span>
-          </button>
-          <button type="button" className="eos-new__way" onClick={onFile}>
-            <Icon d={FILE} />
-            <span className="eos-new__waywords">
-              <span className="eos-new__waytitle">From a file</span>
-              <span className="eos-new__wayline">A routine file saved on another Mac, or one someone shared with you.</span>
-            </span>
-          </button>
-        </div>
-      </Section>
+      <p className="eos-new__ways">
+        <span className="eos-new__or">Or</span>
+        <button type="button" className="eos-new__way eos-new__hand" onClick={onHand}>
+          <Icon d={PEN} />Fill it in by hand
+        </button>
+        <span className="eos-new__sep" aria-hidden="true">·</span>
+        <button type="button" className="eos-new__way" onClick={onFile}>
+          <Icon d={FILE} />Open a routine file
+        </button>
+      </p>
 
-      <Section id="eos-new-holds" label="What a routine holds">
-        <dl className="eos-new__guide">
-          {SLOT_GUIDE.map(([label, line]) => (
-            <div key={label} className="eos-new__part">
-              <dt className="eos-new__partname">{label}</dt>
-              <dd className="eos-new__partline">{line}</dd>
-            </div>
-          ))}
-        </dl>
+      <Section id="eos-new-holds" label="The blueprint Eos will write" aside="Eight parts, each yours to change">
+        <BlueprintCard blueprint={{}} ghost />
       </Section>
     </div>
   );

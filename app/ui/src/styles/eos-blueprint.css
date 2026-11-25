@@ -431,40 +431,36 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-new__input .eos-new__text { flex: none; resize: none; min-height: 52px; field-sizing: content; max-height: 220px; }
 .eos-new__keys { padding-left: 2px; font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-new > .eos-band { margin-top: 20px; }
-.eos-new > .eos-section { margin-top: 56px; }
+.eos-new > .eos-section { margin-top: 64px; }
 .eos-new > .eos-section + .eos-section { margin-top: 48px; }
 
-.eos-new__ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); column-gap: 24px; }
+/* The other ways in: one quiet line under the sentences. */
+.eos-new__ways { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 20px 0 0; font-size: var(--text-sm); color: var(--fg-dim2); }
+.eos-new__or { margin-right: 2px; }
+.eos-new__sep { color: var(--fg-faint); }
 .eos-new__way {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px 4px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
   border: 0;
-  border-top: 1px solid var(--line);
+  border-radius: var(--r-pill);
   background: none;
   font: inherit;
-  text-align: left;
-  color: var(--fg);
+  color: var(--fg-mid);
   cursor: pointer;
-  transition: border-color 140ms cubic-bezier(.2, .8, .2, 1);
+  transition: background 140ms cubic-bezier(.2, .8, .2, 1), color 140ms cubic-bezier(.2, .8, .2, 1);
 }
-.eos-new__way:hover { border-top-color: var(--fg-dim2); }
-.eos-new__way:hover .eos-new__waytitle, .eos-new__way:hover .eos-new__icon { color: var(--fg-strong); }
-.eos-new__icon { flex: none; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--fg-dim); transition: color 140ms cubic-bezier(.2, .8, .2, 1); }
-.eos-new__waywords { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.eos-new__waytitle { font-size: var(--text-base); font-weight: 500; color: var(--fg); transition: color 140ms cubic-bezier(.2, .8, .2, 1); }
-.eos-new__wayline { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-new__way:hover { background: var(--row-on); color: var(--fg-strong); }
+.eos-new__icon { flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--fg-dim2); }
+.eos-new__way:hover .eos-new__icon { color: var(--fg-strong); }
 
-.eos-new__guide { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); column-gap: 24px; }
-.eos-new__part { display: flex; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
-.eos-new__partname {
-  flex: 0 0 72px;
-  padding-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-dim2);
-}
-.eos-new__partline { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+/* The blueprint not written yet: the spine and what each slot holds, on
+   the page's own ground. */
+.eos-bp-card--ghost { padding: 0; background: none; }
+.eos-bp-card--ghost .eos-bp-row { padding-top: 14px; padding-bottom: 14px; }
+.eos-bp-card--ghost .eos-bp-row__dot { top: 23px; background: var(--bg); }
+.eos-bp-card--ghost .eos-bp-row:first-child::before { top: 27px; }
+.eos-bp-card--ghost .eos-bp-row:last-child::before { height: 27px; }
+.eos-bp-card--ghost .eos-bp-row:last-child::after { content: none; }
