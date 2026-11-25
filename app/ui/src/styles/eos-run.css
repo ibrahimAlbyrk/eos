@@ -290,3 +290,4 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-step__mark--done { fill: none; stroke: var(--ok); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .eos-step__mark--now::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eos-step__mark--next::before { content: ""; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim); }
+.eos-routine__week .eos-facts__row dt { flex-basis: 150px; }

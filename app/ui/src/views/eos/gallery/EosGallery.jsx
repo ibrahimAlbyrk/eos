@@ -118,7 +118,8 @@ export const SAMPLE_READS = {
   ...Object.fromEntries(Object.entries(blueprintDrafts).map(([id, draft]) => [ROUTES.routineDraft(id), draft])),
   ...Object.fromEntries(Object.entries(blueprintVersions).map(([id, rows]) => [ROUTES.routineVersions(id), rows])),
   ...Object.fromEntries(Object.entries(blueprintVersionBodies).flatMap(([id, bodies]) => bodies.map((v) => [ROUTES.routineVersion(id, v.id), v]))),
-  [`${ROUTES.runs}?routineId=${routineDetail.routine.id}&limit=50`]: runsPage,
+  // Its Runs tab: the week's runs, then the older page.
+  [`${ROUTES.runs}?routineId=${routineDetail.routine.id}&limit=50`]: { ...runsPage, runs: [...prRuns, ...runsPage.runs.filter((r) => !RECENT.includes(r.id))] },
   [`${ROUTES.routineCandidates(routineDetail.routine.id)}?limit=20`]: candidates,
   [ROUTES.run(runDetail.run.id)]: runDetail,
   ...Object.fromEntries(runs.map((detail) => [ROUTES.run(detail.run.id), detail])),

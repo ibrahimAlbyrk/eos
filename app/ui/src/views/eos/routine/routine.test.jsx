@@ -214,6 +214,9 @@ describe("the routine page", () => {
     const runsTab = await page(`eos:/routines/${PR}?tab=runs`);
     expect(tabs(runsTab)).toEqual(["Overview", "Runs*", "Signals", "Blueprint", "Learned"]);
     expect(runsTab).toContain('<span class="eos-run-row__title">Fix the login</span>');
+    expect(runsTab).toContain('<h2 class="eos-label">Every run</h2>');
+    // Beside them, what a usual run costs and takes.
+    expect(runsTab).toContain('<div class="eos-facts__row"><dt>A usual run</dt><dd>$0.40, 3 min</dd></div>');
 
     const mixed = { runs: [...runsPage.runs, { ...runsPage.runs[0], id: "rn-hand", origin: "hand" }] };
     setEosTransport(fixtureTransport({ ...reads, [`${ROUTES.runs}?routineId=${PR}&limit=50`]: mixed }));

@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { fmtUsd } from "../../../lib/format.js";
 import { ensureRunsLoaded, loadMoreRuns, loadRuns, useRuns } from "../../../state/eos/runsStore.js";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { EmptyState } from "../frame.jsx";
 import { openLocation } from "../nav/eosNav.js";
-import { ORIGIN_FILTERS, originLine, stateChip } from "../run/words.js";
+import { duration, ORIGIN_FILTERS, originLine, stateChip } from "../run/words.js";
 
 export const runLocation = (id) => `eos:/runs/${encodeURIComponent(id)}`;
 
@@ -63,10 +64,14 @@ export function RoutineRuns({ routineId }) {
   const shown = origin === "all" ? runs : runs.filter((r) => r.origin === origin);
   const now = Date.now();
   return (
-    <div className="eos-routine__section">
+    <section className="eos-routine__section" aria-label="Every run">
+      <div className="eos-routine__head">
+        <h2 className="eos-label">Every run</h2>
+        {shown.length > 0 && <span className="eos-section__aside">{shown.length}{page.nextBefore != null ? "+" : ""}</span>}
+      </div>
       {origins.length > 1 && <OriginFilter origins={origins} origin={origin} onChange={setOrigin} />}
       {shown.length === 0 ? (
-        <p className="eos-note">No runs yet.</p>
+        <EmptyState title="No runs yet.">Each run shows here with what it was about, how it went and what it cost.</EmptyState>
       ) : (
         <ul className="eos-runs">{shown.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
       )}
@@ -74,6 +79,26 @@ export function RoutineRuns({ routineId }) {
       {page.nextBefore != null && !page.failed && (
         <div className="eos-actions"><button type="button" className="eos-btn" onClick={() => void loadMoreRuns(routineId)}>Show more</button></div>
       )}
-    </div>
+    </section>
+  );
+}
+
+// Beside every run: what this week cost and what a usual run takes, as the
+// routine's row carries them. Nothing when it carries neither.
+export function RunsWeek({ routine }) {
+  const { stats, usual } = routine;
+  const rows = [
+    stats?.runs7d != null && ["Runs this week", String(stats.runs7d)],
+    stats?.cost7d != null && ["Spent this week", fmtUsd(stats.cost7d)],
+    (usual?.usd != null || usual?.ms != null) && ["A usual run", [usual.usd != null && fmtUsd(usual.usd), usual.ms != null && duration(usual.ms)].filter(Boolean).join(", ")],
+  ].filter(Boolean);
+  if (rows.length === 0) return null;
+  return (
+    <section className="eos-routine__section" aria-label="This week">
+      <h2 className="eos-label">This week</h2>
+      <dl className="eos-facts eos-routine__week">
+        {rows.map(([label, value]) => <div key={label} className="eos-facts__row"><dt>{label}</dt><dd>{value}</dd></div>)}
+      </dl>
+    </section>
   );
 }
