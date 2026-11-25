@@ -51,8 +51,17 @@ impl Bench {
     /// A routine of `origin` in `state` with one version of `blueprint` per
     /// entry, made a day apart; the last is its head.
     fn routine(&self, origin: &str, state: RoutineState, blueprints: &[Value]) -> (String, Vec<String>) {
+        self.routine_made(origin, state, blueprints, self.now - 10 * DAY)
+    }
+
+    fn routine_made(
+        &self,
+        origin: &str,
+        state: RoutineState,
+        blueprints: &[Value],
+        made: i64,
+    ) -> (String, Vec<String>) {
         let id = self.ids.routine_id();
-        let made = self.now - 10 * DAY;
         let versions: Vec<StoredVersion> = blueprints
             .iter()
             .enumerate()
@@ -368,6 +377,43 @@ async fn a_routine_row_carries_its_numbers() {
         detail["routine"]["stats"],
         json!({"sentUnedited7d": 0.75, "baselineFirstWeek": 0.5, "runs7d": 2, "cost7d": 0.5, "setupUsd": 1.5})
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routine_row_carries_the_share_of_each_week_between_its_first_and_this_one() {
+    let bench = Bench::new();
+    let (id, _) = bench.routine_made("hand", RoutineState::Active, &[pr_review("Reviews.")], bench.now - 30 * DAY);
+    // The week before this one: one of two; two weeks before: none judged;
+    // three weeks before began inside the first week, so it is left out.
+    let outcomes = [
+        (bench.now - 8 * DAY, "sent_unedited"),
+        (bench.now - 9 * DAY, "discarded"),
+        (bench.now - 16 * DAY, "auto_sent"),
+        (bench.now - 22 * DAY, "sent_unedited"),
+    ];
+    let routine = id.clone();
+    bench
+        .rig
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            for (at, outcome) in outcomes {
+                tx.inbox_outcomes().insert(&eos_core::store::NewOutcome {
+                    routine_id: routine.clone(),
+                    run_id: "rn-x".into(),
+                    item_id: None,
+                    delivery_id: None,
+                    outcome: outcome.into(),
+                    rung: "draft".into(),
+                    at,
+                })?;
+            }
+            Ok(())
+        })
+        .expect("writes");
+
+    let (_, detail) = bench.read(&format!("/api/routines/{id}")).await;
+    assert_eq!(detail["routine"]["stats"]["weeksBetween"], json!([null, 0.5]));
 }
 
 #[tokio::test(flavor = "multi_thread")]

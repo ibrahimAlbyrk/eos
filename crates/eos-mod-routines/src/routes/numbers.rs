@@ -1,12 +1,14 @@
 //! A routine's numbers (01 §4.14): the share of its results the user sent
-//! as they were, this week and in its first full week, its runs and spend
+//! as they were, this week, in the weeks before it and in its first full week, its runs and spend
 //! of the week and what setting it up cost; and the runs that ended since
 //! a time, counted by how (`GET /api/runs/summary`).
 
 use eos_contracts::{Num, RoutineStats, RunsSummary};
 use eos_core::Error;
 use eos_core::store::{StoredRoutine, Tx};
-use eos_domain::routine::numbers::{Ended, Outcome, baseline_first_week, sent_unedited_7d};
+use eos_domain::routine::numbers::{
+    Ended, Outcome, WEEKS_BETWEEN, baseline_first_week, sent_unedited_7d, weeks_between,
+};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -33,9 +35,17 @@ pub(crate) fn stats_in(tx: &dyn Tx, routine: &StoredRoutine, runs7d: i64, now: i
         }
         _ => None,
     };
+    let between = match routine.started_at {
+        Some(started) => {
+            let earlier = ended(tx, &routine.id, now - (WEEKS_BETWEEN + 1) * WEEK_MS, now - WEEK_MS + 1)?;
+            weeks_between(&earlier, started, now)
+        }
+        None => Vec::new(),
+    };
     Ok(RoutineStats {
         sent_unedited7d: sent_unedited_7d(&week, now).map(Num),
         baseline_first_week: baseline.map(Num),
+        weeks_between: between.into_iter().map(|share| share.map(Num)).collect(),
         runs7d,
         cost7d: Num(tx.runs().cost_since(&routine.id, now - WEEK_MS)?),
         setup_usd: Num(tx.routine_spend().total(&routine.id, "architect")?),

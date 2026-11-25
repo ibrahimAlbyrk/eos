@@ -149,14 +149,17 @@ fn rows_write_as_the_dashboard_reads_them() {
     let stats = RoutineStats {
         sent_unedited7d: Some(Num(0.9)),
         baseline_first_week: None,
+        weeks_between: Vec::new(),
         runs7d: 4,
         cost7d: Num(1.25),
         setup_usd: Num(0.4),
     };
     assert_eq!(
-        serde_json::to_value(stats).unwrap(),
+        serde_json::to_value(&stats).unwrap(),
         json!({"sentUnedited7d": 0.9, "runs7d": 4, "cost7d": 1.25, "setupUsd": 0.4})
     );
+    let weeks = RoutineStats { weeks_between: vec![Some(Num(0.5)), None], ..stats };
+    assert_eq!(serde_json::to_value(&weeks).unwrap()["weeksBetween"], json!([0.5, null]));
 }
 
 #[test]

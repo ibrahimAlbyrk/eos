@@ -85,7 +85,7 @@ pub struct UsualCost {
 impl Validate for UsualCost {}
 
 /// Shares run from 0 to 1.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineStats {
     /// The share of the last seven days' results sent without edits.
@@ -94,6 +94,11 @@ pub struct RoutineStats {
     /// The same share over the first full week after the routine started.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub baseline_first_week: Option<Num>,
+    /// The share in each week between the first and the last seven days,
+    /// oldest first, at most three; `null` for a week the user judged
+    /// nothing in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub weeks_between: Vec<Option<Num>>,
     pub runs7d: i64,
     pub cost7d: Num,
     /// What making and changing the routine cost.
