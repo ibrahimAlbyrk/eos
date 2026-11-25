@@ -106,3 +106,30 @@ async fn on_a_low_battery_runs_from_triggers_wait_and_runs_by_hand_start() {
     bench.turn().await;
     bench.eventually(|| bench.state(&waiting) == RunState::Running).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_halt_that_lands_while_a_run_starts_its_lead_ends_the_run_and_its_lead() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
+    let release = bench.agents.hold_next_start();
+    let run = bench.hand(&routine, Some(pull_request(1))).await;
+    bench.supervise().await;
+    bench.eventually(|| bench.agents.held_start_began()).await;
+
+    bench.switch_halt(true);
+    release.release();
+    bench.eventually(|| bench.state(&run) == RunState::Cancelled).await;
+    assert_eq!(bench.run(&run).reason, Some(Reason::Halted));
+    bench.agents.settled().await;
+    let lead = bench.agents.started().first().map(|spec| spec.worker_id.clone()).expect("a lead began");
+    let id = lead.clone();
+    let row = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads");
+    assert!(
+        row.is_none_or(|row| !matches!(
+            row.state,
+            eos_contracts::WorkerState::Working | eos_contracts::WorkerState::Spawning
+        )),
+        "the lead of a halted run does not work on"
+    );
+    assert_eq!(bench.state(&run), RunState::Cancelled, "it stays ended");
+}
