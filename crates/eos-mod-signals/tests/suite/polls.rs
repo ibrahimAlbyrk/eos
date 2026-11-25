@@ -227,3 +227,22 @@ async fn a_source_that_does_nothing_in_this_run_of_eos_shows_off() {
     assert_eq!(signals(&bench), 0);
     module.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_source_whose_interval_changed_is_polled_on_its_new_one() {
+    let bench = reader();
+    bench.pulls.page(page(Vec::new(), json!({"etag": "e1"})));
+    let module = started(&bench).await;
+    // As an older version of the source declared: an hour.
+    let now = eos_core::Clock::now_ms(bench.clock.as_ref());
+    bench.temp.exec(&format!(
+        "UPDATE signal_sources SET interval_ms = {}, next_poll_at = {} WHERE id = '{SOURCE_ID}'",
+        60 * MINUTE,
+        now + 60 * MINUTE
+    ));
+    kick(&bench, "routine:change");
+    bench.until(|| row(&bench).interval_ms == MINUTE).await;
+    let next = row(&bench).next_poll_at.expect("due");
+    assert!(next <= now + MINUTE, "the next poll keeps to the new interval: {}", next - now);
+    module.stop().await;
+}
