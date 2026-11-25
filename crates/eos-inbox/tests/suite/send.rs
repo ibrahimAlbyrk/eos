@@ -125,7 +125,11 @@ async fn an_unedited_send_queues_an_approved_delivery_and_finishes_sent_unedited
     assert_eq!((row.state.as_str(), row.mode.as_str(), row.approved_at), ("queued", "approved", Some(now)));
     assert_eq!(row.item_id.as_deref(), Some(held.item_id.as_str()));
     let target: Value = serde_json::from_str(&row.target).expect("json");
-    assert_eq!(target, json!({"recipientId": "pr", "place": {"item": "github:pr:acme/game#482"}}));
+    assert_eq!(
+        target,
+        json!({"recipientId": "pr", "place": {"item": "github:pr:acme/game#482@abc"}}),
+        "the item at its version"
+    );
     let item = held.rig.find(&held.item_id).await;
     assert_eq!(
         (item.state, item.answered_by.as_deref(), item.consumed_at.is_some()),
@@ -180,7 +184,7 @@ async fn a_send_to_a_recipient_removed_from_the_routine_is_refused_by_name_and_w
     match held.rig.items.send(&held.item_id, 1, None, "dashboard", false).await {
         Err(Error::Core(eos_core::Error::Conflict(reason))) => assert_eq!(
             reason,
-            "This recipient was removed from the routine: github:pr:acme/game#482. Nothing was sent."
+            "This recipient was removed from the routine: github:pr:acme/game#482@abc. Nothing was sent."
         ),
         other => panic!("{other:?}"),
     }
