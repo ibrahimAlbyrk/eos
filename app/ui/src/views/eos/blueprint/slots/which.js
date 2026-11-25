@@ -18,7 +18,7 @@ function testParts(rule, put, key) {
   let part;
   if (op === "is" && typeof v === "boolean") {
     part = { ...base, editor: "menu", text: v ? "yes" : "no", value: String(v), options: YES_NO, apply: (x) => set(x === "true") };
-  } else if (op === "in") {
+  } else if (op === "in" || Array.isArray(v)) {
     part = { ...base, editor: "text", text: (v ?? []).join(", "), value: (v ?? []).join(", "), apply: (x) => set(x.split(",").map((s) => s.trim()).filter(Boolean)) };
   } else if (op === "glob") {
     part = { ...base, editor: "glob", text: v, value: v, apply: set };
