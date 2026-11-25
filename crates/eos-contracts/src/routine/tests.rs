@@ -216,6 +216,12 @@ fn a_one_off_request_reads_with_its_bounds_and_its_answer_writes_back() {
     assert_eq!(serde_json::to_value(&request).unwrap(), body);
     let bare: OnceRequest = crate::parse(&json!({"text": "x", "result": "ask", "door": "terminal"})).unwrap();
     assert!(bare.attachments.is_empty());
+    assert_eq!((bare.project, bare.model), (None, None));
+    let pills = json!({"text": "x", "attachments": [], "result": "usual", "door": "home", "project": "/Users/me/game",
+                       "model": "opus"});
+    assert_eq!(serde_json::to_value(crate::parse::<OnceRequest>(&pills).unwrap()).unwrap(), pills);
+    let odd = json!({"text": "x", "result": "usual", "door": "home", "model": "opus 5"});
+    assert!(crate::parse::<OnceRequest>(&odd).is_err());
     assert!(crate::parse::<OnceRequest>(&json!({"text": "  ", "result": "usual", "door": "home"})).is_err());
     let many: Vec<Value> =
         (0..=ONCE_ATTACHMENTS_MAX).map(|n| json!({"kind": "file", "value": n.to_string()})).collect();

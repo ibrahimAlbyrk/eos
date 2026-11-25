@@ -40,7 +40,7 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
         let engine = making.clone();
         async move {
             let body: ArchitectRequest = req.parse()?;
-            match architect::make(&engine, &body.sentence, &body.attachments).await {
+            match architect::make(&engine, &body).await {
                 Ok(saved) => Ok(Response::json(201, &saved)),
                 Err(error) => refused(&engine, error).await,
             }

@@ -72,6 +72,12 @@ pub struct OnceRequest {
     pub result: ResultMode,
     /// Where the user asked (`home`, `terminal`, …).
     pub door: String,
+    /// The project folder the one-off reads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// The model of its agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 impl Validate for OnceRequest {
@@ -81,6 +87,7 @@ impl Validate for OnceRequest {
             cx.str_max(&self.text, RUN_NOTE_MAX_CHARS);
         });
         cx.at("attachments", |cx| cx.arr_max(self.attachments.len(), ONCE_ATTACHMENTS_MAX));
+        super::architect::home_choices(cx, self.project.as_deref(), self.model.as_deref());
     }
 }
 

@@ -126,6 +126,33 @@ async fn a_sentence_becomes_a_routine_its_architect_drafts_asks_and_the_user_sta
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_home_pills_set_the_starting_rung_the_architects_model_and_its_project() {
+    let routes = Routes::new();
+    let asked = json!({"sentence": "Review my pull requests", "rung": "ask", "project": "/Users/me/game",
+                       "model": "opus"});
+    let (status, saved) = routes.post("/api/routines/architect", asked).await;
+    assert_eq!(status, 201, "{saved}");
+    let routine = saved["row"]["id"].as_str().expect("a row").to_owned();
+    let architect = routes.draft_row(&routine).architect_id.expect("an architect");
+    let placeholder = &routes.versions(&routine)[0];
+    let blueprint: Value = serde_json::from_str(&placeholder.blueprint).expect("json");
+    assert_eq!(blueprint["freedom"]["rung"], "ask");
+    let started = routes.bench.agents.started();
+    let spec = started.iter().find(|spec| spec.worker_id == architect).expect("its session");
+    assert_eq!(spec.model, "opus");
+    let boot = spec.prompt.clone().expect("a first message");
+    assert!(boot.contains("Freedom: ask before each run") && boot.contains("the project at /Users/me/game"), "{boot}");
+
+    // Home starts a routine at Draft at most: more freedom asks first, on the blueprint.
+    for rung in ["send_then_tell", "on_its_own"] {
+        let (status, _) = routes.post("/api/routines/architect", json!({"sentence": "x", "rung": rung})).await;
+        assert_eq!(status, 400, "{rung}");
+    }
+    let (status, _) = routes.post("/api/routines/architect", json!({"sentence": "x", "model": "opus; rm"})).await;
+    assert_eq!(status, 400);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_draft_that_asks_for_more_freedom_or_new_places_opens_one_confirm_change_item() {
     let routes = Routes::new();
     let (routine, architect) = routes.made("Review my pull requests").await;

@@ -97,6 +97,32 @@ async fn a_one_off_is_planned_started_at_once_booked_and_kept_by_hand() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_home_pills_name_the_one_offs_model_and_a_project_it_reads_and_its_rung_stays_ask() {
+    let routes = Routes::new();
+    routes.bench.keys.clone_at("git:github.com/me/game", "/Users/me/game");
+    routes.bench.model.data(planned("Summarise README"));
+    let mut body = asked("summarise this README");
+    body["project"] = json!("/Users/me/game");
+    body["model"] = json!("opus");
+    let (status, started) = routes.post("/api/runs/once", body).await;
+    assert_eq!(status, 201, "{started}");
+    let id = started["routineId"].as_str().expect("a routine").to_owned();
+    let (_, detail) = routes.get(&format!("/api/routines/{id}")).await;
+    let blueprint = &detail["head"]["blueprint"];
+    assert_eq!(blueprint["who"]["agents"][0]["model"], "opus");
+    assert_eq!(blueprint["who"]["agents"][0]["workspace"], "read");
+    assert_eq!(blueprint["project"]["repo"], "git:github.com/me/game");
+    assert_eq!(blueprint["freedom"]["rung"], "ask");
+
+    // A folder that is no project's clone here is refused before any model is asked.
+    let asked_before = routes.bench.model.asked().len();
+    let mut elsewhere = asked("summarise this README");
+    elsewhere["project"] = json!("/Users/me/.ssh");
+    assert_eq!(routes.post("/api/runs/once", elsewhere).await.0, 400);
+    assert_eq!(routes.bench.model.asked().len(), asked_before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn no_plan_starts_nothing_and_a_wrong_request_is_refused() {
     let routes = Routes::new();
     routes.bench.model.fail(OneShotError::TimedOut(std::time::Duration::from_secs(8)));

@@ -157,7 +157,9 @@ impl FakeKeys {
 
 impl ProjectKeys for FakeKeys {
     fn to_key<'a>(&'a self, path: &'a str) -> eos_core::BoxFuture<'a, String> {
-        Box::pin(std::future::ready(format!("path:{path}")))
+        let clones = self.0.lock().expect("keys");
+        let key = clones.iter().find(|(_, at)| at.as_str() == path).map(|(key, _)| key.clone());
+        Box::pin(std::future::ready(key.unwrap_or_else(|| format!("path:{path}"))))
     }
 
     fn to_path<'a>(&'a self, _key: &'a str, hint: &'a str) -> eos_core::BoxFuture<'a, String> {

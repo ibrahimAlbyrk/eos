@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use eos_contracts::{
-    DraftStatus, DraftView, RoutineChangeReason, RoutineKind, RoutineSaved, RoutineState, VersionAuthor, VersionStatus,
+    ArchitectRequest, DraftStatus, DraftView, RoutineChangeReason, RoutineKind, RoutineSaved, RoutineState, Rung,
+    VersionAuthor, VersionStatus,
 };
 use eos_core::Error;
 use eos_core::store::{StoredDraft, StoredRoutine, Tx};
@@ -33,8 +34,9 @@ fn name_of(sentence: &str) -> String {
 }
 
 /// The draft a routine has before its architect's first proposal: the
-/// sentence's name and slots that pass shape, so it is listed and read.
-fn placeholder(name: &str) -> Result<Prepared, Error> {
+/// sentence's name, the rung the user started it at and slots that pass
+/// shape, so it is listed and read.
+fn placeholder(name: &str, rung: Rung) -> Result<Prepared, Error> {
     let mut value = json!({
         "format": 1,
         "name": name,
@@ -47,7 +49,7 @@ fn placeholder(name: &str) -> Result<Prepared, Error> {
         "who": {"depth": "solo", "agents": [], "checker": {"model": "sonnet", "effort": "high"}},
         "how": {"format": "", "checkAgent": true},
         "makes": {"kind": "nothing", "description": ""},
-        "freedom": {"rung": "draft"},
+        "freedom": {"rung": rung},
     });
     fill_defaults(&mut value);
     let blueprint = serde_json::from_value(value).map_err(|e| Error::storage(e.to_string()))?;
@@ -73,13 +75,29 @@ async fn capability_lines(engine: &Engine) -> Result<String, Error> {
     Ok(if lines.is_empty() { "Nothing beyond this computer.".into() } else { lines.join("\n") })
 }
 
+/// What the user chose with the Home input's pills, as the architect reads
+/// it beside the sentence.
+fn choices_of(asked: &ArchitectRequest) -> String {
+    let mut lines = Vec::new();
+    if let Some(rung) = asked.rung {
+        let words = if rung == Rung::Ask { "ask before each run" } else { "hold each result as a draft" };
+        lines.push(format!("- Freedom: {words} (keep the blueprint's freedom rung at this)"));
+    }
+    if let Some(project) = &asked.project {
+        lines.push(format!("- Project: the project at {project}"));
+    }
+    if lines.is_empty() { String::new() } else { format!("\n\nWhat the user chose with it:\n{}", lines.join("\n")) }
+}
+
 /// `POST /api/routines/architect`: the routine (a draft, origin
-/// `architect`), its placeholder version, its draft row and its architect,
-/// whose first message is `routine/architect-make`.
-pub(crate) async fn make(engine: &Arc<Engine>, sentence: &str, attachments: &[String]) -> Result<RoutineSaved, Error> {
+/// `architect`), its placeholder version at the rung the user chose, its
+/// draft row and its architect, at the model the user chose, whose first
+/// message is `routine/architect-make`.
+pub(crate) async fn make(engine: &Arc<Engine>, asked: &ArchitectRequest) -> Result<RoutineSaved, Error> {
     room(engine, None)?;
+    let (sentence, attachments) = (asked.sentence.as_str(), &asked.attachments);
     let name = name_of(sentence);
-    let prepared = placeholder(&name)?;
+    let prepared = placeholder(&name, asked.rung.unwrap_or(Rung::Draft))?;
     let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (routine_id, purpose, device) = (id.clone(), sentence.to_owned(), engine.device.clone());
     let patterns = engine.patterns.clone();
@@ -139,9 +157,10 @@ pub(crate) async fn make(engine: &Arc<Engine>, sentence: &str, attachments: &[St
         request.push_str("\n\nFiles the user gave with it:\n");
         request.push_str(&attachments.iter().map(|path| format!("- {path}")).collect::<Vec<_>>().join("\n"));
     }
+    request.push_str(&choices_of(asked));
     let prompt = make_prompt(engine, request, routines).await?;
     let name = saved.row.as_ref().map(|row| row.name.clone()).unwrap_or_default();
-    let worker_id = spawn(engine, &routine_id, &name, prompt).await?;
+    let worker_id = spawn(engine, &routine_id, &name, prompt, asked.model.clone()).await?;
     set_architect(engine, &routine_id, &worker_id).await?;
     Ok(saved)
 }
@@ -186,7 +205,7 @@ pub(crate) async fn restart(engine: &Engine, routine_id: &str) -> Result<String,
             (name, render(engine, "routine/architect-change", [("TEXT", text), ("BLUEPRINT", blueprint)])?)
         }
     };
-    let worker_id = spawn(engine, routine_id, &name, prompt).await?;
+    let worker_id = spawn(engine, routine_id, &name, prompt, None).await?;
     let named = claim_architect(engine, routine_id, &worker_id).await?;
     if named != worker_id {
         super::suspend(engine, &worker_id).await;
@@ -299,7 +318,7 @@ pub(crate) async fn change(engine: &Arc<Engine>, routine_id: &str, text: &str) -
             }
             let prompt =
                 render(engine, "routine/architect-change", [("TEXT", text.to_owned()), ("BLUEPRINT", blueprint)])?;
-            let worker_id = spawn(engine, routine_id, &name, prompt).await?;
+            let worker_id = spawn(engine, routine_id, &name, prompt, None).await?;
             set_architect(engine, routine_id, &worker_id).await?;
         }
     }

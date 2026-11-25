@@ -281,10 +281,12 @@ fn within(cx: &mut Issues, value: i64, min: i64, max: i64) {
 }
 
 /// A project routine has its project slot, and that slot has milestones.
+/// Another kind may name a project only for the repository its agents read.
 fn project(blueprint: &Blueprint, cx: &mut Issues) {
     match &blueprint.project {
         None if blueprint.kind == RoutineKind::Project => cx.push_at("project", "A project routine needs its project"),
         None => {}
+        Some(_) if blueprint.kind != RoutineKind::Project => {}
         Some(project) => cx.at("project", |cx| {
             cx.at("milestones", |cx| {
                 cx.arr_min(project.milestones.len(), 1);
