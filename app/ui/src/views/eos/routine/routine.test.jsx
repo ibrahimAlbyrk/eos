@@ -150,11 +150,24 @@ describe("the routine page", () => {
       routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } },
       runs: [live, ...routineDetail.runs],
     };
-    const html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.routine(PR)]: withStats }));
-    const now = html.slice(html.indexOf("Right now"), html.indexOf("Recent runs"));
-    expect(now).toContain("#470 Rework shop carousel paging");
+    const liveDetail = runs.find((d) => d.run.id === live.id);
+    let html = await page(`eos:/routines/${PR}`, fixtureTransport({ ...reads, [ROUTES.routine(PR)]: withStats, [ROUTES.run(live.id)]: liveDetail }));
+    let now = html.slice(html.indexOf("Right now"), html.indexOf("Recent runs"));
+    expect(now).toContain('<p class="eos-now-lead__title"><span class="eos-now-lead__item">#470 Rework shop carousel paging</span>');
     expect(now).toContain(">Open the run</button>");
     expect(now).not.toContain("Fix the login");
+    // Its team follows once the run is read (the page reads it): who, and
+    // what each is at.
+    await loadRun(live.id);
+    html = draw();
+    now = html.slice(html.indexOf("Right now"), html.indexOf("Recent runs"));
+    const agents = [...now.matchAll(/<li class="(eos-now-agent[^"]*)"><span class="eos-now-agent__name">(?:<[^>]*>(?:<\/span>|<path[^>]*><\/path><\/svg>))?([^<]*)<\/span><span class="eos-now-agent__line">([^<]*)</g)]
+      .map((m) => [m[1].includes("--working"), m[2], m[3]]);
+    expect(agents).toEqual([
+      [true, "Reader", "Working"],
+      [true, "Unity specialist", "reading CarouselPager.cs"],
+      [false, "Allocation specialist", "Waiting"],
+    ]);
     expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__bars" role="img" aria-label="First week 40%, this week 86%">');
   });
 

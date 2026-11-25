@@ -90,6 +90,18 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-routine__columns > * + * { flex: 1 1 300px; max-width: 380px; }
 .eos-routine__now, .eos-routine__better { padding: 20px; border-radius: 16px; background: var(--panel); }
 .eos-routine__section { display: flex; flex-direction: column; gap: 10px; }
+/* Right now's lead run: its item, its state, and its team as small cards. */
+.eos-now-lead { display: flex; flex-direction: column; gap: 14px; }
+.eos-now-lead__title { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-now-lead__item { min-width: 0; overflow-wrap: anywhere; }
+.eos-now-team { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.eos-now-agent { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--raised); }
+.eos-now-agent--working { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 80%, transparent); }
+.eos-now-agent__name { display: flex; align-items: center; gap: 7px; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.eos-now-agent__mark { flex: none; color: var(--fg-dim); }
+.eos-now-agent__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.eos-now-lead + .eos-runs { margin-top: 6px; border-top: 1px solid var(--line); }
+.eos-now-agent__line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--fg-mid); }
 .eos-routine__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .eos-learned { margin: 0; padding: 0; list-style: none; }
 .eos-learned li + li { border-top: 1px solid var(--line); }
