@@ -166,34 +166,40 @@
   left: 50%;
   top: calc(50% + 140px);
   bottom: 72px;
-  width: 580px;
-  max-width: calc(100% - 48px);
+  width: 604px;
+  max-width: calc(100% - 24px);
   transform: translateX(-50%);
   overflow-y: auto;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 32px), transparent);
 }
-.eos-rlist { display: flex; flex-direction: column; gap: 16px; }
-.eos-rlist__tier { display: flex; flex-direction: column; gap: 6px; }
-.eos-rlist__rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.eos-rlist__row { display: flex; align-items: center; border-radius: 10px; }
+/* The list reads like every Eos list: tiers labelled, rows on hairlines,
+   the words on the label's edge; a hovered or picked row is lit past them.
+   Its foot fades, so a list that scrolls says so. */
+.eos-rlist { display: flex; flex-direction: column; gap: 24px; padding: 0 12px 32px; }
+.eos-rlist__tier { display: flex; flex-direction: column; gap: 10px; }
+.eos-rlist__rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
+.eos-rlist__row { display: flex; align-items: center; border-top: 1px solid var(--line); }
 .eos-rlist__row:hover,
-.eos-rlist__row--picked { background: var(--row-on); }
+.eos-rlist__row--picked { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
 .eos-rlist__pick {
   flex: 1;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 12px;
-  padding: 9px 10px;
+  gap: 2px 12px;
+  padding: 12px 0;
   border: 0;
   background: none;
   color: var(--fg);
   font: inherit;
-  font-size: 13.5px;
+  font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
 }
-.eos-rlist__name { flex: none; font-weight: 500; }
-.eos-rlist__status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-rlist__name { flex: none; font-weight: 500; color: var(--fg-strong); }
+.eos-rlist__status { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-rlist__open { width: 32px; height: 32px; border: 0; background: none; color: var(--fg-dim2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .eos-rlist__open svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .eos-rlist__open:hover { color: var(--fg-strong); }
@@ -325,6 +331,8 @@
 .is-on .eos-field__ring--3 { r: var(--r3); stroke: #1c1c1c; --d: calc(var(--k) * 100ms); --fo: 0s; }
 .is-on .eos-field__ring--2 { r: var(--r2); stroke: #202020; --d: calc(var(--k) * 210ms); --fo: calc(var(--k) * 210ms); }
 .is-on .eos-field__ring--1 { r: var(--r1); stroke: #272727; --d: calc(var(--k) * 320ms); --fo: calc(var(--k) * 320ms); }
+/* Behind the list the rings step back, so no line runs through its rows. */
+.is-on.is-list .eos-field__ring { opacity: 0.35; }
 
 .eos-disc {
   opacity: 0;
