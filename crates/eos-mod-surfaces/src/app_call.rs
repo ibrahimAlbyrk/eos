@@ -281,6 +281,7 @@ pub(crate) fn route(parts: &Arc<SurfacesParts>, dispatcher: &Arc<Dispatcher>, ca
     })
     // A file of 1 MB as base64, with room for the call around it.
     .max_body(2 * APP_FILE_BYTES)
-    // An App runs only in this Mac's dashboard: the phone has no App frame.
-    .access(Access::ui_token())
+    // An App runs only in this Mac's dashboard: the phone has no App frame,
+    // and a paired Mac's dashboard may not write into this Mac's project.
+    .access(Access::ui_token().local_only())
 }

@@ -179,13 +179,16 @@ async fn only_the_version_in_use_calls_and_never_too_often() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_phone_cannot_call_and_with_apps_off_nothing_is_taken() {
+async fn neither_the_phone_nor_a_paired_mac_can_call_and_with_apps_off_nothing_is_taken() {
     let (rig, _) = in_use().await;
     let body = json!({"version": 1, "name": "state.get"});
-    let (status, _) = rig
-        .ask_as(Caller::Phone { grant: eos_runtime::access::Tier::High, mutate: true }, Method::Post, CALL, Some(body))
-        .await;
-    assert_eq!(status, 403);
+    for caller in [
+        Caller::Phone { grant: eos_runtime::access::Tier::High, mutate: true },
+        Caller::Peer { device: "AB:CD".into(), human: true },
+    ] {
+        let (status, _) = rig.ask_as(caller, Method::Post, CALL, Some(body.clone())).await;
+        assert_eq!(status, 403);
+    }
     rig.settings.0.lock().expect("settings").insert("genui.apps".into(), SettingValue::Flag(false));
     let (status, _) = call(&rig, "probe.again", json!({})).await;
     assert_eq!(status, 403);
