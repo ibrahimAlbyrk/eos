@@ -4,15 +4,16 @@ import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { EmptyState } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
-import { kindWord, lastWord, nextWord, rungWord, sortRows, usd } from "./tableWords.js";
+import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, usd } from "./tableWords.js";
 
 const FILTERS = {
-  active: { label: "Active", states: ["active", "draft"], empty: "No routines yet. Tell Eos on Home what to take care of." },
-  paused: { label: "Paused", states: ["paused"], empty: "No paused routines." },
-  archived: { label: "Archived", states: ["archived"], empty: "No archived routines." },
+  active: { label: "Active", states: ["active", "draft"], empty: "No routines yet.", text: "A routine is work Eos does again and again: a review for each pull request, a paper every morning. Say once what to take care of, and it runs when it should." },
+  paused: { label: "Paused", states: ["paused"], empty: "No paused routines.", text: "A routine you pause waits here, with what it learned, until you start it again." },
+  archived: { label: "Archived", states: ["archived"], empty: "No archived routines.", text: "A routine you archive keeps its runs and what it learned here, out of the way." },
 };
 const RUNNABLE = new Set(["active", "paused"]);
 
@@ -95,22 +96,37 @@ export function RoutinesScreen() {
       return { routine, waiting, nextAt: nextOf[routine.id], ...routineStatus(routine, waiting) };
     });
 
+  // No routines at all: no filters to choose, just what routines are for.
+  const none = list !== null && list.length === 0;
   return (
-    <main className="eos-screen eos-screen--wide">
+    <main className={none ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: "Routines" }]}>
         <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
       </EosHeader>
       <div className="eos-body eos-routines">
-        <div className="eos-seg" role="radiogroup" aria-label="Show routines">
+        {list !== null && (list.length > 0 || filter !== "active") && (
+          <header className="eos-routines__head">
+            <p className="eos-lead">{routinesLead(rows)}</p>
+            {soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
+          </header>
+        )}
+        {!none && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
           {Object.entries(FILTERS).map(([key, f]) => (
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
           ))}
-        </div>
+        </div>}
         {list === null && !listFailed && <Loading blocks={4} />}
         {list === null && listFailed && <LoadFailed what="routines" retry={() => void refreshRoutines()} />}
-        {list !== null && rows.length === 0 && <p className="eos-note">{FILTERS[filter].empty}</p>}
+        {list !== null && rows.length === 0 && (
+          <EmptyState
+            title={FILTERS[filter].empty}
+            action={filter === "active" && <button type="button" className="eos-btn" onClick={() => openLocation("eos:/routines/new")}>Make the first one</button>}
+          >
+            {FILTERS[filter].text}
+          </EmptyState>
+        )}
         {rows.length > 0 && (
-          <div className="eos-card eos-rtable-wrap">
+          <div className="eos-rtable-wrap">
             <table className="eos-rtable">
               <thead>
                 <tr>
