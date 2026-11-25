@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { renderMarkdown } from "../../../../lib/markdown.js";
 
 // A draft's result, read-only, drawn by its kind (eos_domain::result_doc):
@@ -9,6 +10,15 @@ const EVENTS = { COMMENT: "Comment", APPROVE: "Approve", REQUEST_CHANGES: "Reque
 
 function Markdown({ text, className }) {
   return <div className={className} dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
+}
+
+// A comment's place (file and line), breakable only after a folder's slash
+// so a narrow column never splits a name or its line number.
+export function placeOf(meta) {
+  if (!meta?.path) return null;
+  const parts = meta.path.split("/");
+  const line = meta.line != null ? `:${meta.line}` : "";
+  return parts.map((part, i) => (i < parts.length - 1 ? <Fragment key={i}>{part}/<wbr /></Fragment> : <Fragment key={i}>{part}{line}</Fragment>));
 }
 
 const partsOf = (doc, prefix) => doc.parts.filter((p) => p.key.startsWith(prefix));
@@ -26,7 +36,7 @@ function Review({ doc }) {
         <ol className="eos-result__comments" aria-label="Line comments">
           {comments.map((c) => (
             <li key={c.key} className="eos-result__comment">
-              <span className="eos-result__place">{c.meta?.path}{c.meta?.line != null ? `:${c.meta.line}` : ""}</span>
+              <span className="eos-result__place">{placeOf(c.meta)}</span>
               <Markdown className="eos-result__text" text={c.text} />
             </li>
           ))}

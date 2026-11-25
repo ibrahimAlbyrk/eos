@@ -202,7 +202,7 @@ describe("a draft", () => {
     expect(html).toContain("<span>1 of 6</span>");
     expect(html).toContain('<p class="eos-result__event eos-result__event--request_changes">Request changes</p>');
     expect(html).toContain("<md>The login fix works, but **one change blocks**: the token is logged.</md>");
-    expect(html).toContain('<span class="eos-result__place">src/auth/login.rs:42</span>');
+    expect(html).toContain('<span class="eos-result__place">src/<wbr/>auth/<wbr/>login.rs:42</span>');
     expect(html).not.toContain("<textarea");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Send<span class="eos-needs-key">');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Later</button>');
