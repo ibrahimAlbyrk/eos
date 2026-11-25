@@ -88,6 +88,10 @@ async fn a_queued_run_more_than_a_day_late_is_skipped_at_start() {
     bench.supervise().await;
     bench.eventually(|| bench.state(&late) == RunState::Skipped).await;
     assert_eq!(bench.run(&late).reason, Some(Reason::TooLate));
+    let notices =
+        bench.temp.store.read_blocking(|tx| tx.inbox_items().waiting_with_subject("too_late")).expect("reads");
+    let titles: Vec<_> = notices.iter().map(|item| item.title.as_str()).collect();
+    assert_eq!(titles, ["A run set for later was skipped"], "one notice");
 }
 
 #[tokio::test(flavor = "multi_thread")]
