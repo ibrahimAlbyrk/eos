@@ -13,10 +13,12 @@ function useTick(ticking) {
 }
 
 // The hold draining away: a hairline that empties over the time left, once,
-// from when it was first drawn.
+// from when it was first drawn. With reduced motion it steps with the
+// seconds instead (`--left`, the share still to wait, redrawn each tick).
 function Drain({ sendAt }) {
   const [ms] = useState(() => Math.max(0, sendAt - Date.now()));
-  return <span className="eos-send-state__drain" aria-hidden="true"><span style={{ animationDuration: `${ms}ms` }} /></span>;
+  const left = ms > 0 ? Math.min(1, Math.max(0, (sendAt - Date.now()) / ms)) : 0;
+  return <span className="eos-send-state__drain" aria-hidden="true"><span style={{ animationDuration: `${ms}ms`, "--left": left.toFixed(3) }} /></span>;
 }
 
 // A note's tone, by what became of the send.
