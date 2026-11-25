@@ -53,11 +53,14 @@ pub(crate) struct Meter {
     wrapped_time: bool,
     time_up_at: Option<i64>,
     written_at: i64,
-    /// Since when a question of the run has waited for the user, and how
-    /// long the questions answered before waited: neither is working time.
-    asked_since: Option<i64>,
-    waited_ms: i64,
 }
+
+/// On a run's timeline: a question of the run waits for the user since `data.at`
+/// (G30), until the next [`ANSWERED`]. Neither the wait nor what it covers is
+/// working time, also across a pause or a restart.
+pub(crate) const ASKED: &str = "asked";
+/// On a run's timeline: the first turn that found its questions answered.
+pub(crate) const ANSWERED: &str = "answered";
 
 /// A run's caps, from the version it runs. A project has none of its own:
 /// the milestone it works on may name some, counted from the spend and the
@@ -102,27 +105,45 @@ pub(crate) fn cost_in(tx: &dyn Tx, run_id: &str) -> Result<f64, Error> {
     Ok(cost)
 }
 
-/// The time the timeline spends running or checking: each such stretch up
-/// to the next move. A stretch still open counts up to `until`, or without
-/// it, up to its last event.
+/// The time the timeline spends running or checking while no question of
+/// the run waits: each such stretch up to the next move. A stretch still
+/// open counts up to `until`, or without it, up to its last event.
 pub(crate) fn work_ms(events: &[StoredRunEvent], until: Option<i64>) -> i64 {
     let mut total = 0;
     let mut since: Option<i64> = None;
+    let mut asked = false;
     for event in events {
+        let data = event.data.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok());
+        // A wait begins when its question was asked, which may be before the turn that saw it.
+        let at = match event.kind.as_str() {
+            ASKED => data.as_ref().and_then(|data| data["at"].as_i64()).map_or(event.at, |at| at.min(event.at)),
+            _ => event.at,
+        };
         if let Some(start) = since {
-            total += event.at - start;
-            since = Some(event.at);
+            if !asked {
+                total += (at - start).max(0);
+            }
+            since = Some(at.max(start));
         }
-        if event.kind == RUN_STATE_EVENT {
-            let state = event.data.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok());
-            let state = state.as_ref().and_then(|data| data["state"].as_str().map(str::to_owned));
-            since = matches!(state.as_deref(), Some("running" | "checking")).then_some(event.at);
+        match event.kind.as_str() {
+            RUN_STATE_EVENT => {
+                let state = data.as_ref().and_then(|data| data["state"].as_str());
+                since = matches!(state, Some("running" | "checking")).then_some(event.at);
+            }
+            ASKED => asked = true,
+            ANSWERED => asked = false,
+            _ => {}
         }
     }
     match (since, until) {
-        (Some(start), Some(until)) => total + (until - start).max(0),
+        (Some(start), Some(until)) if !asked => total + (until - start).max(0),
         _ => total,
     }
+}
+
+/// Whether the timeline holds a wait for the user that no turn found answered yet.
+fn asking(events: &[StoredRunEvent]) -> bool {
+    events.iter().rev().find(|event| event.kind == ASKED || event.kind == ANSWERED).is_some_and(|e| e.kind == ASKED)
 }
 
 /// Writes the run's spend as its sessions and timeline count it.
@@ -239,33 +260,61 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
 /// A working run as the time check reads it.
 struct AtWork {
     run: StoredRun,
-    /// Its running and checking time up to now, questions included.
+    /// Its working time up to now, waits for the user left out.
     worked: i64,
-    /// When the oldest of its questions that still wait was asked.
-    asked_at: Option<i64>,
     caps: Option<Caps>,
+}
+
+/// When the oldest question of `run` that still waits for the user was asked.
+fn asked_at(tx: &dyn Tx, run: &StoredRun) -> Result<Option<i64>, Error> {
+    let waiting = tx.inbox_items().waiting_of_routine(&run.routine_id)?;
+    let questions = waiting.iter().filter(|item| item.kind == ItemKind::Question);
+    Ok(questions.filter(|item| item.run_id.as_deref() == Some(run.id.as_str())).map(|item| item.created_at).min())
+}
+
+/// Puts on each working run's timeline a wait for the user that began or
+/// ended since the last turn. True when it put one.
+fn mark_waits_in(tx: &dyn Tx, now: i64) -> Result<bool, Error> {
+    let mut marked = false;
+    for run in tx.runs().at_work()? {
+        let (asked_at, asking) = (asked_at(tx, &run)?, asking(&tx.runs().events(&run.id)?));
+        match (asked_at, asking) {
+            (Some(at), false) => tx.runs().append_event(&run.id, now, ASKED, Some(&json!({"at": at}).to_string()))?,
+            (None, true) => tx.runs().append_event(&run.id, now, ANSWERED, None)?,
+            _ => continue,
+        }
+        marked = true;
+    }
+    Ok(marked)
+}
+
+/// The working runs, or none when a wait began or ended since the last turn.
+fn working_in(tx: &dyn Tx, now: i64) -> Result<Option<Vec<AtWork>>, Error> {
+    let mut working = Vec::new();
+    for run in tx.runs().at_work()? {
+        let events = tx.runs().events(&run.id)?;
+        if asked_at(tx, &run)?.is_some() != asking(&events) {
+            return Ok(None);
+        }
+        let worked = work_ms(&events, Some(now));
+        let caps = caps_of(tx, &run)?;
+        working.push(AtWork { run, worked, caps });
+    }
+    Ok(Some(working))
 }
 
 /// Holds every working run to its time cap and writes the spend of those
 /// not written for 30 s. True while some run works.
 pub(crate) async fn tick(engine: &Arc<Engine>) -> bool {
     let now = engine.clock.now_ms();
-    let read = engine.store.read(move |tx| {
-        let mut working = Vec::new();
-        for run in tx.runs().at_work()? {
-            let asked_at = tx
-                .inbox_items()
-                .waiting_of_routine(&run.routine_id)?
-                .iter()
-                .filter(|item| item.kind == ItemKind::Question && item.run_id.as_deref() == Some(run.id.as_str()))
-                .map(|item| item.created_at)
-                .min();
-            let worked = work_ms(&tx.runs().events(&run.id)?, Some(now));
-            let caps = caps_of(tx, &run)?;
-            working.push(AtWork { run, worked, asked_at, caps });
+    let read = async {
+        if let Some(working) = engine.store.read(move |tx| working_in(tx, now)).await? {
+            return Ok(working);
         }
-        Ok(working)
-    });
+        engine.store.write(move |tx, _| mark_waits_in(tx, now)).await?;
+        let read = engine.store.read(move |tx| working_in(tx, now)).await?;
+        read.ok_or_else(|| Error::Conflict("a wait changed again while it was marked".into()))
+    };
     let working = match read.await {
         Ok(working) => working,
         Err(error) => {
@@ -291,18 +340,7 @@ async fn hold_to_time(engine: &Arc<Engine>, at: &AtWork, now: i64) -> Result<(),
         if write {
             meter.written_at = now;
         }
-        // G30: a question's wait is seen from when it was asked to the
-        // first turn that finds it answered.
-        match (at.asked_at, meter.asked_since) {
-            (Some(asked_at), None) => meter.asked_since = Some(asked_at.min(now)),
-            (None, Some(since)) => {
-                meter.waited_ms += now - since;
-                meter.asked_since = None;
-            }
-            _ => {}
-        }
-        let waiting = meter.asked_since.map_or(0, |since| now - since);
-        let worked = (at.worked - meter.waited_ms - waiting).max(0);
+        let worked = at.worked;
         let state =
             at.caps.as_ref().map_or(Budget::Within, |caps| budget((worked - caps.base_ms) as f64, caps.ms as f64));
         let wrap_up = state != Budget::Within && !std::mem::replace(&mut meter.wrapped_time, true);

@@ -191,6 +191,31 @@ async fn the_time_a_question_waits_for_the_user_is_not_working_time() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_wait_for_the_user_stays_out_of_the_stored_working_time_across_a_restart() {
+    use eos_runtime::module::Module;
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, limited(5.0, 60, 50.0));
+    bench.supervise().await;
+    let (run, _) = bench.working(&routine, 1).await;
+    let began = bench.clock.now_ms();
+
+    bench.later(5 * MINUTE).await;
+    let question = bench.ask(&routine, &run);
+    bench.later(MINUTE).await;
+    bench.later(20 * MINUTE).await;
+    bench.agents.settled().await;
+    bench.module.stop().await;
+
+    let restarted = bench.another_module();
+    restarted.after_ready().await.expect("starts");
+    let waited = bench.run(&run).work_ms;
+    assert!(waited <= 6 * MINUTE, "the wait is no working time: {waited} ms");
+    assert!(bench.clock.now_ms() - began > 25 * MINUTE);
+    restarted.stop().await;
+    drop(question);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_spent_day_skips_runs_from_triggers_with_one_notice_and_asks_before_a_start_by_hand() {
     let routes = Routes::new();
     let bench = &routes.bench;
