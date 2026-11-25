@@ -202,6 +202,36 @@ const projectPrAt = (state, done) => (s) => prWith(s, (d) => {
 const projectPr = projectPrAt("running", 3);
 const projectPrDone = projectPrAt("done", 7);
 
+// PR Review's run sheet, opened from Run now on its page, then what the
+// user did in it: typed in the item, opened Later, or pressed Run and was
+// refused or asked about a repeat.
+const press = (selector, text) => [...document.querySelectorAll(selector)].find((b) => b.textContent.trim().startsWith(text))?.click();
+const typeInto = (input, text) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, text);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
+const sheet = (after = () => {}) => () => {
+  press(".eos-head__side button", "Run now");
+  setTimeout(after, 400);
+};
+const sheetRefused = (answer) => ({
+  sends: async (method, path) => (path === ROUTES.runs ? answer : { ok: false, status: 403, body: { error: "sample data" } }),
+  then: sheet(() => press(".eos-runform button", "Run")),
+});
+const sheeting = {
+  open: { then: sheet() },
+  list: {
+    reads: (s) => {
+      const all = `${ROUTES.routineCandidates(PR)}?limit=20`;
+      return { ...s, [`${all}&q=%234`]: s[all] };
+    },
+    then: sheet(() => { const input = document.getElementById("runform-item"); input.focus(); typeInto(input, "#4"); }),
+  },
+  later: { then: sheet(() => press(".eos-runform .eos-seg__opt", "Later")) },
+  refused: sheetRefused({ ok: false, status: 409, body: { error: "day cap", code: "day_cap" } }),
+  repeat: sheetRefused({ ok: false, status: 409, body: { existingRunId: "rn-shown01" } }),
+};
+
 // The draft answered five minutes before the gallery opened, last of all.
 const answered = (s) => {
   const item = s[ROUTES.inboxItem("ib-8m2n6b0v4c1x")].item;
@@ -244,6 +274,11 @@ export const GALLERY_STATES = [
   { id: "routine-archived", label: "Routine · archived", location: `eos:/routines/${PR}`, reads: archivedPr },
   { id: "routine-project", label: "Routine · a project at step four of seven", location: `eos:/routines/${PR}`, reads: projectPr },
   { id: "routine-project-done", label: "Routine · a project, every step done", location: `eos:/routines/${PR}`, reads: projectPrDone },
+  { id: "runsheet", label: "Run sheet · from Run now", location: `eos:/routines/${PR}`, ...sheeting.open },
+  { id: "runsheet-list", label: "Run sheet · the item's candidates", location: `eos:/routines/${PR}`, ...sheeting.list },
+  { id: "runsheet-later", label: "Run sheet · Later", location: `eos:/routines/${PR}`, ...sheeting.later },
+  { id: "runsheet-refused", label: "Run sheet · refused, the day's budget spent", location: `eos:/routines/${PR}`, ...sheeting.refused },
+  { id: "runsheet-repeat", label: "Run sheet · this item ran lately", location: `eos:/routines/${PR}`, ...sheeting.repeat },
   { id: "routine-runs", label: "Routine · Runs", location: `eos:/routines/${PR}?tab=runs` },
   { id: "routine-signals", label: "Routine · Signals", location: `eos:/routines/${PR}?tab=signals` },
   { id: "routine-signals-empty", label: "Routine · Signals, nothing came yet", location: `eos:/routines/${PR}?tab=signals`, reads: (s) => ({ ...s, [`${ROUTES.signals}?routine=${PR}`]: [] }) },

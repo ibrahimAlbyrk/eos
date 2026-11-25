@@ -4,68 +4,98 @@
    contrast note holds here too). */
 
 /* ── The sheet ────────────────────────────────────────────────────────────── */
-/* A click outside the panel closes it; nothing is dimmed. */
+/* A dialog's ground and radius, anchored to what opened it; a click outside
+   the panel closes it. Centred, the page behind is shaded as for a dialog. */
 .eos-runsheet { position: fixed; inset: 0; z-index: 480; }
-.eos-runsheet--centre { display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.5); }
+.eos-runsheet--centre { display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.5); }
 .eos-runsheet__panel {
-  width: min(460px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   border-radius: 16px;
-  background: var(--pop);
-  /* A hairline edge and a soft drop, so the sheet reads apart from the page. */
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12), inset 0 0.5px 0 rgba(255, 255, 255, 0.2), 0 22px 50px -14px rgba(0, 0, 0, 0.7), 0 6px 14px -4px rgba(0, 0, 0, 0.35);
+  background: var(--raised);
+  box-shadow: var(--sh-modal);
+  animation: eos-ask-in calc(220ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both;
+  /* On the raised ground a hairline is a step lighter, as in a dialog. */
+  --line: var(--chip);
 }
+@media (prefers-reduced-motion: reduce) { .eos-runsheet__panel { animation: eos-ask-shade 120ms linear both; } }
 .eos-runsheet--side .eos-runsheet__panel,
 .eos-runsheet--below .eos-runsheet__panel { position: absolute; }
 
 /* ── The form ─────────────────────────────────────────────────────────────── */
-.eos-runform { display: flex; flex-direction: column; gap: 16px; padding: 20px; font-size: var(--text-sm); color: var(--fg); }
+/* Where it was asked from and the routine, the item in a well, then the
+   rest on hairlines, each a label and its control; the estimate, Cancel and
+   Run at the foot. */
+.eos-runform { display: flex; flex-direction: column; gap: 20px; padding: 24px; font-size: var(--text-sm); color: var(--fg); }
 .eos-runform--inline { padding: 0; }
-.eos-runform__title { margin: 0; font-size: 16px; font-weight: 600; color: var(--fg-strong); }
-.eos-runform__summary { margin: 2px 0 0; color: var(--fg-dim); }
-.eos-runform__field { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.eos-runform__row { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.eos-runform__label { min-width: 64px; color: var(--fg-dim); }
+.eos-runform__head .eos-ask__from { margin-bottom: 10px; }
+.eos-runform__title { margin: 0; font-size: var(--text-xl); line-height: 1.35; font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-runform__summary { margin: 4px 0 0; line-height: 1.55; color: var(--fg-dim); text-wrap: pretty; }
+.eos-runform__field { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.eos-runform__field > .eos-runform__label { color: var(--fg-mid); }
+.eos-runform__rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.eos-runform__row { position: relative; display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px 12px; min-height: 52px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.eos-runform__row > :nth-child(2) { justify-self: start; max-width: 100%; }
+.eos-runform__row > .eos-runform__input { justify-self: stretch; }
+.eos-runform__label { color: var(--fg-dim); }
 .eos-runform__input {
-  height: 38px;
+  height: 36px;
+  min-width: 0;
   padding: 0 12px;
-  border: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--bg);
   font: inherit;
   color: var(--fg);
+  transition: border-color calc(140ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1);
 }
+.eos-runform__input::placeholder { color: var(--fg-dim2); }
+.eos-runform__input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-runform__field > .eos-runform__input { height: 40px; font-size: var(--text-base); }
 .eos-runform__input--short { width: 96px; }
-.eos-runform__mono { font-family: var(--font-mono); font-size: 11.5px; }
+.eos-runform__mono { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-mid); }
 .eos-runform__chosen { display: flex; flex-wrap: wrap; gap: 6px; }
+.eos-runform__chosen .eos-chip { display: inline-flex; align-items: center; gap: 6px; }
 .eos-runform__remove { padding: 0 2px; border: 0; background: none; font: inherit; color: var(--fg-dim); cursor: pointer; }
+.eos-runform__remove:hover { color: var(--fg-strong); }
+/* The item's candidates: rows under the well, the number in mono then the
+   title, the active one lit past its edges. */
 .eos-runform__list {
   position: absolute;
-  top: 100%;
+  top: calc(100% - 22px);
   left: 0;
   right: 0;
-  z-index: 1;
-  max-height: 240px;
+  z-index: 2;
+  max-height: 264px;
   overflow-y: auto;
-  margin: 4px 0 0;
-  padding: 4px;
+  margin: 0;
+  padding: 6px;
   list-style: none;
-  border-radius: 10px;
-  background: var(--raised);
-  box-shadow: var(--sh-modal);
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1), var(--sh-modal);
 }
-.eos-runform__option { padding: 6px 10px; border-radius: 7px; color: var(--fg); cursor: pointer; }
-.eos-runform__option[aria-selected="true"] { background: var(--chip); color: var(--fg-strong); }
-.eos-runform__recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-runform__recent .eos-chip { border: 0; cursor: pointer; }
+.eos-runform__option { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: baseline; gap: 8px; padding: 8px 10px; border-radius: 8px; color: var(--fg); cursor: pointer; }
+.eos-runform__optname { min-width: 0; overflow-wrap: anywhere; }
+.eos-runform__option:hover, .eos-runform__option[aria-selected="true"] { background: var(--row-on, var(--chip)); color: var(--fg-strong); }
+.eos-runform__recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 24px; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-runform__recent .eos-chip { height: 24px; padding: 0 9px; border: 0; background: var(--row-on); cursor: pointer; }
+.eos-runform__recent .eos-chip:hover { background: var(--chip); color: var(--fg-strong); }
 .eos-runform__hint { flex: 1; text-align: right; }
-.eos-runform__more { align-self: flex-start; }
-.eos-runform__later { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
-.eos-runform__problem { color: var(--warn); }
-.eos-runform__repeat { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--fg); }
-.eos-runform__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
-.eos-runform__estimate { flex: 1 1 200px; color: var(--fg-dim); }
+.eos-runform__more { align-self: flex-start; margin-top: -8px; }
+.eos-runform__later { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 0 4px 88px; }
+.eos-runform__later .eos-runform__input { height: 32px; }
+.eos-runform__problem { margin: 0; }
+/* This item ran lately: a band with the warn edge, the run's words, then
+   its way on (open the run still at work, or run again). */
+.eos-runform__repeat { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg); box-shadow: inset 2px 0 0 var(--warn); line-height: 1.5; color: var(--fg); }
+.eos-runform__repeat > span { flex: 1 1 200px; }
+.eos-runform__repeat .eos-btn { height: 28px; padding: 0 12px; }
+.eos-runform__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.eos-runform__foot .eos-btn { height: 32px; padding: 0 16px; }
+.eos-runform__estimate { flex: 1 1 180px; font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
 
 /* ── The draft editors ────────────────────────────────────────────────────── */
 .eos-draft { display: flex; flex-direction: column; gap: 18px; }
