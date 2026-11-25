@@ -147,6 +147,27 @@ fn the_baseline_is_the_first_full_week_once_it_is_over() {
 }
 
 #[test]
+fn the_weeks_between_are_the_spans_before_this_week_after_the_first_oldest_first() {
+    let started = 10 * DAY;
+    let now = started + 40 * DAY;
+    let runs = [
+        // Three weeks before this one: one of two.
+        ended(now - 22 * DAY, Outcome::SentUnedited),
+        ended(now - 25 * DAY, Outcome::SentEdited),
+        // Two weeks before: nothing judged.
+        ended(now - 17 * DAY, Outcome::AutoSent),
+        // The week before: both, its last moment included.
+        ended(now - 13 * DAY, Outcome::SentUnedited),
+        ended(now - 7 * DAY, Outcome::SentUnedited),
+        // This week: not among them.
+        ended(now - DAY, Outcome::Discarded),
+    ];
+    assert_eq!(weeks_between(&runs, started, now), vec![Some(0.5), None, Some(1.0)]);
+    assert_eq!(weeks_between(&runs, started, started + 2 * WEEK_MS), vec![], "only the first and this week so far");
+    assert_eq!(weeks_between(&runs, started, started + 3 * WEEK_MS).len(), 1);
+}
+
+#[test]
 fn the_median_takes_the_middle_or_the_middle_twos_mean() {
     assert_eq!(median([3.0, 1.0, 2.0]), Some(2.0));
     assert_eq!(median([4.0, 1.0, 3.0, 2.0]), Some(2.5));

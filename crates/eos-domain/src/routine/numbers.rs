@@ -145,5 +145,21 @@ pub fn baseline_first_week(runs: &[Ended], started_at: i64, now: i64) -> Option<
     sent_unedited(runs.iter().filter(|run| run.at >= started_at && run.at < end))
 }
 
+/// The weeks shown between the first week and this one, at most.
+pub const WEEKS_BETWEEN: i64 = 3;
+
+/// The share in each of the seven-day spans before the last seven days up
+/// to `now`, oldest first: at most [`WEEKS_BETWEEN`], and only those that
+/// begin after the routine's first week is over. `None` for a span in
+/// which the user judged nothing.
+pub fn weeks_between(runs: &[Ended], started_at: i64, now: i64) -> Vec<Option<f64>> {
+    (1..=WEEKS_BETWEEN)
+        .rev()
+        .map(|back| (now - (back + 1) * WEEK_MS, now - back * WEEK_MS))
+        .filter(|(from, _)| *from >= started_at + WEEK_MS)
+        .map(|(from, until)| sent_unedited(runs.iter().filter(|run| run.at > from && run.at <= until)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests;
