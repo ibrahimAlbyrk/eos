@@ -13,7 +13,8 @@ import { beatRuns, nextRunAt, nowLine, timeAt } from "./words.js";
 const shortDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 // A run's mark: the item's number, else its day; the newest also says its
-// state in its tone. Item titles come from outside: React text only.
+// state in its tone; hovered or focused, the item's title rises over its
+// mark. Item titles come from outside: React text only.
 function RunMark({ run, newest, now }) {
   const chip = stateChip(run, now);
   const { number, title } = splitItemNumber(run.itemTitle);
@@ -23,7 +24,8 @@ function RunMark({ run, newest, now }) {
   const working = run.state === "running" || run.state === "checking";
   return (
     <li className={`eos-beat__stop eos-beat__stop--${tone}${working ? " eos-beat__stop--working" : ""}${newest ? " eos-beat__stop--newest" : ""}`}>
-      <button type="button" className="eos-beat__mark" aria-label={`${run.itemTitle ? title : "A run"}, ${chip.text}`} title={run.itemTitle ? title : undefined} onClick={() => openLocation(runLocation(run.id))}>
+      <button type="button" className="eos-beat__mark" aria-label={`${run.itemTitle ? title : "A run"}, ${chip.text}`} onClick={() => openLocation(runLocation(run.id))}>
+        {run.itemTitle && <span className="eos-beat__tip" aria-hidden="true">{title}</span>}
         <span className="eos-beat__dot" aria-hidden="true" />
         <span className="eos-beat__tag">{tag}</span>
         {newest && <span className={`eos-beat__word eos-beat__word--${tone}`}>{chip.text}</span>}
