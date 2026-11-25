@@ -1,0 +1,142 @@
+A longer wait for the CEF message pump while no window is on screen.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7 (crates.io) + 0001, 0003, 0004, 0005, 0006, 0007,
+applied in vendor/tauri-runtime-cef. Not offered upstream.
+
+Why: the pump never waits longer than cefclient's 33 ms, so its safety-net timer woke the
+hidden, idle app about 31 times a second (0.76 % CPU, D59). While no window of the app is on
+screen the longest wait is 1 s instead. A window counts as on screen while it is visible,
+covered or not, and can be key or main (the menu-bar item's window is always visible and
+holds no web content). Every window's occlusion change schedules work at once, which
+replaces a long wait, so a window shown again paints and answers without waiting for it.
+
+0005 tried a 250 ms wait while the app was inactive and no window visible, which also
+counted covered windows as hidden: requests through the in-process scheme handler then
+waited up to a timer's length while a window was on screen. Here a shown window, covered
+or not, keeps the 33 ms cap, and only a window off screen waits longer.
+
+diff -ru a/src/external_message_pump/macos.rs b/src/external_message_pump/macos.rs
+--- a/src/external_message_pump/macos.rs	2026-11-25 07:13:03
++++ b/src/external_message_pump/macos.rs	2026-11-25 07:13:03
+@@ -15,11 +15,13 @@
+ //! that winit's callbacks never observe.
+ use std::sync::Weak;
+ 
+-use objc2::{AnyThread, DefinedClass, define_class, msg_send, rc::Retained, sel};
+-use objc2_app_kit::NSEventTrackingRunLoopMode;
++use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send, rc::Retained, sel};
++use objc2_app_kit::{
++  NSApplication, NSEventTrackingRunLoopMode, NSWindowDidChangeOcclusionStateNotification,
++};
+ use objc2_foundation::{
+-  NSNumber, NSObject, NSObjectNSThreadPerformAdditions, NSObjectProtocol, NSRunLoop,
+-  NSRunLoopCommonModes, NSThread, NSTimer,
++  NSNotification, NSNotificationCenter, NSNumber, NSObject, NSObjectNSThreadPerformAdditions,
++  NSObjectProtocol, NSRunLoop, NSRunLoopCommonModes, NSThread, NSTimer,
+ };
+ 
+ use super::PumpState;
+@@ -47,6 +49,18 @@
+       };
+       super::guarded(&state, "timerTimeout", || state.on_timer_timeout());
+     }
++
++    // A window came on screen or left it. Work is scheduled at once, which replaces a long
++    // wait set while no window was shown, so a window shown again paints without delay.
++    #[unsafe(method(windowOcclusionChanged:))]
++    fn handle_window_occlusion_changed(&self, _: &NSNotification) {
++      let Some(state) = self.ivars().upgrade() else {
++        return;
++      };
++      super::guarded(&state, "windowOcclusionChanged", || {
++        state.on_schedule_message_pump_work(0)
++      });
++    }
+   }
+ 
+   unsafe impl NSObjectProtocol for EventHandler {}
+@@ -77,11 +91,37 @@
+ 
+ impl PlatformPump {
+   pub(super) fn new(state: Weak<PumpState>) -> Self {
++    let event_handler = EventHandler::new(state);
++    // Every window of the app: no object narrows the observation. The centre lets go of
++    // the handler by itself when the handler is released.
++    unsafe {
++      NSNotificationCenter::defaultCenter().addObserver_selector_name_object(
++        &event_handler,
++        sel!(windowOcclusionChanged:),
++        Some(NSWindowDidChangeOcclusionStateNotification),
++        None,
++      );
++    }
+     Self {
+       owner_thread: NSThread::currentThread(),
+-      event_handler: EventHandler::new(state),
++      event_handler,
+       timer: None,
+     }
++  }
++
++  /// Whether a window of the app is on screen, covered or not. Only windows that can take
++  /// the keyboard or be the main window count: the menu-bar item's window is always
++  /// visible and holds no web content.
++  pub(super) fn is_any_window_shown(&self) -> bool {
++    let Some(mtm) = MainThreadMarker::new() else {
++      return true;
++    };
++    NSApplication::sharedApplication(mtm)
++      .windows()
++      .iter()
++      .any(|window| {
++        window.isVisible() && (window.canBecomeKeyWindow() || window.canBecomeMainWindow())
++      })
+   }
+ 
+   pub(super) fn on_schedule_message_pump_work(&mut self, delay_ms: i64) {
+diff -ru a/src/external_message_pump/mod.rs b/src/external_message_pump/mod.rs
+--- a/src/external_message_pump/mod.rs	2026-11-25 07:13:03
++++ b/src/external_message_pump/mod.rs	2026-11-25 07:13:03
+@@ -67,6 +67,12 @@
+ // DoWork().
+ const K_MAX_TIMER_DELAY: i64 = 1000 / 30; // 30fps
+ 
++// The longest wait while no window of the app is on screen. Nothing paints then, and the
++// 30fps safety net alone would wake the app about 31 times a second. A window coming on
++// screen replaces a wait this long at once (see the macOS backend).
++#[cfg(target_os = "macos")]
++const K_MAX_HIDDEN_TIMER_DELAY: i64 = 1000;
++
+ /// Runs one callback of the pump. A panic would unwind into the native loop, which
+ /// aborts the app: it is caught, logged, and the pump starts over from its timer.
+ fn guarded(state: &PumpState, what: &str, f: impl FnOnce()) {
+@@ -78,6 +84,17 @@
+   }
+ }
+ 
++/// The longest the pump may wait before its next `DoWork()`. Runs on the owner thread.
++fn max_timer_delay(platform: &PlatformPump) -> i64 {
++  #[cfg(target_os = "macos")]
++  if !platform.is_any_window_shown() {
++    return K_MAX_HIDDEN_TIMER_DELAY;
++  }
++  #[cfg(not(target_os = "macos"))]
++  let _ = platform;
++  K_MAX_TIMER_DELAY
++}
++
+ /// Handle to the external message pump. Cloning shares the same underlying
+ /// state; the backing platform resources are released when the last clone drops.
+ #[derive(Clone)]
+@@ -147,8 +164,9 @@
+       self.do_work();
+     } else if let Ok(mut platform) = self.platform.lock() {
+       // Never wait longer than the maximum allowed time.
+-      if delay_ms > K_MAX_TIMER_DELAY {
+-        delay_ms = K_MAX_TIMER_DELAY;
++      let max_delay_ms = max_timer_delay(&platform);
++      if delay_ms > max_delay_ms {
++        delay_ms = max_delay_ms;
+       }
+ 
+       // Results in call to OnTimerTimeout() after the specified delay.

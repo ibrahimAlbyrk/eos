@@ -15,11 +15,13 @@
 //! that winit's callbacks never observe.
 use std::sync::Weak;
 
-use objc2::{AnyThread, DefinedClass, define_class, msg_send, rc::Retained, sel};
-use objc2_app_kit::NSEventTrackingRunLoopMode;
+use objc2::{AnyThread, DefinedClass, MainThreadMarker, define_class, msg_send, rc::Retained, sel};
+use objc2_app_kit::{
+  NSApplication, NSEventTrackingRunLoopMode, NSWindowDidChangeOcclusionStateNotification,
+};
 use objc2_foundation::{
-  NSNumber, NSObject, NSObjectNSThreadPerformAdditions, NSObjectProtocol, NSRunLoop,
-  NSRunLoopCommonModes, NSThread, NSTimer,
+  NSNotification, NSNotificationCenter, NSNumber, NSObject, NSObjectNSThreadPerformAdditions,
+  NSObjectProtocol, NSRunLoop, NSRunLoopCommonModes, NSThread, NSTimer,
 };
 
 use super::PumpState;
@@ -46,6 +48,18 @@ define_class! {
         return;
       };
       super::guarded(&state, "timerTimeout", || state.on_timer_timeout());
+    }
+
+    // A window came on screen or left it. Work is scheduled at once, which replaces a long
+    // wait set while no window was shown, so a window shown again paints without delay.
+    #[unsafe(method(windowOcclusionChanged:))]
+    fn handle_window_occlusion_changed(&self, _: &NSNotification) {
+      let Some(state) = self.ivars().upgrade() else {
+        return;
+      };
+      super::guarded(&state, "windowOcclusionChanged", || {
+        state.on_schedule_message_pump_work(0)
+      });
     }
   }
 
@@ -77,11 +91,37 @@ unsafe impl Send for PlatformPump {}
 
 impl PlatformPump {
   pub(super) fn new(state: Weak<PumpState>) -> Self {
+    let event_handler = EventHandler::new(state);
+    // Every window of the app: no object narrows the observation. The centre lets go of
+    // the handler by itself when the handler is released.
+    unsafe {
+      NSNotificationCenter::defaultCenter().addObserver_selector_name_object(
+        &event_handler,
+        sel!(windowOcclusionChanged:),
+        Some(NSWindowDidChangeOcclusionStateNotification),
+        None,
+      );
+    }
     Self {
       owner_thread: NSThread::currentThread(),
-      event_handler: EventHandler::new(state),
+      event_handler,
       timer: None,
     }
+  }
+
+  /// Whether a window of the app is on screen, covered or not. Only windows that can take
+  /// the keyboard or be the main window count: the menu-bar item's window is always
+  /// visible and holds no web content.
+  pub(super) fn is_any_window_shown(&self) -> bool {
+    let Some(mtm) = MainThreadMarker::new() else {
+      return true;
+    };
+    NSApplication::sharedApplication(mtm)
+      .windows()
+      .iter()
+      .any(|window| {
+        window.isVisible() && (window.canBecomeKeyWindow() || window.canBecomeMainWindow())
+      })
   }
 
   pub(super) fn on_schedule_message_pump_work(&mut self, delay_ms: i64) {

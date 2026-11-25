@@ -18,7 +18,8 @@ fixed time after the dashboard is ready, the window painting, a fresh shell prof
   --idle                the idle cost (`idle_run`): 20 routines armed on a data copy of
                         their own, the window hidden and the dashboard's view released, the
                         meaning model loaded; `--wait` seconds of nothing, measured from the
-                        first minute after the release
+                        first minute after the release. A gate: it fails when the core's
+                        short timers or the browser process's wake-ups pass their bounds
 
   MEM_CHAT   the name of the chat to have open (default: the first top-level chat). The name
              is private data: it is read from the environment and never written anywhere.
@@ -207,6 +208,10 @@ IDLE_SETTLE = 60
 # §9.1: no loop of the core wakes more than once a minute while nothing happens. A timer
 # shorter than that may fire this often in the whole window (a debounce after the release).
 SHORT_WAKES_ALLOWED = 2
+# The browser process (the app's own) while hidden: the CEF pump waits up to a second with no
+# window on screen (patch 0008), Chromium's own threads add about one more. At its 33 ms cap
+# it woke about 31 times a second.
+BROWSER_WAKES_PER_S_ALLOWED = 5
 
 
 class RUsage(ctypes.Structure):
@@ -341,11 +346,14 @@ def measure_idle(runs, wait, label):
         print("no run counted")
         return 1
     over = [r["shortWakes"] for r in good if r["shortWakes"] > SHORT_WAKES_ALLOWED]
+    browser = max(r["by"].get("browser", {}).get("wakesPerS", 0.0) for r in good)
     print(f"\n{label}: n={len(good)} of {len(results)}, {IDLE_ROUTINES} routines armed, window released, "
           f"meaning model loaded")
     print(f"  timers under 60 s woke the core {max(r['shortWakes'] for r in good)} times at most "
           f"(allowed {SHORT_WAKES_ALLOWED}): {'over the bound' if over else 'within the bound'}")
-    return 1 if over else 0
+    print(f"  the browser process woke {browser:.1f} times a second at most (allowed "
+          f"{BROWSER_WAKES_PER_S_ALLOWED}): {'over the bound' if browser > BROWSER_WAKES_PER_S_ALLOWED else 'within the bound'}")
+    return 1 if over or browser > BROWSER_WAKES_PER_S_ALLOWED else 0
 
 
 def spread(values):
