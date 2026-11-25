@@ -47,6 +47,8 @@ import { closeField, openField, setTransitionScale, useField } from "../field/fi
 import { ENTER_MS } from "../field/transition.js";
 import { failingTransport, GALLERY_STATES, loadingTransport, offlineTransport, stateOf, storedState, storeState } from "./states.js";
 import { refreshInbox } from "../../../state/eos/inboxStore.js";
+import { FixedSettings } from "../../../state/settings.jsx";
+import { AppSurface } from "../surface/AppSurface.jsx";
 
 // Needs you's samples moved so the newest arrived twenty minutes before the
 // gallery opened, the rest as far before it as recorded: times read "20m ago",
@@ -211,7 +213,7 @@ function pick(id) {
 // footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
-  const { quick, settings } = stateOf(state);
+  const { quick, settings, panel } = stateOf(state);
   if (quick) {
     return (
       <UiProvider>
@@ -229,11 +231,31 @@ export function EosGallery({ state = "home" }) {
         <aside className="side">
           <div className="side-island side-island--agents"><EosSidebarRows /></div>
         </aside>
-        <section className="center"><AboutYouSlot.Provider value={AboutYouTab}><EosMain /></AboutYouSlot.Provider></section>
+        <section className="center">
+          {panel ? (
+            <div className="eos-gallery-split">
+              <div className="eos-gallery-split__main"><AboutYouSlot.Provider value={AboutYouTab}><EosMain /></AboutYouSlot.Provider></div>
+              <PanelStage panel={panel} />
+            </div>
+          ) : <AboutYouSlot.Provider value={AboutYouTab}><EosMain /></AboutYouSlot.Provider>}
+        </section>
         <RunSheet />
         {settings && <SettingsStage settings={settings} />}
       </div>
     </UiProvider>
+  );
+}
+
+// The side panel as a pane holds it beside a screen, drawing one App tab:
+// the gallery has no panes, so the split is its own.
+function PanelStage({ panel }) {
+  const drawn = <AppSurface surfaceId={panel.surfaceId} inPanel />;
+  return (
+    <aside className="side-panel eos-gallery-split__panel" style={{ "--sp-w": "32vw" }}>
+      <div className="sp-body"><div className="sp-content">
+        {panel.appsOff ? <FixedSettings settings={{ "genui.apps": false }}>{drawn}</FixedSettings> : drawn}
+      </div></div>
+    </aside>
   );
 }
 

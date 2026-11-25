@@ -365,6 +365,9 @@
 @media (prefers-reduced-motion: reduce) { .eos-tile__open svg { transition: none; } .eos-tile:hover .eos-tile__open svg { transform: none; } }
 
 /* ── The sample gallery's own bar (#eos-gallery only) ─────────────────────── */
+/* The gallery's own split for a side-panel state: the screen, then the panel. */
+.eos-gallery-split { flex: 1; min-height: 0; display: flex; }
+.eos-gallery-split__main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 .eos-gallery-bar {
   position: fixed;
   right: 16px;
@@ -399,9 +402,15 @@
 .eos-app-ghost .eos-page-ghost__word { margin: auto; }
 .eos-app-ghost__bar { height: 22px; width: 220px; border-radius: 999px; border: 1px solid var(--line); }
 .eos-app__stage { display: flex; flex-direction: column; gap: 10px; }
-.eos-app--panel { gap: 12px; padding: 12px 16px 16px; }
+.eos-app--panel { flex: 1; min-height: 0; overflow-y: auto; gap: 12px; padding: 12px 16px 16px; }
+/* In the panel the App fills what its head and the access line leave. */
+.eos-app--panel .eos-app__stage { flex: 1 1 auto; min-height: 320px; }
+.eos-app--panel .eos-app__stage > .gv-app { flex: 1 1 auto; height: auto; }
 .eos-app__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .eos-app__name { flex: 1 1 160px; min-width: 0; }
+.eos-app__acts { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.eos-app--panel .eos-app-ghost { min-height: 280px; padding: 12px 16px; }
+.eos-app__soon { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 .eos-app__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-app__maker { font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-app--panel .eos-app__access { font-size: var(--text-xs); }

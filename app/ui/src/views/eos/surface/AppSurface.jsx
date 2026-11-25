@@ -101,6 +101,16 @@ export function AppActions({ surfaceId }) {
   );
 }
 
+// Where the App will run while no version is kept: its frame in hairlines.
+function ghost(words) {
+  return (
+    <div className="eos-page-ghost eos-app-ghost">
+      <span className="eos-app-ghost__bar" aria-hidden="true" />
+      <span className="eos-page-ghost__word">{words}</span>
+    </div>
+  );
+}
+
 // A routine's App (05 Q7, SurfaceApp.dc.html), in the App calling Eos only
 // through the core, with the line of access Eos wrote from its manifest. As a
 // tool (the whole window) it leads as an object's page: what it is and who
@@ -130,7 +140,6 @@ export function AppSurface({ surfaceId, inPanel = false }) {
   const manifest = version?.body?.manifest ?? {};
   const title = manifest.title ?? surface.title;
   const maker = routine?.name ?? "a routine";
-  const notYet = "No App yet. It shows here once its review and its tests pass and you keep it.";
   const frame = version && appsOn && (
     <div className="eos-app__stage">
       <AppFrame
@@ -159,12 +168,19 @@ export function AppSurface({ surfaceId, inPanel = false }) {
             <div className="eos-app__title">{title}</div>
             <div className="eos-app__maker">An app made by {maker}</div>
           </div>
-          <PinButton surface={surface} />
-          <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId }))}>
-            Open as a tool
-          </button>
+          <div className="eos-app__acts">
+            <PinButton surface={surface} />
+            <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId }))}>
+              Open as a tool
+            </button>
+          </div>
         </div>
-        {n == null && <p className="eos-note">{notYet}</p>}
+        {n == null && (
+          <>
+            <p className="eos-app__soon">No App yet. It shows here once its review and its tests pass and you keep it.</p>
+            {ghost("The App runs here")}
+          </>
+        )}
         {n != null && !version && <Loading blocks={3} />}
         {off}
         {frame}
@@ -184,12 +200,7 @@ export function AppSurface({ surfaceId, inPanel = false }) {
         </div>
         {version?.accessLine && <AccessFact line={version.accessLine} />}
       </header>
-      {n == null && (
-        <div className="eos-page-ghost eos-app-ghost" aria-hidden="true">
-          <span className="eos-app-ghost__bar" />
-          <span className="eos-page-ghost__word">The App runs here, in its sandbox</span>
-        </div>
-      )}
+      {n == null && ghost("The App runs here, in its sandbox")}
       {n != null && !version && <Loading blocks={3} />}
       {off}
       {frame}
