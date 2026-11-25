@@ -17,26 +17,28 @@
 }
 .eos-mem-foot { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
 
-.eos-mem-columns { display: flex; align-items: flex-start; gap: 24px; }
-.eos-mem-learned { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.eos-mem-columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
+.eos-mem-learned { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
 .eos-mem-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .eos-mem-filter { border: 0; font: inherit; font-size: var(--text-xs); cursor: pointer; }
 .eos-mem-filters__sep { width: 1px; height: 16px; margin: 0 4px; background: var(--line); }
 
-.eos-mem-group { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
-.eos-mem-group__head { display: flex; align-items: baseline; gap: 8px; }
-.eos-mem-group__name { margin: 0; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-mem-group { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.eos-mem-group__head { display: flex; align-items: baseline; gap: 8px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); }
+.eos-mem-group__name { flex: 1; min-width: 0; margin: 0; font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
 .eos-mem-group__count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-mem-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
-.eos-mem-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.eos-mem-row { display: flex; align-items: center; gap: 12px; padding: 9px 18px; border-top: 1px solid var(--line); }
+.eos-mem-row:has([aria-current="true"]) { background: var(--raised); }
+.eos-mem-row:has([aria-current="true"]) .eos-chip { background: var(--chip); }
 .eos-mem-row:first-child { border-top: 0; }
 .eos-mem-row__open {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
   padding: 0;
   border: 0;
   background: none;
@@ -44,20 +46,22 @@
   text-align: left;
   cursor: pointer;
 }
-.eos-mem-row__text { font-size: var(--text-base); color: var(--fg); }
+.eos-mem-row__text { font-size: var(--text-base); font-weight: 500; color: var(--fg); }
 .eos-mem-row__open[aria-current="true"] .eos-mem-row__text { color: var(--fg-strong); font-weight: 500; }
-.eos-mem-row__why { font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-mem-row__why { font-size: 12.5px; color: var(--fg-dim); }
 
-.eos-mem-strength { display: inline-flex; gap: 2px; flex: none; }
-.eos-mem-strength > span { width: 6px; height: 12px; border-radius: 2px; background: var(--raised); }
-.eos-mem-strength > .eos-mem-strength__on { background: var(--accent); }
+/* Five steps drawn as one thin bar, filled as far as the note is strong. */
+.eos-mem-strength { display: inline-flex; flex: none; width: 40px; height: 3px; border-radius: 2px; overflow: hidden; background: var(--chip); }
+.eos-mem-strength > span { flex: 1; }
+.eos-mem-strength > .eos-mem-strength__on { background: var(--fg-mid); }
 
-.eos-mem-detail { width: 340px; flex: none; display: flex; flex-direction: column; gap: 16px; }
+.eos-mem-detail { flex: 1 1 300px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 .eos-mem-detail__head { display: flex; flex-direction: column; gap: 6px; }
 .eos-mem-detail__text { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
 .eos-mem-detail__line { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-mem-detail__part { display: flex; flex-direction: column; gap: 8px; }
 .eos-mem-detail__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--text-sm); color: var(--fg); }
+.eos-mem-detail__list li { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
 .eos-mem-detail__when { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-mem-detail__chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .eos-mem-detail__next { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
