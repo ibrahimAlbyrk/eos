@@ -682,6 +682,7 @@ bundle![
     AppCallRequest,
     SurfaceIssueList,
     SurfaceIssueRow,
+    ViewIssueBody,
     SurfaceList,
     SurfaceQueryAnswer,
     SurfaceRow,

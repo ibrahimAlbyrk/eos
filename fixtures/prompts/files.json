@@ -181,7 +181,7 @@
   "tool/report_progress.prompt.md": "a29e444df5799571eaea9c34df57a84614649a09dd322c710b1338177e762e29",
   "tool/request_capability.prompt.md": "eed84d9c41da1972fa2c4dcc058b304e01a21bc6ef8316f948cb90244974673b",
   "tool/respond_to_peer.prompt.md": "1aa3c6c70547dd04af06f06829b18bdabaace46e3ad8a87cc73ea68b4c7fdac0",
-  "tool/return_view.prompt.md": "d2821aa5666dd6f1972c419b4c105e290ec9e2afb48d0a67a963f7772af62546",
+  "tool/return_view.prompt.md": "d815d681a8462d93605bdd09e9d8cd248185ee9900b2d3873c4a73187fee23d6",
   "tool/run_routine.prompt.md": "4845bd526dc6dc4690ebc96c89e2af6379a23520dbb65c64917ec52a62646197",
   "tool/search_memory.prompt.md": "bc475ca0f797adbc992e3d21ee51b34406397e20ec06ab87a23446bf53a5033f",
   "tool/send_message_to_parent.prompt.md": "350a3bc192b5da02bb022a04609db7ccb2209d06a955c7033794a9b6d122739b",

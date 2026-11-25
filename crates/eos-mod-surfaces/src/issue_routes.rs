@@ -2,19 +2,20 @@
 //! `GET /api/surfaces/:id/issues/:issueId`, and `GET /api/surface-issues/:issueId`, which
 //! finds an issue's row by its id alone (an `eos://issue/…` link names no surface). A View issue answers the View and
 //! the ids of its bound actions, never their argument templates: the frame
-//! names a bound action, the core fills it. With plain reading on, a Page
+//! names a bound action, the core fills it. Its options' facts and its notes
+//! come with it, and whether a run that read outside text made it. With plain reading on, a Page
 //! issue also answers its fallback View (`plain`).
 
 use std::sync::Arc;
 
-use eos_contracts::{SurfaceIssue, SurfaceIssueList};
+use eos_contracts::{SurfaceIssue, SurfaceIssueList, ViewIssueBody};
 use eos_core::store::StoredIssue;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_surface::IssueKind;
 use eos_surface::render::fallback::fallback_view;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::SurfacesParts;
 use crate::routes::{param, surface_in};
@@ -28,8 +29,15 @@ fn shown_body(issue: &StoredIssue) -> Value {
     if issue.kind != IssueKind::View {
         return body;
     }
-    let bound: Vec<&String> = body["bindings"].as_object().map(|b| b.keys().collect()).unwrap_or_default();
-    json!({ "place": body["place"], "view": body["view"], "actions": bound })
+    let shown = ViewIssueBody {
+        place: body["place"].clone(),
+        view: body["view"].clone(),
+        actions: body["bindings"].as_object().map(|b| b.keys().cloned().collect()).unwrap_or_default(),
+        facts: serde_json::from_value(body["facts"].clone()).ok().flatten(),
+        aside: serde_json::from_value(body["aside"].clone()).ok().flatten(),
+        untrusted: body["untrusted"] == Value::Bool(true),
+    };
+    serde_json::to_value(shown).unwrap_or_default()
 }
 
 pub(crate) fn all(parts: &Arc<SurfacesParts>) -> Vec<RouteDef> {

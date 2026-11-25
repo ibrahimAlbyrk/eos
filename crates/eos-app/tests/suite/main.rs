@@ -19,6 +19,7 @@ mod forge_e2e;
 mod injection;
 mod injection_pages;
 mod injection_sending;
+mod injection_views;
 mod isolation;
 mod machines;
 mod memory;

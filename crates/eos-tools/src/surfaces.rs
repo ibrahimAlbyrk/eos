@@ -23,13 +23,15 @@ struct ViewArgs {
     place: String,
     view: Value,
     bindings: Option<Value>,
+    facts: Option<Value>,
+    aside: Option<Value>,
 }
 
 impl Handler for ReturnView {
     fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
         Box::pin(async move {
-            let ViewArgs { place, view, bindings } = args(input)?;
-            match self.0.return_view(call.self_id, ReturnedView { place, view, bindings }).await {
+            let ViewArgs { place, view, bindings, facts, aside } = args(input)?;
+            match self.0.return_view(call.self_id, ReturnedView { place, view, bindings, facts, aside }).await {
                 Ok(line) => Ok(Output::text(line)),
                 // Every problem with its path, so one more call can fix them all.
                 Err(Error::Validation(problems)) => Err(Failure(problems)),
@@ -168,6 +170,11 @@ pub(crate) fn specs(tools: &Arc<dyn SurfaceTools>) -> Vec<Spec> {
             ("place", one_of(&["result", "question"]).describe("`result` for the run's answer, `question` for a choice the user makes.")),
             ("view", record().describe("The View, as the visual-answer catalog writes one: title, summary, ui, data, actions.")),
             ("bindings", record().optional().describe("For each `send` action of the view: {action, args}, the direct action it runs and its argument template.")),
+            ("facts", array(object(vec![
+                ("option", string().describe("The option's label or value, as the view's Choice names it.")),
+                ("rows", array(object(vec![("label", string()), ("value", string())])).describe("Up to three short label and value pairs.")),
+            ])).optional().describe("Facts Eos shows in the cards of a Choice's options, in plain text.")),
+            ("aside", array(object(vec![("title", string()), ("text", string())])).optional().describe("Up to two short titled paragraphs Eos shows beside the view, in plain text.")),
         ]),
         ReturnView(tools.clone()),
     )
