@@ -172,3 +172,32 @@ async fn new_settings_move_the_next_digest() {
     d.notifier.settings_changed();
     assert_eq!(d.notifier.pass().await.expect("a pass"), local(13, 30));
 }
+
+#[tokio::test]
+async fn a_digest_time_inside_quiet_hours_stays_quiet() {
+    let d = desk(local(23, 0), json!({ "digests": ["23:30"] }));
+    d.question(1).await;
+    d.rig.clock.set(local(23, 30));
+    assert_eq!(d.notifier.pass().await.expect("a pass"), local(24 + 8, 0), "the end of quiet hours is next");
+    assert!(d.banners().is_empty());
+}
+
+#[tokio::test]
+async fn an_item_opened_while_eos_was_closed_after_the_last_digest_still_interrupts() {
+    let before = desk(local(12, 0), json!({}));
+    let item = before.question(1).await;
+    let parts = NotifierParts {
+        store: before.rig.temp.port(),
+        clock: before.rig.clock.clone(),
+        zone: before.rig.zone.clone(),
+        config: before.config.clone(),
+        phone: before.phone.clone(),
+        badge: before.badge.clone(),
+    };
+    before.rig.clock.advance(MINUTE);
+    let restarted = Notifier::new(parts);
+    restarted.pass().await.expect("a pass");
+    let banners = before.banners();
+    assert_eq!(banners.len(), 1);
+    assert_eq!(banners[0]["route"], format!("eos:/needs/{}", item.id));
+}
