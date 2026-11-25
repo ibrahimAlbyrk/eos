@@ -11,7 +11,7 @@ import { SurfaceCard } from "../needs/SurfaceCard.jsx";
 import { RoutinePageLink } from "../surface/RoutinePageLink.jsx";
 import { HolderLine } from "./Holder.jsx";
 import { RoutineMenu } from "./RoutineMenu.jsx";
-import { RoutineRuns } from "./RoutineRuns.jsx";
+import { RoutineRuns, RunsWeek } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
 import { LearnedFromWork } from "../memory/LearnedFromWork.jsx";
@@ -108,7 +108,12 @@ export function RoutinePage({ id, tab, version }) {
               {shown === "overview" && milestones && <ProjectSteps detail={detail} run={projectRun} />}
               {shown === "overview" && <RoutinePageLink routineId={id} />}
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
-              {shown === "runs" && <RoutineRuns routineId={id} />}
+              {shown === "runs" && (
+                <div className="eos-routine__columns">
+                  <div><RoutineRuns routineId={id} /></div>
+                  <div><RunsWeek routine={routine} /></div>
+                </div>
+              )}
               {shown === "signals" && (
                 <div className="eos-routine__columns">
                   <div><SignalList routineId={id} /></div>
