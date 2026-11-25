@@ -186,6 +186,33 @@ export async function copyRoutine(id) {
   return row.id;
 }
 
+// The routine as one file (01 §6): its versions and settings, no runs; null
+// when the core does not answer it.
+export async function exportRoutine(id) {
+  const r = await transport.get(ROUTES.routineExport(id)).catch(() => null);
+  if (r?.ok && r.body?.format != null) return r.body;
+  notify.error(r?.body?.error ?? "Eos could not write this routine to a file.", { title: "Routine" });
+  return null;
+}
+
+// A routine file's text made a draft routine here: nothing in the file sends
+// or earns freedom until the user confirms it on this Mac (L14). The draft's
+// id, or null with the reason said.
+export async function importRoutine(text) {
+  let file;
+  try {
+    file = JSON.parse(text);
+  } catch {
+    notify.error("This is not a routine file.", { title: "Routine" });
+    return null;
+  }
+  const r = await routineWrite("POST", ROUTES.routinesImport, file);
+  const row = r?.body?.row;
+  if (typeof row?.id !== "string") return null;
+  putRoutineRow(row);
+  return row.id;
+}
+
 // GET candidates: what the run form offers to run on, newest first; empty
 // when the core gives none (a dev run refuses them).
 export async function loadCandidates(id, q = "") {

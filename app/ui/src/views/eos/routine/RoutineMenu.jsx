@@ -1,9 +1,25 @@
 import { useState } from "react";
-import { copyRoutine, deleteRoutine, setRoutineState } from "../../../state/eos/routinesStore.js";
+import { copyRoutine, deleteRoutine, exportRoutine, setRoutineState } from "../../../state/eos/routinesStore.js";
 import { openLocation } from "../nav/eosNav.js";
 
+// A file name from the routine's name.
+export const fileName = (name) =>
+  `${(name || "routine").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "routine"}.eos-routine.json`;
+
+// Hands the routine's file to the browser to save.
+async function saveToFile(routine) {
+  const file = await exportRoutine(routine.id);
+  if (!file) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName(routine.name);
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 // The "⋯" menu's actions for a routine: Start another like this (a draft
-// copy), Archive, Delete to trash.
+// copy), Save to a file, Archive, Delete to trash.
 export function menuActions(routine) {
   const actions = [{
     label: "Start another like this",
@@ -11,7 +27,7 @@ export function menuActions(routine) {
       const id = await copyRoutine(routine.id);
       if (id) openLocation(`eos:/routines/${encodeURIComponent(id)}?tab=blueprint`);
     },
-  }];
+  }, { label: "Save to a file", run: () => saveToFile(routine) }];
   if (routine.state !== "archived") actions.push({ label: "Archive", run: () => setRoutineState(routine.id, "archived") });
   actions.push({
     label: "Delete to trash",
