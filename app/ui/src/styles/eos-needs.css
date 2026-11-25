@@ -322,7 +322,7 @@
 .eos-frame__content .gv-choice__opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .eos-frame__content .gv-choice__opt { align-items: flex-start; padding: 14px 16px; line-height: 1.5; transition: background-color calc(140ms * var(--k, 1)) var(--ease), box-shadow calc(140ms * var(--k, 1)) var(--ease); }
 .eos-frame__content .gv-choice__mark { margin-top: 2px; }
-.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { padding: 16px 18px 18px; row-gap: 14px; }
+.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { align-content: start; padding: 16px 18px 18px; row-gap: 14px; }
 .eos-frame__content .gv-choice__label { font-size: 15px; font-weight: 500; }
 /* An option's facts under a hairline, the names in the column's dim. */
 .eos-frame__content .gv-choice__facts { padding-top: 12px; border-top: 1px solid var(--line); grid-template-columns: 64px minmax(0, 1fr); row-gap: 6px; }
