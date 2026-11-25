@@ -66,6 +66,8 @@ pub(crate) struct Rig {
     pub(crate) badge: Arc<FakeDockBadge>,
     /// How a run's sessions ask the user.
     pub(crate) questions: RunQuestions,
+    /// The waits of the module's loops.
+    pub(crate) sleeper: Arc<FakeSleeper>,
     ids: Arc<SeqIds>,
 }
 
@@ -77,6 +79,7 @@ impl Rig {
         let temp = TempStore::on_bus(&kernel.bus);
         let control = Arc::new(FakeRoutineControl::new().confirming("rt-1", pull_requests()));
         let badge = Arc::new(FakeDockBadge::new());
+        let sleeper = Arc::new(FakeSleeper::default());
         let questions = RunQuestions::new(RunQuestionParts {
             store: temp.port(),
             clock: clock.clone(),
@@ -96,7 +99,7 @@ impl Rig {
             delivery: eos_inbox::delivery::DeliveryParts {
                 store: temp.port(),
                 clock: clock.clone(),
-                sleeper: Arc::new(FakeSleeper::default()),
+                sleeper: sleeper.clone(),
                 ids: Arc::new(SeqIds::new()),
                 zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
                 channels: Arc::new(FakeChannels::new()),
@@ -112,7 +115,7 @@ impl Rig {
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
         runtime.lifecycle.ready().await.expect("ready");
-        Self { runtime, temp, clock, waiting, control, badge, questions, ids: Arc::new(SeqIds::new()) }
+        Self { runtime, temp, clock, waiting, control, badge, questions, sleeper, ids: Arc::new(SeqIds::new()) }
     }
 
     pub(crate) async fn ask_as(&self, caller: Caller, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {

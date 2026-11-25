@@ -163,3 +163,19 @@ async fn a_full_sync_domain_opens_one_notice_a_day() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert_eq!(count(), 1, "the same day's notice is brought up to date");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_item_put_off_until_soon_wakes_the_sweeper_so_it_comes_back_on_time() {
+    let rig = Rig::new().await;
+    let notice = rig.open(new_item(ItemKind::Notice, "rt-1")).await;
+    let soon = 1_000_000 + 60_000;
+    let later = format!("/api/inbox/{}/later", notice.id);
+    assert_eq!(rig.ask(Method::Post, &later, Some(json!({"until": soon}))).await.0, 200);
+    for _ in 0..400 {
+        if rig.sleeper.pending().iter().any(|wait| (1..=60_000).contains(wait)) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    panic!("the sweeper waits for the item: {:?}", rig.sleeper.pending());
+}
