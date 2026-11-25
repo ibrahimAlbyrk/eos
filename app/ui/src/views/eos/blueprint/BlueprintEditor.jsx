@@ -173,7 +173,7 @@ export function makingLead(draft, trials) {
   if (draft.status === "trying") return "Eos is trying it on real past items.";
   if (draft.status === "asking") return "One question, then it is ready.";
   if (draft.status === "abandoned") return "You left this draft.";
-  return trials.some((run) => run.state === "done") ? "It went well on real past items." : "The blueprint is ready to look at.";
+  return trials.some((run) => run.state === "done") ? "Ready to start." : "The blueprint is ready to look at.";
 }
 
 
