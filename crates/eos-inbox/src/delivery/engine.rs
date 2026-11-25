@@ -69,6 +69,7 @@ impl std::fmt::Debug for Delivery {
 fn request(row: &StoredDelivery) -> Option<SendRequest> {
     Some(SendRequest {
         key: row.id.clone(),
+        run_id: row.run_id.clone(),
         channel: row.channel.clone(),
         action: row.action.clone(),
         target: target_of(&row.target)?,

@@ -136,6 +136,7 @@ mod tests {
     fn request(key: &str) -> SendRequest {
         SendRequest {
             key: key.into(),
+            run_id: "rn-1".into(),
             channel: "github".into(),
             action: "post_review".into(),
             target: Target { recipient_id: "pr".into(), place: Place::Item("github:pr:acme/game#482".into()) },

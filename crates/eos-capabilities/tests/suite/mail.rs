@@ -37,6 +37,7 @@ fn digest() -> ResultDoc {
 fn request(place: Place) -> SendRequest {
     SendRequest {
         key: "dl-000000000001".into(),
+        run_id: "rn-1".into(),
         channel: "mail".into(),
         action: "send_mail".into(),
         target: Target { recipient_id: "boss".into(), place },
@@ -99,9 +100,10 @@ impl eos_core::surface::SurfaceRender for OneIssue {
     fn mail_document<'a>(
         &'a self,
         issue_id: &'a str,
+        run_id: &'a str,
         pdf: bool,
     ) -> eos_core::BoxFuture<'a, Result<eos_core::surface::MailDocument, eos_core::Error>> {
-        let found = (issue_id == "si-1").then(|| eos_core::surface::MailDocument {
+        let found = (issue_id == "si-1" && run_id == "rn-1").then(|| eos_core::surface::MailDocument {
             subject: "Morning Paper · No. 1".into(),
             html: "<table><img src=\"cid:abc@eos\"></table>".into(),
             text: "The Morning Build".into(),
@@ -148,5 +150,8 @@ async fn a_page_goes_as_the_mail_its_issue_draws_to_the_one_address_its_delivery
     assert!(fake.sends()[1].get("pdf").is_none(), "a PDF only when asked");
     let gone = channel.send(&page_request("si-9", false)).await.expect_err("no such issue");
     assert_eq!((gone.kind, gone.detail_kind.as_str()), (SendErrorKind::Permanent, "issue"));
+    let other_run = SendRequest { run_id: "rn-2".into(), ..page_request("si-1", false) };
+    let refused = channel.send(&other_run).await.expect_err("another run's issue");
+    assert_eq!((refused.kind, refused.detail_kind.as_str()), (SendErrorKind::Permanent, "issue"));
     assert_eq!(fake.sends().len(), 2);
 }

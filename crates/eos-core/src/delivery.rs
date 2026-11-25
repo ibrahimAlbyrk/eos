@@ -46,6 +46,8 @@ pub enum Undo {
 pub struct SendRequest {
     /// The delivery's id: the same key on every attempt.
     pub key: String,
+    /// The run whose result it sends.
+    pub run_id: String,
     pub channel: String,
     pub action: String,
     /// From the delivery row the gate checked, never from a model's text.

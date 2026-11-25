@@ -171,14 +171,21 @@ pub(crate) fn routes(parts: &Arc<SurfacesParts>, docs: &Arc<ProbeDocs>) -> Vec<R
 pub(crate) struct MailRender(pub(crate) Weak<SurfacesParts>, pub(crate) Weak<ProbeDocs>);
 
 impl SurfaceRender for MailRender {
-    fn mail_document<'a>(&'a self, issue_id: &'a str, with_pdf: bool) -> BoxFuture<'a, Result<MailDocument, Error>> {
+    fn mail_document<'a>(
+        &'a self,
+        issue_id: &'a str,
+        run_id: &'a str,
+        with_pdf: bool,
+    ) -> BoxFuture<'a, Result<MailDocument, Error>> {
         Box::pin(async move {
             let (Some(parts), Some(docs)) = (self.0.upgrade(), self.1.upgrade()) else {
                 return Err(Error::Unreachable("Eos is shutting down".into()));
             };
             let id = issue_id.to_owned();
             let found = parts.store.read(move |tx| tx.surface_issues().find(&id)).await?;
-            let issue = found.ok_or_else(|| Error::not_found("issue", issue_id))?;
+            let issue = found
+                .filter(|issue| issue.run_id.as_deref() == Some(run_id))
+                .ok_or_else(|| Error::not_found("issue", issue_id))?;
             let drawn =
                 load(&parts, &issue.surface_id, issue_id, None).await.map_err(|e| Error::Validation(e.to_string()))?;
             let mut doc = mail(&parts, &drawn, false).await?;

@@ -262,8 +262,14 @@ pub struct InlineImage {
 
 /// Draws a page issue for a channel that sends it.
 pub trait SurfaceRender: Send + Sync {
-    /// `pdf`: print the issue beside the mail (D30).
-    fn mail_document<'a>(&'a self, issue_id: &'a str, pdf: bool) -> BoxFuture<'a, Result<MailDocument, Error>>;
+    /// `pdf`: print the issue beside the mail (D30). An issue that run `run_id`
+    /// did not make is not found: a delivery mails only its own run's page.
+    fn mail_document<'a>(
+        &'a self,
+        issue_id: &'a str,
+        run_id: &'a str,
+        pdf: bool,
+    ) -> BoxFuture<'a, Result<MailDocument, Error>>;
 }
 
 /// A page the probe loads: a URL on the raw origin held a minute, and the
