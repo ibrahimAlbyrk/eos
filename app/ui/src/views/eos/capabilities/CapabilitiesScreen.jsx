@@ -4,11 +4,11 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { CapabilityState, DevRunNote, FixButton, LoadFailed, Loading } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { fixFor, ORIGINS, usedBy } from "./words.js";
+import { fixFor, madeOf, usedBy } from "./words.js";
 
 function CapabilityRow({ row }) {
   const fix = fixFor(row);
-  const facts = [ORIGINS[row.origin] ?? row.origin, row.version && `Version ${row.version}`, usedBy(row)].filter(Boolean);
+  const facts = [...madeOf(row), row.version && `Version ${row.version}`, usedBy(row)].filter(Boolean);
   return (
     <li className="eos-cap-row">
       <button type="button" className="eos-cap-row__open" onClick={() => openLocation(buildLocation({ screen: "capability", capabilityId: row.id }))}>

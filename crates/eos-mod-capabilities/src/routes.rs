@@ -59,6 +59,7 @@ fn row(capability: &Capability, users: &HashMap<String, Vec<String>>) -> Capabil
         action_count: manifest.actions.len() as i64,
         used_by: users.get(&capability.id).cloned().unwrap_or_default(),
         account_label: capability.account_label.clone(),
+        form: word(&manifest.form),
     }
 }
 

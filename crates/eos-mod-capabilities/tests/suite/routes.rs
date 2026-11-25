@@ -36,7 +36,7 @@ async fn the_list_and_one_capability_show_secrets_as_set_or_not_and_never_their_
     assert_eq!(
         row,
         json!({"id": "github", "name": "GitHub", "summary": "Pull requests and reviews on GitHub.", "origin": "builtin",
-            "state": "needs_setup", "stateCode": "secret_missing:token", "works": "any_mac", "actionCount": 4, "usedBy": []})
+            "state": "needs_setup", "stateCode": "secret_missing:token", "works": "any_mac", "actionCount": 4, "usedBy": [], "form": "builtin"})
     );
 
     let (status, detail) = signed_out.ask(Method::Get, "/api/capabilities/github", None).await;

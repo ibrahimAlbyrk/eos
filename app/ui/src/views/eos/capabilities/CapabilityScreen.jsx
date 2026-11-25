@@ -9,7 +9,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { CapabilityState, DevRunNote, LoadFailed, Loading } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { CLASSES, fixFor, ORIGINS, OUTCOMES, signInLabel, signsIn, usedBy, VERSION_STATUSES, WORKS } from "./words.js";
+import { CLASSES, fixFor, madeOf, OUTCOMES, signInLabel, signsIn, usedBy, VERSION_STATUSES, WORKS } from "./words.js";
 
 const LIST = "eos:/capabilities";
 
@@ -122,7 +122,7 @@ function Calls({ calls }) {
 
 function Detail({ detail }) {
   const facts = [
-    ORIGINS[detail.origin] ?? detail.origin,
+    ...madeOf(detail),
     detail.version && `Version ${detail.version}`,
     WORKS[detail.works] ?? detail.works,
     usedBy(detail),

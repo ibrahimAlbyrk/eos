@@ -45,6 +45,15 @@ export const ORIGINS = {
   synced: "From another Mac",
 };
 
+export const FORMS = { skill: "Skill", script: "Script", mcp: "MCP server", plugin: "Plugin", builtin: "Built in" };
+
+// How it runs and where it came from; a built-in is both in one word.
+export function madeOf(row) {
+  const origin = ORIGINS[row.origin] ?? row.origin;
+  if (row.origin === "builtin") return [origin];
+  return [row.form && (FORMS[row.form] ?? row.form), origin].filter(Boolean);
+}
+
 export const WORKS = { this_mac: "This Mac only", any_mac: "Any of your Macs" };
 
 export const CLASSES = {
