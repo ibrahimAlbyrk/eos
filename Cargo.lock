@@ -1692,6 +1692,7 @@ dependencies = [
  "eos-testkit",
  "getrandom 0.4.3",
  "hmac",
+ "serde",
  "serde_json",
  "sha2",
  "tokio",

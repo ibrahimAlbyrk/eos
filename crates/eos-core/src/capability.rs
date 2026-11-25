@@ -50,6 +50,18 @@ pub trait CapabilityFiles: Send + Sync {
         version: &'a str,
         hash: &'a str,
     ) -> BoxFuture<'a, Result<(), Error>>;
+    /// Writes `files` (relative path and bytes) in as `<id>/<version>/`,
+    /// as [`install`](Self::install) copies a folder in: a package from
+    /// another computer, kept only when it hashes to `hash`.
+    fn install_files<'a>(
+        &'a self,
+        files: Vec<(String, Vec<u8>)>,
+        id: &'a str,
+        version: &'a str,
+        hash: &'a str,
+    ) -> BoxFuture<'a, Result<(), Error>>;
+    /// The installed package's files: relative path and bytes, sorted.
+    fn package<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<Vec<(String, Vec<u8>)>, Error>>;
     /// Moves `<id>/<version>/` to the trash.
     fn remove<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<(), Error>>;
     /// The installed package's hash (`eos_domain::capability::hash`).

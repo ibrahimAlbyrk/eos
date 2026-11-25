@@ -375,6 +375,8 @@ pub const CAPABILITIES: Route = Route::new("capabilities", "/api/capabilities", 
 pub const CAPABILITY_CANDIDATES: Route =
     Route::new("capabilityCandidates", "/api/capabilities/candidates", &[Get]).added();
 pub const CAPABILITY: Route = Route::new("capability", "/api/capabilities/:id", &[Get, Delete]).added();
+pub const CAPABILITY_INSTALL_HERE: Route =
+    Route::new("capabilityInstallHere", "/api/capabilities/:id/install-here", &[Post]).added();
 pub const CAPABILITY_ENABLE: Route = Route::new("capabilityEnable", "/api/capabilities/:id/enable", &[Post]).added();
 pub const CAPABILITY_DISABLE: Route = Route::new("capabilityDisable", "/api/capabilities/:id/disable", &[Post]).added();
 pub const CAPABILITY_SETTINGS: Route =
@@ -797,6 +799,7 @@ pub const ROUTES: &[Route] = &[
     CAPABILITY_ROLLBACK,
     CAPABILITY_SIGN_IN,
     CAPABILITY_SECRET,
+    CAPABILITY_INSTALL_HERE,
     FORGE,
     FORGE_PROPOSAL,
     FORGE_PROPOSAL_LIVE_TEST,

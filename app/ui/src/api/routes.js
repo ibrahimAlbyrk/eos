@@ -406,6 +406,7 @@ export const ROUTES = {
   capabilityRollback: (id) => `/api/capabilities/${id}/rollback`,
   capabilitySignIn: (id) => `/api/capabilities/${id}/sign-in`,
   capabilitySecret: (id, name) => `/api/capabilities/${id}/secrets/${name}`,
+  capabilityInstallHere: (id) => `/api/capabilities/${id}/install-here`,
   // The Forge (eos-contracts `forge.rs`): build a capability Eos lacks.
   forge: "/api/forge",
   forgeProposal: (id) => `/api/forge/proposals/${id}`,

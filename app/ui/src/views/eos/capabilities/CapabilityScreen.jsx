@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import {
-  checkCapability, enterSecret, forgetSecret, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
+  checkCapability, enterSecret, forgetSecret, installCapabilityHere, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
   useCapabilities,
 } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
@@ -30,6 +30,14 @@ function Controls({ detail }) {
   const remove = async () => {
     if (await removeCapability(id)) openLocation(LIST);
   };
+  if (detail.state === "available") {
+    return (
+      <div className="eos-actions">
+        <button type="button" className="eos-btn eos-btn--primary" onClick={() => void installCapabilityHere(id)}>Install on this Mac</button>
+        <button type="button" className="eos-btn" onClick={() => void remove()}>Remove</button>
+      </div>
+    );
+  }
   return (
     <div className="eos-actions">
       {signsIn(detail) && <button type="button" className={cls("sign-in")} onClick={() => void startSignIn(id)}>{signInLabel(detail)}</button>}

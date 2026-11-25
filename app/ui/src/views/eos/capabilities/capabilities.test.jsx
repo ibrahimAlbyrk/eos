@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetCapabilities, checkCapability, enterSecret, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { _resetCapabilities, checkCapability, enterSecret, installCapabilityHere, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
 import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -181,6 +181,23 @@ describe("a capability's page", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Enable</button>');
     expect(html).toContain("Nothing outside Eos.");
     expect(html).not.toContain(">Remove<");
+  });
+
+  it("offers to install here one that arrived from another Mac, and asks the core to", async () => {
+    const synced = { ...byId.weather, id: "weather", origin: "synced", state: "available", stateCode: null };
+    const sent = [];
+    const transport = fixtureTransport(reads([synced]));
+    transport.send = async (method, path, body) => {
+      sent.push([method, path, body]);
+      return { ok: true, status: 200, body: { ...rowOf(synced), state: "needs_setup" } };
+    };
+    setEosTransport(transport);
+    const html = await page("weather");
+    expect(html).toContain("It is set up on another Mac. Install it here to use it on this one.");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Install on this Mac</button>');
+    expect(html).not.toContain(">Check now<");
+    await installCapabilityHere("weather");
+    expect(sent).toEqual([["POST", ROUTES.capabilityInstallHere("weather"), {}]]);
   });
 
   it("says when it could not be read, or is gone", async () => {

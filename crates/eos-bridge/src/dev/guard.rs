@@ -406,6 +406,7 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/capabilities/{id}/settings"),
     ("POST", "/api/capabilities/{id}/rollback"),
     ("DELETE", "/api/capabilities/{id}"),
+    ("POST", "/api/capabilities/{id}/install-here"),
     // Needs you: saving a draft's edits, putting an item aside and discarding one change only
     // the data folder; nothing is sent.
     ("PUT", "/api/inbox/{id}/draft"),

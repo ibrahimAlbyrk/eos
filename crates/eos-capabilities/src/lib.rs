@@ -53,6 +53,7 @@ mod registry;
 mod sign_in;
 mod slack;
 mod sources;
+mod synced;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -70,6 +71,7 @@ pub use browser::{BROWSER, Browser};
 pub use candidates::CANDIDATES_MAX;
 pub use install::{Install, KEPT_VERSIONS};
 pub use notify::{NOTIFY, Notify};
+pub use synced::SYNCED_PACKAGE_MAX_BYTES;
 
 /// The topic a capability's state or version change is announced on, with
 /// `eos_contracts::CapabilitiesChange`.

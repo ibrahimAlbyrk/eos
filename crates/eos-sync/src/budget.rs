@@ -22,6 +22,7 @@ pub fn vault_budgets() -> Vec<(SyncDomainName, u64)> {
         (SyncDomainName::Routine, 16 * MB),
         (SyncDomainName::Run, 8 * MB),
         (SyncDomainName::Surface, 24 * MB),
+        (SyncDomainName::Capability, 32 * MB),
     ]
 }
 
