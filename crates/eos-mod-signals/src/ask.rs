@@ -20,6 +20,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use tokio::sync::Notify;
+
 use eos_contracts::{Fact, Facts};
 use eos_core::Error;
 use eos_core::agent::{OneShot, OneShotError, OneShotRequest};
@@ -64,15 +66,54 @@ pub(crate) struct Asks {
     pub(crate) config: Arc<dyn ConfigSource>,
     /// The model's answer by routine version and subject, with when it came.
     cache: Mutex<HashMap<(String, String), (bool, i64)>>,
+    /// The asks of each routine under way and not written yet, so two at
+    /// once do not pass its asks for the day together.
+    asking: Mutex<HashMap<String, i64>>,
+    /// Rings after a routing pass: there may be decisions for the model.
+    pub(crate) kick: Notify,
 }
 
 impl Asks {
     pub(crate) fn new(one_shot: Arc<dyn OneShot>, prompts: Arc<PromptService>, config: Arc<dyn ConfigSource>) -> Self {
-        Self { one_shot, prompts, config, cache: Mutex::default() }
+        Self { one_shot, prompts, config, cache: Mutex::default(), asking: Mutex::default(), kick: Notify::new() }
     }
 
     fn cache(&self) -> MutexGuard<'_, HashMap<(String, String), (bool, i64)>> {
         self.cache.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn asking(&self) -> MutexGuard<'_, HashMap<String, i64>> {
+        self.asking.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// One ask of `routine_id` under way, unless with the ones already
+    /// under way it would pass the day's asks.
+    fn reserve(&self, routine_id: &str, asked: i64) -> Option<Asking<'_>> {
+        let mut asking = self.asking();
+        let under_way = asking.entry(routine_id.to_owned()).or_default();
+        if asked + *under_way >= ASKS_PER_DAY {
+            return None;
+        }
+        *under_way += 1;
+        Some(Asking { asks: self, routine_id: routine_id.to_owned() })
+    }
+}
+
+/// An ask under way, counted until its answer is written or dropped.
+struct Asking<'a> {
+    asks: &'a Asks,
+    routine_id: String,
+}
+
+impl Drop for Asking<'_> {
+    fn drop(&mut self) {
+        let mut asking = self.asks.asking();
+        if let Some(under_way) = asking.get_mut(&self.routine_id) {
+            *under_way -= 1;
+            if *under_way <= 0 {
+                asking.remove(&self.routine_id);
+            }
+        }
     }
 }
 
@@ -151,6 +192,7 @@ impl Router {
         let now = self.clock.now_ms();
         let key = (routine.version.clone(), signal.signal.subject.clone());
         let cached = self.asks.cache().get(&key).filter(|(_, at)| now - at < ASK_CACHE_MS).map(|(matches, _)| *matches);
+        let mut reserved = None;
         let settled = if let Some(matches) = cached {
             Settled::Answered { matches, asked: false, cost: 0.0 }
         } else if now - route.decided_at >= UNSORTED_AFTER_MS {
@@ -158,7 +200,8 @@ impl Router {
         } else {
             let (routine_id, today) = (routine.id.clone(), day_start(self.zone.as_ref(), now));
             let asked = self.store.read(move |tx| tx.signal_asks().asked_since(&routine_id, today)).await?;
-            if asked >= ASKS_PER_DAY {
+            reserved = self.asks.reserve(&routine.id, asked);
+            if reserved.is_none() {
                 Settled::Capped
             } else {
                 let facts: Facts =
@@ -173,7 +216,9 @@ impl Router {
             cache.retain(|_, (_, at)| now - *at < ASK_CACHE_MS);
             cache.insert(key, (matches, now));
         }
-        self.write_settled(route, routine, settled).await
+        let written = self.write_settled(route, routine, settled).await;
+        drop(reserved);
+        written
     }
 
     /// One call of the model; its answer and what it cost.
@@ -232,15 +277,16 @@ impl Router {
                 let waiting = still.is_some_and(|row| {
                     row.decision == Decision::Undecided && matches!(row.reason.as_deref(), Some(ASK | CAP))
                 });
+                // The model was asked: its call is spent, whether or not its answer is used.
+                if let Settled::Answered { asked: true, cost, .. } = settled {
+                    tx.routine_spend().add(&day, &routine.id, SPEND_KIND, cost)?;
+                }
                 if !waiting || halted_in(tx)? {
                     return Ok(());
                 }
                 let Some(signal) = tx.signals().find(id)? else { return Ok(()) };
                 let (decided, model_asked) = match settled {
-                    Settled::Answered { matches, asked, cost } => {
-                        if asked {
-                            tx.routine_spend().add(&day, &routine.id, SPEND_KIND, cost)?;
-                        }
+                    Settled::Answered { matches, asked, .. } => {
                         let decided = if matches {
                             routing.admit_in(tx, out, &routine, &signal)?
                         } else {
