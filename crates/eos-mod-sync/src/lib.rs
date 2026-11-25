@@ -19,6 +19,7 @@
 
 pub mod domains;
 mod routes;
+mod runner;
 mod service;
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -31,6 +32,7 @@ use eos_runtime::jobs::JobRegistry;
 use eos_runtime::module::{IsLocal, Module, ModuleError, SyncContribution};
 use eos_runtime::router::{BoxFuture, RouteDef};
 
+pub use runner::{LeaseSinkOf, VaultRunner};
 pub use service::{DeviceName, RelayUrl, SyncService, SyncServiceDeps, Timing};
 
 /// Sync's status changed: Settings › Sync renders the payload.
@@ -55,6 +57,8 @@ pub struct SyncParts {
     pub clock: Arc<dyn Clock>,
     pub bus: Bus,
     pub jobs: JobRegistry,
+    /// Who runs which routine, over the vault; read back at start.
+    pub runner: Option<Arc<VaultRunner>>,
 }
 
 impl std::fmt::Debug for SyncParts {
@@ -72,6 +76,7 @@ struct LocalEdits {
 
 pub struct SyncModule {
     service: Arc<SyncService>,
+    runner: Option<Arc<VaultRunner>>,
     bus: Bus,
     edits: Vec<LocalEdits>,
     subscriptions: Mutex<Vec<Subscription>>,
@@ -86,7 +91,10 @@ impl std::fmt::Debug for SyncModule {
 impl SyncModule {
     /// Fails when a feature contributes a domain this build cannot carry.
     pub fn new(parts: SyncParts) -> Result<Self, eos_core::Error> {
-        let SyncParts { service, contributions, folders, project_keys, clock, bus, jobs } = parts;
+        let SyncParts { mut service, contributions, folders, project_keys, clock, bus, jobs, runner } = parts;
+        if let Some(runner) = &runner {
+            service.leases = Some(Arc::new(LeaseSinkOf(runner.clone())));
+        }
         let mut all = folders;
         let mut edits = Vec::new();
         for contribution in contributions {
@@ -97,7 +105,7 @@ impl SyncModule {
         }
         all.sort_by_key(|domain| domains::push_order(domain.name()));
         let service = SyncService::new(service, all, clock, bus.clone(), jobs);
-        Ok(Self { service, bus, edits, subscriptions: Mutex::default() })
+        Ok(Self { service, runner, bus, edits, subscriptions: Mutex::default() })
     }
 
     pub fn service(&self) -> Arc<SyncService> {
@@ -134,7 +142,16 @@ impl Module for SyncModule {
                 }
             }));
         }
-        Box::pin(std::future::ready(Ok(())))
+        drop(subscriptions);
+        Box::pin(async move {
+            // The leases last read, before any routine is acted on.
+            if let Some(runner) = &self.runner
+                && let Err(error) = runner.restore().await
+            {
+                tracing::warn!(%error, "runner: the leases kept here could not be read");
+            }
+            Ok(())
+        })
     }
 
     /// Only the app that owns the data folder syncs: never two writers on one home.

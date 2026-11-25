@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::SyncDomainName;
-use eos_core::net::sync::{SyncCrypto, SyncDomain, SyncStateStore, SyncVault};
+use eos_core::net::sync::{LeaseSink, LeaseVault, SyncCrypto, SyncDomain, SyncStateStore, SyncVault};
 use eos_core::{BoxFuture, Error};
 use eos_domain::sync::{LocalState, SyncItem};
 use eos_sync::{SyncEngine, SyncEngineDeps};
@@ -207,6 +207,23 @@ impl SyncStateStore for MemState {
     }
 }
 
+/// The lease records the engine handed on, and how many reads went through.
+#[derive(Default)]
+pub(crate) struct Leases {
+    pub(crate) records: Mutex<Vec<(String, u64, Value)>>,
+    pub(crate) pulls: std::sync::atomic::AtomicUsize,
+}
+
+impl LeaseSink for Leases {
+    fn attach(&self, _vault: Option<LeaseVault>) {}
+    fn received(&self, key: &str, seq: u64, record: &Value) {
+        self.records.lock().unwrap().push((key.to_owned(), seq, record.clone()));
+    }
+    fn pulled(&self) {
+        self.pulls.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
 /// One computer: its data, its bookkeeping, its clock and its engine.
 pub(crate) struct Mac {
     pub(crate) device: String,
@@ -216,6 +233,7 @@ pub(crate) struct Mac {
     pub(crate) client: Arc<FakeVaultClient>,
     pub(crate) vault: Arc<dyn SyncVault>,
     pub(crate) engine: Arc<SyncEngine>,
+    pub(crate) leases: Arc<Leases>,
 }
 
 impl Mac {
@@ -230,19 +248,29 @@ impl Mac {
         let domain = MapDomain::new();
         let state = Arc::new(MemState::default());
         let clock = Arc::new(FakeClock::at(1000));
-        let engine = Arc::new(engine(&port, &domain, &state, &clock, device, Vec::new()));
-        Self { device: device.to_owned(), domain, state, clock, client, vault: port, engine }
+        let leases = Arc::new(Leases::default());
+        let engine = Arc::new(engine(&port, &domain, &state, &clock, device, Vec::new(), &leases));
+        Self { device: device.to_owned(), domain, state, clock, client, vault: port, engine, leases }
     }
 
     /// A new engine over the saved state, as after a restart of the app.
     pub(crate) fn restart(&mut self) {
-        self.engine = Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device, Vec::new()));
+        self.engine = Arc::new(engine(
+            &self.vault,
+            &self.domain,
+            &self.state,
+            &self.clock,
+            &self.device,
+            Vec::new(),
+            &self.leases,
+        ));
     }
 
     /// A new engine whose domain may keep `bytes` in the vault.
     pub(crate) fn with_budget(&mut self, bytes: u64) {
         let budgets = vec![(SyncDomainName::Memory, bytes)];
-        self.engine = Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device, budgets));
+        self.engine =
+            Arc::new(engine(&self.vault, &self.domain, &self.state, &self.clock, &self.device, budgets, &self.leases));
     }
 
     pub(crate) fn conflicts(&self) -> Vec<(String, Value)> {
@@ -257,6 +285,7 @@ fn engine(
     clock: &Arc<FakeClock>,
     device: &str,
     budgets: Vec<(SyncDomainName, u64)>,
+    leases: &Arc<Leases>,
 ) -> SyncEngine {
     SyncEngine::new(SyncEngineDeps {
         vault: vault.clone(),
@@ -266,6 +295,7 @@ fn engine(
         clock: clock.clone(),
         device: device.to_owned(),
         budgets,
+        leases: Some(leases.clone()),
     })
 }
 

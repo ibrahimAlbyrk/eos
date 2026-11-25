@@ -173,6 +173,12 @@ impl Reach {
     /// themselves, and whether a matched signal admits its run. Off the
     /// network only the user's own starts run, which the dev guard lets
     /// through or refuses.
+    /// Who runs which routine, shared with the user's other computers over
+    /// the vault: only on the network. Off it every routine is held here.
+    pub(crate) fn vault_runner<T>(self, runner: impl FnOnce() -> T) -> Option<T> {
+        self.network.then(runner)
+    }
+
     pub(crate) fn autostart(self) -> bool {
         self.network
     }

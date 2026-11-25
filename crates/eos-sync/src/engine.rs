@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use eos_contracts::{BoolLit, IntLit, Num, SyncDomainName, SyncEnvelope};
-use eos_core::net::sync::{PutOutcome, SyncCrypto, SyncDomain, SyncStateStore, SyncVault, VaultEntry};
+use eos_core::net::sync::{LeaseSink, PutOutcome, SyncCrypto, SyncDomain, SyncStateStore, SyncVault, VaultEntry};
 use eos_core::{Clock, Error};
 use eos_domain::sync::{IndexEntry, LocalState, SyncItem, index_key, stable_stringify};
 
@@ -26,6 +26,9 @@ pub struct SyncEngineDeps {
     /// The most sealed bytes a domain may keep in the vault
     /// ([`vault_budgets`](crate::vault_budgets)); a domain not named has none.
     pub budgets: Vec<(SyncDomainName, u64)>,
+    /// Takes the records of who runs which routine; without one they are
+    /// skipped as unreadable.
+    pub leases: Option<Arc<dyn LeaseSink>>,
 }
 
 /// What a call to [`SyncEngine::sync`] did, over every round it ran.
@@ -270,6 +273,9 @@ impl SyncEngine {
 
     async fn exchange(&self, tally: &mut PassResult) -> Result<(), Error> {
         self.pull(tally).await?;
+        if let Some(leases) = &self.deps.leases {
+            leases.pulled();
+        }
         for domain in &self.deps.domains {
             self.push_domain(domain.as_ref(), tally).await?;
         }
@@ -542,18 +548,23 @@ impl SyncEngine {
     }
 
     fn open(&self, entry: &VaultEntry) -> Option<SyncEnvelope> {
-        let read = || -> Result<SyncEnvelope, String> {
+        // `None` as well for a lease record: the sink has it.
+        let read = || -> Result<Option<SyncEnvelope>, String> {
             let plain = self.deps.crypto.open(&entry.key, &entry.data).map_err(|e| e.to_string())?;
             let value: Value = serde_json::from_slice(&plain).map_err(|e| e.to_string())?;
+            if let (Some(leases), Some(_)) = (&self.deps.leases, value.get("lease")) {
+                leases.received(&entry.key, entry.seq, &value);
+                return Ok(None);
+            }
             let envelope: SyncEnvelope = eos_contracts::validate::parse(&value).map_err(|e| e.to_string())?;
             // The key binds the blob to its record; a mismatch is a blob moved between records.
             if self.deps.crypto.record_key(domain_name(envelope.domain), &envelope.id) != entry.key {
                 return Err("record key mismatch".into());
             }
-            Ok(envelope)
+            Ok(Some(envelope))
         };
         match read() {
-            Ok(envelope) => Some(envelope),
+            Ok(envelope) => envelope,
             Err(error) => {
                 tracing::warn!(seq = entry.seq, error, "sync: skipped an unreadable record");
                 None

@@ -13,7 +13,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
 use eos_contracts::{Num, SyncDomainUsage, SyncFull, SyncPhase, SyncStatusResponse, SyncUsageResponse};
-use eos_core::net::sync::{SyncAccounts, SyncDomain, SyncIdentityStore, SyncStateStore, SyncVault};
+use eos_core::net::sync::{
+    LeaseSink, LeaseVault, SyncAccounts, SyncDomain, SyncIdentityStore, SyncStateStore, SyncVault,
+};
 use eos_core::{Clock, Error};
 use eos_domain::sync::{SyncIdentity, format_sync_key, parse_sync_key};
 use eos_runtime::bus::Bus;
@@ -66,6 +68,8 @@ pub struct SyncServiceDeps {
     /// Stamped on what this computer pushes.
     pub device: DeviceName,
     pub timing: Timing,
+    /// Who runs which routine: hears of the vault and of its lease records.
+    pub leases: Option<Arc<dyn LeaseSink>>,
 }
 
 impl std::fmt::Debug for SyncServiceDeps {
@@ -273,6 +277,9 @@ impl SyncService {
 
     fn open(&self, identity: SyncIdentity) {
         let opened = self.deps.accounts.open(&identity);
+        if let Some(leases) = &self.deps.leases {
+            leases.attach(Some(LeaseVault { vault: opened.vault.clone(), crypto: opened.crypto.clone() }));
+        }
         let engine = SyncEngine::new(SyncEngineDeps {
             vault: opened.vault.clone(),
             crypto: opened.crypto,
@@ -281,6 +288,7 @@ impl SyncService {
             clock: self.clock.clone(),
             device: (self.deps.device)(),
             budgets: eos_sync::vault_budgets(),
+            leases: self.deps.leases.clone(),
         });
         let session = Arc::new(Session {
             identity,
@@ -305,6 +313,9 @@ impl SyncService {
 
     fn close(&self) {
         let Some(session) = lock(&self.inner).session.take() else { return };
+        if let Some(leases) = &self.deps.leases {
+            leases.attach(None);
+        }
         // A pass in flight ends at its next record and saves nothing more.
         session.engine.stop();
         if let Some(task) = lock(&session.task).take() {

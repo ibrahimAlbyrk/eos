@@ -273,6 +273,8 @@ fn a_sources_cursor_and_state_and_a_routines_runner_read_back_as_written() {
     assert_eq!(found.as_ref(), Some(&backing_off), "everything but when it was made");
     assert_eq!(by_scope, found);
     assert_eq!(holder, Some(runner(2, "d-2")), "the holder read last");
+    let all = temp.store.read_blocking(|tx| tx.signal_runners().list()).expect("reads");
+    assert_eq!(all, vec![runner(2, "d-2")], "one row a routine");
     let unknown =
         temp.store.read_blocking(|tx| Ok((tx.signal_sources().find("src-x")?, tx.signal_runners().find("rt-x")?)));
     assert_eq!(unknown.expect("reads"), (None, None));

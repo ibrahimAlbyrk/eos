@@ -53,7 +53,7 @@ pub(crate) fn project_keys(
 
 /// The name this computer goes by on the user's other ones: the one set for
 /// hosting, else the system's. Asked of the system once, when first needed.
-fn device_name(cx: &Context) -> eos_mod_sync::DeviceName {
+pub(crate) fn device_name(cx: &Context) -> eos_mod_sync::DeviceName {
     let config = cx.config.clone();
     let system = Arc::new(OnceLock::new());
     Arc::new(move || {
@@ -63,7 +63,11 @@ fn device_name(cx: &Context) -> eos_mod_sync::DeviceName {
 
 /// Sync, over what the other features let follow the user (`contributions`)
 /// and the folders of hand-edited files.
-pub(crate) fn sync(cx: &Context, contributions: Vec<SyncContribution>) -> Result<Arc<dyn Module>, Error> {
+pub(crate) fn sync(
+    cx: &Context,
+    contributions: Vec<SyncContribution>,
+    runner: Option<Arc<eos_mod_sync::VaultRunner>>,
+) -> Result<Arc<dyn Module>, Error> {
     let dir = cx.paths.join("sync");
     let config = cx.config.clone();
     // The vault is on the relay the user's own key names: no guard for agent-written URLs.
@@ -84,6 +88,7 @@ pub(crate) fn sync(cx: &Context, contributions: Vec<SyncContribution>) -> Result
             }),
             device: device_name(cx),
             timing: Timing::default(),
+            leases: None,
         },
         contributions,
         folders,
@@ -91,6 +96,7 @@ pub(crate) fn sync(cx: &Context, contributions: Vec<SyncContribution>) -> Result
         clock: cx.clock.clone(),
         bus: cx.bus.clone(),
         jobs: cx.kernel.jobs.clone(),
+        runner,
     })?;
     Ok(Arc::new(module))
 }
