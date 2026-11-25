@@ -133,7 +133,7 @@ fn proposal_of(
     });
     if let Some(source) = &source {
         limits.push(format!(
-            "Who published {} is what the MCP Registry says; Eos checked its version and hash, not its publisher.",
+            "Who published {} is what the MCP Registry says. Eos checked that its lock file names the pinned version and hash, not the installed files themselves, and not its publisher.",
             source.package.name
         ));
         if !source.install_scripts.is_empty() {

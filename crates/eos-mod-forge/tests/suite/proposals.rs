@@ -276,6 +276,7 @@ async fn a_published_server_is_tested_only_once_it_holds_to_its_pin_and_its_prop
     assert_eq!(source["installScripts"], json!(["acme-echo@2.1.0"]));
     let limits = state["proposal"]["limits"].to_string();
     assert!(limits.contains("not its publisher") && limits.contains("install scripts"), "{limits}");
+    assert!(limits.contains("not the installed files themselves"), "what the pin check reads is said: {limits}");
     let pinned = format!(
         "SELECT COUNT(*) FROM capability_versions WHERE source = 'npm:acme-echo@2.1.0#sha512-{}=='",
         "A".repeat(86)
