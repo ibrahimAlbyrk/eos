@@ -50,6 +50,22 @@ async fn a_definition_arrives_available_without_secrets_and_installs_here_on_the
 }
 
 #[tokio::test]
+async fn one_from_another_computer_under_a_removed_capabilitys_id_asks_for_its_secrets_again() {
+    let (air, pro) = (rig(Setup::default()).await, rig(Setup::default()).await);
+    air.install(&notes("1.0.0"), "h-1").await;
+    pro.install(&notes("0.9.0"), "h-0").await;
+    pro.service.remove("notes-db").await.expect("removes");
+    assert!(pro.secrets.has("notes-db", "api_key").await.expect("read"), "removal keeps it");
+
+    let items = air.service.synced_list().await.expect("lists");
+    pro.service.synced_apply("notes-db", &items[0].data).await.expect("applies");
+    pro.service.install_here("notes-db").await.expect("installs");
+    assert!(!pro.secrets.has("notes-db", "api_key").await.expect("read"), "the removed one's key is not inherited");
+    let here = pro.service.get("notes-db").await.expect("reads").expect("there");
+    assert_eq!(here.health.state, HealthState::NeedsSetup, "{here:?}");
+}
+
+#[tokio::test]
 async fn files_that_do_not_hash_as_they_came_are_refused() {
     let (air, pro) = (rig(Setup::default()).await, rig(Setup::default()).await);
     air.install(&notes("1.0.0"), "h-1").await;
