@@ -128,8 +128,17 @@ fn routine_detail(tx: &dyn Tx, id: &str, now: i64, patterns: &ItemPatterns) -> R
         routine: row,
         head: head.map(|at| with_blueprint(at, &versions[at])).transpose()?,
         draft: tx.routines().draft(id)?.map(draft),
-        runs: run_summaries(tx, &tx.runs().by_routine(id, RECENT_RUNS)?)?,
+        runs: with_synced(tx, id, run_summaries(tx, &tx.runs().by_routine(id, RECENT_RUNS)?)?, now)?,
     })
+}
+
+/// The routine's runs with those its other computers finished, newest first.
+fn with_synced(tx: &dyn Tx, id: &str, mut runs: Vec<RunSummary>, now: i64) -> Result<Vec<RunSummary>, Error> {
+    let since = now - crate::sync::RUN_SUMMARIES_KEPT_MS;
+    runs.extend(crate::sync::synced_of(tx, id, since, RECENT_RUNS)?);
+    runs.sort_by_key(|run| std::cmp::Reverse(run.ended_at.unwrap_or(run.created_at)));
+    runs.truncate(RECENT_RUNS as usize);
+    Ok(runs)
 }
 
 /// What a row shows of a blueprint.
@@ -344,5 +353,6 @@ fn run_summary(run: &StoredRun, needs_user: bool) -> RunSummary {
         started_at: run.started_at,
         ended_at: run.ended_at,
         milestones_done: run.progress_done,
+        device: None,
     }
 }

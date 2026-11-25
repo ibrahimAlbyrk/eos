@@ -12,7 +12,7 @@ use super::{
     RoutineRepo, RoutineRetentionRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineSuggestionRepo, RoutineVersionRepo,
     RunRepo, RunResultRepo, SignalAskRepo, SignalHookRepo, SignalRepo, SignalRetentionRepo, SignalRouteRepo,
     SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, SurfaceEditRepo, SurfaceIssueRepo, SurfacePinRepo,
-    SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
+    SurfaceRepo, SurfaceStateRepo, SurfaceVersionRepo, SyncedRunRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
     WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
@@ -56,6 +56,7 @@ pub trait Tx {
     fn routines(&self) -> &dyn RoutineRepo;
     fn run_results(&self) -> &dyn RunResultRepo;
     fn runs(&self) -> &dyn RunRepo;
+    fn synced_runs(&self) -> &dyn SyncedRunRepo;
     fn signal_asks(&self) -> &dyn SignalAskRepo;
     fn signal_hooks(&self) -> &dyn SignalHookRepo;
     fn signal_retention(&self) -> &dyn SignalRetentionRepo;

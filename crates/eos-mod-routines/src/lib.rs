@@ -66,6 +66,9 @@
 //! routines that leave for good are cleared; what they leave on disk goes to
 //! the trash.
 //!
+//! Routines with their kept versions, and a summary of each finished run
+//! for 30 days, follow the user to their other computers (`sync`).
+//!
 //! A sentence the user wants done once becomes a one-off routine and its
 //! run (`POST /api/runs/once`, `once`).
 //!
@@ -91,6 +94,7 @@ mod replay;
 mod retention;
 mod routes;
 mod suggest;
+mod sync;
 mod trial;
 
 use std::collections::HashMap;
@@ -103,6 +107,7 @@ use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
+use eos_core::net::sync::RecordSync;
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::policy::KeptScripts;
 use eos_core::routine::{
@@ -116,7 +121,7 @@ use eos_prompts::PromptService;
 use eos_runtime::actions::{ActionDecl, QueryDecl};
 use eos_runtime::bus::{Bus, ScopeKind, Topic, TopicDecl};
 use eos_runtime::idle::IdleHook;
-use eos_runtime::module::{Module, ModuleError, ProtectedSettings, SlashCommandDecl};
+use eos_runtime::module::{Module, ModuleError, Opaque, ProtectedSettings, SlashCommandDecl, SyncContribution};
 use eos_runtime::router::RouteDef;
 use eos_sessions::{Sessions, SlashCommand};
 use tokio::sync::Notify;
@@ -454,5 +459,23 @@ impl Module for RoutinesModule {
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         Box::pin(engine::stop_supervisor(&self.engine))
+    }
+
+    /// Routines with their kept versions, and the summaries of finished
+    /// runs; each handle is an `Arc<dyn RecordSync>`.
+    fn sync(&self) -> Vec<SyncContribution> {
+        let routines: Arc<dyn RecordSync> = Arc::new(sync::RoutineRecords(self.engine.clone()));
+        let runs: Arc<dyn RecordSync> = Arc::new(sync::RunRecords(self.engine.clone()));
+        let routines: Opaque = Arc::new(routines);
+        let runs: Opaque = Arc::new(runs);
+        vec![
+            SyncContribution {
+                domain: "routine",
+                handle: routines,
+                change_topic: Some(ROUTINE_CHANGE.name()),
+                is_local: None,
+            },
+            SyncContribution { domain: "run", handle: runs, change_topic: Some(RUN_CHANGE.name()), is_local: None },
+        ]
     }
 }

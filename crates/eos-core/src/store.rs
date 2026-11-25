@@ -100,7 +100,7 @@ pub use routines::{
 };
 pub use runs::{
     EndedCount, RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
-    StoredRunResult,
+    StoredRunResult, StoredSyncedRun, SyncedRunRepo,
 };
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use signals::{

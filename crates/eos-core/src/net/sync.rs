@@ -153,6 +153,16 @@ pub trait SyncDomain: Send + Sync + 'static {
     }
 }
 
+/// A feature's records of one sync domain, which it lists in their
+/// portable form and applies back through its own writes.
+pub trait RecordSync: Send + Sync {
+    fn list(&self) -> BoxFuture<'_, Result<Vec<SyncItem>, Error>>;
+    fn get<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<SyncItem>, Error>>;
+    /// Fails on data it cannot accept.
+    fn apply<'a>(&'a self, id: &'a str, data: &'a Value) -> BoxFuture<'a, Result<(), Error>>;
+    fn remove<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+}
+
 /// What a domain changed since a time ([`SyncDomain::changed_since`]).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Changed {

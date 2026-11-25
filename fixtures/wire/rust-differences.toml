@@ -410,6 +410,11 @@ reason = "A tab may name the runs it shows (body field `runs`, query `?runs=`, a
 scenario = "*-phone-eos"
 reason = "The snapshot's `caps` list `eos` after `focus`, `rows` and `deflate`: the Mac serves routines, runs and Needs you. A phone that lists `eos` in its hello gets `routine:change`, `run:change`, `inbox:change` and `runs:active` as events while it is not away, and may send `watch {run}` to get that run's `run:activity`. A phone that does not list it (the released app) never gets them and ignores the unknown cap; every other frame is today's. The 0.1.x app had no routines."
 
+[[known]]
+scenario = "*"
+at = "/json/counts/**"
+reason = "Sync's status counts the records of each domain this app syncs. It syncs domains the TypeScript app did not have: `experience` (what Eos learned from work), `routine` (routines and their kept versions) and `run` (summaries of finished runs, 30 days), and the leases of which computer runs each routine, which are not a domain."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

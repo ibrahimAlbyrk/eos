@@ -36,4 +36,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("078_surfaces"),
     // Which signal source each hook of the relay's inbox wakes.
     embed!("079_signal_hooks"),
+    // Summaries of runs the user's other computers finished, as sync brought them.
+    embed!("080_synced_runs"),
 ];

@@ -124,6 +124,14 @@ impl RunRepo for SqliteTx<'_> {
         self.row(&format!("SELECT {RUN_COLUMNS} FROM runs WHERE id = ?1"), [id], run)
     }
 
+    fn ended_since(&self, since: i64, limit: i64) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!("SELECT {RUN_COLUMNS} FROM runs WHERE ended_at >= ?1 ORDER BY ended_at DESC, rowid DESC LIMIT ?2"),
+            params![since, limit],
+            run,
+        )
+    }
+
     fn by_routine(&self, routine_id: &str, limit: i64) -> Result<Vec<StoredRun>, Error> {
         self.rows(
             &format!(

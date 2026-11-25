@@ -90,6 +90,8 @@ fn domain_name(name: SyncDomainName) -> &'static str {
         SyncDomainName::Template => "template",
         SyncDomainName::Worker => "worker",
         SyncDomainName::Experience => "experience",
+        SyncDomainName::Routine => "routine",
+        SyncDomainName::Run => "run",
     }
 }
 

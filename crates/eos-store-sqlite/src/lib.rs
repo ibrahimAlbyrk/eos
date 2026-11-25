@@ -32,6 +32,7 @@ mod signal_retention;
 mod signals;
 mod store;
 mod surfaces;
+mod synced_runs;
 mod tx;
 mod workers;
 

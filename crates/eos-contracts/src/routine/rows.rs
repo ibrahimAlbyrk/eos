@@ -241,6 +241,9 @@ pub struct RunSummary {
     /// A project run's milestones the gate is done with.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub milestones_done: Option<i64>,
+    /// The other computer that ran it, for a summary sync brought.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
 }
 
 impl Validate for RunSummary {}
