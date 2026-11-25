@@ -14,8 +14,10 @@ const ROW_FIELDS = ["id", "name", "summary", "origin", "state", "stateCode", "ve
 
 // list: null until loaded. details: id → CapabilityDetail. failed: id → "gone"
 // (404) or "error", for a detail that could not be read. devRun: a write was
-// refused because this is a dev run.
-let state = { list: null, listFailed: false, details: {}, failed: {}, devRun: false };
+// refused because this is a dev run. offline: the last read got no answer;
+// what was read stays.
+const EMPTY = { list: null, listFailed: false, details: {}, failed: {}, devRun: false, offline: false };
+let state = EMPTY;
 let started = false;
 const asked = new Map(); // id → the number of its latest detail request
 const subs = new Set();
@@ -64,8 +66,15 @@ function dropCapability(id) {
   set({ list: state.list?.filter((r) => r.id !== id) ?? null, details: without(state.details, id), failed: { ...state.failed, [id]: "gone" } });
 }
 
+// A read: what the core answering at all or not says about the connection.
+async function read(path) {
+  const r = await transport.get(path).catch(() => null);
+  if (state.offline !== (r === null)) set({ offline: r === null });
+  return r;
+}
+
 export async function refreshCapabilities() {
-  const r = await transport.get(ROUTES.capabilities).catch(() => null);
+  const r = await read(ROUTES.capabilities);
   if (r?.ok && Array.isArray(r.body)) set({ list: r.body, listFailed: false });
   else if (state.list === null) set({ listFailed: true });
 }
@@ -81,7 +90,7 @@ export function ensureCapabilitiesLoaded() {
 export async function loadCapability(id) {
   const n = (asked.get(id) ?? 0) + 1;
   asked.set(id, n);
-  const r = await transport.get(ROUTES.capability(id)).catch(() => null);
+  const r = await read(ROUTES.capability(id));
   if (asked.get(id) !== n) return;
   if (r?.ok && r.body?.id === id) {
     set({ details: { ...state.details, [id]: r.body }, failed: without(state.failed, id), list: withRow(state.list, rowOf(r.body)) });
@@ -157,6 +166,15 @@ export async function forgetSecret(id, name) {
   if (await write("DELETE", ROUTES.capabilitySecret(id, name))) await loadCapability(id);
 }
 
+// Forgets a sign-in: the secrets its token is kept in, and with them the
+// account's name. The capability needs signing in again.
+export async function forgetSignIn(detail) {
+  for (const s of detail.secrets.filter((s) => s.set)) {
+    if (!(await write("DELETE", ROUTES.capabilitySecret(detail.id, s.name)))) break;
+  }
+  await loadCapability(detail.id);
+}
+
 // Moves the capability to the trash → true once the core has.
 export async function removeCapability(id) {
   if (!(await write("DELETE", ROUTES.capability(id)))) return false;
@@ -165,7 +183,7 @@ export async function removeCapability(id) {
 }
 
 export function _resetCapabilities() {
-  state = { list: null, listFailed: false, details: {}, failed: {}, devRun: false };
+  state = EMPTY;
   started = false;
   asked.clear();
 }

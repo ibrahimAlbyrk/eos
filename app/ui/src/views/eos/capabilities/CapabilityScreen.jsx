@@ -1,13 +1,14 @@
 import { useEffect } from "react";
 import {
-  checkCapability, enterSecret, forgetSecret, installCapabilityHere, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
+  checkCapability, enterSecret, forgetSecret, forgetSignIn, installCapabilityHere, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
   useCapabilities,
 } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
+import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
-import { CapabilityState, DevRunNote, LoadFailed, Loading } from "./parts.jsx";
+import { CapabilityState, DevRunNote, LoadFailed, Loading, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
 import { CLASSES, fixFor, madeOf, OUTCOMES, signInLabel, signsIn, usedBy, VERSION_STATUSES, WORKS } from "./words.js";
 
@@ -41,6 +42,9 @@ function Controls({ detail }) {
   return (
     <div className="eos-actions">
       {signsIn(detail) && <button type="button" className={cls("sign-in")} onClick={() => void startSignIn(id)}>{signInLabel(detail)}</button>}
+      {signsIn(detail) && detail.secrets.some((s) => s.set) && (
+        <button type="button" className="eos-btn" onClick={() => void forgetSignIn(detail)}>Forget sign-in</button>
+      )}
       <button type="button" className={cls("check")} onClick={() => void checkCapability(id)}>Check now</button>
       <button type="button" className={cls("enable")} onClick={() => void setCapabilityEnabled(id, !enabled)}>{enabled ? "Disable" : "Enable"}</button>
       {detail.origin !== "builtin" && <button type="button" className="eos-btn" onClick={() => void remove()}>Remove</button>}
@@ -121,11 +125,14 @@ function Calls({ calls }) {
 }
 
 function Detail({ detail }) {
+  const { list: routines } = useRoutines();
+  useEffect(() => ensureRoutinesLoaded(), []);
+  const names = Object.fromEntries((routines ?? []).map((r) => [r.id, r.name]));
   const facts = [
     ...madeOf(detail),
     detail.version && `Version ${detail.version}`,
     WORKS[detail.works] ?? detail.works,
-    usedBy(detail),
+    usedBy(detail, names),
     detail.accountLabel && (detail.id === "slack" ? `Connected to ${detail.accountLabel}` : `Signed in as ${detail.accountLabel}`),
   ].filter(Boolean);
   return (
@@ -184,6 +191,7 @@ export function CapabilityScreen({ id }) {
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Capabilities", location: LIST }, { label: name }]} />
+      <OfflineNote />
       <div className="eos-body">
         {devRun && <DevRunNote />}
         {body}

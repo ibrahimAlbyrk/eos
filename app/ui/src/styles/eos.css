@@ -192,6 +192,7 @@
 
 /* ── Capabilities ─────────────────────────────────────────────────────────── */
 .eos-caps { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-cap-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
 .eos-cap-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; }
 .eos-cap-row + .eos-cap-row { border-top: 1px solid var(--line); }
 .eos-cap-row__open {
