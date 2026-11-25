@@ -100,13 +100,22 @@ function Settings({ detail }) {
   );
 }
 
+// The action that undoes another, by its summary when the capability lists
+// it, else its name in words ("withdraw_review" → "Withdraw review").
+function undoWords(actions, name) {
+  const named = actions.find((a) => a.name === name)?.summary;
+  if (named) return named;
+  const words = name.replace(/[_-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 function Actions({ actions }) {
   return (
     <ul className="eos-cap-list">
       {actions.map((a) => (
         <li key={a.name} className="eos-cap-item">
           <span className="eos-cap-item__main">{a.summary || a.name}</span>
-          <span className="eos-cap-item__side">{CLASSES[a.class] ?? a.class}{a.undo ? ` · ${a.undo} takes it back` : ""}</span>
+          <span className="eos-cap-item__side">{CLASSES[a.class] ?? a.class}{a.undo ? ` · ${undoWords(actions, a.undo)} takes it back` : ""}</span>
         </li>
       ))}
     </ul>
