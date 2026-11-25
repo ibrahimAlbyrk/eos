@@ -6,6 +6,7 @@ import { routineNamed } from "../../../lib/runCommand.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { resultWord } from "../run/words.js";
 import { refusalText } from "../runform/RunForm.jsx";
+import { valueWord } from "../runform/OptionControl.jsx";
 
 // What an `eos:/form` location fills the form with. It came from outside Eos
 // (a link, another app), so its item is never taken for the user's words.
@@ -43,7 +44,7 @@ export function linkText(location) {
   return `eos://run/${location.routine}${q ? `?${q}` : ""}`;
 }
 
-const optionLabel = (routine, key) => routine.options?.find((o) => o.key === key)?.label ?? key;
+const optionLabel = (routine, key) => routine.options?.find((o) => o.key === key)?.label ?? valueWord(key);
 
 const home = () => openLocation(buildLocation({ screen: "home" }));
 
@@ -74,7 +75,7 @@ export function LinkDialog({ location, routine }) {
             {input.item && <div><dt>Item</dt><dd>{input.item.title}</dd></div>}
             {input.note && <div><dt>Note</dt><dd>{input.note}</dd></div>}
             {Object.entries(input.options).map(([key, value]) => (
-              <div key={key}><dt>{optionLabel(routine, key)}</dt><dd>{String(value)}</dd></div>
+              <div key={key}><dt>{optionLabel(routine, key)}</dt><dd>{typeof value === "boolean" ? (value ? "Yes" : "No") : valueWord(value)}</dd></div>
             ))}
             {input.at !== undefined && <div><dt>When</dt><dd>{new Date(input.at).toLocaleString()}</dd></div>}
             <div><dt>Result</dt><dd>{resultWord(input.result)}</dd></div>

@@ -32,8 +32,8 @@ describe("a link's form", () => {
     expect(html).toContain("A link wants to start a run");
     expect(html).toContain("PR Review");
     expect(html).toContain("Show me only");
-    expect(html).toContain("<dt>depth</dt><dd>deep</dd>");
-    expect(html).toContain("<dt>tests</dt><dd>true</dd>");
+    expect(html).toContain("<dt>Depth</dt><dd>Deep</dd>");
+    expect(html).toContain("<dt>Tests</dt><dd>Yes</dd>");
     const later = parseLocation("eos:/form?routine=pr-review&at=2026-11-19T09%3A00%2B01%3A00&from=link");
     expect(renderToStaticMarkup(<LinkDialog location={later} routine={routine} />)).toContain("<dt>When</dt>");
     expect(html).toContain(">Run</button>");
