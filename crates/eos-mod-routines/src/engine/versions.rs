@@ -92,6 +92,10 @@ pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<
     if !resting.is_empty() {
         return Ok(Err(resting));
     }
+    let crowded = super::folders::crowded(engine, &blueprint).await;
+    if !crowded.is_empty() {
+        return Ok(Err(crowded));
+    }
     Ok(Ok(Prepared { blueprint, trust }))
 }
 
@@ -175,7 +179,9 @@ pub(crate) fn check_in(
             Severity::Warning => IssueSeverity::Warning,
         },
     });
-    Ok(issues.collect())
+    let mut issues: Vec<BlueprintIssue> = issues.collect();
+    issues.extend(super::folders::too_many(tx, routine_id, blueprint)?);
+    Ok(issues)
 }
 
 pub(crate) fn blocks(issues: &[BlueprintIssue]) -> bool {

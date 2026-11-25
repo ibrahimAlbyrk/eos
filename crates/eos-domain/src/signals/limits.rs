@@ -1,7 +1,13 @@
 //! A routine's run limits. Past either one a signal is decided `over-limit`:
-//! kept and run again by hand, never lost.
+//! kept and run again by hand, never lost. Also the limits of the folders a
+//! routine watches, which its save and its folder source both check.
 
 use eos_contracts::Limits;
+
+/// The most entries a watched folder may hold.
+pub const FOLDER_ENTRIES_MAX: usize = 5_000;
+/// The most folders watched at once.
+pub const FOLDERS_MAX: usize = 20;
 
 /// A routine's runs as the limits count them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

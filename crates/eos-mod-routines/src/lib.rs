@@ -185,7 +185,8 @@ pub struct RoutinesParts {
     /// The power source: runs from triggers wait on a low battery.
     pub power: Arc<dyn Power>,
     /// Where the history retention clears goes (run folders, a deleted
-    /// routine's export): the trash, nothing else of the files port.
+    /// routine's export): the trash; also the listing of a folder trigger's
+    /// folder when its version is saved. Nothing else of the files port.
     pub trash: Arc<dyn FileSystem>,
     /// The notes a run's lead starts with.
     pub packs: Arc<dyn ExperiencePacks>,
