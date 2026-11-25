@@ -124,6 +124,8 @@ describe("the run sheet", () => {
     expect(sheetPlace(button("eos-side-run"))).toEqual({ where: "side", door: "sidebar", rect });
     expect(sheetPlace(button("eos-btn"))).toEqual({ where: "below", door: "routine_page", rect });
     expect(sheetPlace(null)).toEqual({ where: "centre", door: "routine_page" });
+    const inSidebar = { ...button("eos-side-run"), closest: (sel) => (sel === "aside" ? { getBoundingClientRect: () => ({ right: 300 }) } : null) };
+    expect(sheetPlace(inSidebar)).toEqual({ where: "side", door: "sidebar", rect: { ...rect, right: 300 } });
     const viewport = { width: 1440, height: 900 };
     expect(sheetStyle({ where: "side", rect }, viewport)).toEqual({ top: 88, left: 288, maxHeight: 796 });
     expect(sheetStyle({ where: "below", rect: { ...rect, right: 300 } }, viewport)).toEqual({ top: 138, left: 16, maxHeight: 746 });
