@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use eos_core::net::sync::{LeaseSink, LeaseVault, SyncCrypto, SyncStateStore, SyncVault};
+use eos_core::net::sync::{LeaseSink, LeaseVault, PutOutcome, SyncCrypto, SyncStateStore, SyncVault};
 use eos_core::signals::{DeviceReport, HeldRoutine, Holder, Runner, RunnerError};
 use eos_core::{Clock, Error};
 use eos_domain::sync::LocalState;
@@ -185,4 +185,34 @@ async fn a_lease_taken_before_the_vault_opened_is_written_at_the_first_read() {
         }
     }
     assert_eq!(pro.runner.holder("rt-1"), Holder::Elsewhere { device_id: "air".into(), epoch: 1 });
+}
+
+#[tokio::test]
+async fn an_older_lease_put_back_in_the_vault_never_undoes_a_move() {
+    let (vault, clock) = (FakeVault::new(VaultLimits::default()), Arc::new(FakeClock::at(1_000)));
+    let (air, pro) = (computer(&vault, "air", &clock), computer(&vault, "pro", &clock));
+    air.runner.adopt("rt-1").await.unwrap();
+    pro.pull().await;
+    let first = vault_entry(&vault, "lease/rt-1");
+    pro.runner.claim("rt-1").await.unwrap();
+    air.pull().await;
+    assert!(matches!(air.runner.holder("rt-1"), Holder::Elsewhere { epoch: 2, .. }));
+
+    // Whoever holds the vault's token writes the epoch-1 record back under a new sequence.
+    let client = pro_client(&vault);
+    let base = vault_entry(&vault, "lease/rt-1").seq;
+    assert!(matches!(client.put("lease/rt-1", base, &first.data).await.unwrap(), PutOutcome::Stored { .. }));
+    air.pull().await;
+    pro.pull().await;
+    assert!(matches!(air.runner.holder("rt-1"), Holder::Elsewhere { epoch: 2, .. }));
+    assert_eq!(pro.runner.holder("rt-1"), Holder::Here { epoch: 2 });
+}
+
+fn pro_client(vault: &Arc<FakeVault>) -> Arc<dyn SyncVault> {
+    vault.client("0123456789abcdef0123456789abcdef", "token-0123456789abcdef")
+}
+
+fn vault_entry(vault: &Arc<FakeVault>, key: &str) -> eos_core::net::sync::VaultEntry {
+    let records = vault.records("0123456789abcdef0123456789abcdef");
+    records.into_iter().find(|entry| entry.key == key).expect("the record is in the vault")
 }
