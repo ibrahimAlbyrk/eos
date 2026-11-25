@@ -143,7 +143,7 @@
     "slug": "build-watch",
     "name": "Build Watch",
     "summary": "Tells you when the main build breaks.",
-    "icon": "hammer",
+    "icon": "pulse",
     "aliases": [
       "review"
     ],
@@ -180,7 +180,7 @@
     "slug": "weekly-report",
     "name": "Weekly Report",
     "summary": "Writes the week's report on Friday.",
-    "icon": "doc",
+    "icon": "calendar",
     "aliases": [
       "review"
     ],
@@ -217,7 +217,7 @@
     "slug": "release-notes",
     "name": "Release Notes",
     "summary": "Drafts release notes from merged pull requests.",
-    "icon": "note",
+    "icon": "notes",
     "aliases": [
       "review"
     ],
