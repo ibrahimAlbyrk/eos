@@ -5,12 +5,14 @@
 //! capability. One switched off, or not installed here, is not checked, and
 //! neither is one no routine needs: checking the Mail app opens Mail and asks
 //! the user for Automation, which only a routine that reads mail may cause.
+//! A package's own code (a script or an MCP server) runs in these checks only
+//! where the app may act as the user: elsewhere it runs only when asked.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use eos_capabilities::CapabilityService;
-use eos_core::capability::CapabilityRegistry;
+use eos_core::capability::{Capability, CapabilityRegistry};
 use eos_core::store::Store;
 use eos_core::{Clock, Sleeper};
 use eos_domain::capability::health::HealthState;
@@ -47,8 +49,9 @@ impl Ticker {
         store: Arc<dyn Store>,
         clock: Arc<dyn Clock>,
         sleeper: Arc<dyn Sleeper>,
+        packages: bool,
     ) {
-        let task = tokio::spawn(run(service, store, clock, sleeper));
+        let task = tokio::spawn(run(service, store, clock, sleeper, packages));
         if let Some(previous) = self.task.lock().unwrap_or_else(|p| p.into_inner()).replace(task) {
             previous.abort();
         }
@@ -66,7 +69,13 @@ impl Ticker {
     }
 }
 
-async fn run(service: Arc<CapabilityService>, store: Arc<dyn Store>, clock: Arc<dyn Clock>, sleeper: Arc<dyn Sleeper>) {
+async fn run(
+    service: Arc<CapabilityService>,
+    store: Arc<dyn Store>,
+    clock: Arc<dyn Clock>,
+    sleeper: Arc<dyn Sleeper>,
+    packages: bool,
+) {
     // When each capability's next hourly check is due.
     let mut due: HashMap<String, i64> = HashMap::new();
     loop {
@@ -89,11 +98,14 @@ async fn run(service: Arc<CapabilityService>, store: Arc<dyn Store>, clock: Arc<
                 continue;
             }
         };
-        let watched = |id: &str, state| checked(state) && (users.contains_key(id) || early.iter().any(|e| e == id));
-        due.retain(|id, _| {
-            capabilities.iter().any(|capability| &capability.id == id && watched(id, capability.health.state))
-        });
-        for capability in capabilities.iter().filter(|capability| watched(&capability.id, capability.health.state)) {
+        let watched = |capability: &Capability| {
+            let id = capability.id.as_str();
+            checked(capability.health.state)
+                && (packages || capability.version.is_none())
+                && (users.contains_key(id) || early.iter().any(|e| e == id))
+        };
+        due.retain(|id, _| capabilities.iter().any(|capability| &capability.id == id && watched(capability)));
+        for capability in capabilities.iter().filter(|capability| watched(capability)) {
             let next = due.entry(capability.id.clone()).or_insert_with(|| {
                 let this_hour = now - now % CHECK_EVERY_MS + slot(&capability.id);
                 if this_hour > now { this_hour } else { this_hour + CHECK_EVERY_MS }

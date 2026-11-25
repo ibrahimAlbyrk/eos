@@ -367,6 +367,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             cx.sleeper.clone(),
         )
         .with_secret_prompt(cx.secret_prompt.clone())
+        .with_package_checks(cx.reach.package_checks())
         .with_breakage(eos_mod_capabilities::BreakageParts {
             control: routines.control(),
             ids: cx.ids.clone(),

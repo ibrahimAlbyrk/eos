@@ -30,7 +30,8 @@
 //! `capabilities:change` from the write job that made it. Once the app is
 //! ready, the service starts and every capability is checked hourly, spread
 //! over the hour, and early after a call the service refused for its
-//! sign-in or whose answer broke its shape.
+//! sign-in or whose answer broke its shape. A package's own code runs in
+//! those checks only where the app may act as the user.
 //!
 //! Logs carry ids, states, outcomes and durations; never settings, labels,
 //! sign-in codes, tokens, secrets, input or output.
@@ -68,6 +69,8 @@ pub struct CapabilitiesModule {
     sign_ins: Arc<sign_in::SignIns>,
     prompt: Option<Arc<dyn SecretPrompt>>,
     breakage: Option<Arc<breakage::Breakage>>,
+    /// Whether the hourly and early checks run packages' own code.
+    package_checks: bool,
 }
 
 impl std::fmt::Debug for CapabilitiesModule {
@@ -95,12 +98,21 @@ impl CapabilitiesModule {
             sign_ins,
             prompt: None,
             breakage: None,
+            package_checks: true,
         }
     }
 
     /// The window shell's secret prompt: without one, entering a secret is refused.
     pub fn with_secret_prompt(mut self, prompt: Option<Arc<dyn SecretPrompt>>) -> Self {
         self.prompt = prompt;
+        self
+    }
+
+    /// Whether the checks nobody asked for run a package's own code: only
+    /// where the app may act as the user, since a package may drive an app
+    /// through Apple Events or reach its hosts without any secret.
+    pub fn with_package_checks(mut self, package_checks: bool) -> Self {
+        self.package_checks = package_checks;
         self
     }
 
@@ -162,7 +174,13 @@ impl Module for CapabilitiesModule {
             if let Some(breakage) = &self.breakage {
                 breakage.start().await?;
             }
-            self.ticker.start(self.service.clone(), self.store.clone(), self.clock.clone(), self.sleeper.clone());
+            self.ticker.start(
+                self.service.clone(),
+                self.store.clone(),
+                self.clock.clone(),
+                self.sleeper.clone(),
+                self.package_checks,
+            );
             Ok(())
         })
     }
