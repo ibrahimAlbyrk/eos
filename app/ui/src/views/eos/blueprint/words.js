@@ -53,3 +53,23 @@ export const HAND_BLUEPRINT = {
   goesTo: [{ id: "me", kind: "me", channel: "notify" }],
   freedom: { rung: "draft", grants: [] },
 };
+
+// A new routine's first step: sentences to start from (a pick fills the
+// input and never sends), and what each part of a blueprint is for.
+export const NEW_STARTERS = [
+  "Review my pull requests every morning",
+  "Write me a morning paper from my feeds",
+  "Sort my inbox and draft the replies",
+  "Tell me when the build breaks",
+];
+
+export const SLOT_GUIDE = [
+  ["Takes", "What each run works on: a pull request, a message, or nothing."],
+  ["When", "What starts it: a time, something that happens, or you."],
+  ["Which", "Which of those it picks up, and which it leaves."],
+  ["Who", "The agents that do the work, and the models they use."],
+  ["How", "The steps they follow and the checks before anything leaves."],
+  ["Makes", "What a run hands back: a review, a page, a draft."],
+  ["Goes to", "Where the result goes: to you, a channel, a pull request."],
+  ["Freedom", "How much it may do on its own before it asks you."],
+];

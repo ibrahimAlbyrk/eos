@@ -67,7 +67,7 @@ function Replies({ workerId }) {
 
 // Too many architects at work, and the drafts the user could leave to make
 // room: those whose architects are at work, as the refusal named them.
-function Crowded({ routineId, text, drafts }) {
+export function Crowded({ routineId, text, drafts }) {
   const others = drafts.filter((r) => r.id !== routineId);
   return (
     <div className="eos-band eos-band--warn" role="alert">

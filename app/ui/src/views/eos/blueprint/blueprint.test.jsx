@@ -61,7 +61,6 @@ async function editor(id, transport = fixtureTransport(reads)) {
 }
 
 const draw = () => renderToStaticMarkup(<EosMain />);
-const rowLabels = (html) => [...html.matchAll(/<dt class="eos-bp-row__label">([^<]*)/g)].map((m) => m[1]);
 const changedRows = (html) => [...html.matchAll(/eos-bp-row eos-bp-row--changed"><dt class="eos-bp-row__label">([^<]*)/g)].map((m) => m[1]);
 const buttonsIn = (html, cls) => [...(html.match(new RegExp(`<div class="${cls}">(.*?)</div>`))?.[1] ?? "").matchAll(/<button[^>]*>([^<]*)/g)].map((m) => m[1]);
 
@@ -79,17 +78,21 @@ afterEach(() => {
 });
 
 describe("a new routine", () => {
-  it("opens on an empty conversation and the card in outline, with Fill it by hand", () => {
+  it("opens on one question with sentences to start from, the other ways in and what a routine holds", () => {
     setEosTransport(fixtureTransport(reads));
     openLocation("eos:/routines/new");
     const html = draw();
     expect(html).toContain('<h1 class="eos-title">New routine</h1>');
-    expect(html).toContain('placeholder="Describe what Eos should take care of"');
+    expect(html).toContain('<main class="eos-screen eos-screen--read">');
+    expect(html).toContain(">What should Eos take care of?</h2>");
+    expect(html).toContain('aria-label="Describe what Eos should take care of"');
+    expect(html).toContain(">Write me a morning paper from my feeds</button>");
     expect(html).not.toContain("eos-bp-bubble");
-    expect(html).toContain("eos-bp-card--outline");
-    expect(rowLabels(html)).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
-    expect(html.match(/Not set yet/g)).toHaveLength(8);
-    expect(html).toContain(">Fill it by hand</button>");
+    expect(html).not.toContain("eos-bp-card");
+    expect(html).not.toContain("Not set yet");
+    expect([...html.matchAll(/<dt class="eos-new__partname">([^<]*)/g)].map((m) => m[1])).toEqual(["Takes", "When", "Which", "Who", "How", "Makes", "Goes to", "Freedom"]);
+    expect(html).toContain('<span class="eos-new__waytitle">Fill it by hand</span>');
+    expect(html).toContain('<span class="eos-new__waytitle">From a file</span>');
   });
 
   it("is made from what the user describes, and says plainly when three architects are at work", async () => {

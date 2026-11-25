@@ -74,18 +74,3 @@ export function BlueprintCard({ blueprint, onEdit, changed = [], routines, head,
     </section>
   );
 }
-
-// A new routine's card before anything is written: each slot in outline.
-export function OutlineCard({ children }) {
-  return (
-    <section className="eos-card eos-bp-card eos-bp-card--outline" aria-label="Blueprint">
-      <div className="eos-bp-card__title"><Glyph name="N" /><div className="eos-bp-card__words"><h2 className="eos-bp-card__name">New routine</h2></div></div>
-      <dl className="eos-bp-rows">
-        {[...SLOTS.map((s) => s.label), "Freedom"].map((label) => (
-          <div key={label} className="eos-bp-row"><dt className="eos-bp-row__label">{label}</dt><dd className="eos-bp-row__value eos-bp-row__value--empty">Not set yet</dd></div>
-        ))}
-      </dl>
-      {children}
-    </section>
-  );
-}
