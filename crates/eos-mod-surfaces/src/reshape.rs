@@ -16,7 +16,7 @@ use eos_core::Error;
 use eos_core::experience::{SurfaceSignal, SurfaceSignalKind};
 use eos_core::routine::{NewRun, RunOrigin, StartError};
 use eos_core::store::{StoredSurface, StoredSurfaceVersion};
-use eos_runtime::access::{Access, Tier};
+use eos_runtime::access::{Access, Caller, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_surface::{ArrangeOp, Level, MadeBy, PageDesign, VersionStatus, arrange, format_problems};
@@ -205,10 +205,16 @@ fn keep(parts: &Arc<SurfacesParts>) -> RouteDef {
         async move {
             let n = number(&req)?;
             let now = at.clock.now_ms();
+            // An App's version puts its file writes and actions into use: the
+            // phone has no App frame and shows no line of access to decide by.
+            let from_phone = matches!(req.caller, Caller::Phone { .. });
             let (surface, row) = at
                 .store
                 .write(move |tx, out| {
                     let mut surface = crate::routes::surface_in(tx, &id)?;
+                    if from_phone && surface.level == Level::App {
+                        return Err(Error::PermissionDenied("an App's version is kept on this Mac only".into()));
+                    }
                     let mut row = tx
                         .surface_versions()
                         .find(&id, n)?
