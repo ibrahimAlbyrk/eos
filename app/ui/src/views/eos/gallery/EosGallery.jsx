@@ -29,7 +29,7 @@ import paper from "./sample/paper.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
-import { closeField, openField, setTransitionScale } from "../field/fieldStore.js";
+import { closeField, openField, setTransitionScale, useField } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
 import { failingTransport, GALLERY_STATES, loadingTransport, stateOf, storedState, storeState } from "./states.js";
 
@@ -137,11 +137,13 @@ function pick(id) {
   location.reload();
 }
 
-// Eos's columns in the app's grid. The chrome around them (the mode switcher,
+// Eos's columns in the app's grid, the sidebar sliding out for the field as
+// EosView does. The chrome around them (the mode switcher,
 // the account footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
+  const { on: fieldOn } = useField();
   return (
-    <div className="app eos-mode">
+    <div className={fieldOn ? "app eos-mode eos-mode--field" : "app eos-mode"}>
       <GalleryBar current={state} onPick={pick} />
       <aside className="side">
         <div className="side-island side-island--agents"><EosSidebarRows /></div>
