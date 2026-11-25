@@ -181,3 +181,39 @@ async fn a_users_routine_cannot_name_a_forge_definition() {
     let builder = bench.agents.started().into_iter().find(|s| s.parent_id.as_deref() == Some(&lead)).expect("one");
     assert_eq!(builder.worker_definition.as_deref(), Some("eos-run-specialist"));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_builtin_run_given_outside_text_is_refused_rather_than_moved_out_of_its_folder() {
+    let bench = Bench::new(true);
+    let folder = bench.temp.home.join("scratch/forge-run");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    bench.steps.give_folder(&folder.to_string_lossy());
+    let id = bench.module.builtins().ensure("forge", forge_team()).await.expect("made");
+    let mut run = new_run(&id, RunOrigin::Hand, None);
+    run.input.note = Some(eos_domain::untrusted::wrap("mail:1", "Build a mailer."));
+    let run = bench.start(run).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.state(&run) == RunState::Failed).await;
+    let failed = bench.run(&run);
+    assert_eq!(failed.reason, Some(Reason::Invalid));
+    assert!(failed.headline.as_deref().is_some_and(|h| h.contains("build folder")), "{:?}", failed.headline);
+    assert!(bench.agents.started().is_empty(), "no session started anywhere");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_forge_builder_starts_only_in_its_leads_build_folder() {
+    let bench = Bench::new(true);
+    let folder = bench.temp.home.join("scratch/forge-run");
+    std::fs::create_dir_all(&folder).expect("a folder");
+    bench.steps.give_folder(&folder.to_string_lossy());
+    let mut blueprint = forge_team();
+    blueprint["who"]["agents"][1]["workspace"] = json!("none");
+    let id = bench.module.builtins().ensure("forge", blueprint).await.expect("made");
+    let run = bench.start(new_run(&id, RunOrigin::Hand, None)).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    let refused = bench.module.tools().start_specialist(&lead, "builder", "Build it.").await;
+    assert!(refused.is_err_and(|e| e.to_string().contains("build folder")));
+    assert!(bench.agents.started().iter().all(|s| s.parent_id.as_deref() != Some(&lead)), "no builder elsewhere");
+}

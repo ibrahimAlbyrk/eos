@@ -8,13 +8,13 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{Blueprint, RoutineAgent, RunInput, WorkerState};
+use eos_contracts::{AgentWorkspace, Blueprint, RoutineAgent, RunInput, WorkerState};
 use eos_core::Error;
 use eos_core::routine::{RunRef, Specialist};
 use eos_core::store::StoredRoutineSession;
 use eos_domain::envelope::Envelope;
 use eos_domain::routine::run::{Reason, RunState, Station};
-use eos_domain::run_scope::RunRole;
+use eos_domain::run_scope::{RunRole, Trust};
 use eos_sessions::MessageInput;
 
 use super::brief::{model_of, no_clone};
@@ -27,6 +27,8 @@ use crate::routes::{BUILTIN, readable};
 /// The definition a specialist starts as.
 pub(crate) const SPECIALIST_DEFINITION: &str = "eos-run-specialist";
 const SPECIALIST: &str = "specialist";
+/// Why the Forge's builder did not start.
+const BUILDER_ELSEWHERE: &str = "the builder works only in the run's build folder, under its sandbox settings";
 
 /// What a lead's team call reads of its run.
 struct Team {
@@ -87,6 +89,10 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
     }
     let (run_id, blueprint, input) = (&team.run.run_id, &team.blueprint, &team.input);
     let lead_dir = team.lead_dir.as_deref();
+    let (definition, role) = forge_role(&team, &agent).unwrap_or((SPECIALIST_DEFINITION, RunRole::Specialist));
+    if role == RunRole::ForgeBuilder && !builds_in_lead_folder(&team, agent.workspace) {
+        return Err(Error::Conflict(BUILDER_ELSEWHERE.into()));
+    }
     let place = match workspace::place(engine, run_id, blueprint, input, key, agent.workspace, lead_dir).await {
         Ok(place) => place,
         Err(NoPlace::NoClone) => {
@@ -97,7 +103,6 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
         Err(NoPlace::Failed(error)) => return Err(error),
     };
     let (model, effort) = model_of(blueprint, &agent, input);
-    let (definition, role) = forge_role(&team, &agent).unwrap_or((SPECIALIST_DEFINITION, RunRole::Specialist));
     let session = RunSession {
         run_id: run_id.clone(),
         routine_id: team.run.routine_id.clone(),
@@ -122,6 +127,13 @@ pub(crate) async fn start(engine: &Arc<Engine>, worker_id: &str, key: &str, task
     };
     tracing::info!(run_id = %team.run.run_id, worker_id = %started, agent_key = key, "a specialist started");
     Ok(())
+}
+
+/// The Forge's builder works only in the build folder its lead was started
+/// in, whose settings put its shell under the sandbox (L11): it shares that
+/// folder, and its run is trusted, so no start moves it out.
+fn builds_in_lead_folder(team: &Team, workspace: AgentWorkspace) -> bool {
+    workspace == AgentWorkspace::Shared && team.lead_dir.is_some() && team.run.trust == Trust::Trusted
 }
 
 /// The Forge definition and role a built-in routine's agent names
