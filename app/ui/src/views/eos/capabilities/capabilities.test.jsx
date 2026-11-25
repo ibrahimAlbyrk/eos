@@ -46,7 +46,7 @@ describe("the Capabilities list", () => {
 
     const expected = {
       GitHub: ["eos-status eos-status--warn\">Needs setup", "Eos has no GitHub client id to sign in with.", "Sign in"],
-      SMS: ["eos-status eos-status--ok\">Ready", "Working.", null],
+      SMS: ["eos-status eos-status--ok\">Ready", null, null],
       Linear: ["eos-status eos-status--warn\">Needs sign-in", "The service no longer accepts its sign-in.", "Check now"],
       Weather: ["eos-status eos-status--warn\">Slow", "The service is limiting how often Eos may ask.", "Check now"],
       "RSS feeds": ["eos-status eos-status--err\">Broken", "Its answers no longer have the shape it promised.", "Check now"],
@@ -55,7 +55,8 @@ describe("the Capabilities list", () => {
     for (const [name, [chip, line, fix]] of Object.entries(expected)) {
       const row = rowHtml(html, name);
       expect(row, name).toContain(chip);
-      expect(row, name).toContain(`<span class="eos-cap-line">${line}</span>`);
+      if (line) expect(row, name).toContain(`<span class="eos-cap-line">${line}</span>`);
+      else expect(row, name).not.toContain("eos-cap-line");
       if (fix) expect(row, name).toContain(`<button type="button" class="eos-btn">${fix}</button>`);
       else expect(row, name).not.toContain('class="eos-btn');
     }

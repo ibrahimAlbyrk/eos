@@ -2,7 +2,8 @@
 // from a newer core that is not here shows as it came.
 
 const STATES = {
-  ready: { word: "Ready", tone: "ok", line: "Working." },
+  // "Ready" already says it works.
+  ready: { word: "Ready", tone: "ok", line: "" },
   degraded: { word: "Slow", tone: "warn", line: "Working, but slower than usual." },
   needs_sign_in: { word: "Needs sign-in", tone: "warn", line: "Sign in again to use it." },
   needs_setup: { word: "Needs setup", tone: "warn", line: "It needs a step from you first." },
