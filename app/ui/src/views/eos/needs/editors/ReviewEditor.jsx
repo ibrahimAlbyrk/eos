@@ -1,3 +1,4 @@
+import { placeOf } from "../results/ResultView.jsx";
 import { Revert } from "./Revert.jsx";
 import { joinSuggestion, partChanged, partOf, partsOf, splitSuggestion, withPart, withText } from "./editDoc.js";
 
@@ -24,7 +25,7 @@ function Finding({ original, doc, part, onChange }) {
       <div className="eos-edit__head">
         <label className="eos-edit__include">
           <input type="checkbox" checked={included} onChange={(e) => onChange(withPart(doc, original, part.key, e.target.checked))} />
-          <span className="eos-result__place">{part.meta?.path}{part.meta?.line != null ? `:${part.meta.line}` : ""}</span>
+          <span className="eos-result__place">{placeOf(part.meta)}</span>
         </label>
         <Revert
           shown={included && partChanged(doc, original, part.key)}

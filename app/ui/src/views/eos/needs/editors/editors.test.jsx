@@ -108,7 +108,7 @@ describe("editing a review", () => {
     expect(html).toContain('role="radiogroup" aria-labelledby="edit-event"');
     expect(html).toContain('aria-checked="true" class="eos-seg__opt">Request changes</button>');
     expect(html).toContain('<textarea id="edit-summary"');
-    expect(html).toContain('<span class="eos-result__place">src/auth/login.rs:42</span>');
+    expect(html).toContain('<span class="eos-result__place">src/<wbr/>auth/<wbr/>login.rs:42</span>');
     expect(html).toContain('<li class="eos-edit__finding eos-edit__finding--out">');
     expect(html).toContain(">Send review with 1 of 2 comments<");
     expect(html).not.toContain(">Edit</button>");

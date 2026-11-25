@@ -260,7 +260,7 @@
 .eos-result__comments { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .eos-result__comment { display: grid; grid-template-columns: minmax(0, 168px) minmax(0, 1fr); gap: 4px 24px; padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--fg); }
 .eos-result__comment:last-child { border-bottom: 0; padding-bottom: 0; }
-.eos-result__place { display: block; padding-top: 3px; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); overflow-wrap: anywhere; }
+.eos-result__place { display: block; padding-top: 3px; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); overflow-wrap: break-word; }
 @container (max-width: 760px) { .eos-result__comment { grid-template-columns: minmax(0, 1fr); } }
 .eos-result__to { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-result__fixed { font-size: var(--text-xs); color: var(--fg-dim2); }
