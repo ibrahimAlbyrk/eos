@@ -13,6 +13,7 @@ import { actionsOf, cardOf } from "./cards/index.js";
 import { followReplacement } from "./cards/DraftCard.jsx";
 import { dropEdit } from "./editDrafts.js";
 import { ChecksPanel } from "./ChecksPanel.jsx";
+import { StreakLine } from "./StreakLine.jsx";
 import { ItemView } from "./ItemView.jsx";
 import { ViewSubmit } from "./SurfaceCard.jsx";
 import { plainKey, primaryKey } from "./keys.js";
@@ -159,6 +160,7 @@ export function NeedsItemScreen({ id }) {
                   {stored && (
                     <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
                   )}
+                  {asksNextTime && detail.item.routineId && <StreakLine routineId={detail.item.routineId} />}
                 </div>
               )}
               {asksNextTime && (

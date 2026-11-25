@@ -193,3 +193,5 @@
 /* The field draws the focus ring, not the bare input inside it. */
 .eos-mode .eos-needs-next input:focus-visible { outline: 0; }
 .eos-needs-next:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* How far the routine is from the offer of more freedom (Review.dc.html). */
+.eos-needs-streak { flex: 1 1 240px; text-align: right; font-size: var(--text-sm); color: var(--fg-mid); }

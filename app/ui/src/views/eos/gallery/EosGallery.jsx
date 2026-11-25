@@ -111,6 +111,8 @@ const withStats = {
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
   [ROUTES.routine(routineDetail.routine.id)]: withStats,
+  // Nine unedited sends in a row: one more brings the offer.
+  [ROUTES.routineFreedom(routineDetail.routine.id)]: { routineId: routineDetail.routine.id, rung: "draft", grants: [], streak: 9, offer: "none" },
   [ROUTES.routine(routinePaused.routine.id)]: routinePaused,
   [ROUTES.routine(routineDraft.routine.id)]: routineDraft,
   ...Object.fromEntries(Object.entries(blueprintDrafts).map(([id, draft]) => [ROUTES.routineDraft(id), draft])),
