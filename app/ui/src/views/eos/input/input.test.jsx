@@ -92,4 +92,13 @@ describe("the Home input", () => {
     expect(renderToStaticMarkup(<HomeInput />)).toContain("Click a routine around the input, drop a file on one, or just type.");
     _resetRoutines();
   });
+
+  it("before the first routine, the idle hint names nothing to click", async () => {
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: [] }));
+    _resetRoutines();
+    await refreshRoutines();
+    setHomeDraft("");
+    expect(renderToStaticMarkup(<HomeInput />)).toContain("Say what Eos should take care of, or drop a file here.");
+    _resetRoutines();
+  });
 });
