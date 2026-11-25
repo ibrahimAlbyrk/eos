@@ -109,7 +109,7 @@ export function TriggerLines({ status, head, routineId, now }) {
   return (
     <section className="eos-routine__section" aria-label="What starts it">
       <h2 className="eos-label">What starts it</h2>
-      <ul className="eos-card eos-triggers">
+      <ul className="eos-triggers">
         {schedules.map((s) => <ScheduleLine key={`slot-${s.slot}`} status={s} head={head} routineId={routineId} routines={list} />)}
         {sources.map((s) => <SourceLine key={s.sourceId} source={s} now={now} routineId={routineId} />)}
         {batch && (

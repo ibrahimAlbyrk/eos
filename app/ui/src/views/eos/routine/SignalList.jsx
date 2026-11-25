@@ -62,7 +62,7 @@ export function SignalList({ routineId }) {
               <button type="button" className="eos-btn eos-btn--primary" onClick={() => void replaySignals(routineId, waiting)}>Run them</button>
             </div>
           )}
-          <ul className="eos-card eos-signals">
+          <ul className="eos-signals">
             {list.rows.map((s) => <SignalRow key={s.id} signal={s} routineId={routineId} replay={replays[s.id]} now={now} />)}
           </ul>
         </>

@@ -42,6 +42,8 @@
 .eos-bp-question .eos-actions { margin-top: 8px; }
 .eos-bp-question__text { font-size: var(--text-base); font-weight: 600; color: var(--fg-strong); }
 .eos-bp-question__text p { margin: 0; }
+/* Names the column so its first words sit level with the card's top. */
+.eos-bp-chat__label { margin: 22px 0 -4px; }
 .eos-bp-chat__hint { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--fg-dim); }
 .eos-bp-chat__fill { flex: 1; }
 .eos-bp-say { position: sticky; bottom: 16px; background: var(--pop); }

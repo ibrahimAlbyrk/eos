@@ -338,4 +338,11 @@ describe("a run's row", () => {
     expect(html).toContain('<span class="eos-run-row__num">#468</span><span class="eos-run-row__title">Speed up the loader</span>');
     expect(html).toContain('<span class="eos-run-row__state eos-run-row__state--active">Waiting for you</span><span class="eos-run-row__cost">$0.41</span>');
   });
+
+  it("stands the day where no number is, and names a run with no item by how it started", () => {
+    const at = new Date(2025, 10, 18, 9, 0).getTime();
+    const html = renderToStaticMarkup(<RunRow run={{ id: "r1", state: "done", origin: "trigger", createdAt: at, startedAt: at, costUsd: 0.08 }} now={at} />);
+    const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(at);
+    expect(html).toContain(`<span class="eos-run-row__num">${day}</span><span class="eos-run-row__title">Started by a trigger</span>`);
+  });
 });
