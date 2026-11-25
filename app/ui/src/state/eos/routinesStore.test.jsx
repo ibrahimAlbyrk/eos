@@ -72,12 +72,12 @@ describe("routine:change", () => {
     expect(t.get).not.toHaveBeenCalled();
   });
 
-  it("takes a deleted routine out of the list and its detail", async () => {
+  it("moves a deleted routine to Recently deleted and drops its detail", async () => {
     setEosTransport(fixtureTransport(reads));
     await refreshRoutines();
     await loadRoutine(PR);
     applyRoutineChange({ routineId: PR, reason: "deleted" });
-    expect(current().list.map((r) => r.id)).not.toContain(PR);
+    expect(current().list.find((r) => r.id === PR).state).toBe("deleted");
     expect(current().details).toEqual({});
     expect(current().failed[PR]).toBe("gone");
   });

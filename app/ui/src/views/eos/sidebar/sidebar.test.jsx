@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport, transport } from "../../../state/eos/transport.js";
-import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
+import { _resetRoutines, deleteRoutine, refreshRoutines, undeleteRoutine } from "../../../state/eos/routinesStore.js";
 import { _resetInbox, refreshInbox } from "../../../state/eos/inboxStore.js";
 import { _resetRunSheet, registerHost, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -101,6 +101,34 @@ describe("the routine rows", () => {
 
     localStorage.setItem("eos:sidebarFilter", "something else");
     expect(names(draw())).toEqual(["PR Review", "Morning Paper", "Build Watch", "Release Notes"]);
+  });
+
+  it("keep a deleted routine under Deleted for 30 days, and Bring back puts it where it was", async () => {
+    const paper = byName["Morning Paper"];
+    await load({ [ROUTES.routines]: routines, [ROUTES.inbox]: inbox });
+    const back = { ...paper, state: "paused", pausedReason: "user" };
+    const sent = [];
+    setEosTransport({
+      ...transport,
+      send: async (method, path) => {
+        sent.push([method, path]);
+        return { ok: true, status: 200, body: method === "POST" ? back : {} };
+      },
+    });
+    expect(await deleteRoutine(paper.id)).toBe(true);
+    expect(names(draw())).not.toContain("Morning Paper");
+    localStorage.setItem("eos:sidebarFilter", "deleted");
+    const html = draw();
+    expect(names(html)).toEqual(["Morning Paper"]);
+    expect(rowOf(html, "Morning Paper")).toContain('<span class="eos-side-line">Deleted</span>');
+    expect(rowOf(html, "Morning Paper")).toContain('<button type="button" class="eos-btn">Bring back</button>');
+    expect(rowOf(html, "Morning Paper")).not.toContain("Run ");
+
+    expect(await undeleteRoutine(paper.id)).toBe(true);
+    expect(sent).toEqual([["DELETE", ROUTES.routine(paper.id)], ["POST", ROUTES.routineUndelete(paper.id)]]);
+    expect(draw()).toContain('<p class="eos-side-note">Nothing was deleted in the last 30 days.</p>');
+    localStorage.setItem("eos:sidebarFilter", "paused");
+    expect(names(draw())).toContain("Morning Paper");
   });
 
   it("say a running routine, a failed last run and a routine run only by hand in words", async () => {
