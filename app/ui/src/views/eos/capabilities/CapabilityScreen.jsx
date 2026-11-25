@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  checkCapability, enterSecret, forgetSecret, forgetSignIn, installCapabilityHere, loadCapability, removeCapability, rollbackCapability, setCapabilityEnabled,
+  checkCapability, enterSecret, forgetSecret, forgetSignIn, installCapabilityHere, loadCapability, removeCapability, rollbackCapability,
+  saveCapabilitySettings, setCapabilityEnabled,
   useCapabilities,
 } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
@@ -65,6 +66,37 @@ function SecretButtons({ detail }) {
         </span>
       ))}
     </div>
+  );
+}
+
+const INPUT_TYPES = { phone: "tel", email: "email" };
+
+// Its settings as the user sets them: a field each (a choice offers its
+// choices), saved together.
+function Settings({ detail }) {
+  const saved = Object.fromEntries(detail.settings.map((s) => [s.name, s.value ?? ""]));
+  const [values, setValues] = useState(saved);
+  const changed = detail.settings.some((s) => (values[s.name] ?? "") !== saved[s.name]);
+  const put = (name, value) => setValues((v) => ({ ...v, [name]: value }));
+  return (
+    <form className="eos-cap-settings" onSubmit={(e) => { e.preventDefault(); void saveCapabilitySettings(detail.id, values); }}>
+      {detail.settings.map((s) => (
+        <label key={s.name} className="eos-facts__row">
+          <span>{s.label}</span>
+          {s.kind === "choice" && s.choices?.length ? (
+            <select value={values[s.name] ?? ""} onChange={(e) => put(s.name, e.target.value)}>
+              <option value="">Not set</option>
+              {s.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <input type={INPUT_TYPES[s.kind] ?? "text"} value={values[s.name] ?? ""} placeholder="Not set" onChange={(e) => put(s.name, e.target.value)} />
+          )}
+        </label>
+      ))}
+      <div className="eos-actions">
+        <button type="submit" className="eos-btn" disabled={!changed}>Save settings</button>
+      </div>
+    </form>
   );
 }
 
@@ -159,11 +191,7 @@ function Detail({ detail }) {
       )}
       {detail.settings.length > 0 && (
         <Section label="Settings">
-          <dl className="eos-facts">
-            {detail.settings.map((s) => (
-              <div key={s.name} className="eos-facts__row"><dt>{s.label}</dt><dd>{s.value ?? "Not set"}</dd></div>
-            ))}
-          </dl>
+          <Settings key={detail.settings.map((s) => s.value ?? "").join("\u0000")} detail={detail} />
         </Section>
       )}
       {detail.versions.length > 0 && <Section label="Versions"><Versions detail={detail} /></Section>}

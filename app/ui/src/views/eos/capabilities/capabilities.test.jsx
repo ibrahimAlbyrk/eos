@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetCapabilities, checkCapability, enterSecret, forgetSignIn, installCapabilityHere, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { _resetCapabilities, checkCapability, enterSecret, forgetSignIn, saveCapabilitySettings, installCapabilityHere, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { EosMain } from "../EosMain.jsx";
@@ -169,6 +169,18 @@ describe("a capability's page", () => {
     expect(get).toHaveBeenCalledWith(ROUTES.capability("github"));
   });
 
+  it("saves typed settings and shows the detail the core answers, a choice as its choices", async () => {
+    const sent = [];
+    const saved = { ...byId.weather, settings: [{ name: "city", label: "City", kind: "text", value: "Izmir" }, { name: "units", label: "Units", kind: "choice", choices: ["metric", "imperial"] }] };
+    const get = fixtureTransport(reads()).get;
+    setEosTransport({ get, send: async (method, path, body) => { sent.push([method, path, body]); return { ok: true, status: 200, body: saved }; } });
+    expect(await saveCapabilitySettings("weather", { city: "Izmir" })).toBe(true);
+    expect(sent).toEqual([["PUT", ROUTES.capabilitySettings("weather"), { values: { city: "Izmir" } }]]);
+    const html = at("eos:/capabilities/weather");
+    expect(html).toContain('value="Izmir"');
+    expect(html).toContain('<option value="" selected="">Not set</option><option value="metric">metric</option><option value="imperial">imperial</option>');
+  });
+
   it("says it is reconnecting when the core stops answering, and keeps what it read", async () => {
     await refreshCapabilities();
     setEosTransport({ get: async () => { throw new Error("gone"); }, send: async () => null });
@@ -185,7 +197,7 @@ describe("a capability's page", () => {
     const html = await page("sms-messages");
     expect(html).toContain("Ready");
     expect(html).toContain("<dt>Apps</dt><dd>com.apple.MobileSMS</dd>");
-    expect(html).toContain("<dt>Your phone number</dt><dd>+15550100</dd>");
+    expect(html).toContain('<span>Your phone number</span><input type="tel" placeholder="Not set" value="+15550100"/>');
     expect(html).toContain("Version 1.0.1</span><span class=\"eos-cap-item__side\">In use · ");
     expect(html).toContain('<button type="button" class="eos-btn">Go back to this version</button>');
     expect(html).toContain("send_sms</span><span class=\"eos-cap-item__side\">Worked · 840 ms · ");
@@ -207,7 +219,8 @@ describe("a capability's page", () => {
   it("shows a slow one, one that needs signing in again and a disabled one with the action that fixes each", async () => {
     let html = await page("weather");
     expect(html).toContain("Slow");
-    expect(html).toContain("<dt>City</dt><dd>Not set</dd>");
+    expect(html).toContain('<span>City</span><input type="text" placeholder="Not set" value=""/>');
+    expect(html).toContain('<button type="submit" class="eos-btn" disabled="">Save settings</button>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
     expect(html).toContain("forecast</span><span class=\"eos-cap-item__side\">Took too long · 30000 ms · ");
 

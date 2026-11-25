@@ -102,7 +102,7 @@ async fn settings_are_kept_and_only_declared_ones_are_taken() {
     assert_eq!(status, 200, "{detail}");
     assert_eq!(
         detail["settings"],
-        json!([{"name": "folder", "label": "Notes folder", "kind": "choice", "value": "Work"}])
+        json!([{"name": "folder", "label": "Notes folder", "kind": "choice", "value": "Work", "choices": ["Work", "Home"]}])
     );
     assert_eq!(rig.ask(Method::Put, path, Some(r#"{"values": {"folder": "Garden"}}"#)).await.0, 400);
     assert_eq!(rig.ask(Method::Put, path, Some(r#"{"values": {"colour": "red"}}"#)).await.0, 400);

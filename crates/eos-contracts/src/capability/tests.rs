@@ -52,7 +52,7 @@ fn a_detail_is_the_row_and_what_the_capability_is_made_of() {
         "reach": {"hosts": ["api.github.com"], "apps": [], "files": []},
         "secrets": [{"name": "token", "label": "GitHub sign-in", "set": false}],
         "settings": [{"name": "phone_number", "label": "Your mobile number", "kind": "phone", "value": "+905550000000"},
-                     {"name": "tone", "label": "Tone", "kind": "choice"}],
+                     {"name": "tone", "label": "Tone", "kind": "choice", "choices": ["warm", "plain"]}],
         "versions": [{"version": "1.0.1", "status": "installed", "createdAt": 20, "source": "rn-0a1b2c3d4e5f"},
                      {"version": "1.0.0", "status": "retired", "createdAt": 10, "source": "npm:pkg@1.0.0#sha512-x"}],
         "recentCalls": [{"action": "post_review", "outcome": "ok", "at": 30, "durationMs": 840}],
