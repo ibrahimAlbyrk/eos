@@ -4,7 +4,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { _resetSurfaces, pressedRow, refreshSurfaces, runSurfaceAction, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { UiProvider } from "../../../state/ui.jsx";
-import { ConfirmBelow, SurfaceCard, typedRight } from "./SurfaceCard.jsx";
+import { ConfirmBelow, SurfaceCard, typedRight, ViewSubmit } from "./SurfaceCard.jsx";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 
@@ -111,5 +111,34 @@ describe("a routine's View in Needs you", () => {
     setEosTransport({ ...fixtureTransport(reads), send });
     await runSurfaceAction({ issueId: issue.id, actionId: "open", clientId: "c-2", index: 1 });
     expect(send.mock.calls[0][2]).toEqual({ issueId: issue.id, actionId: "open", clientId: "c-2", index: 1 });
+  });
+});
+
+describe("a View's form send", () => {
+  const form = {
+    title: "Two answers", summary: "",
+    ui: '<Form action="confirm" submit="Confirm"><Field bind="from" label="Not between" type="time" default="23:00"/></Form>',
+    actions: { confirm: { label: "Confirm", kind: "send", text: "confirm", primary: true } },
+  };
+
+  it("is not drawn inside the frame: Eos draws it outside", () => {
+    const html = renderToStaticMarkup(
+      <UiProvider><SurfaceCard card={{ surface, issue, body: { view: form } }} routineName="Mail Triage" onSubmitOffer={() => {}} /></UiProvider>,
+    );
+    expect(html).toContain("Not between");
+    expect(html).not.toContain("gv-form__foot");
+    expect(html).not.toContain(">Confirm<");
+  });
+
+  it("is drawn by Eos as a primary button with its shortcut, Sent once it went, and why it did not go", () => {
+    const submit = vi.fn();
+    const ready = { label: "Confirm", phase: "idle", reason: "", ready: true, submit };
+    expect(renderToStaticMarkup(<ViewSubmit offer={ready} shortcut="⌘↵" />)).toBe(
+      '<button type="button" class="eos-btn eos-btn--primary">Confirm<span class="eos-needs-key"> ⌘↵</span></button>',
+    );
+    expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "sent" }} />)).toContain(">Sent</button>");
+    expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "sending" }} />)).toContain("disabled");
+    expect(renderToStaticMarkup(<ViewSubmit offer={ready} disabled />)).toContain("disabled");
+    expect(renderToStaticMarkup(<ViewSubmit offer={{ ...ready, phase: "error", reason: "Couldn't send" }} />)).toContain('<span class="eos-frame__send-error" role="alert">Couldn&#x27;t send</span>');
   });
 });
