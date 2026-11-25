@@ -150,7 +150,8 @@ async fn record(engine: &Engine, session: &RunSession, worker_id: &str) -> Resul
         agent_key: session.agent_key.clone(),
         created_at: engine.clock.now_ms(),
     };
-    let leads = !matches!(session.role, RunRole::Checker | RunRole::Specialist | RunRole::AppReviewer);
+    // Only a run's first session leads it: a specialist of any kind, the Forge's among them, never.
+    let leads = matches!(session.role, RunRole::Solo | RunRole::Lead | RunRole::Script);
     let (id, at) = (session.run_id.clone(), session.at);
     engine
         .store

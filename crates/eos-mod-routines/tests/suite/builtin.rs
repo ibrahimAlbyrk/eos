@@ -162,6 +162,8 @@ async fn a_builtin_routines_lead_works_in_its_features_folder_and_its_agents_tak
     bench.module.tools().start_specialist(&lead, "builder", "Build it.").await.expect("starts");
     let builder = bench.agents.started().into_iter().find(|s| s.parent_id.as_deref() == Some(&lead)).expect("one");
     assert_eq!((builder.worker_definition.as_deref(), builder.cwd.as_str()), (Some("forge-builder"), folder.as_str()));
+    // What Eos tells the run's lead still reaches the lead, never its builder.
+    assert_eq!(bench.run(&run).lead_id, Some(lead.clone()), "a Forge specialist never leads the run");
     let scope = scope_of(&bench, &builder.worker_id);
     assert!(!scope.allow.iter().any(|tool| tool == "WebFetch" || tool == "call_capability"), "{scope:?}");
     // Its edits never reach the folder's sandbox settings (eos-domain's run scope).
