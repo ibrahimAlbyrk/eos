@@ -68,10 +68,6 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 /* ── The routine ──────────────────────────────────────────────────────────── */
 .eos-routine__summary { margin: 0; font-size: 24px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fg-strong); text-wrap: pretty; }
 .eos-routine__line { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-band { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg); }
-.eos-band--warn { box-shadow: inset 2px 0 0 var(--warn); }
-.eos-band--err { box-shadow: inset 2px 0 0 var(--err); }
-.eos-band__text { flex: 1; min-width: 0; }
 
 .eos-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .eos-tab {

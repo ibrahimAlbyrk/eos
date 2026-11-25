@@ -33,7 +33,7 @@ const SECTION_TITLES = {
 // Eos location at all (a route from a newer app): a plain page, never a crash.
 function PlaceholderScreen({ location }) {
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--read">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: location ? SECTION_TITLES[location.screen] : "Not found" }]} />
       <div className="eos-body">
         <p className="eos-note">{location ? "This part of Eos is not here yet." : "Eos has no page at this address."}</p>

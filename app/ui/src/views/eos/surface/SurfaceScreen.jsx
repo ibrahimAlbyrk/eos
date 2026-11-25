@@ -82,7 +82,7 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   // An App opened as a tool: the whole window is the App.
   if (surface?.level === "app") {
     return (
-      <main className="eos-screen">
+      <main className="eos-screen eos-screen--wide">
         <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} />
         <div className="eos-body eos-page">
           {devRun && <DevRunNote />}
@@ -93,7 +93,7 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   }
 
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
         {reshaping && (
           <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>

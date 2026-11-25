@@ -96,7 +96,7 @@ export function RoutinesScreen() {
     });
 
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: "Routines" }]}>
         <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
       </EosHeader>

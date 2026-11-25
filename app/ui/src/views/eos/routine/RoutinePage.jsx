@@ -92,7 +92,7 @@ export function RoutinePage({ id, tab, version }) {
   // A project's run is its page (08 G27): its newest run.
   const projectRun = milestones && routine?.lastRun?.kind === "project" ? routine.lastRun : null;
   return (
-    <main className="eos-screen">
+    <main className="eos-screen eos-screen--wide">
       <EosHeader
         trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? "Routine" }]}
         mark={routine && (

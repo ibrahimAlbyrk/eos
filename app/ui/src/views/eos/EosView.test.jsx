@@ -47,7 +47,7 @@ describe("EosView", () => {
     expect(html).toContain('<span class="eos-switch__mark">Eos</span>');
     expect(html).toContain('<nav class="sb-nav" aria-label="Eos"><button class="sb-nav-row">');
     expect(html).toContain('<span class="sb-nav-row__label">Capabilities</span>');
-    expect(html).toContain('<section class="center"><main class="eos-screen">');
+    expect(html).toContain('<section class="center"><main class="eos-screen eos-screen--wide">');
     expect(html).toContain('<h1 class="eos-title">Memory</h1>');
   });
 
