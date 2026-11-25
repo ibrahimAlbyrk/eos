@@ -503,3 +503,20 @@ async fn many_sends_held_behind_their_target_never_starve_one_that_may_go() {
     sender.pass().await;
     assert_eq!(sender.sent(), ["dl-other"]);
 }
+
+#[tokio::test]
+async fn a_send_whose_record_fails_leaves_the_sends_after_it_to_go_out_and_be_recorded() {
+    let sender = Sender::new();
+    let now = sender.rig.clock.now_ms();
+    sender.queue("dl-1", "github", "pr", "queued", "auto", now).await;
+    sender.queue("dl-2", "github", "other", "queued", "auto", now + 1).await;
+    sender.rig.clock.set(now + 1);
+    sender.rig.temp.exec(
+        "CREATE TRIGGER no_record BEFORE UPDATE OF state ON inbox_deliveries \
+         WHEN NEW.id = 'dl-1' AND NEW.state = 'sent' BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    );
+    assert!(sender.engine.pass().await.is_err(), "the pass says a write failed");
+    assert_eq!(sender.channels.sent().len(), 2, "both went out");
+    assert_eq!(sender.row("dl-2").await.state, "sent", "the one after it is recorded");
+    assert_eq!(sender.row("dl-1").await.state, "sending", "left for the next pass to look up");
+}
