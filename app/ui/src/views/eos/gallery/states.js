@@ -19,6 +19,7 @@ import versionBodies from "./sample/blueprint-version-bodies.json";
 import { NEEDS_STATES } from "./needsStates.js";
 import { MEMORY_STATES } from "./memoryStates.js";
 import { CAPABILITY_STATES } from "./capabilityStates.js";
+import { PAGE_STATES } from "./pageStates.js";
 import { addHomeRuns, addOnce } from "../../../state/eos/homeRunsStore.js";
 import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
@@ -355,6 +356,7 @@ export const GALLERY_STATES = [
   { id: "page-reshape", label: "Page · changing it", location: `eos:/surfaces/${PAPER}?mode=reshape` },
   { id: "page-candidate", label: "Page · a new version to keep", location: `eos:/surfaces/${PAPER}?mode=reshape`, reads: (s) => ({ ...s, [ROUTES.surface(PAPER)]: { ...paper.surface, candidateVersion: 3 } }) },
   { id: "page-empty", label: "Page · no issue yet", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...s, [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } }) },
+  ...PAGE_STATES,
 ];
 
 export const stateOf = (id) => GALLERY_STATES.find((s) => s.id === id) ?? GALLERY_STATES[0];

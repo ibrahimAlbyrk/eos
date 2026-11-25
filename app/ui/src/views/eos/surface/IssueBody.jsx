@@ -69,8 +69,9 @@ function reportRead(surfaceId, issueId, message) {
 }
 
 // The issue as it reads: the page in its frame, or a View when the issue fell
-// back to one or plain reading is on.
-export function IssueBody({ surface, row, shown, maker, version, linked }) {
+// back to one or plain reading is on. `tools` takes the strip's right in
+// place of the issue's line beside the maker (the page screen's issues).
+export function IssueBody({ surface, row, shown, maker, version, linked, tools = null }) {
   const { act, below } = usePagePress(row.id, linked);
   const { swaps, onLive } = useLiveParts(surface.id, row.id);
   if (!shown) return <Loading blocks={4} />;
@@ -87,7 +88,7 @@ export function IssueBody({ surface, row, shown, maker, version, linked }) {
     );
   }
   return (
-    <EosFrame maker={maker} level="page" below={below} detail={issueLine(row)}>
+    <EosFrame maker={maker} level="page" below={below} detail={tools ? null : issueLine(row)} tools={tools}>
       <PageRenderer
         src={api.surfacePageUrl(surface.id, row.id, version)}
         title={surface.title}
