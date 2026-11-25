@@ -1,3 +1,4 @@
+import { valueWord } from "../runform/OptionControl.jsx";
 import { itemLine, resultWord } from "./words.js";
 
 // What this run took: its item, the options it ran with, the user's note and
@@ -11,7 +12,7 @@ export function RunTook({ input, options }) {
       <dl className="eos-facts">
         {item && <div className="eos-facts__row"><dt>Item</dt><dd>{item}</dd></div>}
         {Object.entries(input.options ?? {}).map(([key, value]) => (
-          <div key={key} className="eos-facts__row"><dt>{labelOf(key)}</dt><dd>{String(value)}</dd></div>
+          <div key={key} className="eos-facts__row"><dt>{labelOf(key)}</dt><dd>{valueWord(value)}</dd></div>
         ))}
         {input.note && <div className="eos-facts__row"><dt>Note</dt><dd>{input.note}</dd></div>}
         <div className="eos-facts__row"><dt>Result</dt><dd>{resultWord(input.result)}</dd></div>

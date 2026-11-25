@@ -1,4 +1,5 @@
 import { fmtCost } from "../../../lib/format.js";
+import { modelName } from "../../../lib/models.js";
 import { useRuns } from "../../../state/eos/runsStore.js";
 import { ROLES } from "../run/words.js";
 import { WhyPanel } from "./WhyPanel.jsx";
@@ -35,7 +36,7 @@ export function ChecksPanel({ runId }) {
           {agents.map((a) => (
             <li key={a.workerId}>
               <span>{a.name ?? ROLES[a.role] ?? a.role}</span>
-              <span className="eos-needs-team__side">{[a.model, fmtCost(a.costUsd)].filter(Boolean).join(" · ")}</span>
+              <span className="eos-needs-team__side">{[a.model && modelName(a.model), fmtCost(a.costUsd)].filter(Boolean).join(" · ")}</span>
             </li>
           ))}
         </ul>
