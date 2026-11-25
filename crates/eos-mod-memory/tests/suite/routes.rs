@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use eos_contracts::UserMemory;
+use eos_core::experience::{ExperiencePacks, RunPackRequest};
 use eos_core::store::{StoredEvidence, StoredHook, StoredLink, StoredStated, StoredUse};
 use eos_domain::experience::{HookKind, Note, NoteBody, NoteKind, NoteState, Scope, ScopeLevel, Trust, hook_id};
 use eos_mod_memory::MemoryModule;
@@ -23,6 +24,7 @@ struct Api {
     runtime: Runtime,
     temp: TempStore,
     clock: Arc<FakeClock>,
+    packs: Arc<dyn ExperiencePacks>,
 }
 
 fn note(id: &str, text: &str, scope: Scope, kind: NoteKind) -> Note {
@@ -62,9 +64,11 @@ impl Api {
         }))
         .unwrap();
         parts.memories = Arc::new(AboutYou(std::sync::Mutex::new(vec![Arc::new(about)])));
-        let runtime = Runtime::build(kernel, vec![Arc::new(MemoryModule::new(parts))], Arc::new(AllPluginsOn)).unwrap();
+        let memory = MemoryModule::new(parts);
+        let packs = memory.experience_packs();
+        let runtime = Runtime::build(kernel, vec![Arc::new(memory)], Arc::new(AllPluginsOn)).unwrap();
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
-        Self { runtime, temp, clock }
+        Self { runtime, temp, clock, packs }
     }
 
     async fn ask(&self, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
@@ -269,6 +273,30 @@ async fn not_right_hurts_the_note_and_keeps_what_the_user_said() {
     assert_eq!(body["help"]["hurt"], 1);
     assert_eq!(api.temp.count("SELECT COUNT(*) FROM mem_evidence WHERE kind = 'not_right'"), 1);
     assert_eq!(api.ask(Method::Post, "/api/memory/notes/mn-none/not-right", None).await.0, 404);
+}
+
+#[tokio::test]
+async fn what_a_run_was_packed_is_read_back_by_its_run_id() {
+    let api = Api::new().await;
+    api.seed();
+    let asked = RunPackRequest {
+        run_id: "rn-7".into(),
+        routine_id: "rt-1".into(),
+        project: Some("key:/repo".into()),
+        item_cues: vec![],
+        item_text: "Run lint before pushing".into(),
+        trial: false,
+        playbook_candidate: None,
+    };
+    let pack = api.packs.for_run(asked).await.unwrap();
+    assert!(pack.note_ids.contains(&"mn-1".to_owned()), "{pack:?}");
+    let (status, body) = api.ask(Method::Get, "/api/memory/recalled?runId=rn-7", None).await;
+    assert_eq!(status, 200, "{body}");
+    let shown: Vec<_> =
+        body["notes"].as_array().unwrap().iter().map(|n| (n["row"]["id"].clone(), n["how"].clone())).collect();
+    assert!(shown.contains(&(json!("mn-1"), json!("pack"))), "{body}");
+    let (_, other) = api.ask(Method::Get, "/api/memory/recalled?runId=rn-8", None).await;
+    assert_eq!(other["notes"], json!([]), "another run was packed nothing");
 }
 
 #[tokio::test]
