@@ -1,7 +1,8 @@
 //! The surface tools of a routine run's sessions: `return_view` hands a View
 //! back for a routine whose result is one, `fill_page` the data of a Page;
 //! a design run's designer reads its page and proposes a design; a session
-//! building an App hands it in with `app_propose`.
+//! building an App hands it in with `app_propose`, and the App's reviewer
+//! gives its verdict with `app_review`.
 //! The surfaces feature ([`SurfaceTools`]) checks each and stores it as an
 //! issue; the View, the data and the bindings never reach a log.
 
@@ -104,6 +105,38 @@ impl Handler for AppPropose {
             }
         })
     }
+}
+
+struct AppReview(Arc<dyn SurfaceTools>);
+
+impl Handler for AppReview {
+    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
+        Box::pin(async move {
+            match self.0.app_review(call.self_id, input).await {
+                Ok(line) => Ok(Output::text(line)),
+                Err(Error::Validation(problems)) => Err(Failure(problems)),
+                Err(other) => Err(other.into()),
+            }
+        })
+    }
+}
+
+/// The App reviewer's verdict.
+pub(crate) fn reviewer_spec(tools: &Arc<dyn SurfaceTools>) -> Spec {
+    let finding = object(vec![
+        ("rule", string().describe("The rule of the list it breaks.")),
+        ("where", string().describe("Where in the code or the manifest.")),
+        ("why", string().describe("What is wrong, in one sentence.")),
+    ]);
+    Spec::new(
+        "app_review",
+        object(vec![
+            ("verdict", one_of(&["pass", "fail"]).describe("`pass` only when no rule is broken.")),
+            ("findings", array(finding).describe("Each broken rule; empty for a pass.")),
+        ]),
+        AppReview(tools.clone()),
+    )
+    .always_load()
 }
 
 /// The designer's tools: read the page it works on, and propose a design.

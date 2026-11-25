@@ -43,6 +43,7 @@
 
 mod action_routes;
 mod app_call;
+mod app_checks;
 mod apps;
 mod authoring;
 mod builtins;
@@ -126,6 +127,10 @@ pub struct SurfacesParts {
     pub keys: Arc<dyn eos_core::git::ProjectKeys>,
     /// The routines' folders: an App's `routine_files` are its routine's `files/`.
     pub folders: Arc<dyn eos_core::routine::RunFolders>,
+    /// A build run's App reviewer, and its notes to the builder.
+    pub reviews: Arc<dyn eos_core::routine::AppReviews>,
+    /// The definition the App reviewer starts as (`app-reviewer.md`).
+    pub app_reviewer: eos_contracts::WorkerDefinitionRecord,
 }
 
 /// No window: a page design waits in `checking` until there is one, and no

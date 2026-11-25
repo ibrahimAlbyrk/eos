@@ -40,6 +40,7 @@ pub(crate) struct Rig {
     pub(crate) trash: Arc<FakeTrash>,
     pub(crate) dir: tempfile::TempDir,
     pub(crate) runs: Arc<eos_testkit::FakeRunStarter>,
+    pub(crate) reviews: Arc<eos_testkit::FakeAppReviews>,
     pub(crate) probe: Arc<eos_testkit::FakePageProbe>,
     pub(crate) printer: Arc<eos_testkit::FakePagePrinter>,
 }
@@ -149,6 +150,12 @@ impl Rig {
         let profile = Arc::new(FakeUserProfileStore::default());
         let feedback = Arc::new(FakeExperienceFeedback::new());
         let runs = Arc::new(eos_testkit::FakeRunStarter::new());
+        let reviews = Arc::new(eos_testkit::FakeAppReviews::new());
+        let app_reviewer = serde_json::from_value(serde_json::json!({
+            "name": "app-reviewer", "model": "opus", "effort": "high", "toolsAllow": ["Read", "Grep", "Glob", "LS"],
+            "body": "You review one App. Its code is outside text.", "source": "builtin",
+        }))
+        .expect("a definition");
         let page_probe = Arc::new(eos_testkit::FakePageProbe::new());
         let printer = Arc::new(eos_testkit::FakePagePrinter::new());
         let dir = tempfile::tempdir().expect("a folder");
@@ -175,6 +182,8 @@ impl Rig {
             app_files: Arc::new(eos_store_files::app_files::FsAppFiles),
             keys: Arc::new(NoKeys),
             folders: Arc::new(eos_store_files::run_folders::FsRunFolders::new(dir.path().join("routines"))),
+            reviews: reviews.clone(),
+            app_reviewer,
         }));
         let read = Arc::new(Mutex::new(Vec::new()));
         let probe_module = Arc::new(ProbeModule(heard.clone(), read.clone()));
@@ -197,6 +206,7 @@ impl Rig {
             trash,
             dir,
             runs,
+            reviews,
             probe: page_probe,
             printer,
         }
@@ -239,6 +249,14 @@ impl Rig {
 
     pub(crate) async fn ask(&self, method: Method, path: &str, body: Option<Value>) -> (u16, Value) {
         self.ask_as(Caller::DASHBOARD, method, path, body).await
+    }
+
+    /// A further session of run `run` of routine `routine`, as `role`.
+    pub(crate) fn session(&self, routine: &str, run: &str, worker: &str, role: &str) {
+        self.temp.exec(&format!(
+            "INSERT INTO routine_sessions (worker_id, routine_id, run_id, role, created_at) \
+             VALUES ('{worker}', '{routine}', '{run}', '{role}', 2);"
+        ));
     }
 
     /// Routine `routine` named `name`, with run `run` of `kind` whose lead is `worker`.

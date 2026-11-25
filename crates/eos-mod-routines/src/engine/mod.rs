@@ -8,6 +8,7 @@
 //! outbox.
 
 mod activity;
+mod app_review;
 mod brief;
 mod budget;
 mod cancel;
@@ -42,6 +43,7 @@ mod versions;
 mod workspace;
 
 pub(crate) use activity::seen as agent_event;
+pub(crate) use app_review::AppReviews;
 pub(crate) use brief::model_of;
 pub(crate) use budget::watch_usage;
 pub(crate) use check::holds;

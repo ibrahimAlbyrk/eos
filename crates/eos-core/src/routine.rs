@@ -432,6 +432,29 @@ pub trait SystemSteps: Send + Sync {
     }
 }
 
+/// The App reviewer surfaces asks a build run for (05 Q7).
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppReviewStart {
+    pub run_id: String,
+    pub name: String,
+    pub model: String,
+    pub effort: String,
+    /// Its definition's fence, which narrows the reviewer's read-only scope.
+    pub fence: eos_contracts::ToolScope,
+    /// Its first message: its instructions and the App.
+    pub brief: String,
+}
+
+/// A run's sessions, as surfaces reaches them while an App it built is
+/// reviewed and tested.
+pub trait AppReviews: Send + Sync {
+    /// Starts the read-only App reviewer in its run; its worker id, or
+    /// `None` when the run has ended.
+    fn start_reviewer(&self, start: AppReviewStart) -> BoxFuture<'_, Result<Option<String>, Error>>;
+    /// Tells the session `worker_id` of `run_id` what became of its App.
+    fn tell<'a>(&'a self, run_id: &'a str, worker_id: &'a str, text: String) -> BoxFuture<'a, Result<(), Error>>;
+}
+
 /// No feature here owns a system step: each fails its run.
 #[derive(Debug, Default)]
 pub struct NoSystemSteps;

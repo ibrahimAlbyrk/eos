@@ -32,6 +32,16 @@ pub fn forge_definitions() -> Vec<DefinitionFile> {
     FORGE_DEFINITIONS.iter().filter_map(|(_, text)| read(text, WorkerDefinitionSource::Builtin)).collect()
 }
 
+/// The definition an App's reviewer starts as (05 Q7): Eos starts it in a
+/// build run, so it is nobody's to spawn either.
+pub const APP_REVIEWER_DEFINITION: (&str, &str) =
+    ("app-reviewer.md", include_str!("../assets/workers/app-reviewer.md"));
+
+/// The App reviewer's definition as a file.
+pub fn app_reviewer_definition() -> Option<DefinitionFile> {
+    read(APP_REVIEWER_DEFINITION.1, WorkerDefinitionSource::Builtin)
+}
+
 /// A definitions folder is shallow; this only stops a runaway tree.
 const MAX_DEPTH: usize = 16;
 

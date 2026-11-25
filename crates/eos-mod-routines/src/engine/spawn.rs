@@ -150,7 +150,7 @@ async fn record(engine: &Engine, session: &RunSession, worker_id: &str) -> Resul
         agent_key: session.agent_key.clone(),
         created_at: engine.clock.now_ms(),
     };
-    let leads = !matches!(session.role, RunRole::Checker | RunRole::Specialist);
+    let leads = !matches!(session.role, RunRole::Checker | RunRole::Specialist | RunRole::AppReviewer);
     let (id, at) = (session.run_id.clone(), session.at);
     engine
         .store

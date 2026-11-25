@@ -84,6 +84,10 @@ pub trait SurfaceTools: Send + Sync {
         app: serde_json::Value,
         note: String,
     ) -> BoxFuture<'a, Result<String, Error>>;
+    /// Keeps the verdict of the App reviewer of the App's open version
+    /// (`{verdict, findings}`); the line the agent reads.
+    fn app_review<'a>(&'a self, worker_id: &'a str, verdict: serde_json::Value)
+    -> BoxFuture<'a, Result<String, Error>>;
 }
 
 /// A returned View as Needs you shows it (03 §4.5): a `question` View is a

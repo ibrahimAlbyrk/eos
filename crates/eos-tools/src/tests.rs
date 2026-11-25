@@ -128,6 +128,15 @@ impl eos_core::surface::SurfaceTools for RunCalls {
         self.0.lock().expect("calls").push(format!("app propose {worker_id} {app} {note}"));
         Box::pin(std::future::ready(Ok("version 1 waits for its review and its tests".to_owned())))
     }
+
+    fn app_review<'a>(
+        &'a self,
+        worker_id: &'a str,
+        verdict: Value,
+    ) -> eos_core::BoxFuture<'a, Result<String, eos_core::Error>> {
+        self.0.lock().expect("calls").push(format!("app review {worker_id} {verdict}"));
+        Box::pin(std::future::ready(Ok("review recorded".to_owned())))
+    }
 }
 
 impl RoutineTools for RunCalls {
@@ -392,6 +401,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "run-lead" => run_session("eos-run-solo"),
         "run-team-lead" => run_session("eos-run-lead"),
         "run-checker" => run_session("eos-run-checker"),
+        "app-reviewer" => run_session("app-reviewer"),
         "architect" => run_session("eos-architect"),
         "run-forge" => LaunchSpec { worker_definition: Some("forge-builder".into()), ..session_of("worker") },
         other => panic!("unknown session kind {other}"),
@@ -421,7 +431,7 @@ impl Bench {
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
         let has = |kind: &str| self.tools.for_session(&session_of(kind)).iter().any(|t| t.definition().name == bare);
-        let kinds = ["orchestrator", "focused-peer", "run-team-lead", "architect", "run-forge"];
+        let kinds = ["orchestrator", "focused-peer", "run-team-lead", "architect", "run-forge", "app-reviewer"];
         let kind = kinds.into_iter().find(|kind| has(kind)).unwrap_or("run-checker");
         self.tool(kind, bare)
     }
@@ -486,7 +496,7 @@ fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
     let mut names: Vec<String> =
-        ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect", "run-forge"]
+        ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect", "run-forge", "app-reviewer"]
             .iter()
             .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
             .map(|tool| tool.definition().name.clone())
@@ -571,6 +581,8 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
         let names = bench.names(kind);
         assert!(!names.iter().any(|name| name == "submit_result" || name == "submit_verdict"), "{kind}");
     }
+    // The App's reviewer only gives its verdict.
+    assert_eq!(bench.names_of("app-reviewer"), ["app_review", "current_datetime"]);
     // The checker gives its verdict and reads; it hands in no result and asks nobody.
     assert_eq!(
         bench.names("run-checker"),
@@ -592,6 +604,15 @@ async fn a_run_hands_back_a_view_and_reads_every_problem_at_once() {
     let elsewhere =
         call(&bench.tool("run-lead", "return_view"), "w-lead", serde_json::json!({"place": "aside", "view": {}})).await;
     assert!(elsewhere.is_error, "{}", elsewhere.text);
+}
+
+#[tokio::test]
+async fn an_apps_reviewer_hands_its_verdict_to_surfaces_as_given() {
+    let bench = bench(FakeFeatures::new([]));
+    let verdict = serde_json::json!({"verdict": "pass", "findings": []});
+    let answered = call(&bench.tool("app-reviewer", "app_review"), "w-reviewer", verdict).await;
+    assert_eq!((answered.text.as_str(), answered.is_error), ("review recorded", false));
+    assert_eq!(*bench.runs.0.lock().expect("calls"), [r#"app review w-reviewer {"verdict":"pass","findings":[]}"#]);
 }
 
 #[tokio::test]

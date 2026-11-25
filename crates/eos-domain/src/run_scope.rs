@@ -33,6 +33,8 @@ pub enum RunRole {
     ForgeResearcher,
     ForgeBuilder,
     ForgeReviewer,
+    /// Reads an App a run built and gives its verdict (05 Q7).
+    AppReviewer,
 }
 
 /// The worker definitions the Forge's sessions start as, by role. Only a
@@ -58,6 +60,7 @@ impl RunRole {
             "script" => Some(RunRole::Script),
             "specialist" => Some(RunRole::Specialist),
             "checker" => Some(RunRole::Checker),
+            "app_reviewer" => Some(RunRole::AppReviewer),
             _ => None,
         }
     }
@@ -120,7 +123,8 @@ pub fn scope_for(
         RunRole::ForgeResearcher => &[READ_BUILTIN_TOOLS, NETWORK_BUILTIN_TOOLS],
         // The Forge's builder works in its own folder, its shell under the engine's sandbox.
         RunRole::ForgeBuilder => &[READ_BUILTIN_TOOLS, FILE_EDIT_BUILTIN_TOOLS, SHELL_BUILTIN_TOOLS],
-        RunRole::ForgeReviewer => &[READ_BUILTIN_TOOLS],
+        // Both reviewers only read what they judge.
+        RunRole::ForgeReviewer | RunRole::AppReviewer => &[READ_BUILTIN_TOOLS],
     };
     let mut allow: Vec<String> = groups.iter().flat_map(|group| group.iter()).map(|tool| (*tool).to_owned()).collect();
     let mut deny: Vec<String> = SHELL_DENIED.iter().map(|pattern| (*pattern).to_owned()).collect();

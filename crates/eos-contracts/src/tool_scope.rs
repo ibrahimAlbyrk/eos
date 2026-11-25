@@ -59,6 +59,7 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "return_view",
     "fill_page",
     "app_propose",
+    "app_review",
     "run_routine",
     "list_routines",
     "request_capability",

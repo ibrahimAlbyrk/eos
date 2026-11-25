@@ -1,0 +1,6 @@
+{
+ "about": "The App reviewer's worker definition (eos-store-files `APP_REVIEWER_DEFINITION`), by SHA-256 of its file: a change to it is made on purpose, with this file.",
+ "sha256": {
+  "app-reviewer.md": "6b3c7193efbf4851d608eefd2fe8450894bd1a5e32f8588d2bc348be14683bfa"
+ }
+}

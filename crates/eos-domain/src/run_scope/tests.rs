@@ -64,6 +64,8 @@ fn the_forge_roles_get_their_own_rows() {
         assert_eq!(builder.allow, names(&[&READS, &EDITS, &SHELL]));
         let reviewer = scope(RunRole::ForgeReviewer, trust);
         assert_eq!(reviewer.allow, names(&[&READS]));
+        // The App reviewer reads the App and runs nothing, whatever the run read.
+        assert_eq!(scope(RunRole::AppReviewer, trust).allow, names(&[&READS]));
         assert_eq!(
             builder.edit_regex.as_deref(),
             Some(r"^/Users/me/\.eos/routines/rn-0a1b2c3d4e5f/work/(?!\.claude/)")
