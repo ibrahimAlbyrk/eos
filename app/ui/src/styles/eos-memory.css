@@ -123,6 +123,21 @@
 .eos-mem-way__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-mem-way__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 
+/* While no note is open, its place holds how to read a row: the marks said
+   once on hairlines, in the note's width so opening one moves nothing. It
+   leaves when the window is too narrow to keep it beside the list. */
+.eos-mem-key { position: sticky; top: 24px; flex: 1 1 300px; max-width: 380px; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.eos-mem-key .eos-label { margin: 0; }
+.eos-mem-key__list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.eos-mem-key__item { display: grid; grid-template-columns: 37px minmax(0, 1fr); column-gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.eos-mem-key__item > .eos-mem-mark { justify-self: center; margin-top: 5px; }
+.eos-mem-key__item > .eos-mem-strength { justify-self: center; align-self: start; margin-top: 7px; }
+.eos-mem-key__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.eos-mem-key__title { font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
+.eos-mem-key__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
+.eos-mem-key__foot { margin: 4px 0 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim2); text-wrap: pretty; }
+@container (max-width: 1100px) { .eos-mem-key { display: none; } }
+
 /* The open note: a card acted on as a whole, beside the list. */
 .eos-mem-detail { position: relative; flex: 1 1 300px; max-width: 380px; min-width: 0; display: flex; flex-direction: column; gap: 24px; padding: 20px 20px 18px; border-radius: 16px; background: #1b1b1b; animation: eos-mem-open calc(220ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both; }
 @keyframes eos-mem-open { from { opacity: 0; transform: translateY(4px); } }
@@ -253,3 +268,12 @@
   font-size: var(--text-xs);
   color: var(--fg);
 }
+
+/* The dream log in About you's place: its label on a hairline, Back at the
+   right of the tabs' row where Add memory stands, nothing learned yet said as
+   Memory's first run says it. */
+.eos-mem-log { gap: 12px; }
+.eos-mem-log > .eos-label { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.eos-mem-log .mem-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 0 0; text-align: left; }
+.eos-mem-log .mem-empty b { font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
+.eos-mem-log .mem-empty span { max-width: 56ch; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim); }

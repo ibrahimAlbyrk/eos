@@ -72,6 +72,15 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toContain("Text inside pull requests, mails or web pages can never write here.");
   });
 
+  it("holds how to read a note in the open note's place, and gives that place to the note once one opens", async () => {
+    await loaded();
+    const html = at("eos:/memory?tab=work");
+    expect(html).toContain('<aside class="eos-mem-key" aria-label="How to read a note">');
+    for (const word of ["Trying it", "Firm", "Cooling", "Strength"]) expect(html).toContain(`<span class="eos-mem-key__title">${word}</span>`);
+    await loadNote(lintNote.id);
+    expect(at(`eos:/memory?tab=work&note=${lintNote.id}`)).not.toContain("eos-mem-key");
+  });
+
   it("opens a note beside the list: what taught it, what it is about, when it comes back, whether it helped, Edit and Forget", async () => {
     await loaded();
     await loadNote(lintNote.id);
