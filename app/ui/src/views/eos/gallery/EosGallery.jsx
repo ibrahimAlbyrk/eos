@@ -17,8 +17,8 @@ import runsPage from "./sample/runs-page.json";
 import runDetail from "./sample/run-detail.json";
 import runs from "./sample/runs.json";
 import runResults from "./sample/run-results.json";
-import inbox from "./sample/inbox.json";
-import inboxItems from "./sample/inbox-items.json";
+import inboxSample from "./sample/inbox.json";
+import inboxItemsSample from "./sample/inbox-items.json";
 import capabilities from "./sample/capabilities.json";
 import signInFailed from "./sample/sign-in-failed.json";
 import triggerStatus from "./sample/trigger-status.json";
@@ -32,6 +32,16 @@ import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
 import { closeField, openField, setTransitionScale } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
 import { failingTransport, GALLERY_STATES, loadingTransport, stateOf, storedState, storeState } from "./states.js";
+
+// Needs you's samples moved so the newest arrived twenty minutes before the
+// gallery opened, the rest as far before it as recorded: times read "20m ago",
+// never a year.
+const MIN = 60 * 1000;
+const shift = (row, by) => ({ ...row, createdAt: row.createdAt + by, updatedAt: row.updatedAt + by });
+const newest = Math.max(...inboxSample.items.map((i) => i.createdAt));
+const by = Date.now() - 20 * MIN - newest;
+const inbox = { ...inboxSample, items: inboxSample.items.map((i) => shift(i, by)) };
+const inboxItems = inboxItemsSample.map((d) => ({ ...d, item: shift(d.item, by) }));
 
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
