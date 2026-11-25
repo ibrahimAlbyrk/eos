@@ -111,7 +111,6 @@ describe("a new routine", () => {
 
   it("says an architect's other refusals as a line of their own, offering no draft to leave", async () => {
     const cases = [
-      [{ error: "the draft has no architect", code: "no_architect" }, "No architect works on this draft now."],
       [{ error: "the routine was made by a newer Eos", code: "newer_format" }, "A newer version of Eos made this routine. It cannot be changed here."],
       [{ error: "the routine is being deleted" }, "the routine is being deleted"],
     ];

@@ -139,12 +139,81 @@ pub(crate) async fn make(engine: &Arc<Engine>, sentence: &str, attachments: &[St
         request.push_str("\n\nFiles the user gave with it:\n");
         request.push_str(&attachments.iter().map(|path| format!("- {path}")).collect::<Vec<_>>().join("\n"));
     }
-    let values = [("SENTENCE", request), ("ROUTINES", routines), ("CAPABILITIES", capability_lines(engine).await?)];
-    let prompt = render(engine, "routine/architect-make", values)?;
+    let prompt = make_prompt(engine, request, routines).await?;
     let name = saved.row.as_ref().map(|row| row.name.clone()).unwrap_or_default();
     let worker_id = spawn(engine, &routine_id, &name, prompt).await?;
     set_architect(engine, &routine_id, &worker_id).await?;
     Ok(saved)
+}
+
+async fn make_prompt(engine: &Engine, sentence: String, routines: String) -> Result<String, Error> {
+    let values = [("SENTENCE", sentence), ("ROUTINES", routines), ("CAPABILITIES", capability_lines(engine).await?)];
+    render(engine, "routine/architect-make", values)
+}
+
+/// What a draft with no architect starts a new one from.
+enum Restart {
+    Make { name: String, sentence: String, routines: String },
+    Change { name: String, text: String, blueprint: String },
+}
+
+/// A new architect for a draft whose own never started (its session
+/// failed to spawn): from the user's sentence for a routine still being
+/// made, from the version it changes for a change. Its id; the draft's
+/// architect when another start named one first.
+pub(crate) async fn restart(engine: &Engine, routine_id: &str) -> Result<String, Error> {
+    let id = routine_id.to_owned();
+    let from = engine
+        .store
+        .read(move |tx| {
+            let routine = tx.routines().find(&id)?.ok_or_else(|| Error::not_found("routine", &id))?;
+            let draft = tx.routines().draft(&id)?.ok_or_else(|| Error::not_found("draft", &id))?;
+            let Some(base) = draft.base_version_id else {
+                let others = routine_names(tx)?;
+                let own = format!("- {}", routine.name);
+                let routines = others.lines().filter(|line| *line != own).collect::<Vec<_>>().join("\n");
+                let routines = if routines.is_empty() { "None yet.".into() } else { routines };
+                return Ok(Restart::Make { name: routine.name, sentence: draft.purpose, routines });
+            };
+            let version = tx.routine_versions().find(&id, &base)?.ok_or_else(|| Error::not_found("version", &base))?;
+            let blueprint = readable(&version)?.ok_or_else(|| Error::Conflict(NEWER_FORMAT.into()))?;
+            Ok(Restart::Change { name: routine.name, text: draft.purpose, blueprint: canonical_json(&blueprint) })
+        })
+        .await?;
+    let (name, prompt) = match from {
+        Restart::Make { name, sentence, routines } => (name, make_prompt(engine, sentence, routines).await?),
+        Restart::Change { name, text, blueprint } => {
+            (name, render(engine, "routine/architect-change", [("TEXT", text), ("BLUEPRINT", blueprint)])?)
+        }
+    };
+    let worker_id = spawn(engine, routine_id, &name, prompt).await?;
+    let named = claim_architect(engine, routine_id, &worker_id).await?;
+    if named != worker_id {
+        super::suspend(engine, &worker_id).await;
+    }
+    tracing::info!(routine_id, "a draft with no architect got a new one");
+    Ok(named)
+}
+
+/// Names `worker_id` the draft's architect unless one is named already;
+/// the architect the draft names after.
+async fn claim_architect(engine: &Engine, routine_id: &str, worker_id: &str) -> Result<String, Error> {
+    let (id, worker, now) = (routine_id.to_owned(), worker_id.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
+    engine
+        .store
+        .write(move |tx, out| {
+            let mut draft = tx.routines().draft(&id)?.ok_or_else(|| Error::not_found("draft", &id))?;
+            if let Some(named) = draft.architect_id {
+                return Ok(named);
+            }
+            draft.architect_id = Some(worker.clone());
+            draft.updated_at = now;
+            tx.routines().update_draft(&draft)?;
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)?;
+            Ok(worker)
+        })
+        .await
 }
 
 fn render<const N: usize>(engine: &Engine, id: &str, values: [(&str, String); N]) -> Result<String, Error> {

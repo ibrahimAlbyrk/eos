@@ -99,7 +99,6 @@ const refused = (body) => ({ kind: "refused", text: "Eos could not keep this blu
 // to leave; the others are said as a line of their own.
 const ARCHITECT_REFUSALS = {
   architects_busy: "Three architects are at work. Leave a draft to make room.",
-  no_architect: "No architect works on this draft now.",
   newer_format: "A newer version of Eos made this routine. It cannot be changed here.",
 };
 const architectRefused = (body) => ({
