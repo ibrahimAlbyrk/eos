@@ -9,13 +9,9 @@ import { SlackEditor } from "../editors/SlackEditor.jsx";
 import { TextEditor } from "../editors/TextEditor.jsx";
 import { PageItem } from "../ItemView.jsx";
 import { DocView, ResultView } from "../results/ResultView.jsx";
-import { SendState } from "../SendState.jsx";
-import { staleLine } from "../words.js";
 
 // How long typing pauses before the edits are kept in the core too.
 const SAVE_AFTER_MS = 1500;
-
-const WAITING = new Set(["open", "later"]);
 
 const EDITORS = { "github.review": ReviewEditor, mail: MailEditor, "slack.message": SlackEditor, "slack.reply": SlackEditor };
 
@@ -97,8 +93,7 @@ export function DraftCard({ detail, values, setValue, routineName }) {
   if (page) {
     // A page is edited on the page itself: the mail draws the issue as it is when it goes.
     return (
-      <div className="eos-draft">
-        <SendState detail={detail} />
+      <div className="eos-draft eos-draft--page">
         <PageTo doc={original} />
         <PageItem surfaceId={page.surfaceId} issueId={page.issueId} routineName={routineName} />
       </div>
@@ -106,9 +101,9 @@ export function DraftCard({ detail, values, setValue, routineName }) {
   }
   return (
     <div className={carried ? "eos-draft eos-draft--beside" : "eos-draft"}>
-      <SendState detail={detail} />
-      {isStale(detail) && WAITING.has(detail.item.state) && <p className="eos-needs-stale" role="status">{staleLine(detail.item.staleReason)}</p>}
-      {edit ? <Editor original={original} doc={edit} onChange={change} /> : <ResultView detail={detail} />}
+      <article className={edit ? "eos-needs-sheet eos-needs-sheet--editing" : "eos-needs-sheet"} aria-label={edit ? "The draft, being edited" : "The draft"}>
+        {edit ? <Editor original={original} doc={edit} onChange={change} /> : <ResultView detail={detail} />}
+      </article>
       {carried && (
         <section className="eos-draft__carried" aria-label="Your edits">
           <h2 className="eos-label">Your edits</h2>

@@ -26,10 +26,28 @@ export function streakLine(freedom) {
   return `${went} ${left === 1 ? "One more" : `${counted(left)} more`} and Eos will offer ${next}.`;
 }
 
+// The streak as marks: one per send, those that went out unedited solid,
+// the one that brings the offer ringed in the accent.
+export function Streak({ of, done }) {
+  return (
+    <span className="eos-streak" aria-hidden="true">
+      {Array.from({ length: of }, (_, i) => (
+        <span key={i} className={i < done ? "eos-streak__mark eos-streak__mark--done" : i === of - 1 ? "eos-streak__mark eos-streak__mark--offer" : "eos-streak__mark"} />
+      ))}
+    </span>
+  );
+}
+
 // The routine's streak, read once and again on `inbox:freedom`.
 export function StreakLine({ routineId }) {
   const freedom = useFreedom().byRoutine[routineId];
   useEffect(() => { if (routineId) void loadFreedom(routineId); }, [routineId]);
   const line = streakLine(freedom);
-  return line ? <span className="eos-needs-streak">{line}</span> : null;
+  if (!line) return null;
+  return (
+    <p className="eos-needs-streak">
+      <Streak of={OFFER_AFTER} done={freedom.streak} />
+      <span>{line}</span>
+    </p>
+  );
 }

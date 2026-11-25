@@ -18,7 +18,10 @@ const changed = (id, change) => (s) => {
   return { ...s, [path]: detail, [ROUTES.inbox]: { ...list, items: list.items.map((i) => (i.id === id ? detail.item : i)) } };
 };
 const withItem = (change) => changed(DRAFT, (d) => ({ ...d, item: { ...d.item, ...change } }));
-const withDeliveries = (deliveries, item = {}) => changed(DRAFT, (d) => ({ ...d, item: { ...d.item, ...item }, deliveries: deliveries() }));
+// The draft after its Send: its deliveries, and once it is out, answered here.
+const withDeliveries = (deliveries, out = false) => changed(DRAFT, (d) => ({
+  ...d, item: out ? { ...d.item, state: "done" } : d.item, deliveries: deliveries(), ...(out ? { answeredBy: "dashboard" } : {}),
+}));
 
 // Every sample item waiting in the list, each as the list reads it.
 function everything(s) {
@@ -69,11 +72,11 @@ export const NEEDS_STATES = [
   },
   {
     id: "need-sent", label: "Needs you · a draft sent, Undo open", location: at(DRAFT),
-    reads: withDeliveries(() => [{ id: "dl-sent000001", state: "sent", undoUntil: Date.now() + 5 * MIN }], { state: "done", answeredBy: "dashboard" }),
+    reads: withDeliveries(() => [{ id: "dl-sent000001", state: "sent", undoUntil: Date.now() + 5 * MIN }], true),
   },
   {
     id: "need-wrong", label: "Needs you · a draft sent and marked wrong", location: at(DRAFT),
-    reads: withDeliveries(() => [{ id: "dl-sent000001", state: "sent", undoUntil: 0, wrong: true }], { state: "done", answeredBy: "dashboard" }),
+    reads: withDeliveries(() => [{ id: "dl-sent000001", state: "sent", undoUntil: 0, wrong: true }], true),
   },
   {
     id: "need-answered", label: "Needs you · answered on the iPhone", location: at(DRAFT),
