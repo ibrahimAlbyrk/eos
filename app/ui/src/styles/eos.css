@@ -170,12 +170,13 @@
   background: none;
   font: inherit;
   color: var(--accent);
-  text-decoration: underline;
+  text-decoration: none;
   cursor: pointer;
 }
+/* The designs draw every link in the accent alone; the line comes on hover. */
+.eos-link:hover, .eos-link:focus-visible { text-decoration: underline; }
 
-.eos-link--quiet { align-self: flex-start; text-align: left; text-decoration: none; }
-.eos-link--quiet:hover { text-decoration: underline; }
+.eos-link--quiet { align-self: flex-start; text-align: left; }
 
 /* A read that takes longer than 300 ms shows blocks; a quicker one shows nothing. */
 .eos-skeleton {
@@ -381,6 +382,8 @@
 .eos-rtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); color: var(--fg-mid); white-space: nowrap; }
 .eos-rtable th, .eos-rtable td { padding: 11px 12px; text-align: left; font-weight: 400; vertical-align: middle; }
 .eos-rtable tbody tr + tr > * { border-top: 1px solid var(--line); }
+/* Every row as tall as one with its Run button, so a draft row does not sit shorter. */
+.eos-rtable tbody td { height: 52px; box-sizing: border-box; }
 .eos-rtable thead th { padding-top: 8px; padding-bottom: 8px; }
 .eos-rtable__sort {
   padding: 0;
