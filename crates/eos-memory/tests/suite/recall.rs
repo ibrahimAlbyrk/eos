@@ -124,6 +124,35 @@ async fn the_search_by_meaning_starts_once_a_model_is_there_and_embeds_what_wait
     assert_eq!(again.embed_missing().await.expect("embeds"), 0);
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_note_learned_or_edited_after_the_model_loaded_is_embedded_by_the_next_recall() {
+    let temp = TempStore::new();
+    put(&temp, note("mn-edited", "Commit messages are in English.", Scope::everywhere()), &[]);
+    let recall = Recall::new(temp.port(), Arc::new(FakeClock::new()));
+    let embedder = Arc::new(FakeEmbedder::new());
+    recall.with_meaning(embedder.clone()).await.expect("on");
+    assert_eq!(recall.embed_missing().await.expect("embeds"), 1);
+
+    put(&temp, note("mn-new", "Install packages with pnpm in this repository.", Scope::everywhere()), &[]);
+    let mut edited = note("mn-edited", "Deploy only with the release script.", Scope::everywhere());
+    edited.updated_at += 1;
+    let model = embedder.model().to_owned();
+    let waiting = temp
+        .store
+        .write_blocking(move |tx, _| {
+            tx.mem_notes().update(&edited, "", 2)?;
+            tx.mem_vectors().missing(&model, 10)
+        })
+        .expect("writes");
+    assert_eq!(waiting.len(), 2, "the edited note's old vector is gone: {waiting:?}");
+
+    let cues = Cues { hooks: vec![], query: Some("release script".into()) };
+    recall.recall(&Situation::default(), &cues, 3).await.expect("recalls");
+    assert_eq!(recall.embed_missing().await.expect("embeds"), 0, "the recall embedded both");
+    let embedded: Vec<String> = embedder.batches.lock().expect("batches").concat();
+    assert!(embedded.iter().any(|t| t == "Deploy only with the release script."), "{embedded:?}");
+}
+
 /// Puts each text at a fixed angle from the query, so a test chooses its cosine.
 struct Angles(Vec<(&'static str, f64)>);
 
