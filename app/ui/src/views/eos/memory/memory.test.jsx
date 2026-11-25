@@ -55,7 +55,7 @@ describe("Eos › Memory › Learned from work", () => {
     const chips = [...html.matchAll(/class="eos-chip eos-mem-filter(?: eos-mem-filter--kind)?" aria-pressed="(true|false)">([^<]+)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
     expect(chips).toEqual(["Everything*", "game-client", "PR Review", "Lessons", "Facts", "Skills", "Good examples"]);
     expect(html).toContain('class="eos-chip eos-mem-filter eos-mem-filter--kind" aria-pressed="false">Lessons</button>');
-    expect(html).toContain('<li class="eos-mem-row eos-mem-row--cooling"><button type="button" class="eos-mem-row__open"><span class="eos-mem-row__text">Reports open with a chart</span>');
+    expect(html).toContain('<li class="eos-mem-row eos-mem-row--cooling"><span class="eos-mem-mark eos-mem-mark--cooling" aria-hidden="true"></span><button type="button" class="eos-mem-row__open"><span class="eos-mem-row__text">Reports open with a chart</span>');
   });
 
   it("groups notes by where they hold, a routine by its name and everywhere last, each row with why, who taught it and its strength", async () => {
@@ -64,9 +64,9 @@ describe("Eos › Memory › Learned from work", () => {
     const groups = [...html.matchAll(/eos-mem-group__name">([^<]+)<\/h2><span class="eos-mem-group__count">(\d+)/g)].map((m) => `${m[1]} ${m[2]}`);
     expect(groups).toEqual(["PR Review 2", "game-client 2", "Everywhere 2"]);
     expect(html).toContain(`<span class="eos-mem-row__text">${summaryNote.text}</span><span class="eos-mem-row__why">You shortened four before sending. Trying it, helped 3 times.</span>`);
-    expect(html).toContain('<span class="eos-chip">You did</span><span class="eos-mem-strength" role="img" aria-label="Strength 4 of 5">');
+    expect(html).toContain('<span class="eos-mem-row__source">You did</span><span class="eos-mem-strength" role="img" aria-label="Strength 4 of 5">');
     expect(html).toContain(`${docsNote.text}</span><span class="eos-mem-row__why">You said so. Firm, helped 5 times.</span>`);
-    expect(html).toContain('<span class="eos-chip">You said</span><span class="eos-mem-strength" role="img" aria-label="Strength 5 of 5">');
+    expect(html).toContain('<span class="eos-mem-row__source">You said</span><span class="eos-mem-strength" role="img" aria-label="Strength 5 of 5">');
     expect(html).toContain("Not used in 40 days. Cooling.");
     expect(html).toContain('aria-label="Strength 2 of 5"');
     expect(html).toContain("Text inside pull requests, mails or web pages can never write here.");
@@ -81,10 +81,12 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toMatch(/A lesson, for game-client\. Trying since [^<]+\.</);
     expect(html).toContain("A push failed, lint fixed it.");
     expect(html).toContain('<li class="eos-chip">git push</li>');
-    expect(html).toContain("Next to it:");
+    expect(html).toContain('<h3 class="eos-label">Next to it</h3>');
+    expect(html).toContain('<p class="eos-label eos-mem-detail__kind">It failed</p>');
     expect(html).toContain("An agent is about to push in game-client. It then reads:");
     expect(html).toContain(`<blockquote class="eos-mem-detail__quote">${lintNote.text}.</blockquote>`);
-    expect(html).toContain("Came back 6 times, used 5 times. It helped 4 times.");
+    expect(html).toContain('<dl class="eos-mem-figures" aria-label="Came back 6 times, used 5 times. It helped 4 times.">');
+    expect(html).toContain("<dd>6</dd><dt>Came back</dt>");
     expect(html).toContain(">Edit</button>");
     expect(html).toContain('class="eos-btn eos-btn--ghost eos-btn--stop">Forget</button>');
   });

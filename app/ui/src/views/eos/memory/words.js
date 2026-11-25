@@ -100,3 +100,24 @@ export const weeklyLine = (n) => (n > 0 ? `Eos learned ${n === 1 ? "one thing" :
 
 // Thirty days after it was forgotten, a note cannot come back.
 export const RESTORE_MS = 30 * 24 * 60 * 60 * 1000;
+
+const capital = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+const counted = (n, one, many) => (n === 1 ? `one ${one}` : `${numberWord(n)} ${many}`);
+
+// The lead's second line: what Memory holds, in words.
+// "Six notes from your work and twelve things about you."
+export function holdsLine(summary) {
+  if (!summary) return null;
+  const work = summary.learned ?? 0;
+  const about = summary.aboutYou ?? 0;
+  if (work === 0 && about === 0) return "Nothing yet, from your work or about you.";
+  const parts = [work > 0 && `${counted(work, "note", "notes")} from your work`, about > 0 && `${counted(about, "thing", "things")} about you`].filter(Boolean);
+  return `${capital(parts.join(" and "))}.`;
+}
+
+// What a search found: "Two notes mention “push”." or "No note mentions “zebra”."
+export function foundLine(n, q) {
+  if (n === 0) return `No note mentions “${q}”.`;
+  return `${capital(counted(n, "note", "notes"))} ${n === 1 ? "mentions" : "mention"} “${q}”.`;
+}
+
