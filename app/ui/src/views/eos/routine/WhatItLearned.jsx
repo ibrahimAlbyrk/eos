@@ -35,3 +35,18 @@ export function WhatItLearned({ routineId }) {
     </section>
   );
 }
+
+// Beside the Learned tab: where its notes come from and what they do, so the
+// list reads as the routine's own memory.
+export function HowItLearns() {
+  return (
+    <section className="eos-routine__section eos-routine__how" aria-label="How it learns">
+      <h2 className="eos-label">How it learns</h2>
+      <ol className="eos-how">
+        <li><span className="eos-how__title">You change a result before it goes</span><span className="eos-how__line">Eos notes what you changed and tries doing it that way.</span></li>
+        <li><span className="eos-how__title">A run fails and something fixes it</span><span className="eos-how__line">The fix is written down so the next run starts with it.</span></li>
+        <li><span className="eos-how__title">Each run reads these first</span><span className="eos-how__line">A note that keeps helping grows firm; one that stops helping cools.</span></li>
+      </ol>
+    </section>
+  );
+}

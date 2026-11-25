@@ -204,6 +204,10 @@ describe("the signal list", () => {
     expect(html).toContain('role="radiogroup" aria-label="Show signals"');
     expect(lines(html, "eos-signal__title")).toEqual(["Rework shop carousel paging", "Bump the build tools", "Fix the login", "Add the inventory screen"]);
     expect(lines(html, "eos-signal__decision")).toEqual(["Over its limit", "Turned away by rule 1", "Ran", "There before it started"]);
+    expect([...html.matchAll(/<span (?:data-tone="(\w+)" )?class="eos-signal__decision">/g)].map((m) => m[1] ?? null)).toEqual(["warn", null, "ok", null]);
+    expect(html).toContain('<h2 class="eos-label">What came for it</h2><span class="eos-section__aside">4 signals · 1 ran</span>');
+    // What starts it stands beside the list.
+    expect(html).toContain('<h2 class="eos-label">What starts it</h2>');
     expect(html.match(/>Run it anyway</g)).toHaveLength(3);
     expect(html).toContain(">Open the run</button>");
     expect(html).not.toContain(">Run them<");

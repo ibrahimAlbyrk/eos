@@ -15,10 +15,21 @@
 .eos-trigger__state--warn::before { background: var(--warn); }
 .eos-trigger__refused { color: var(--warn); }
 .eos-trigger__hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 6px 0 0; color: var(--fg-dim); font-size: var(--text-xs); }
-.eos-signal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; font-size: var(--text-sm); }
-.eos-signal__title { flex: 1 1 100%; min-width: 0; color: var(--fg-strong); overflow-wrap: anywhere; }
-.eos-signal__line { color: var(--fg-dim); }
-.eos-signal__decision { color: var(--fg-mid); }
+/* A signal: what came and when on the left, what became of it at the right
+   in its tone with the way on; the side goes under on a narrow column. */
+.eos-signal { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; min-height: 60px; box-sizing: border-box; padding: 12px 0; font-size: var(--text-sm); }
+.eos-signal__main { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.eos-signal__title { min-width: 0; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-signal__line { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-signal__side { flex: 0 1 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
+.eos-signal__decision { display: inline-flex; align-items: center; gap: 7px; color: var(--fg-mid); }
+.eos-signal__decision::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; box-sizing: border-box; border: 1px solid var(--fg-dim2); }
+.eos-signal__decision[data-tone="ok"]::before { border-color: var(--ok); background: var(--ok); }
+.eos-signal__decision[data-tone="warn"] { color: var(--warn); }
+.eos-signal__decision[data-tone="warn"]::before { border-color: var(--warn); background: var(--warn); }
+.eos-signal__decision[data-tone="err"] { color: var(--err); }
+.eos-signal__decision[data-tone="err"]::before { border-color: var(--err); background: var(--err); }
+.eos-signal__side > .eos-btn--quiet:last-child { margin-right: -12px; }
 .eos-signal__replay { color: var(--fg-dim); }
 .eos-bp-preview { margin: 4px 0 0; font-size: var(--text-xs); color: var(--fg-dim); }
 
@@ -28,3 +39,12 @@
 .eos-refusal .eos-band__text { flex: 1 1 100%; }
 .eos-recipients { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .eos-recipients li { padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--fg); font-size: var(--text-xs); }
+
+/* How a routine learns: three steps on hairlines beside its Learned tab. */
+.eos-how { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); counter-reset: how; }
+.eos-how li { display: flex; flex-direction: column; gap: 3px; padding: 12px 0 12px 28px; position: relative; counter-increment: how; }
+.eos-how li + li { border-top: 1px solid var(--line); }
+.eos-how li::before { content: counter(how); position: absolute; left: 0; top: 13px; font-family: var(--font-mono); font-size: 11px; color: var(--fg-dim2); }
+.eos-how__title { font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.eos-how__line { font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim); }
+.eos-routine__section > .eos-seg { align-self: flex-start; }
