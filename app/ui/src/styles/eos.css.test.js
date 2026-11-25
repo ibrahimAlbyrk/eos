@@ -89,7 +89,7 @@ const PAIRS = RULES.filter((r) => r.decls.has("color")).flatMap((r) => {
 
 describe("eos.css contrast", () => {
   it("reads Eos's grounds and its text pairs from the file", () => {
-    expect(GROUNDS.sort()).toEqual(["#101010", "#171717", "#212121"]);
+    expect(GROUNDS.sort()).toEqual(["#101010", "#171717", "#1c1c1c", "#212121"]);
     expect(PAIRS).toContainEqual({ selector: '.eos-seg__opt[aria-checked="true"]', color: "#f5f5f5", ground: "#2f2f2f" });
     expect(PAIRS).toContainEqual({ selector: ".eos-label", color: "#8b8b8b", ground: "#212121" });
   });
