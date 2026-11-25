@@ -5,12 +5,13 @@
 const LEVELS = { view: "View", page: "Page", app: "App" };
 
 // `outside`: a run that read outside text made it; its words show as written.
-export function EosFrame({ maker, level = "view", children, below = null, outside = false }) {
+// `detail`: one more fact beside who made it, such as which issue this is.
+export function EosFrame({ maker, level = "view", children, below = null, outside = false, detail = null }) {
   const made = `Made by ${maker ?? "Eos"}`;
   return (
     <section className={level === "page" ? "eos-frame eos-frame--page" : "eos-frame"} aria-label={made}>
       <div className="eos-frame__strip">
-        <span className="eos-frame__maker">{made}</span>
+        <span className="eos-frame__maker">{made}{detail && <span className="eos-frame__detail"> · {detail}</span>}</span>
         {outside && <span className="eos-frame__outside" title="The run read text from outside Eos. Its words show here as written.">From outside text</span>}
         <span className="eos-frame__level">{LEVELS[level] ?? level}</span>
       </div>

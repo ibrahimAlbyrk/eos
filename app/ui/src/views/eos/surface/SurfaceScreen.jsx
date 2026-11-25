@@ -5,6 +5,7 @@ import { ensurePinsLoaded } from "../../../state/eos/pinsStore.js";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { EmptyState } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { PageDataEditor } from "../needs/editors/PageDataEditor.jsx";
@@ -15,7 +16,7 @@ import { ReshapeMode } from "./ReshapeMode.jsx";
 import { ShareMenu } from "./ShareMenu.jsx";
 import { TellBar } from "./TellBar.jsx";
 import { AppSurface } from "./AppSurface.jsx";
-import { issueLine, olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
+import { olderDesignLine, PAGE_NOTE, todayDesignLine } from "./words.js";
 
 // "Good issue" and "Not today": said once per issue.
 function Verdict({ issueId }) {
@@ -92,13 +93,14 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
     );
   }
 
+  // A page reads as one sheet: the default measure, so the header's words
+  // and the sheet share their edges.
   return (
-    <main className="eos-screen eos-screen--wide">
+    <main className="eos-screen">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
         {reshaping && (
           <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>
         )}
-        {!reshaping && row && <span className="eos-page__line">{issueLine(row)}</span>}
         {!reshaping && surface && (
           <>
             <EarlierIssues page={page} row={row} />
@@ -144,7 +146,10 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
               </div>
             )}
             {!row && page.issues && (
-              <p className="eos-note">No issue yet. The first one comes with the routine's next run.</p>
+              <EmptyState title="No issue yet">
+                The first one comes with the routine&apos;s next run.
+                {surface.currentVersion != null && " Its design is ready: say below what to change before it prints."}
+              </EmptyState>
             )}
             {row && (
               <IssueBody

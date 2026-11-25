@@ -11,6 +11,7 @@ import { ConfirmBelow, SurfaceCard, ViewAside } from "../needs/SurfaceCard.jsx";
 import { EosFrame } from "./EosFrame.jsx";
 import { PageRenderer } from "./PageRenderer.jsx";
 import { useLiveParts } from "./useLiveParts.js";
+import { issueLine } from "./words.js";
 
 // What the core answered a press on the page, said outside the frame.
 function settle(press, answer, setAsking) {
@@ -86,7 +87,7 @@ export function IssueBody({ surface, row, shown, maker, version, linked }) {
     );
   }
   return (
-    <EosFrame maker={maker} level="page" below={below}>
+    <EosFrame maker={maker} level="page" below={below} detail={issueLine(row)}>
       <PageRenderer
         src={api.surfacePageUrl(surface.id, row.id, version)}
         title={surface.title}
