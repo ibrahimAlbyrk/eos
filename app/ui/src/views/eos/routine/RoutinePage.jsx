@@ -15,6 +15,7 @@ import { RoutineMenu } from "./RoutineMenu.jsx";
 import { RoutineRuns, runLocation } from "./RoutineRuns.jsx";
 import { StatusChip } from "./StatusChip.jsx";
 import { BlueprintTab, OverviewTab, RoutineTabs, tabOf } from "./tabs.jsx";
+import { LearnedFromWork } from "../memory/LearnedFromWork.jsx";
 import { SignalList } from "./SignalList.jsx";
 import { UnconfirmedRecipients } from "./Unconfirmed.jsx";
 import { pausedLine } from "./words.js";
@@ -71,7 +72,7 @@ function FailedBand({ run }) {
 
 // eos:/routines/<id> — one routine: its state and what can be done with it,
 // then its tabs: Overview (with the View it returned last, when it makes
-// one), Runs, Signals, Blueprint. eos:/routines/<id>/versions/<n>
+// one), Runs, Signals, Blueprint, Learned (Memory's notes of this routine). eos:/routines/<id>/versions/<n>
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
   const { details, failed, list, unconfirmed } = useRoutines();
@@ -133,6 +134,7 @@ export function RoutinePage({ id, tab, version }) {
               {shown === "runs" && <RoutineRuns routineId={id} />}
               {shown === "signals" && <SignalList routineId={id} />}
               {shown === "blueprint" && <BlueprintTab detail={detail} version={version} />}
+              {shown === "learned" && <LearnedFromWork routineId={id} />}
             </div>
           </>
         )}

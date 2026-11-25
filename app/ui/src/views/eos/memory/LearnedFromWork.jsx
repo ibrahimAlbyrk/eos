@@ -3,6 +3,7 @@ import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { loadMoreNotes, loadNotes, notesPath, useNotes } from "../../../state/eos/notesStore.js";
 import { LoadFailed, Loading } from "../capabilities/parts.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
+import { routineScope } from "../routine/WhatItLearned.jsx";
 import { KIND_FILTERS, provenance, scopeName, sourceWord, strengthSteps } from "./words.js";
 
 const SEARCH_WAIT_MS = 250;
@@ -46,30 +47,32 @@ function groupsOf(notes, scopes, routines) {
 }
 
 // The chips: everything, each project and routine with notes, then the kinds.
-function Filters({ scopes, routines, scope, kind, onScope, onKind }) {
-  const places = (scopes ?? []).filter((s) => s.level === "project" || s.level === "routine");
+function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
+  const places = placed ? [] : (scopes ?? []).filter((s) => s.level === "project" || s.level === "routine");
   const chip = (on, label, onClick, key) => (
     <button key={key} type="button" className="eos-chip eos-mem-filter" aria-pressed={on} onClick={onClick}>{label}</button>
   );
   return (
     <nav className="eos-mem-filters" aria-label="Filter notes">
-      {chip(!scope, "Everything", () => onScope(undefined), "all")}
+      {!placed && chip(!scope, "Everything", () => onScope(undefined), "all")}
       {places.map((s) => {
         const value = `${s.level}:${s.key}`;
         return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
       })}
-      <span className="eos-mem-filters__sep" aria-hidden="true" />
+      {!placed && <span className="eos-mem-filters__sep" aria-hidden="true" />}
       {KIND_FILTERS.map((k) => chip(kind === k.kind, k.label, () => onKind(kind === k.kind ? undefined : k.kind), k.kind))}
     </nav>
   );
 }
 
 // Eos › Memory › Learned from work: the notes Eos learned, filtered, searched
-// and grouped by scope; a row opens its detail beside the list.
-export function LearnedFromWork({ summary, query, selected }) {
+// and grouped by scope; a row opens its detail beside the list. With
+// `routineId` it holds that routine's notes only (its Learned tab).
+export function LearnedFromWork({ summary, query = "", selected, routineId }) {
   const { pages, pagesFailed } = useNotes();
   const { list: routines } = useRoutines();
-  const [scope, setScope] = useState();
+  const [chosen, setScope] = useState();
+  const scope = routineId ? routineScope(routineId) : chosen;
   const [kind, setKind] = useState();
   const [q, setQ] = useState(query);
   useEffect(() => {
@@ -85,7 +88,7 @@ export function LearnedFromWork({ summary, query, selected }) {
   let body;
   if (!page) body = pagesFailed[path] ? <LoadFailed what="notes" retry={() => void loadNotes(path)} /> : <Loading />;
   else if (page.notes.length === 0) {
-    body = <p className="eos-note">{scope || kind || q.trim() ? "No note matches." : "Nothing learned yet. Eos writes notes down as you correct its work."}</p>;
+    body = <p className="eos-note">{chosen || kind || q.trim() ? "No note matches." : "Nothing learned yet. Eos writes notes down as you correct its work."}</p>;
   } else {
     body = (
       <>
@@ -107,7 +110,7 @@ export function LearnedFromWork({ summary, query, selected }) {
 
   return (
     <div className="eos-mem-learned">
-      <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} />
+      <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />
       {body}
     </div>
   );

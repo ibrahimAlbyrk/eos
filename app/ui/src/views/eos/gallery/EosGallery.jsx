@@ -33,6 +33,8 @@ import paper from "./sample/paper.json";
 import decision from "./sample/surface-decision.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
+import { notesPath } from "../../../state/eos/notesStore.js";
+import { routineScope } from "../routine/WhatItLearned.jsx";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
 import { closeField, openField, setTransitionScale, useField } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
@@ -67,6 +69,9 @@ const signalsBy = Date.now() - 4 * MIN - triggerStatusSample[routineDetail.routi
 const triggerStatus = later(triggerStatusSample, signalsBy);
 const signals = later(signalsSample, signalsBy);
 
+// PR Review's week, so its page shows how it gets better.
+const withStats = { ...routineDetail, routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } } };
+
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
 // paused with its detail and an architect's change ready, Docs Review being
@@ -78,13 +83,14 @@ const signals = later(signalsSample, signalsBy);
 // PR Review's triggers show a schedule in another zone, a source after a
 // catch-up and an open batch, with a signal of each group in its list; Mail
 // Triage's source needs a sign-in. Memory holds notes learned for PR Review,
-// a project and everywhere, one of them cooling; PR Review's run was given
+// a project and everywhere, one of them cooling, each routine's own read for
+// its Learned tab; PR Review's run was given
 // four of them. Morning Paper fills a page with three issues in two designs
 // and a third version waiting to be kept; it and Build Watch are pinned.
 // Home's day is drawn around the moment the gallery opens.
 export const SAMPLE_READS = {
   [ROUTES.routines]: routines,
-  [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
+  [ROUTES.routine(routineDetail.routine.id)]: withStats,
   [ROUTES.routine(routinePaused.routine.id)]: routinePaused,
   [ROUTES.routine(routineDraft.routine.id)]: routineDraft,
   ...Object.fromEntries(Object.entries(blueprintDrafts).map(([id, draft]) => [ROUTES.routineDraft(id), draft])),
@@ -116,6 +122,7 @@ export const SAMPLE_READS = {
   [`${ROUTES.signals}?routine=${routineDetail.routine.id}`]: signals,
   [ROUTES.memorySummary]: memory.summary,
   [ROUTES.memoryNotes]: memory.notes,
+  ...Object.fromEntries(routines.map((r) => [notesPath({ scope: routineScope(r.id) }), { notes: memory.notes.notes.filter((n) => n.scope.level === "routine" && n.scope.key === r.id) }])),
   ...Object.fromEntries(memory.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
   [`${ROUTES.memoryRecalled}?runId=${memory.recalled.runId}`]: { notes: memory.recalled.notes },
   [ROUTES.profile]: HOME_PROFILE,
