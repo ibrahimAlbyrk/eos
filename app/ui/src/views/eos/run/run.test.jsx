@@ -199,7 +199,9 @@ describe("the run view", () => {
     expect(await screen("failed01")).not.toContain(">Run again</button>");
     registerHost();
     const html = await screen("failed01");
-    expect(html.match(/>Run again<\/button>/g)).toHaveLength(2);
+    // Once, beside what went wrong: the header leaves it there.
+    expect(html.match(/>Run again<\/button>/g)).toHaveLength(1);
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run again</button>');
 
     let sheet;
     function Probe() {
