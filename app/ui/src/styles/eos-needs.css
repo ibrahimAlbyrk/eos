@@ -55,6 +55,12 @@
 .eos-send-state__left { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 .eos-needs-item__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 28px; }
 .eos-needs-item__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+/* With no aside the item keeps the width it has beside one, so a View's
+   fields do not run the window's width. */
+.eos-needs-item__main:only-child { max-width: 748px; }
+/* The screen's header already says the View's title. */
+.eos-needs-item .eos-frame .gv-head { display: none; }
+.eos-needs-item .eos-frame .gv-body { padding: 0; }
 .eos-needs-item__card { border-radius: 16px; background: var(--panel); padding: 24px 26px; }
 .eos-needs-item__actions { align-items: center; gap: 10px 12px; }
 .eos-needs-item__actions .eos-btn { height: 38px; padding: 0 16px; font-size: var(--text-base); }
@@ -119,7 +125,7 @@
 .eos-frame__strip { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-frame__maker { flex: 1; }
 .eos-frame__level { padding: 1px 8px; border-radius: 999px; background: var(--chip); color: var(--fg-mid); }
-.eos-frame__content { padding: 12px 16px 16px; }
+.eos-frame__content { padding: 22px 24px 24px; }
 .eos-frame__eos { padding: 12px 16px; border-top: 1px solid var(--line); }
 .eos-frame__ask { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .eos-frame__ask-text { flex: 1; margin: 0; font-size: var(--text-sm); color: var(--fg); }
