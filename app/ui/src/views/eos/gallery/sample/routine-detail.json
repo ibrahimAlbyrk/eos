@@ -61,6 +61,34 @@
     "hash": "sha256:5be1c0de",
     "blueprint": {
       "format": 1,
+      "name": "PR Review",
+      "summary": "Reviews each new pull request and drafts a review for you to send.",
+      "icon": "eye",
+      "aliases": [
+        "review"
+      ],
+      "kind": "standing",
+      "takes": {
+        "kind": "github.pull_request",
+        "source": "github.pulls",
+        "label": "pull request",
+        "placeholder": "#470",
+        "empty": "required",
+        "many": true
+      },
+      "options": [
+        {
+          "key": "depth",
+          "label": "Depth",
+          "type": "choice",
+          "values": [
+            "quick",
+            "deep"
+          ],
+          "default": "quick",
+          "inline": true
+        }
+      ],
       "when": {
         "on": [
           {
@@ -80,7 +108,99 @@
             }
           }
         ]
-      }
+      },
+      "which": {
+        "rule": {
+          "all": [
+            {
+              "fact": "draft",
+              "is": false
+            }
+          ]
+        },
+        "ask": "Is it ready for review?"
+      },
+      "who": {
+        "depth": "team",
+        "agents": [
+          {
+            "key": "lead",
+            "name": "Lead",
+            "lead": true,
+            "brief": "You lead the review.",
+            "model": "sonnet",
+            "effort": "medium",
+            "tools": {
+              "allow": [],
+              "deny": []
+            },
+            "readsOutside": false,
+            "workspace": "read"
+          },
+          {
+            "key": "reader",
+            "name": "Reader",
+            "lead": false,
+            "brief": "Read the pull request.",
+            "model": "haiku",
+            "effort": "low",
+            "tools": {
+              "allow": [],
+              "deny": []
+            },
+            "readsOutside": true,
+            "workspace": "read"
+          }
+        ],
+        "checker": {
+          "model": "sonnet",
+          "effort": "high"
+        }
+      },
+      "how": {
+        "steps": [
+          "Read the diff",
+          "Look hard at the login and token handling"
+        ],
+        "checks": [
+          {
+            "key": "cites",
+            "text": "Every comment names a line."
+          }
+        ],
+        "format": "review",
+        "checkAgent": true
+      },
+      "makes": {
+        "kind": "github.review",
+        "description": "A pending review with line comments."
+      },
+      "goesTo": [
+        {
+          "id": "pr",
+          "kind": "item_place",
+          "channel": "github",
+          "bound": {
+            "fact": "repo",
+            "in": [
+              "acme/game"
+            ]
+          }
+        }
+      ],
+      "freedom": {
+        "rung": "draft",
+        "grants": []
+      },
+      "limits": {
+        "perRunUsd": 2,
+        "perRunMinutes": 30,
+        "perDayUsd": 5,
+        "parallel": 1
+      },
+      "needs": [
+        "github"
+      ]
     }
   },
   "runs": [
