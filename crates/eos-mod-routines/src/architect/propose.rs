@@ -1,11 +1,12 @@
 //! `propose_blueprint`: the architect's blueprint, read and checked like one
 //! written by hand, as a new draft version from the version the routine
 //! shows. An architect version is always a draft: only the user's start
-//! keeps it (03 G14). One that asks for a higher rung or a place for results
-//! the user has not confirmed opens one `confirm_change` item in the same
+//! keeps it (03 G14). One that asks for a higher rung, a grant that raises
+//! some items above what the user confirmed, or a place for results the user
+//! has not confirmed opens one `confirm_change` item in the same
 //! write; a newer proposal takes its place.
 
-use eos_contracts::{Blueprint, DraftStatus, RoutineChangeReason, Rung, VersionAuthor, VersionStatus};
+use eos_contracts::{Blueprint, DraftStatus, Freedom, Grant, RoutineChangeReason, Rung, VersionAuthor, VersionStatus};
 use eos_core::Error;
 use eos_core::routine::Proposal;
 use eos_core::store::{Outbox, Tx};
@@ -83,16 +84,28 @@ pub(crate) async fn propose(
 }
 
 /// Whether `prepared` asks for more than the user confirmed: a higher rung,
-/// or a place for results they have not confirmed. A routine the user has
-/// confirmed nothing of holds its results as drafts and sends them nowhere.
+/// a grant above the confirmed rung that no confirmed grant holds for the
+/// same items at that rung or higher, or a place for results they have not
+/// confirmed. A routine the user has confirmed nothing of holds its results
+/// as drafts and sends them nowhere.
 fn widens(tx: &dyn Tx, routine_id: &str, prepared: &Prepared) -> Result<bool, Error> {
-    let (rung, goes_to) = match confirmed_in(tx, routine_id) {
-        Ok(confirmed) => (confirmed.freedom.rung, confirmed.goes_to),
-        Err(Error::NotFound { .. }) => (Rung::Draft, Vec::new()),
+    let (confirmed, goes_to) = match confirmed_in(tx, routine_id) {
+        Ok(confirmed) => (confirmed.freedom, confirmed.goes_to),
+        Err(Error::NotFound { .. }) => {
+            (Freedom { rung: Rung::Draft, grants: Vec::new(), extra: Default::default() }, Vec::new())
+        }
         Err(error) => return Err(error),
     };
     let Blueprint { freedom, goes_to: proposed, .. } = &prepared.blueprint;
-    Ok(freedom.rung > rung || proposed.iter().any(|recipient| !goes_to.contains(recipient)))
+    let held = |grant: &Grant| {
+        confirmed.grants.iter().any(|kept| {
+            kept.when == grant.when
+                && kept.rung >= grant.rung
+                && (kept.covers_irreversible || !grant.covers_irreversible)
+        })
+    };
+    let raising = freedom.grants.iter().any(|grant| grant.rung > confirmed.rung && !held(grant));
+    Ok(freedom.rung > confirmed.rung || raising || proposed.iter().any(|recipient| !goes_to.contains(recipient)))
 }
 
 fn confirm_change_in(
