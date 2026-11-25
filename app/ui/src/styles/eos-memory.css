@@ -3,7 +3,7 @@
    note's aside. Built from eos.css's parts; text is never dimmer than
    --fg-dim2 (eos.css's contrast note holds here too). */
 
-.eos-mem-weekly { margin: 0; font-size: var(--text-lg); color: var(--fg-strong); }
+.eos-mem-weekly { margin: 0; font-size: var(--text-base); color: var(--fg-dim); }
 .eos-mem-tab-count { margin-left: 6px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-mem-search {
   width: 220px;
@@ -21,7 +21,10 @@
 .eos-mem-learned { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
 
 .eos-mem-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.eos-mem-filter { border: 0; font: inherit; font-size: var(--text-xs); cursor: pointer; }
+.eos-mem-filter { height: 26px; padding: 0 12px; border: 0; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; }
+.eos-mem-filter:hover { color: var(--fg-strong); }
+.eos-mem-filters .eos-mem-filter[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.eos-mem-filters .eos-mem-filter--kind { padding: 0 10px; background: none; color: var(--fg-dim); }
 .eos-mem-filters__sep { width: 1px; height: 16px; margin: 0 4px; background: var(--line); }
 
 .eos-mem-group { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
@@ -49,6 +52,8 @@
 .eos-mem-row__text { font-size: var(--text-base); font-weight: 500; color: var(--fg); }
 .eos-mem-row__open[aria-current="true"] .eos-mem-row__text { color: var(--fg-strong); font-weight: 500; }
 .eos-mem-row__why { font-size: 12.5px; color: var(--fg-dim); }
+/* A cooling note reads quieter: it has not come back for a while. */
+.eos-mem-row--cooling .eos-mem-row__text { color: var(--fg-dim); }
 
 /* Five steps drawn as one thin bar, filled as far as the note is strong. */
 .eos-mem-strength { display: inline-flex; flex: none; width: 40px; height: 3px; border-radius: 2px; overflow: hidden; background: var(--chip); }

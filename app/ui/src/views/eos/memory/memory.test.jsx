@@ -52,8 +52,10 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toContain("Eos learned 3 things this week, without asking.");
     expect(html).toContain('aria-selected="false" class="eos-tab">About you<span class="eos-mem-tab-count">12</span>');
     expect(html).toContain('aria-selected="true" class="eos-tab">Learned from work<span class="eos-mem-tab-count">6</span>');
-    const chips = [...html.matchAll(/class="eos-chip eos-mem-filter" aria-pressed="(true|false)">([^<]+)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
+    const chips = [...html.matchAll(/class="eos-chip eos-mem-filter(?: eos-mem-filter--kind)?" aria-pressed="(true|false)">([^<]+)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
     expect(chips).toEqual(["Everything*", "game-client", "PR Review", "Lessons", "Facts", "Skills", "Good examples"]);
+    expect(html).toContain('class="eos-chip eos-mem-filter eos-mem-filter--kind" aria-pressed="false">Lessons</button>');
+    expect(html).toContain('<li class="eos-mem-row eos-mem-row--cooling"><button type="button" class="eos-mem-row__open"><span class="eos-mem-row__text">Reports open with a chart</span>');
   });
 
   it("groups notes by where they hold, a routine by its name and everywhere last, each row with why, who taught it and its strength", async () => {
@@ -84,7 +86,7 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toContain(`<blockquote class="eos-mem-detail__quote">${lintNote.text}.</blockquote>`);
     expect(html).toContain("Came back 6 times, used 5 times. It helped 4 times.");
     expect(html).toContain(">Edit</button>");
-    expect(html).toContain(">Forget</button>");
+    expect(html).toContain('class="eos-btn eos-btn--ghost eos-btn--stop">Forget</button>');
   });
 
   it("says a note is gone when the core no longer has it", async () => {
