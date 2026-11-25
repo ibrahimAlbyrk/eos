@@ -66,10 +66,13 @@ fn the_forge_roles_get_their_own_rows() {
         assert_eq!(reviewer.allow, names(&[&READS]));
         // The App reviewer reads the App and runs nothing, whatever the run read.
         assert_eq!(scope(RunRole::AppReviewer, trust).allow, names(&[&READS]));
-        assert_eq!(
-            builder.edit_regex.as_deref(),
-            Some(r"^/Users/me/\.eos/routines/rn-0a1b2c3d4e5f/work/(?!\.claude/)")
-        );
+        let edits = regress::Regex::new(builder.edit_regex.as_deref().expect("an edit regex")).expect("a regex");
+        let edits_at =
+            |path: &str| edits.find(&format!("/Users/me/.eos/routines/rn-0a1b2c3d4e5f/work/{path}")).is_some();
+        assert!(edits_at("package/capability.toml") && edits_at(".claudette") && edits_at("x/.claude/notes"));
+        for settings in [".claude/settings.local.json", ".CLAUDE/settings.local.json", ".Claude", ".claude"] {
+            assert!(!edits_at(settings), "{settings}");
+        }
         for scope in [researcher, builder, reviewer] {
             assert_eq!(scope.deny, ["Bash(git push:*)", "Bash(gh:*)"]);
         }
@@ -198,6 +201,13 @@ fn a_definitions_edit_pattern_holds_edits_inside_the_folder_too() {
     assert!(!edits_in("(^|/)src/", &format!("{WORKTREE}/docs/src.md")));
     assert!(!edits_in("(^|/)src/", "/Users/me/src/main.rs"));
     assert!(edits_in("^/Users/me/", &format!("{WORKTREE}/a")));
+    // A definition's own pattern never lets the builder's edits reach its settings.
+    let def = ToolScope { allow: Vec::new(), deny: Vec::new(), edit_regex: Some(r"\.json$".to_owned()) };
+    let pattern =
+        scope_for(RunRole::ForgeBuilder, Trust::Trusted, &[], Some(&def), WORKTREE).edit_regex.expect("a regex");
+    let builder_edits = |path: &str| regress::Regex::new(&pattern).expect("a regex").find(path).is_some();
+    assert!(builder_edits(&format!("{WORKTREE}/package/package.json")));
+    assert!(!builder_edits(&format!("{WORKTREE}/.claude/settings.local.json")));
     assert!(!edits_in("^/tmp/", &format!("{WORKTREE}/a")) && !edits_in("^/tmp/", "/tmp/a"));
     assert!(edits_in("a|b", &format!("{WORKTREE}/b")) && !edits_in("a|b", "/tmp/b"));
     assert!(edits_in(r"(\w+)/\1\.rs$", &format!("{WORKTREE}/lib/lib.rs")), "a backreference keeps its group");
