@@ -5,7 +5,7 @@
 //! catalog stays as it is; these travel next to it.
 
 use eos_contracts::{AsideNote, FactRow, OptionFacts};
-use eos_genui::attrs::parse_options;
+use eos_genui::attrs::{OptionSpec, parse_options};
 use eos_genui::markup::{parse_markup, walk_markup};
 use eos_surface::Problem;
 use serde_json::Value;
@@ -37,19 +37,16 @@ pub(crate) fn checked(view: &Value, facts: Option<&Value>, aside: Option<&Value>
     if problems.is_empty() { Ok(Notes { facts, aside }) } else { Err(problems) }
 }
 
-/// Every option label and value of the View's Choices.
-fn choice_options(view: &Value) -> Vec<String> {
+/// Every option of the View's Choices.
+fn choice_options(view: &Value) -> Vec<OptionSpec> {
     let parsed = parse_markup(view["ui"].as_str().unwrap_or_default());
-    let mut names = Vec::new();
+    let mut options = Vec::new();
     walk_markup(&parsed.nodes, |el, _, _| {
         if el.name == "Choice" {
-            for option in parse_options(el.attr("options")) {
-                names.push(option.label);
-                names.push(option.value);
-            }
+            options.extend(parse_options(el.attr("options")));
         }
     });
-    names
+    options
 }
 
 fn read_facts(view: &Value, facts: &Value, problems: &mut Vec<Problem>) -> Vec<OptionFacts> {
@@ -58,15 +55,24 @@ fn read_facts(view: &Value, facts: &Value, problems: &mut Vec<Problem>) -> Vec<O
         return Vec::new();
     };
     let options = choice_options(view);
-    let mut named: Vec<String> = Vec::new();
+    // The options already given facts, by their place among the Choices': an
+    // option named once by its label and once by its value is one option.
+    let mut named: Vec<usize> = Vec::new();
     let mut out = Vec::new();
     for (i, entry) in entries.iter().enumerate() {
         let path = format!("facts[{i}]");
         let option = text(&entry["option"], &format!("{path}.option"), OPTION_CHARS, problems);
+        let mut hits = Vec::new();
         if let Some(option) = option.as_deref() {
-            if !options.iter().any(|o| o == option) {
+            hits = options
+                .iter()
+                .enumerate()
+                .filter(|(_, o)| o.label == option || o.value == option)
+                .map(|(k, _)| k)
+                .collect();
+            if hits.is_empty() {
                 problems.push(Problem::new(format!("{path}.option"), "is not an option of a Choice in the view"));
-            } else if named.iter().any(|n| n == option) {
+            } else if hits.iter().any(|k| named.contains(k)) {
                 problems.push(Problem::new(format!("{path}.option"), "has its facts already"));
             }
         }
@@ -89,7 +95,7 @@ fn read_facts(view: &Value, facts: &Value, problems: &mut Vec<Problem>) -> Vec<O
             })
             .collect();
         if let Some(option) = option {
-            named.push(option.clone());
+            named.extend(hits);
             out.push(OptionFacts { option, rows });
         }
     }
