@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { notify } from "./notify.js";
 
-// No in-app surface: errors/warnings go to macOS via the shell's eosNotify bridge,
-// info stays silent. These guard that contract and the stable verb set.
+// Errors/warnings go to macOS via the shell's eosNotify bridge, info stays
+// silent there; an Eos screen hears every notice through listen. These guard
+// that contract and the stable verb set.
 describe("notify facade", () => {
   beforeEach(() => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -17,6 +18,21 @@ describe("notify facade", () => {
     for (const k of ["info", "warning", "error", "dismiss", "clear"]) {
       expect(typeof notify[k]).toBe("function");
     }
+  });
+
+  it("tells a listener every notice with its tone and title, until it stops listening", () => {
+    const heard = [];
+    const stop = notify.listen((n) => heard.push(n));
+    notify.error("Push failed", { title: "Git" });
+    notify.info("Copied");
+    notify.warning("Slow");
+    stop();
+    notify.error("Unheard");
+    expect(heard).toEqual([
+      { tone: "error", message: "Push failed", title: "Git" },
+      { tone: "info", message: "Copied", title: null },
+      { tone: "warning", message: "Slow", title: null },
+    ]);
   });
 
   it("verbs are safe to call without the desktop bridge", () => {

@@ -5,6 +5,7 @@ import { CapabilitiesScreen } from "./capabilities/CapabilitiesScreen.jsx";
 import { CapabilityScreen } from "./capabilities/CapabilityScreen.jsx";
 import { EosMemoryScreen } from "./memory/EosMemoryScreen.jsx";
 import { EosHeader } from "./nav/EosHeader.jsx";
+import { Notices } from "./nav/Notices.jsx";
 import { NeedsItemScreen } from "./needs/NeedsItemScreen.jsx";
 import { NeedsYouList } from "./needs/NeedsYouList.jsx";
 import { RoutinePage } from "./routine/RoutinePage.jsx";
@@ -42,10 +43,20 @@ function PlaceholderScreen({ location }) {
   );
 }
 
-// Eos mode's main column: the screen of the current location. It reads only
+// Eos mode's main column: the screen of the current location, and what Eos
+// was told while it shows at its foot (Notices). It reads only
 // Eos's own stores, never the app's providers, so the sample gallery draws it
 // as the app does.
 export function EosMain() {
+  return (
+    <>
+      <EosScreen />
+      <Notices />
+    </>
+  );
+}
+
+function EosScreen() {
   const location = parseLocation(useEosLocation());
   if (location?.screen === "home") return <HomeScreen />;
   if (location?.screen === "form") return <><HomeScreen /><FormArrival key={JSON.stringify(location)} location={location} /></>;

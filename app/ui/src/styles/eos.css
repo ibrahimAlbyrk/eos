@@ -646,3 +646,45 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 /* A part that could not be read: the mark carries the err tone, the words stay readable. */
 .eos-load-failed { color: var(--fg-mid); }
 .eos-failed > .eos-rlead__now { margin-top: -12px; }
+
+/* ── Notices ──────────────────────────────────────────────────────────────── */
+/* What a screen was told (notify.*), at the foot of the main column: one solid
+   line each, as a menu's ground so it reads over a light page; the tone's
+   9 px mark, the title strong over the words dim, Dismiss at the right. It
+   rises 6 px on arrival; with reduced motion it fades. */
+.eos-notices {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  width: min(560px, calc(100% - 48px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.eos-notice {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 10px 12px 16px;
+  border-radius: 14px;
+  background: var(--pop);
+  box-shadow: 0 0 0 1px var(--chip), var(--sh-modal);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  animation: eos-notice-in calc(220ms * var(--k, 1)) var(--ease) both;
+}
+.eos-notice::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: 6px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
+.eos-notice--warn::before { border-color: var(--warn); background: var(--warn); }
+.eos-notice--err::before { border-color: var(--err); background: var(--err); }
+.eos-notice__words { flex: 1; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; overflow-wrap: anywhere; text-wrap: pretty; }
+.eos-notice__words strong { font-weight: 500; color: var(--fg-strong); }
+.eos-notice__close { flex: none; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--fg-dim2); cursor: pointer; }
+.eos-notice__close:hover { background: var(--chip); color: var(--fg-strong); }
+.eos-notice__close svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+@keyframes eos-notice-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .eos-notice { animation: eos-ask-shade 120ms linear both; } }
