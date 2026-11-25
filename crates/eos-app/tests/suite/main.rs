@@ -29,6 +29,7 @@ mod reach;
 mod read_path;
 mod result_shape;
 mod routine_e2e;
+mod routine_failures;
 mod routines;
 mod samples;
 mod skeleton;

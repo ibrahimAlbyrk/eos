@@ -52,13 +52,18 @@ impl Fakes {
 
     /// The app on `home`, reaching the network (as the installed app) or not (a dev run).
     pub fn app(&self, home: &Path, agents: &ScriptedRuntime, network: bool) -> App {
+        App::build(self.options(home, agents, network)).expect("builds")
+    }
+
+    /// What [`Fakes::app`] builds the app from.
+    pub fn options(&self, home: &Path, agents: &ScriptedRuntime, network: bool) -> Options {
         let capabilities = CapabilityOptions {
             sources: Some(Arc::new(FakeSignalSources::new().with("github.pulls", self.source.clone()))),
             channels: Some(Arc::new(self.channels.clone())),
             ..CapabilityOptions::default()
         };
         let options = rig::options(home, agents, capabilities);
-        App::build(Options { clock: self.clock.clone(), reaches_network: network, ..options }).expect("builds")
+        Options { clock: self.clock.clone(), reaches_network: network, ..options }
     }
 
     /// Time enough for the next poll, and a wake so the scheduler looks at once.
