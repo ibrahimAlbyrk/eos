@@ -364,3 +364,35 @@ async fn a_head_whose_freedom_the_user_changed_lifts_never_and_one_with_other_wo
     assert_eq!(state, "none");
     assert!(streak_at.is_some(), "the streak counts from the new head");
 }
+
+fn watching(name: &str, paths: &[String]) -> Value {
+    let mut watching = folder(name);
+    let on: Vec<Value> = paths.iter().map(|path| json!({"folder": {"path": path, "events": ["added"]}})).collect();
+    watching["when"] = json!({"on": on});
+    watching
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_past_its_limits_is_refused_when_saved() {
+    let routes = Routes::new();
+    let home = routes.bench.temp.home.path();
+    let full = home.join("full");
+    std::fs::create_dir_all(&full).expect("a folder");
+    for n in 0..=5_000 {
+        std::fs::write(full.join(format!("{n}.txt")), "").expect("a file");
+    }
+    let (status, refused) = routes.create(watching("Full", &[full.to_string_lossy().into_owned()])).await;
+    assert_eq!(status, 400, "{refused}");
+    assert_eq!(refused["issues"][0]["path"], json!(["when", "on", "0", "folder", "path"]), "{refused}");
+    assert_eq!(refused["issues"][0]["message"], "Holds more than 5000 entries");
+
+    let folders: Vec<String> = (0..20).map(|n| format!("/Users/me/watched-{n}")).collect();
+    let mut twenty = blueprint(1);
+    twenty["when"] = watching("Twenty", &folders)["when"].clone();
+    routes.bench.routine(RoutineState::Active, twenty);
+    let (status, saved) = routes.create(watching("Same", &folders[..1])).await;
+    assert_eq!(status, 201, "a folder watched already adds none: {saved}");
+    let (status, refused) = routes.create(watching("One more", &["/Users/me/another".to_owned()])).await;
+    assert_eq!(status, 400, "{refused}");
+    assert_eq!(refused["issues"][0]["message"], "Would watch more than 20 folders at once", "{refused}");
+}

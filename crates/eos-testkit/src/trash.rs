@@ -7,8 +7,9 @@ use eos_core::os::{FileRead, FileSystem, FsEntryMeta, FsStat, ListDirOptions, Op
 use eos_core::{BoxFuture, Error};
 
 /// `FileSystem::trash` into a folder the test gives, listing what it took,
-/// and `write_temp` into a folder beside it; every other method fails, as a
-/// store that only trashes never calls them.
+/// `write_temp` into a folder beside it, and `list_dir` of a real folder's
+/// direct entries by name; every other method fails, as a store that only
+/// trashes never calls them.
 #[derive(Debug)]
 pub struct FakeTrash {
     dir: PathBuf,
@@ -37,8 +38,18 @@ fn unused<'a, T: Send + 'a>() -> BoxFuture<'a, Result<T, Error>> {
 }
 
 impl FileSystem for FakeTrash {
-    fn list_dir<'a>(&'a self, _: &'a Path, _: ListDirOptions<'a>) -> BoxFuture<'a, Result<Vec<FsEntryMeta>, Error>> {
-        unused()
+    fn list_dir<'a>(&'a self, dir: &'a Path, _: ListDirOptions<'a>) -> BoxFuture<'a, Result<Vec<FsEntryMeta>, Error>> {
+        Box::pin(async move {
+            let mut entries = Vec::new();
+            for entry in std::fs::read_dir(dir).map_err(Error::storage)? {
+                let entry = entry.map_err(Error::storage)?;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let is_dir = entry.file_type().is_ok_and(|kind| kind.is_dir());
+                let (absolute_path, relative_path) = (entry.path(), name.clone());
+                entries.push(FsEntryMeta { name, absolute_path, relative_path, is_dir, is_symlink: false });
+            }
+            Ok(entries)
+        })
     }
 
     fn stat<'a>(&'a self, _: &'a Path) -> BoxFuture<'a, Result<FsStat, Error>> {

@@ -39,10 +39,7 @@ use crate::sources::{SourceSpec, source_in};
 pub const FOLDER_SETTLE_MS: i64 = 2_000;
 /// Every local source is read at least this often.
 pub const FOLDER_LISTING_MS: i64 = 15 * 60_000;
-/// The most entries a watched folder may hold.
-pub const FOLDER_ENTRIES_MAX: usize = 5_000;
-/// The most folders watched at once.
-pub const FOLDERS_MAX: usize = 20;
+pub use eos_domain::signals::limits::{FOLDER_ENTRIES_MAX, FOLDERS_MAX};
 /// The most paths a branch's signal names.
 pub const GIT_PATHS_MAX: usize = 300;
 

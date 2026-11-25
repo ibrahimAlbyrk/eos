@@ -17,6 +17,7 @@ mod control;
 mod defaults;
 mod exec;
 mod failures;
+mod folders;
 mod gate;
 mod grants;
 mod halt;
@@ -180,7 +181,8 @@ pub(crate) struct Engine {
     pub(crate) credentials: Arc<dyn SessionCredentials>,
     /// The model reads of the Home input today: the local day and how many.
     pub(crate) intent_reads: Mutex<Option<(String, i64)>>,
-    /// Where what the retention pass clears goes: the trash.
+    /// Where what the retention pass clears goes: the trash; also how many
+    /// entries a folder trigger's folder holds.
     pub(crate) trash: Arc<dyn FileSystem>,
     /// When the retention pass is next due, and the one at work.
     pub(crate) retention: Mutex<crate::retention::Schedule>,
