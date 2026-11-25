@@ -13,34 +13,45 @@ use eos_core::store::{
 use eos_domain::run_scope::{RunRole, Trust};
 use eos_kit_sqlite::rusqlite::{self, params};
 
-use crate::tx::{SqliteTx, failed, known, wire_word, word};
+use crate::tx::{SqliteTx, failed, is_unknown_word, known, wire_word, word};
 
 const ROUTINE_COLUMNS: &str = "id, slug, name, kind, state, paused_reason, head_version_id, origin, task_key, \
                                agents_may_start, failure_streak, created_at, updated_at, changed_at, started_at, \
                                deleted_at";
 
 fn routine(r: &rusqlite::Row<'_>) -> Result<StoredRoutine, Error> {
-    let read = || -> rusqlite::Result<StoredRoutine> {
-        Ok(StoredRoutine {
-            id: r.get(0)?,
-            slug: r.get(1)?,
-            name: r.get(2)?,
-            kind: wire_word(r, 3)?,
-            state: wire_word(r, 4)?,
-            paused_reason: r.get(5)?,
-            head_version_id: r.get(6)?,
-            origin: r.get(7)?,
-            task_key: r.get(8)?,
-            agents_may_start: r.get(9)?,
-            failure_streak: r.get(10)?,
-            created_at: r.get(11)?,
-            updated_at: r.get(12)?,
-            changed_at: r.get(13)?,
-            started_at: r.get(14)?,
-            deleted_at: r.get(15)?,
-        })
-    };
-    read().map_err(failed)
+    read_routine(r).map_err(failed)
+}
+
+/// A listed routine; a row a newer Eos wrote with a word this version does
+/// not know is left out, so that one row never hides the others.
+fn listed_routine(r: &rusqlite::Row<'_>) -> Result<Option<StoredRoutine>, Error> {
+    match read_routine(r) {
+        Ok(routine) => Ok(Some(routine)),
+        Err(e) if is_unknown_word(&e) => Ok(None),
+        Err(e) => Err(failed(e)),
+    }
+}
+
+fn read_routine(r: &rusqlite::Row<'_>) -> rusqlite::Result<StoredRoutine> {
+    Ok(StoredRoutine {
+        id: r.get(0)?,
+        slug: r.get(1)?,
+        name: r.get(2)?,
+        kind: wire_word(r, 3)?,
+        state: wire_word(r, 4)?,
+        paused_reason: r.get(5)?,
+        head_version_id: r.get(6)?,
+        origin: r.get(7)?,
+        task_key: r.get(8)?,
+        agents_may_start: r.get(9)?,
+        failure_streak: r.get(10)?,
+        created_at: r.get(11)?,
+        updated_at: r.get(12)?,
+        changed_at: r.get(13)?,
+        started_at: r.get(14)?,
+        deleted_at: r.get(15)?,
+    })
 }
 
 const DRAFT_COLUMNS: &str =
@@ -137,7 +148,12 @@ impl RoutineRepo for SqliteTx<'_> {
     }
 
     fn list(&self) -> Result<Vec<StoredRoutine>, Error> {
-        self.rows(&format!("SELECT {ROUTINE_COLUMNS} FROM routines ORDER BY created_at, rowid"), [], routine)
+        let rows = self.rows(
+            &format!("SELECT {ROUTINE_COLUMNS} FROM routines ORDER BY created_at, rowid"),
+            [],
+            listed_routine,
+        )?;
+        Ok(rows.into_iter().flatten().collect())
     }
 
     fn insert_draft(&self, draft: &StoredDraft) -> Result<(), Error> {

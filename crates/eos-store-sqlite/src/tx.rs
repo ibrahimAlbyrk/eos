@@ -298,8 +298,25 @@ pub(crate) fn wire_word<T: DeserializeOwned>(r: &rusqlite::Row<'_>, idx: usize) 
     known(r, idx, |text| serde_json::from_value(serde_json::Value::String(text.to_owned())).ok())
 }
 
+/// A stored word this version does not know: a newer Eos wrote it.
+#[derive(Debug)]
+struct UnknownWord(String);
+
+impl std::fmt::Display for UnknownWord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown value: {}", self.0)
+    }
+}
+
+impl std::error::Error for UnknownWord {}
+
 fn unknown(idx: usize, text: &str) -> rusqlite::Error {
-    rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, format!("unknown value: {text}").into())
+    rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, Box::new(UnknownWord(text.to_owned())))
+}
+
+/// Whether a row failed only because it holds a word this version does not know.
+pub(crate) fn is_unknown_word(e: &rusqlite::Error) -> bool {
+    matches!(e, rusqlite::Error::FromSqlConversionFailure(_, _, inner) if inner.is::<UnknownWord>())
 }
 
 impl SqliteTx<'_> {

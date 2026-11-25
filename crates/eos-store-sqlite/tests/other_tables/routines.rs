@@ -333,6 +333,18 @@ fn a_live_slug_names_one_routine_and_a_deleted_or_one_off_lets_go_of_it() {
 }
 
 #[test]
+fn a_routine_a_newer_eos_wrote_with_an_unknown_word_is_left_out_of_the_list_not_failing_it() {
+    let temp = TempStore::new();
+    let insert = |routine: StoredRoutine| temp.store.write_blocking(move |tx, _| tx.routines().insert(&routine));
+    insert(routine("rt-1", "pr-review", RoutineState::Active)).expect("the first");
+    insert(routine("rt-2", "digest", RoutineState::Active)).expect("the second");
+    temp.exec("UPDATE routines SET state = 'hibernating' WHERE id = 'rt-2'");
+    let listed = temp.store.read_blocking(|tx| tx.routines().list()).expect("the list reads");
+    assert_eq!(listed.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["rt-1"]);
+    assert!(temp.store.read_blocking(|tx| tx.routines().find("rt-2")).is_err(), "the row itself still fails to read");
+}
+
+#[test]
 fn a_signal_starts_one_run_of_a_routine_however_often_it_matches() {
     let temp = TempStore::new();
     let insert = |run: StoredRun| temp.store.write_blocking(move |tx, _| tx.runs().insert(&run));
