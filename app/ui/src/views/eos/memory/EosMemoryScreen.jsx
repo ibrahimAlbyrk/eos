@@ -35,7 +35,10 @@ export function EosMemoryScreen({ tab = "work", note }) {
       </EosHeader>
       <div className="eos-body">
         {devRun && <DevRunNote />}
-        {weekly && <p className="eos-mem-weekly">{weekly}</p>}
+        <div>
+          <p className="eos-lead">{weekly ?? "What Eos knows about you and your work."}</p>
+          <p className="eos-lead__sub">Text inside pull requests, mails or web pages can never write here.</p>
+        </div>
         <nav className="eos-tabs" role="tablist" aria-label="Memory">
           {TABS.map((t) => (
             <button
@@ -59,7 +62,6 @@ export function EosMemoryScreen({ tab = "work", note }) {
             {note && <NoteDetail key={note} id={note} />}
           </div>
         )}
-        <p className="eos-mem-foot">Text inside pull requests, mails or web pages can never write here.</p>
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 // What the Memory screen says for a note (08 §4.10): its kind, where it
 // holds, who taught it, how it is doing and how strong it is.
+import { numberWord } from "../home/homeWords.js";
 
 export const KIND_FILTERS = [
   { kind: "lesson", label: "Lessons" },
@@ -94,7 +95,8 @@ export function helpLine(help) {
 // "An agent is about to push in game-client. It then reads:"
 export const comesBackLine = (situation) => `${sentence(situation ?? "") || "Its subject comes up."} It then reads:`;
 
-export const weeklyLine = (n) => (n > 0 ? `Eos learned ${n === 1 ? "one thing" : `${n} things`} this week, without asking.` : null);
+// The screen's lead: how much Eos learned this week, the count in words.
+export const weeklyLine = (n) => (n > 0 ? `Eos learned ${n === 1 ? "one thing" : `${numberWord(n)} things`} this week, without asking.` : null);
 
 // Thirty days after it was forgotten, a note cannot come back.
 export const RESTORE_MS = 30 * 24 * 60 * 60 * 1000;
