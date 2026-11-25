@@ -38,6 +38,9 @@ pub struct CapabilityRow {
     /// The account it is signed in to (a GitHub login).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_label: Option<String>,
+    /// How its actions run: `skill`, `script`, `mcp`, `plugin` or `builtin`.
+    #[serde(default)]
+    pub form: String,
 }
 
 impl Validate for CapabilityRow {}

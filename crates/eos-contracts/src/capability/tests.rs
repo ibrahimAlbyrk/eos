@@ -26,6 +26,7 @@ fn row() -> Value {
         "actionCount": 7,
         "usedBy": ["rt-1", "rt-2"],
         "accountLabel": "octocat",
+        "form": "builtin",
     })
 }
 
@@ -35,7 +36,7 @@ fn a_row_reads_and_writes_back_in_camel_case_in_the_listed_order() {
     assert_eq!((read.action_count, read.used_by.len()), (7, 2));
     let bare: CapabilityRow = round_trip(json!({
         "id": "sms-messages", "name": "SMS", "summary": "Texts you.", "origin": "forge", "state": "ready",
-        "works": "this_mac", "actionCount": 2, "usedBy": [],
+        "works": "this_mac", "actionCount": 2, "usedBy": [], "form": "script",
     }));
     assert_eq!((bare.state_code, bare.version, bare.account_label), (None, None, None));
 }

@@ -59,8 +59,8 @@ describe("the Capabilities list", () => {
       else expect(row, name).not.toContain('class="eos-btn');
     }
     expect(rowHtml(html, "GitHub")).toContain("Built in · Used by 1 routine");
-    expect(rowHtml(html, "SMS")).toContain("Made by the Forge · Version 1.0.1 · No routine uses it");
-    expect(rowHtml(html, "Weather")).toContain("From a registry · Version 1.2.0 · Used by 2 routines");
+    expect(rowHtml(html, "SMS")).toContain("Script · Made by the Forge · Version 1.0.1 · No routine uses it");
+    expect(rowHtml(html, "Weather")).toContain("MCP server · From a registry · Version 1.2.0 · Used by 2 routines");
   });
 
   it("shows loading blocks, then an empty list or a failed read in words", async () => {

@@ -10,7 +10,7 @@ import { notify } from "../../lib/notify.js";
 import { isDevRunRefusal, transport } from "./transport.js";
 
 // CapabilityRow's fields; CapabilityDetail is the row and what it is made of.
-const ROW_FIELDS = ["id", "name", "summary", "origin", "state", "stateCode", "version", "works", "actionCount", "usedBy", "accountLabel"];
+const ROW_FIELDS = ["id", "name", "summary", "origin", "state", "stateCode", "version", "works", "actionCount", "usedBy", "accountLabel", "form"];
 
 // list: null until loaded. details: id → CapabilityDetail. failed: id → "gone"
 // (404) or "error", for a detail that could not be read. devRun: a write was
