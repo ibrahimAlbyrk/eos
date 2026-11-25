@@ -10,6 +10,7 @@ import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { capabilitiesLead } from "./CapabilitiesScreen.jsx";
 import { needsLine } from "./words.js";
 import { SignInSheet } from "./SignInSheet.jsx";
+import { RemoveDialog } from "./CapabilityScreen.jsx";
 import samples from "../gallery/sample/capabilities.json";
 import signInFailed from "../gallery/sample/sign-in-failed.json";
 
@@ -230,6 +231,14 @@ describe("a capability's page", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Remove</button>');
     expect(html).not.toContain("eos-btn--primary");
     expect(html).not.toContain(">Sign in<");
+  });
+
+  it("asks before Remove, names the routines that lose it, and puts Cancel first so the focus starts there", () => {
+    const html = renderToStaticMarkup(<RemoveDialog detail={{ ...byId["sms-messages"], usedBy: ["r1", "r2"] }} names={{ r1: "Morning Paper", r2: "PR Review" }} onClose={() => {}} />);
+    expect(html).toContain('<h2 id="eos-cap-remove-title" class="eos-ask__title">Remove ');
+    expect(html).toContain("It goes to the trash, and Morning Paper, PR Review can no longer reach it.");
+    const buttons = [...html.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1]);
+    expect(buttons).toEqual(["Cancel", "Remove"]);
   });
 
   it("offers going back to a kept version when it broke, never to a retired one", async () => {

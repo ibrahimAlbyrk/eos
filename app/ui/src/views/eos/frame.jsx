@@ -47,6 +47,16 @@ const useInWindow = () => useSyncExternalStore(never, () => true, () => false);
 
 const FOCUSABLE = "button:not([disabled]), input, textarea, select, [href], [tabindex]:not([tabindex='-1'])";
 
+// What a key does inside a dialog whose focusable parts are `all` in order:
+// "close" for Escape, the part the focus wraps to when Tab leaves an edge,
+// otherwise null (the browser moves the focus as usual).
+export function askKey(key, shiftKey, all, active) {
+  if (key === "Escape") return "close";
+  if (key !== "Tab" || !all.length) return null;
+  if (active !== (shiftKey ? all[0] : all.at(-1))) return null;
+  return shiftKey ? all.at(-1) : all[0];
+}
+
 // Eos's own dialog, over the whole window and outside anything an agent
 // wrote: where the question comes from (`from`, a label after its `icon`
 // path), the question as its title, one `line` of what follows, the
@@ -62,16 +72,14 @@ export function Dialog({ id, from, icon, title, line, role = "dialog", onClose, 
     return () => opener?.focus?.();
   }, []);
   const keys = (e) => {
-    if (e.key === "Escape") {
+    const all = e.key === "Tab" ? [...panel.current.querySelectorAll(FOCUSABLE)] : [];
+    const step = askKey(e.key, e.shiftKey, all, document.activeElement);
+    if (step === "close") {
       e.stopPropagation();
       onClose();
-    }
-    if (e.key !== "Tab") return;
-    const all = [...panel.current.querySelectorAll(FOCUSABLE)];
-    const edge = e.shiftKey ? all[0] : all.at(-1);
-    if (all.length && document.activeElement === edge) {
+    } else if (step) {
       e.preventDefault();
-      (e.shiftKey ? all.at(-1) : all[0]).focus();
+      step.focus();
     }
   };
   const drawn = (
