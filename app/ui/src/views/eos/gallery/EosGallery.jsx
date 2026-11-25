@@ -7,6 +7,8 @@ import { EosMain } from "../EosMain.jsx";
 import { holdEosNavInMemory } from "../nav/eosNav.js";
 import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
 import { RunSheet } from "../runform/RunSheet.jsx";
+import { UiProvider } from "../../../state/ui.jsx";
+import { holdNetwork } from "./holdNetwork.js";
 import routines from "./sample/routines.json";
 import routineDetail from "./sample/routine-detail.json";
 import routinePaused from "./sample/routine-paused.json";
@@ -28,6 +30,7 @@ import signalsSample from "./sample/signals.json";
 import memory from "./sample/memory.json";
 import surfaceSample from "./sample/surfaces.json";
 import paper from "./sample/paper.json";
+import decision from "./sample/surface-decision.json";
 import { HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, RUNS_PATH } from "../../../state/eos/homeStore.js";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
@@ -97,6 +100,7 @@ export const SAMPLE_READS = {
   [`${ROUTES.surfaces}?place=needs_you`]: { surfaces: [surfaceSample.surface] },
   [`${ROUTES.surfaceIssues(surfaceSample.surface.id)}?limit=20`]: { issues: [surfaceSample.issue], more: true },
   [ROUTES.surfaceIssue(surfaceSample.surface.id, surfaceSample.issue.id)]: { issue: surfaceSample.issue, body: surfaceSample.body },
+  [ROUTES.surfaceIssue(decision.surface.id, decision.issue.id)]: { issue: decision.issue, body: decision.body },
   [ROUTES.surface(paper.surface.id)]: paper.surface,
   [`${ROUTES.surfaces}?routine=${paper.surface.routineId}`]: { surfaces: [paper.surface] },
   [`${ROUTES.surfaceIssues(paper.surface.id)}?limit=20`]: paper.issues,
@@ -161,24 +165,28 @@ function pick(id) {
 }
 
 // Eos's columns in the app's grid, the sidebar sliding out for the field as
-// EosView does, and the run sheet App hosts. The chrome around them (the mode switcher,
-// the account footer) reads the core, so the gallery leaves it out.
+// EosView does, and the run sheet App hosts, inside the app's UI context that
+// a View draws in. The chrome around them (the mode switcher, the account
+// footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
   const { on: fieldOn } = useField();
   return (
-    <div className={fieldOn ? "app eos-mode eos-mode--field" : "app eos-mode"}>
-      <GalleryBar current={state} onPick={pick} />
-      <aside className="side">
-        <div className="side-island side-island--agents"><EosSidebarRows /></div>
-      </aside>
-      <section className="center"><EosMain /></section>
-      <RunSheet />
-    </div>
+    <UiProvider>
+      <div className={fieldOn ? "app eos-mode eos-mode--field" : "app eos-mode"}>
+        <GalleryBar current={state} onPick={pick} />
+        <aside className="side">
+          <div className="side-island side-island--agents"><EosSidebarRows /></div>
+        </aside>
+        <section className="center"><EosMain /></section>
+        <RunSheet />
+      </div>
+    </UiProvider>
   );
 }
 
 // The #eos-gallery page (main.jsx): Eos drawn from sample JSON. It never calls
-// the core: every read answers from a sample and every write is refused. It
+// the core: every read answers from a sample, every write is refused, and the
+// app's own requests are held on the page. It
 // opens in the state last picked in this tab (Home at first) and leaves where
 // the user's own Eos opens untouched.
 // The transport a gallery state reads through.
@@ -190,6 +198,7 @@ export function galleryTransport(state) {
 
 export function startEosGallery(rootEl) {
   const state = stateOf(storedState());
+  holdNetwork();
   setEosTransport(galleryTransport(state));
   holdEosNavInMemory(state.location);
   holdHomeInMemory();

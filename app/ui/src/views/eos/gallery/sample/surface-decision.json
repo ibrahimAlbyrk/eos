@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "ib-7d4s1a8f2g5h", "kind": "question", "state": "open", "attention": "interrupt",
+    "routineId": "rt-2x8k5n1q6w0r", "runId": "rn-5f2a8c1d9e3b",
+    "title": "Mail Triage needs two answers", "summary": "How it should reach you by SMS, and for which mails.",
+    "view": { "surfaceId": "sf-7d4s1a000001", "issueId": "si-7d4s1a000001" },
+    "rev": 1, "createdAt": 1763453400000, "updatedAt": 1763453400000
+  },
+  "surface": {
+    "id": "sf-7d4s1a000001", "routineId": "rt-2x8k5n1q6w0r", "level": "view", "place": "needs_you", "role": "question",
+    "title": "Mail Triage", "createdAt": 1763453400000, "updatedAt": 1763453400000
+  },
+  "issue": {
+    "id": "si-7d4s1a000001", "surfaceId": "sf-7d4s1a000001", "seq": 1, "runId": "rn-5f2a8c1d9e3b", "kind": "view",
+    "status": "ready", "rev": 1, "trial": false, "kept": false, "createdAt": 1763453400000, "updatedAt": 1763453400000
+  },
+  "body": {
+    "view": {
+      "title": "Mail Triage needs two answers",
+      "summary": "How Eos should reach you by SMS, and which mails are worth one.",
+      "ui": "<Form action=\"confirm\" submit=\"Confirm\"><Choice bind=\"way\" question=\"**How should Eos reach you by SMS?** Eos cannot send SMS yet. It found two ways and can build either.\" options=\"Through your iPhone: free, nothing to set up, works while this Mac is on | An SMS provider: paid per message, needs an account and a key, works from any Mac\"/><Checklist bind=\"from\" title=\"Which mails are worth an SMS?\" items=\"The publisher | App stores | Finance | Anyone I answered this month\"/><Field bind=\"quietFrom\" label=\"Not between\" type=\"time\" default=\"23:00\"/><Field bind=\"quietTo\" label=\"and\" type=\"time\" default=\"07:30\"/><Stepper bind=\"perDay\" label=\"At most a day\" min=\"1\" max=\"20\" default=\"5\"/></Form>",
+      "actions": { "confirm": { "label": "Confirm", "kind": "send", "text": "confirm", "primary": true } }
+    },
+    "actions": ["confirm"]
+  }
+}

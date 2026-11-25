@@ -8,12 +8,22 @@ import { RUNS_PATH } from "../../../state/eos/homeStore.js";
 import inbox from "./sample/inbox.json";
 import memory from "./sample/memory.json";
 import paper from "./sample/paper.json";
+import decision from "./sample/surface-decision.json";
 import routineDetail from "./sample/routine-detail.json";
 import routineDraft from "./sample/routine-draft.json";
 import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
 
 const PAPER = paper.surface.id;
+// Mail Triage's View that asks two things, arrived ten minutes before the
+// gallery opened, first in Needs you.
+function withDecision(s) {
+  const at = Date.now() - 10 * 60 * 1000;
+  const item = { ...decision.item, createdAt: at, updatedAt: at };
+  const list = s[ROUTES.inbox];
+  return { ...s, [ROUTES.inbox]: { ...list, items: [item, ...list.items] }, [ROUTES.inboxItem(item.id)]: { item, payload: {} } };
+}
+
 const empty = { ...inbox, items: [], counts: { open: 0, later: 0, byKind: {}, byRoutine: {} } };
 
 // { id, label, location, reads: (samples) → reads, answer?: "loading" | "error" }
@@ -26,6 +36,7 @@ export const GALLERY_STATES = [
   { id: "needs", label: "Needs you", location: "eos:/needs" },
   { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty }) },
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },
+  { id: "need-view", label: "Needs you · a View that asks", location: `eos:/needs/${decision.item.id}`, reads: withDecision },
   { id: "link", label: "A link wants to start a run", location: "eos:/form?routine=pr-review&item=%23470&opt.depth=deep&showOnly=1&from=link" },
   { id: "routines", label: "Routines", location: "eos:/routines" },
   { id: "routine", label: "Routine · active", location: `eos:/routines/${routineDetail.routine.id}` },
