@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
@@ -11,12 +11,19 @@ import { parseLocation } from "../nav/eosNav.js";
 import { _resetField, useField } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
 import paper from "./sample/paper.json";
+import decision from "./sample/surface-decision.json";
+import { holdNetwork } from "./holdNetwork.js";
 
 const rendered = [];
 vi.mock("react-dom/client", () => ({
   createRoot: () => ({ render: (element) => rendered.push(element) }),
 }));
 
+// The app's UI context the gallery draws in reads the window's storage.
+beforeEach(() => {
+  const kept = new Map();
+  vi.stubGlobal("localStorage", { getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, String(v)), removeItem: (k) => kept.delete(k) });
+});
 afterEach(() => {
   setEosTransport(null);
   _resetEosNav();
@@ -87,6 +94,26 @@ describe("#eos-gallery", () => {
     void galleryTransport(stateOf("home-loading")).get(ROUTES.routines).then(() => { answered = true; });
     await new Promise((r) => setTimeout(r, 10));
     expect(answered).toBe(false);
+  });
+
+  it("draws a View that asks in Needs you, first in the list, inside the app's UI context", async () => {
+    const reads = galleryTransport(stateOf("need-view"));
+    expect(stateOf("need-view").location).toBe(`eos:/needs/${decision.item.id}`);
+    expect((await reads.get(ROUTES.inbox)).body.items[0].id).toBe(decision.item.id);
+    expect((await reads.get(ROUTES.inboxItem(decision.item.id))).body.item.view).toEqual(decision.item.view);
+    expect((await reads.get(ROUTES.surfaceIssue(decision.surface.id, decision.issue.id))).body.body.view.title).toBe("Mail Triage needs two answers");
+    vi.stubGlobal("fetch", vi.fn());
+    startEosGallery({});
+    expect(renderToStaticMarkup(rendered[0])).toContain('<div class="app eos-mode">');
+  });
+
+  it("keeps the app's own requests on the page: each is refused and no stream opens", async () => {
+    const page = {};
+    holdNetwork(page);
+    const answer = await page.fetch("http://127.0.0.1:7400/api/settings");
+    expect(answer.status).toBe(503);
+    expect(await answer.json()).toEqual({ error: "the gallery calls no core" });
+    expect(new page.EventSource("http://127.0.0.1:7400/stream").readyState).toBe(2);
   });
 
   it("opens in the state picked last, and offers the states, Play and Slow", () => {
