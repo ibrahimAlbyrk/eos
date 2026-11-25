@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ensureRoutinesLoaded, useRoutines } from "../../../state/eos/routinesStore.js";
 import { release, retain, useRunLines } from "../../../state/eos/runLiveStore.js";
-import { loadRun, loadRunResult, stopRun, useRuns } from "../../../state/eos/runsStore.js";
+import { loadRun, loadRunResult, pauseRun, resumeRun, stopRun, useRuns } from "../../../state/eos/runsStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
@@ -21,6 +21,7 @@ import { hasEnded, isShownOnly, itemLine, originLine, reasonLine, stateChip } fr
 // them (01 G18); a run is stopped in any state but delivering and the ended ones.
 const TELLABLE = new Set(["running", "checking", "waiting_for_user"]);
 const STOPPABLE = new Set(["queued", "running", "checking", "waiting_for_user", "paused"]);
+const PAUSABLE = new Set(["running", "checking"]);
 const TICK_MS = 30_000;
 
 // Now, again every half minute while the run is live, for its elapsed time.
@@ -179,6 +180,10 @@ export function RunView({ id }) {
           <>
             <span className="eos-chip">{originLine(run.origin)}</span>
             <span className={chip.tone ? `eos-status eos-status--${chip.tone}` : "eos-status"}>{chip.text}</span>
+            {PAUSABLE.has(run.state) && <button type="button" className="eos-btn" onClick={() => void pauseRun(id)}>Pause</button>}
+            {run.state === "paused" && run.reason === "user" && (
+              <button type="button" className="eos-btn eos-btn--primary" onClick={() => void resumeRun(id)}>Resume</button>
+            )}
             {STOPPABLE.has(run.state) && (
               <button type="button" className="eos-btn" disabled={Boolean(stopping[id])} onClick={() => void stopRun(id)}>
                 {stopping[id] ? "Stopping…" : "Stop"}

@@ -100,6 +100,7 @@ const REASONS = {
 // The lead's own words say why when it reported that the run cannot be done.
 export function reasonLine(run) {
   if (run.reason === "reported") return run.headline ?? "Its lead said the run cannot be done.";
+  if (run.reason === "user" && run.state === "paused") return "You paused it.";
   return REASONS[run.reason] ?? "Something went wrong.";
 }
 
