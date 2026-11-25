@@ -353,6 +353,7 @@ fn run_summary(run: &StoredRun, needs_user: bool) -> RunSummary {
         started_at: run.started_at,
         ended_at: run.ended_at,
         milestones_done: run.progress_done,
+        version_id: run.version_id.clone(),
         device: None,
     }
 }
