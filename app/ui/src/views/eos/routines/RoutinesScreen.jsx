@@ -5,6 +5,9 @@ import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../sta
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
 import { EmptyState } from "../frame.jsx";
+import { ComingUp } from "../home/ComingUp.jsx";
+import { comingUp } from "../home/homeWords.js";
+import { RoutineGlyph } from "./RoutineGlyph.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
@@ -16,6 +19,8 @@ const FILTERS = {
   archived: { label: "Archived", states: ["archived"], empty: "No archived routines.", text: "A routine you archive keeps its runs and what it learned here, out of the way." },
 };
 const RUNNABLE = new Set(["active", "paused"]);
+
+const namesOf = (list) => Object.fromEntries((list ?? []).map((r) => [r.id, r.name]));
 
 const COLUMNS = [
   { key: "name", label: "Routine" },
@@ -29,6 +34,25 @@ const COLUMNS = [
 ];
 
 const Dot = ({ tone }) => <span className={tone ? `eos-dot eos-dot--${tone}` : "eos-dot"} aria-hidden="true" />;
+
+// The active routines grouped by what the user must do: those waiting for
+// them (or whose last run failed), those running on their own, those being
+// made. Paused and archived are one group each, unnamed. A group with no
+// routine is left out.
+const GROUPS = [
+  { key: "you", label: "Waiting for you", has: (r) => r.waiting > 0 || r.tone === "err" },
+  { key: "own", label: "On their own", has: (r) => r.routine.state === "active" },
+  { key: "made", label: "Being made", has: (r) => r.routine.state === "draft" },
+];
+function groupsOf(rows, filter) {
+  if (filter !== "active") return [{ key: filter, rows }];
+  const left = new Set(rows);
+  return GROUPS.map((g) => {
+    const members = rows.filter((r) => left.has(r) && g.has(r));
+    members.forEach((r) => left.delete(r));
+    return { ...g, rows: members };
+  }).filter((g) => g.rows.length > 0);
+}
 
 function SortHead({ column, sort, setSort }) {
   const on = sort.key === column.key;
@@ -51,20 +75,25 @@ function Row({ row, now, hosted }) {
     <tr>
       <th scope="row">
         <button type="button" className="eos-rtable__name" onClick={openPage}>
-          <Dot tone={row.tone} />
-          {routine.name}
+          <span className={row.tone ? `eos-rtable__mark eos-rtable__mark--${row.tone}` : "eos-rtable__mark"} aria-hidden="true">
+            <RoutineGlyph icon={routine.icon} name={routine.name} size={14} part="eos-rtable" />
+          </span>
+          <span className="eos-rtable__words">
+            <span className="eos-rtable__title">{routine.name}</span>
+            {routine.summary && <span className="eos-rtable__summary">{routine.summary}</span>}
+          </span>
         </button>
       </th>
       <td className="eos-rtable__wide">{kindWord(routine.kind)}</td>
       <td className="eos-rtable__line">{row.line}</td>
       <td>{nextWord(row.nextAt, now) ?? <span className="eos-rtable__none">—</span>}</td>
       <td>{last ? <span className="eos-rtable__last"><Dot tone={last.tone} />{last.text}</span> : <span className="eos-rtable__none">—</span>}</td>
-      <td className="eos-rtable__num">{row.waiting > 0 ? row.waiting : <span className="eos-rtable__none">—</span>}</td>
+      <td className="eos-rtable__num">{row.waiting > 0 ? <span className="eos-rtable__waiting">{row.waiting}</span> : <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__num eos-rtable__wide">{usd(routine.stats?.cost7d) ?? <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__wide">{rungWord(routine.rung)}</td>
       <td className="eos-rtable__act">
         {hosted > 0 && RUNNABLE.has(routine.state) && (
-          <button type="button" className="eos-btn" aria-label={`Run ${routine.name}`} onClick={(e) => openRunSheet({ routineId: routine.id, anchor: e.currentTarget })}>Run</button>
+          <button type="button" className="eos-btn eos-btn--quiet" aria-label={`Run ${routine.name}`} onClick={(e) => openRunSheet({ routineId: routine.id, anchor: e.currentTarget })}>Run</button>
         )}
       </td>
     </tr>
@@ -107,10 +136,11 @@ export function RoutinesScreen() {
         {list !== null && (list.length > 0 || filter !== "active") && (
           <header className="eos-routines__head">
             <p className="eos-lead">{routinesLead(rows)}</p>
-            {soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
+            {filter !== "active" && soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
           </header>
         )}
-        {!none && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
+        {filter === "active" && rows.length > 0 && <ComingUp slots={comingUp(next, now)} names={namesOf(list)} now={now} />}
+        {!none && !(list === null && listFailed) && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
           {Object.entries(FILTERS).map(([key, f]) => (
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
           ))}
@@ -134,9 +164,19 @@ export function RoutinesScreen() {
                   <th scope="col"><span className="eos-sr">Run</span></th>
                 </tr>
               </thead>
-              <tbody>
-                {sortRows(rows, sort.key, sort.dir).map((row) => <Row key={row.routine.id} row={row} now={now} hosted={hosted} />)}
-              </tbody>
+              {groupsOf(rows, filter).map((g) => (
+                <tbody key={g.key} className="eos-rtable__group">
+                  {g.label && (
+                    <tr className="eos-rtable__grouphead">
+                      <th scope="colgroup" colSpan={COLUMNS.length + 1}>
+                        <span className="eos-label">{g.label}</span>
+                        <span className="eos-section__aside">{g.rows.length}</span>
+                      </th>
+                    </tr>
+                  )}
+                  {sortRows(g.rows, sort.key, sort.dir).map((row) => <Row key={row.routine.id} row={row} now={now} hosted={hosted} />)}
+                </tbody>
+              ))}
             </table>
           </div>
         )}

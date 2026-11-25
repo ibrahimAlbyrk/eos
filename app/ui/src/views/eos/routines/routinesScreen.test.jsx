@@ -13,7 +13,8 @@ import routines from "../gallery/sample/routines.json";
 import inbox from "../gallery/sample/inbox.json";
 
 const draw = () => renderToStaticMarkup(<EosMain />);
-const names = (html) => [...html.matchAll(/<button type="button" class="eos-rtable__name"><span[^>]*><\/span>([^<]*)</g)].map((m) => m[1]);
+const names = (html) => [...html.matchAll(/<span class="eos-rtable__title">([^<]*)</g)].map((m) => m[1]);
+const groups = (html) => [...html.matchAll(/<th scope="colgroup" colSpan="9"><span class="eos-label">([^<]*)<\/span><span class="eos-section__aside">(\d+)</g)].map((m) => `${m[1]} ${m[2]}`);
 
 beforeEach(async () => {
   _resetRoutines();
@@ -32,7 +33,11 @@ describe("all routines", () => {
     const html = draw();
     expect(html).not.toContain("This part of Eos is not here yet.");
     expect(html).toContain('<h1 class="eos-title">Routines</h1>');
-    expect(names(html)).toEqual(["Build Watch", "Morning Paper", "PR Review", "Release Notes"]);
+    // Grouped by what the user must do, by name within each group.
+    expect(groups(html)).toEqual(["Waiting for you 2", "On their own 1", "Being made 1"]);
+    expect(names(html)).toEqual(["Morning Paper", "PR Review", "Build Watch", "Release Notes"]);
+    expect(html).toContain('<span class="eos-rtable__mark eos-rtable__mark--active" aria-hidden="true"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" class="eos-rtable__glyph">');
+    expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');
     expect(html).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="eos-rtable__sort">Routine<span aria-hidden="true"> ↑</span></button></th>');
     const pr = html.split("<tr>").find((row) => row.includes(">PR Review<"));
     expect(pr).toContain("3 waiting");
