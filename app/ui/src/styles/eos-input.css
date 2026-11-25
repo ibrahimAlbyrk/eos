@@ -12,7 +12,10 @@
   transition: opacity 120ms ease;
 }
 .eos-intent__line--dim { opacity: 0.55; }
-.eos-intent__line--dim .eos-intent__key {
+.eos-intent__line--dim .eos-intent__key { color: var(--fg-dim2); }
+.eos-intent__line--hint { justify-content: center; }
+.eos-intent__line--hint .eos-intent__text { flex: none; color: var(--fg-dim); }
+.eos-intent__key {
   flex: none;
   min-width: 22px;
   height: 20px;
