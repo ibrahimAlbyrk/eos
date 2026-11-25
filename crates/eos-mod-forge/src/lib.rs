@@ -57,7 +57,7 @@ pub use blueprint::{SLUG, blueprint};
 pub use proposal::{PRODUCER, PROPOSAL_EVENT};
 pub use request::report_event;
 pub use rollback::{ROLLBACK_WITHIN_MS, ROLLED_BACK};
-pub use steps::{ForgeSteps, ForgeStepsParts, PROPOSE_STEP, REGISTRY_HOSTS, TEST_STEP, build_folder};
+pub use steps::{ForgeSteps, ForgeStepsParts, PROPOSE_STEP, REGISTRY_HOSTS, TEST_STEP, TOOLCHAIN_READS, build_folder};
 pub use tested::TEST_EVENT;
 
 /// How many capability changes wait for the rollback watch.
