@@ -34,7 +34,7 @@
     "baseBranch": "main",
     "brief": "Give Eos the capability the user's note asks for, through the stations below. Nothing is installed without the user's yes on the proposal Eos makes at the end.",
     "milestones": [
-      {"key": "research", "title": "Find the ways", "doneWhen": "the researcher handed in one to three ways with forge_report"},
+      {"key": "research", "title": "Find the ways", "doneWhen": "the researcher handed in one to three ways with forge_report", "limits": {"usd": 2, "minutes": 10}},
       {"key": "choose", "title": "Let the user choose", "doneWhen": "the user picked one way with ask_user"},
       {"key": "build", "title": "Build the package", "doneWhen": "the builder handed in a package whose own tests pass"},
       {"key": "test", "title": "Test it under confinement", "doneWhen": "Eos's tests passed", "system": "forge.test"},

@@ -276,3 +276,58 @@ async fn a_project_run_that_spends_its_day_pauses_with_one_notice_and_goes_on_th
     assert_eq!(bench.run(&run).station, Some(Station::Work));
     bench.eventually(|| bench.told(&lead, "A new day") == 1).await;
 }
+
+/// A project whose first milestone names caps of its own, as the Forge's research does.
+fn capped_project(usd: f64, minutes: i64) -> Value {
+    let mut project = crate::project::project();
+    project["limits"]["perDayUsd"] = json!(50);
+    project["project"]["milestones"][0]["limits"] = json!({"usd": usd, "minutes": minutes});
+    project
+}
+
+async fn project_at_work(bench: &Bench, project: Value) -> (String, String) {
+    let routine = bench.routine(RoutineState::Active, project);
+    let run = bench.start(new_run(&routine, RunOrigin::Hand, None)).await.expect("starts").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+    (run, lead)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_milestone_that_names_a_cost_cap_is_held_to_it_like_a_run() {
+    let bench = Bench::new(true);
+    let (run, lead) = project_at_work(&bench, capped_project(2.0, 120)).await;
+    bench.spend(&lead, 1.85);
+    bench.eventually(|| bench.told(&lead, "90% of what it may spend") == 1).await;
+    assert_eq!(bench.state(&run), RunState::Running);
+    bench.spend(&lead, 0.2);
+    bench.eventually(|| bench.state(&run) == RunState::Failed).await;
+    assert_eq!(bench.run(&run).reason, Some(Reason::BudgetRun));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_milestone_that_names_a_time_cap_is_held_to_it_with_its_grace() {
+    let bench = Bench::new(true);
+    let (run, lead) = project_at_work(&bench, capped_project(5.0, 10)).await;
+    bench.later(9 * MINUTE + MINUTE / 2).await;
+    bench.eventually(|| bench.told(&lead, "90% of its working time") == 1).await;
+    bench.later(MINUTE).await;
+    bench.later(2 * MINUTE + 1).await;
+    bench.eventually(|| bench.state(&run) == RunState::Failed).await;
+    assert_eq!(bench.run(&run).reason, Some(Reason::BudgetTime));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_project_milestone_without_caps_leaves_the_run_uncapped() {
+    let bench = Bench::new(true);
+    let mut project = crate::project::project();
+    project["limits"]["perDayUsd"] = json!(50);
+    let (run, lead) = project_at_work(&bench, project).await;
+    // Past the routine's per-run numbers, within the day.
+    bench.spend(&lead, 15.0);
+    bench.eventually(|| bench.booked(TODAY) >= 15.0).await;
+    bench.later(4 * 60 * MINUTE).await;
+    assert_eq!(bench.state(&run), RunState::Running, "a project has no cap per run");
+    assert_eq!(bench.told(&lead, "Wrap up"), 0);
+}

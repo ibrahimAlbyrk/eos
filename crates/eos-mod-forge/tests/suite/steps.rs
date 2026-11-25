@@ -38,3 +38,15 @@ async fn a_run_id_that_names_another_folder_is_refused() {
         assert!(steps(&home).prepare_folder(id).await.is_err(), "{id}");
     }
 }
+
+#[test]
+fn the_forges_research_is_capped_at_ten_minutes_and_two_dollars() {
+    let definitions = crate::rig::definitions();
+    let blueprint = eos_mod_forge::blueprint(&definitions).expect("a blueprint");
+    let research = &blueprint["project"]["milestones"][0];
+    assert_eq!(research["key"], "research");
+    assert_eq!(research["limits"], serde_json::json!({"usd": 2, "minutes": 10}));
+    let blueprint: eos_contracts::Blueprint = serde_json::from_value(blueprint).expect("reads");
+    let limits = blueprint.project.expect("a project").milestones[0].limits.expect("caps");
+    assert_eq!((limits.usd, limits.minutes), (2.0, 10));
+}

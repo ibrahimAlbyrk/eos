@@ -393,12 +393,24 @@ pub struct Milestone {
     /// (`forge.test`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
+    /// What the milestone may spend, counted from when it began: a project
+    /// has no cap per run, so a stretch that must stay small names its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limits: Option<MilestoneLimits>,
     /// Keys this version does not know; kept so a round trip loses nothing.
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
 
 impl Validate for Milestone {}
+
+/// A milestone's own caps.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MilestoneLimits {
+    pub usd: f64,
+    pub minutes: i64,
+}
 
 #[cfg(test)]
 mod tests;

@@ -59,20 +59,38 @@ pub(crate) struct Meter {
     waited_ms: i64,
 }
 
-/// A run's caps, from the version it runs: a project has none of its own.
+/// A run's caps, from the version it runs. A project has none of its own:
+/// the milestone it works on may name some, counted from the spend and the
+/// working time the run had when that milestone began.
 struct Caps {
     usd: f64,
     ms: i64,
+    base_usd: f64,
+    base_ms: i64,
 }
 
 fn caps_of(tx: &dyn Tx, run: &StoredRun) -> Result<Option<Caps>, Error> {
     let Some(version_id) = &run.version_id else { return Ok(None) };
     let Some(version) = tx.routine_versions().find(&run.routine_id, version_id)? else { return Ok(None) };
     let Some(blueprint) = readable(&version)? else { return Ok(None) };
-    if blueprint.kind == RoutineKind::Project {
-        return Ok(None);
+    if blueprint.kind != RoutineKind::Project {
+        let (usd, ms) = (blueprint.limits.per_run_usd.0, blueprint.limits.per_run_minutes * MINUTE_MS);
+        return Ok(Some(Caps { usd, ms, base_usd: 0.0, base_ms: 0 }));
     }
-    Ok(Some(Caps { usd: blueprint.limits.per_run_usd.0, ms: blueprint.limits.per_run_minutes * MINUTE_MS }))
+    let Some(limits) = super::project::current(&blueprint, run).and_then(|milestone| milestone.limits) else {
+        return Ok(None);
+    };
+    let events = tx.runs().events(&run.id)?;
+    let began = events.iter().rposition(|event| event.kind == super::project::MILESTONE_BEGAN);
+    let (base_usd, base_ms) = match began {
+        Some(at) => {
+            let data = events[at].data.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok());
+            let cost = data.and_then(|data| data["costUsd"].as_f64()).unwrap_or(0.0);
+            (cost, work_ms(&events[..at], Some(events[at].at)))
+        }
+        None => (0.0, 0),
+    };
+    Ok(Some(Caps { usd: limits.usd, ms: limits.minutes * MINUTE_MS, base_usd, base_ms }))
 }
 
 /// What a run's sessions cost.
@@ -199,7 +217,7 @@ async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<()
         None => return Ok(()),
     };
     let Spending { run, cost, caps: Some(caps) } = spending else { return Ok(()) };
-    match budget(cost, caps.usd) {
+    match budget(cost - caps.base_usd, caps.usd) {
         Budget::Within => Ok(()),
         Budget::WrapUp => {
             let first = !std::mem::replace(
@@ -285,7 +303,8 @@ async fn hold_to_time(engine: &Arc<Engine>, at: &AtWork, now: i64) -> Result<(),
         }
         let waiting = meter.asked_since.map_or(0, |since| now - since);
         let worked = (at.worked - meter.waited_ms - waiting).max(0);
-        let state = at.caps.as_ref().map_or(Budget::Within, |caps| budget(worked as f64, caps.ms as f64));
+        let state =
+            at.caps.as_ref().map_or(Budget::Within, |caps| budget((worked - caps.base_ms) as f64, caps.ms as f64));
         let wrap_up = state != Budget::Within && !std::mem::replace(&mut meter.wrapped_time, true);
         let time_up = state == Budget::Reached && now - *meter.time_up_at.get_or_insert(now) >= GRACE_MS;
         (worked, write, wrap_up, time_up)
