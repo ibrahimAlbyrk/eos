@@ -109,7 +109,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
       {said.map((words, n) => <div key={n} className="eos-bp-bubble">{words}</div>)}
       {draft?.architectId && <Replies workerId={draft.architectId} />}
       {checkLines(draft).length > 0 && <div className="eos-bp-checks">{checkLines(draft).map((line) => <Check key={line}>{line}</Check>)}</div>}
-      {working && <p className="eos-note" role="status">{working}</p>}
+      {working && <p className="eos-bp-working" role="status">{working}</p>}
       {draft?.status === "abandoned" && <p className="eos-note">You left this draft. Say what to change to start again.</p>}
       {draft?.status === "asking" && draft.question && <Question routineId={routineId} draft={draft} />}
       {note?.kind === "crowded" && <Crowded routineId={routineId} text={note.text} drafts={note.drafts} />}

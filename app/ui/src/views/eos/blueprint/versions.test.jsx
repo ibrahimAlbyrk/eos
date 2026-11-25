@@ -45,7 +45,7 @@ async function screen(location, n, transport = fixtureTransport(SAMPLE_READS)) {
 }
 
 const tabs = (html) => [...html.matchAll(/aria-selected="(true|false)"[^>]*>([^<]*)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
-const changedRows = (html) => [...html.matchAll(/eos-bp-row eos-bp-row--changed"><dt class="eos-bp-row__label">([^<]*)/g)].map((m) => m[1]);
+const changedRows = (html) => [...html.matchAll(/eos-bp-row eos-bp-row--changed"><dt class="eos-bp-row__label"><span class="eos-bp-row__dot" aria-hidden="true"><\/span><span class="eos-bp-row__name">([^<]*)/g)].map((m) => m[1]);
 const actions = (html) => [...(html.match(/<div class="eos-bp-actions">(.*?)<\/div>/)?.[1] ?? "").matchAll(/<button[^>]*>([^<]*)/g)].map((m) => m[1]);
 
 beforeEach(() => {

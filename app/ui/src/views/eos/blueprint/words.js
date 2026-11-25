@@ -73,3 +73,6 @@ export const SLOT_GUIDE = [
   ["Goes to", "Where the result goes: to you, a channel, a pull request."],
   ["Freedom", "How much it may do on its own before it asks you."],
 ];
+
+// What a slot is for, said where it holds nothing yet.
+export const slotHint = (label) => SLOT_GUIDE.find(([name]) => name === label)?.[1];

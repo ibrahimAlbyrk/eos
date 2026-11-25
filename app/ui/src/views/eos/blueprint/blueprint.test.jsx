@@ -12,9 +12,9 @@ import { _resetInbox } from "../../../state/eos/inboxStore.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
-import { BlueprintCard } from "./BlueprintCard.jsx";
+import { BlueprintCard, slotState } from "./BlueprintCard.jsx";
 import { FreedomLadder } from "./FreedomLadder.jsx";
-import { shownVersion } from "./BlueprintEditor.jsx";
+import { makingLead, Note, shownVersion } from "./BlueprintEditor.jsx";
 import { HAND_BLUEPRINT } from "./words.js";
 import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
@@ -61,7 +61,7 @@ async function editor(id, transport = fixtureTransport(reads)) {
 }
 
 const draw = () => renderToStaticMarkup(<EosMain />);
-const changedRows = (html) => [...html.matchAll(/eos-bp-row eos-bp-row--changed"><dt class="eos-bp-row__label">([^<]*)/g)].map((m) => m[1]);
+const changedRows = (html) => [...html.matchAll(/eos-bp-row eos-bp-row--changed"><dt class="eos-bp-row__label"><span class="eos-bp-row__dot" aria-hidden="true"><\/span><span class="eos-bp-row__name">([^<]*)/g)].map((m) => m[1]);
 const buttonsIn = (html, cls) => [...(html.match(new RegExp(`<div class="${cls}">(.*?)</div>`))?.[1] ?? "").matchAll(/<button[^>]*>([^<]*)/g)].map((m) => m[1]);
 
 beforeEach(() => {
@@ -187,14 +187,14 @@ describe("a routine being made", () => {
     await editor(DOCS, fixtureTransport(paths));
     await loadVersion(DOCS, edited.id);
     let html = draw();
-    expect(html).toContain('<p class="eos-note" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
+    expect(html).toContain('<p class="eos-bp-end__line" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
 
     const again = { ...trial, id: "rn-trial0000002", state: "failed", versionId: edited.id };
     setEosTransport(fixtureTransport({ ...paths, [`${ROUTES.runs}?routineId=${DOCS}&limit=50`]: { runs: [again, trial] } }));
     await loadRuns(DOCS);
     html = draw();
-    expect(html).toContain('<p class="eos-note" role="status">No trial of version 2 went well yet.</p>');
+    expect(html).toContain('<p class="eos-bp-end__line" role="status">No trial of version 2 went well yet.</p>');
   });
 
   it("shows the architect asking: the user's words, its question with its choices, and the card to start", async () => {
@@ -206,7 +206,7 @@ describe("a routine being made", () => {
     expect(html).toContain('placeholder="Change anything by saying it"');
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);
-    expect(html).toContain('<span class="eos-bp-actions__cost">Uses github. At most $2 a run, stops at $5 a day.</span>');
+    expect(html).toContain('<p class="eos-bp-end__cost">Uses github. At most $2 a run, stops at $5 a day.</p>');
     expect(html).toContain('<button type="button" class="eos-bp-agent" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">Sonnet 5.5</span></button>');
     expect(html).toContain('<dd class="eos-bp-row__value">A pull request is <button type="button" class="eos-bp-value"');
     expect(html).toContain("Where the item came from, on GitHub<span class=\"eos-sr\">, locked</span>");
@@ -245,7 +245,7 @@ describe("a routine being made", () => {
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineDraftMessage(DOCS), { text: "Skip the changelog" });
     const html = draw();
     expect(html).toContain('<div class="eos-bp-bubble">Drafts too</div><div class="eos-bp-bubble">Skip the changelog</div>');
-    expect(html).toContain('<p class="eos-note" role="status">Working on the blueprint…</p>');
+    expect(html).toContain('<p class="eos-bp-working" role="status">Working on the blueprint…</p>');
   });
 
   it("starts, starts without a trial, and runs the trial again", async () => {
@@ -284,7 +284,7 @@ describe("a routine being made", () => {
     await editor(DOCS, t);
     await loadVersion(DOCS, edited.id);
     const html = draw();
-    expect(html).toContain('<p class="eos-note" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
+    expect(html).toContain('<p class="eos-bp-end__line" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run the trial again</button>');
 
@@ -340,7 +340,7 @@ describe("an architect's change of a running routine", () => {
     expect(html).toContain("Changed Who");
     expect(html).toContain("Ran a trial on 2 past items");
     expect(html).toContain('<h2 class="eos-label">Trial on 2 past items, nothing was sent</h2>');
-    expect(html).toContain('<span class="eos-bp-trial__item">Invoice from Acme</span><span class="eos-bp-trial__line">Two replies drafted</span><button type="button" class="eos-link">Read the draft</button>');
+    expect(html).toContain('<span class="eos-bp-trial__item">Invoice from Acme</span><span class="eos-bp-trial__line">Two replies drafted</span></span><button type="button" class="eos-link">Read the draft</button>');
   });
 
   it("uses the version through start, and discards it", async () => {
@@ -420,3 +420,44 @@ describe("the Freedom ladder", () => {
   });
 });
 
+
+describe("the blueprint's spine", () => {
+  const bp = routineDetail.head.blueprint;
+  it("marks each slot by its state: written, empty, being written, changed, or named by a finding", () => {
+    expect(slotState("who", bp)).toBe("filled");
+    expect(slotState("how", { ...bp, how: { steps: [], checks: [] } })).toBe("empty");
+    expect(slotState("which", {})).toBe("empty");
+    expect(slotState("which", {}, { writing: true })).toBe("writing");
+    expect(slotState("who", bp, { changed: ["who"] })).toBe("changed");
+    expect(slotState("who", bp, { changed: ["who"], issues: [{ path: ["who", "agents"], message: "x" }] })).toBe("needs");
+  });
+
+  it("says what a slot is for while the architect writes it, and a finding under the slot it names", () => {
+    const writing = renderToStaticMarkup(<BlueprintCard blueprint={{ name: "Docs Review" }} writing />);
+    expect(writing).toContain('aria-busy="true"');
+    expect(writing).toContain('<div class="eos-bp-row eos-bp-row--writing"><dt class="eos-bp-row__label"><span class="eos-bp-row__dot" aria-hidden="true"></span><span class="eos-bp-row__name">When</span></dt>');
+    expect(writing).toContain("What starts it: a time, something that happens, or you.");
+    const refused = renderToStaticMarkup(<BlueprintCard blueprint={bp} issues={[{ path: ["goesTo", 1], message: "a channel needs its Slack sign-in" }]} />);
+    expect(refused).toContain('<span class="eos-bp-row__name">Goes to</span><span class="eos-bp-row__mark">Needs you</span>');
+    expect(refused).toContain('<ul class="eos-bp-row__issues"><li>a channel needs its Slack sign-in</li></ul>');
+    const band = renderToStaticMarkup(<Note note={{ kind: "refused", text: "Eos could not keep this blueprint.", issues: [{ path: ["goesTo", 1], message: "a" }, { path: ["which"], message: "b" }, { path: ["summary"], message: "c" }] }} />);
+    expect(band).toContain("Eos could not keep this blueprint. Which and Goes to need you below.</span>");
+    expect(band).toContain("<li>summary: c</li>");
+  });
+
+  it("leads a routine being made with where it stands, and shows it without tabs", async () => {
+    expect(makingLead({ status: "working" }, [])).toBe("Eos is writing the blueprint.");
+    expect(makingLead({ status: "asking" }, [])).toBe("One question, then it is ready.");
+    expect(makingLead({ status: "ready" }, [{ state: "done" }])).toBe("It went well on real past items.");
+    expect(makingLead(null, [])).toBe("Set each part, then start it.");
+    setEosTransport(fixtureTransport(reads));
+    await refreshRoutines();
+    await loadRoutine(DOCS);
+    await loadDraft(DOCS);
+    openLocation(`eos:/routines/${DOCS}`);
+    const html = draw();
+    expect(html).toContain('<h2 class="eos-lead">One question, then it is ready.</h2>');
+    expect(html).not.toContain('role="tablist"');
+    expect(html).not.toContain(">Change it</button>");
+  });
+});
