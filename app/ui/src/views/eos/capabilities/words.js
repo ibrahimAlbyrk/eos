@@ -75,9 +75,13 @@ export const FAILURES = {
 
 export const OUTCOMES = { ok: "Worked", error: "Failed", denied: "Not allowed", timeout: "Took too long", busy: "Busy" };
 
-export function usedBy(row) {
-  const n = row.usedBy?.length ?? 0;
+// Who uses it: the routines by name once `names` (id → name) knows each
+// one, else how many.
+export function usedBy(row, names = {}) {
+  const ids = row.usedBy ?? [];
+  const n = ids.length;
   if (n === 0) return "No routine uses it";
+  if (ids.every((id) => names[id])) return `Used by ${ids.map((id) => names[id]).join(", ")}`;
   return n === 1 ? "Used by 1 routine" : `Used by ${n} routines`;
 }
 

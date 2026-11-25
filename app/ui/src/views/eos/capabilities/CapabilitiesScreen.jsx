@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { ensureCapabilitiesLoaded, refreshCapabilities, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
-import { CapabilityState, DevRunNote, FixButton, LoadFailed, Loading } from "./parts.jsx";
+import { CapabilityState, DevRunNote, FixButton, LoadFailed, Loading, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
 import { fixFor, madeOf, usedBy } from "./words.js";
 
@@ -35,6 +35,7 @@ export function CapabilitiesScreen() {
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Capabilities" }]} />
+      <OfflineNote />
       <div className="eos-body">
         {devRun && <DevRunNote />}
         {body}

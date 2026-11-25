@@ -1,6 +1,12 @@
-import { checkCapability, setCapabilityEnabled } from "../../../state/eos/capabilitiesStore.js";
+import { checkCapability, setCapabilityEnabled, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { fixLabel, stateLine, stateTone, stateWord } from "./words.js";
+
+// The core did not answer the last read; what was read stays (08 G35).
+export function OfflineNote() {
+  const { offline } = useCapabilities();
+  return offline ? <p className="eos-cap-offline" role="status">Reconnecting…</p> : null;
+}
 
 export const DEV_RUN_TEXT = "This is a dev run: nothing starts or leaves the Mac.";
 

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
-import { _resetCapabilities, checkCapability, enterSecret, installCapabilityHere, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { _resetCapabilities, checkCapability, enterSecret, forgetSignIn, installCapabilityHere, loadCapability, refreshCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { cancelSignIn, closeSignIn, startSignIn } from "../../../state/eos/capabilitySignInStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -139,6 +140,45 @@ describe("a capability's page", () => {
     expect(html).toContain("Needs sign-in");
     expect(html).toContain("Signed in as &lt;b&gt;octocat&lt;/b&gt;");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Sign in</button>');
+  });
+
+  it("offers Forget sign-in once GitHub is signed in, and names the routines that use it", async () => {
+    _resetRoutines();
+    const github = { ...byId.github, state: "ready", stateCode: undefined, accountLabel: "octocat", secrets: [{ name: "token", label: "GitHub sign-in", set: true }] };
+    setEosTransport(fixtureTransport({ ...reads([github]), [ROUTES.routines]: [{ id: "rt-4k2n8q1x7m3p", name: "PR Review" }] }));
+    let html = await page("github");
+    expect(html).toContain('<button type="button" class="eos-btn">Forget sign-in</button>');
+    expect(html).toContain("Used by 1 routine");
+    await refreshRoutines();
+    html = at("eos:/capabilities/github");
+    expect(html).toContain("Used by PR Review · Signed in as octocat");
+    expect(await page("sms-messages")).not.toContain(">Forget sign-in<");
+    _resetRoutines();
+  });
+
+  it("forgets every secret a sign-in kept, then reads the capability again", async () => {
+    const sent = [];
+    const get = vi.fn(fixtureTransport(reads()).get);
+    const send = async (method, path) => {
+      sent.push([method, path]);
+      return { ok: true, status: 200, body: { ok: true } };
+    };
+    setEosTransport({ get, send });
+    await forgetSignIn({ id: "github", secrets: [{ name: "token", set: true }, { name: "other", set: false }] });
+    expect(sent).toEqual([["DELETE", "/api/capabilities/github/secrets/token"]]);
+    expect(get).toHaveBeenCalledWith(ROUTES.capability("github"));
+  });
+
+  it("says it is reconnecting when the core stops answering, and keeps what it read", async () => {
+    await refreshCapabilities();
+    setEosTransport({ get: async () => { throw new Error("gone"); }, send: async () => null });
+    await refreshCapabilities();
+    const html = at("eos:/capabilities");
+    expect(html).toContain('<p class="eos-cap-offline" role="status">Reconnecting…</p>');
+    expect(html).toContain('eos-cap-row__name">GitHub<');
+    setEosTransport(fixtureTransport(reads()));
+    await refreshCapabilities();
+    expect(at("eos:/capabilities")).not.toContain("Reconnecting…");
   });
 
   it("shows a working capability's settings, versions and recent calls, with Remove", async () => {
