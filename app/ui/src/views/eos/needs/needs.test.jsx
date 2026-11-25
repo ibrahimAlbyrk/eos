@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import {
-  _resetInbox, applyInboxChange, flagDeliveryWrong, loadInboxItem, refreshInbox, sendInboxDraft, stopDelivery, undoDelivery,
+  _resetInbox, applyInboxChange, flagDeliveryWrong, keepNextTime, loadInboxItem, refreshInbox, sendInboxDraft, stopDelivery, undoDelivery,
 } from "../../../state/eos/inboxStore.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
@@ -34,6 +34,7 @@ const detailOf = Object.fromEntries(inboxItems.map((d) => [d.item.id, d]));
 const DRAFT = "ib-8m2n6b0v4c1x";
 const MAIL = "ib-6t1y5u9i3o7p";
 const TEXT = "ib-2a5s9d3f7g1h";
+const QUESTION = "ib-3k9d2f7h1j5l";
 const reads = {
   [ROUTES.inbox]: inbox,
   [ROUTES.routines]: routines,
@@ -210,7 +211,8 @@ describe("a draft", () => {
     expect(html).toContain('<p class="eos-result__subject">Re: The invoice for October</p>');
     expect(html).toContain('<p class="eos-result__para">Thanks, the invoice is paid. The receipt is attached.</p>');
     expect(html).toContain('<span class="eos-chip eos-result__locked">dana@example.com</span><span class="eos-result__fixed">Fixed in the blueprint</span>');
-    expect(html).not.toContain("<input");
+    // Read-only: the only field is Next time.
+    expect([...html.matchAll(/<input [^>]*id="([^"]*)"/g)].map((m) => m[1])).toEqual(["eos-needs-next"]);
 
     await loadInboxItem(TEXT);
     html = at(`eos:/needs/${TEXT}`);
@@ -229,12 +231,11 @@ describe("a draft", () => {
     expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxSend(DRAFT), { rev: 2 }]]);
   });
 
-  it("hides Why it looks like this and Next time while memory is not there", async () => {
+  it("hides Why it looks like this when no notes came with the run", async () => {
     await loaded();
     await loadInboxItem(DRAFT);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).not.toContain("Why it looks like this");
-    expect(html).not.toContain("Next time");
   });
 });
 
@@ -495,5 +496,37 @@ describe("paging", () => {
     await loaded();
     await loadInboxItem("ib-gone00000001");
     expect(at("eos:/needs/ib-gone00000001")).toContain("This is no longer in Needs you.");
+  });
+});
+
+describe("Next time", () => {
+  it("asks under a draft's actions what to do differently, and not under an item of another kind", async () => {
+    await loaded();
+    await loadInboxItem(DRAFT);
+    await loadInboxItem(QUESTION);
+    const draft = at(`eos:/needs/${DRAFT}`);
+    expect(draft).toContain('<label for="eos-needs-next">Next time</label>');
+    expect(draft).toContain('placeholder="Tell Eos what to do differently, if anything"');
+    expect(draft.indexOf(">Discard</button>")).toBeLessThan(draft.indexOf("eos-needs-next"));
+    expect(at(`eos:/needs/${QUESTION}`)).not.toContain("eos-needs-next");
+  });
+
+  it("keeps what the user said as a rule they stated, in their own words, and nothing when they said nothing", async () => {
+    const t = recording(reads, async () => ({ ok: true, status: 201, body: {} }));
+    setEosTransport(t);
+    expect(await keepNextTime("   ")).toBe(true);
+    expect(t.send).not.toHaveBeenCalled();
+    expect(await keepNextTime("  Keep the summary to three lines. ")).toBe(true);
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.userMemories, {
+      text: "Keep the summary to three lines.", category: "work-style", scope: { kind: "global" },
+    });
+  });
+
+  it("says so when the core does not keep it", async () => {
+    const error = vi.spyOn(notify, "error").mockImplementation(() => {});
+    setEosTransport(recording(reads, async () => ({ ok: false, status: 500, body: { error: "boom" } })));
+    expect(await keepNextTime("Shorter.")).toBe(false);
+    expect(error).toHaveBeenCalledWith("Eos could not keep what to do next time.", { title: "Needs you" });
+    error.mockRestore();
   });
 });

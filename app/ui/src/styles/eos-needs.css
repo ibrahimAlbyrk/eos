@@ -168,3 +168,28 @@
 .eos-frame__content .gv-form__fields > .gv-stepper { justify-content: flex-start; }
 .eos-frame__content .gv-stepper__label { font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-frame__content .gv-stepper__ctl { margin-left: 0; }
+/* "Next time" under the actions: a label and a bare input in one quiet field. */
+.eos-needs-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 16px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.eos-needs-next label { flex: none; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-needs-next input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-strong);
+  font: inherit;
+  font-size: var(--text-base);
+}
+/* The field draws the focus ring, not the bare input inside it. */
+.eos-mode .eos-needs-next input:focus-visible { outline: 0; }
+.eos-needs-next:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }

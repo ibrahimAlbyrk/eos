@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { shortcutLabel } from "../../../lib/platform.js";
 import {
-  discardInboxItem, ensureInboxLoaded, laterInboxItem, loadInboxItem, useInbox,
+  discardInboxItem, ensureInboxLoaded, keepNextTime, laterInboxItem, loadInboxItem, useInbox,
 } from "../../../state/eos/inboxStore.js";
 import { loadRun } from "../../../state/eos/runsStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
@@ -49,6 +49,8 @@ export function NeedsItemScreen({ id }) {
   const [values, setValues] = useState({});
   // A View's form send, which this screen draws first among its actions.
   const [viewSubmit, setViewSubmit] = useState(null);
+  // "Next time": sent with the answer, or alone after Discard.
+  const [nextTime, setNextTime] = useState("");
   const routines = useRoutines().list;
   const nameOf = (routineId) => routines?.find((r) => r.id === routineId)?.name;
   const detail = details[id];
@@ -58,6 +60,7 @@ export function NeedsItemScreen({ id }) {
     void loadInboxItem(id);
   }, [id]);
   useEffect(() => { if (runId) void loadRun(runId); }, [runId]);
+  useEffect(() => { setNextTime(""); }, [id]);
 
   const order = list ? inListOrder(list.items) : [];
   const at = order.findIndex((i) => i.id === id);
@@ -66,12 +69,16 @@ export function NeedsItemScreen({ id }) {
     if (to) openLocation(itemLocation(to.id));
   };
   const open = Boolean(detail) && WAITING.has(detail.item.state) && !refused[id];
+  const stored = !isShownOnly(id);
+  const asksNextTime = open && stored && detail.item.kind === "draft";
   // A View answers through its own buttons, or its form's send drawn here;
   // Later and Discard sit beside it.
   const actions = open && !detail.item.view ? actionsOf(detail, values) : [];
   const setValue = (key, value) => setValues((v) => ({ ...v, [key]: value }));
   const doing = async (action) => {
-    if (await action.run(detail, values, setValue)) openLocation(after(order, at));
+    if (!(await action.run(detail, values, setValue))) return;
+    if (asksNextTime) void keepNextTime(nextTime);
+    openLocation(after(order, at));
   };
   // A send refused because a newer draft took this one's place opens it.
   const replacedBy = refused[id]?.state === "replaced" ? detail?.replacedBy : undefined;
@@ -103,7 +110,6 @@ export function NeedsItemScreen({ id }) {
 
   const title = detail?.item.title ?? "Item";
   const { Body } = cardOf(detail?.item.kind);
-  const stored = !isShownOnly(id);
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
@@ -153,6 +159,18 @@ export function NeedsItemScreen({ id }) {
                   {stored && (
                     <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
                   )}
+                </div>
+              )}
+              {asksNextTime && (
+                <div className="eos-needs-next">
+                  <label htmlFor="eos-needs-next">Next time</label>
+                  <input
+                    id="eos-needs-next"
+                    type="text"
+                    value={nextTime}
+                    placeholder="Tell Eos what to do differently, if anything"
+                    onChange={(e) => setNextTime(e.target.value)}
+                  />
                 </div>
               )}
             </div>
