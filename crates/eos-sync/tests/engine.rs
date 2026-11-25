@@ -437,3 +437,18 @@ async fn after_the_first_pass_a_domain_with_a_fast_read_is_not_listed_whole() {
     b.engine.sync().await.unwrap();
     assert_eq!(b.domain.ids(), ["n-2"]);
 }
+
+#[tokio::test]
+async fn a_lease_record_goes_to_the_lease_sink_and_never_to_a_domain() {
+    use eos_core::net::sync::PutOutcome;
+    use std::sync::atomic::Ordering;
+    let vault = vault();
+    let (a, b) = (Mac::new(&vault, "air"), Mac::new(&vault, "pro"));
+    let lease = json!({"lease": 1, "routine": "rt-1", "holder": "air", "epoch": 1, "since": 5});
+    let stored = a.vault.put("lease/rt-1", 0, &serde_json::to_vec(&lease).unwrap()).await.unwrap();
+    assert!(matches!(stored, PutOutcome::Stored { seq: 1 }));
+    assert_eq!(b.engine.sync().await.unwrap(), result(0, 0, 0), "no domain took it");
+    assert_eq!(*b.leases.records.lock().unwrap(), vec![("lease/rt-1".to_owned(), 1, lease)]);
+    assert_eq!(b.leases.pulls.load(Ordering::SeqCst), 1, "the sink hears that the read went through");
+    assert_eq!(b.engine.position(), 1);
+}

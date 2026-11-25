@@ -102,6 +102,32 @@ pub trait SyncCrypto: Send + Sync + 'static {
     fn hash(&self, text: &str) -> String;
 }
 
+/// The account's vault as a computer reaches it, for the records that are
+/// no domain's.
+#[derive(Clone)]
+pub struct LeaseVault {
+    pub vault: Arc<dyn SyncVault>,
+    pub crypto: Arc<dyn SyncCrypto>,
+}
+
+impl std::fmt::Debug for LeaseVault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LeaseVault").finish_non_exhaustive()
+    }
+}
+
+/// Where the records that say which computer runs what (`lease/<routine>`,
+/// `device/<id>`, each with a top-level `"lease": 1`) go: the engine pulls
+/// them with everything else and hands them here unread.
+pub trait LeaseSink: Send + Sync + 'static {
+    /// The account's vault opened; `None` once this computer left it.
+    fn attach(&self, vault: Option<LeaseVault>);
+    /// One such record, opened, under its record key at its sequence.
+    fn received(&self, key: &str, seq: u64, record: &Value);
+    /// A read of the vault went through.
+    fn pulled(&self);
+}
+
 /// One kind of user data the sync engine carries (profile fields, memories,
 /// pages, …). What it lists is the portable form that travels, and `apply`
 /// takes the same shape back through the data's own write path.

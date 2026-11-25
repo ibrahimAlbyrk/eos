@@ -227,4 +227,9 @@ pub trait Runner: Send + Sync {
     fn devices(&self) -> Vec<DeviceSeen>;
     /// The last successful read of the shared record.
     fn confirmed_at(&self) -> Option<i64>;
+    /// Whether the leases are shared with other computers now: while not,
+    /// nothing waits for a read of them.
+    fn shared(&self) -> bool {
+        false
+    }
 }

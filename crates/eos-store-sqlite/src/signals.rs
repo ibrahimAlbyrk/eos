@@ -492,4 +492,8 @@ impl SignalRunnerRepo for SqliteTx<'_> {
     fn find(&self, routine_id: &str) -> Result<Option<StoredSignalRunner>, Error> {
         self.row(&format!("SELECT {RUNNER_COLUMNS} FROM signal_runners WHERE routine_id = ?1"), [routine_id], runner)
     }
+
+    fn list(&self) -> Result<Vec<StoredSignalRunner>, Error> {
+        self.rows(&format!("SELECT {RUNNER_COLUMNS} FROM signal_runners ORDER BY routine_id"), params![], runner)
+    }
 }

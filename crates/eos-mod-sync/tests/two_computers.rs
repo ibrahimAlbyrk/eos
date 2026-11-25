@@ -3,6 +3,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+#[path = "two_computers/runner.rs"]
+mod runner;
 mod support;
 
 use std::sync::Arc;

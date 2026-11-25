@@ -371,6 +371,10 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         }),
     );
     let sign_in_links = capabilities.sign_in_links();
+    let vault_runner = cx.reach.vault_runner(|| {
+        let name = crate::machines::device_name(cx);
+        Arc::new(eos_mod_sync::VaultRunner::new(cx.peer.device_id(), name, cx.store.clone(), cx.clock.clone()))
+    });
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(
             cx.accounts.clone(),
@@ -474,7 +478,10 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             sources: cx.reach.signal_sources(cx.signal_sources.clone()),
             hooks: cx.hook_client.as_ref().and_then(|client| cx.reach.hook_inbox(|| hook_inbox(cx, client))),
             health: cx.capabilities.clone(),
-            runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
+            runner: match &vault_runner {
+                Some(runner) => runner.clone(),
+                None => Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
+            },
             intake: routines.intake(),
             directory: routines.directory(),
             control: routines.control(),
@@ -552,7 +559,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     )));
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
-    modules.push(crate::machines::sync(cx, contributions)?);
+    modules.push(crate::machines::sync(cx, contributions, vault_runner)?);
     Ok(Features { modules, tools, worker_rows, brief_worker_rows, sign_in_links })
 }
 

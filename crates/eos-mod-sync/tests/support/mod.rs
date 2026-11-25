@@ -194,6 +194,7 @@ impl Mac {
                         Arc::new(move || name.clone())
                     },
                     timing,
+                    leases: None,
                 },
                 contributions,
                 folders,
@@ -201,6 +202,7 @@ impl Mac {
                 clock: clock.clone(),
                 bus: bus.clone(),
                 jobs: kernel.jobs.clone(),
+                runner: None,
             })
             .unwrap(),
         );

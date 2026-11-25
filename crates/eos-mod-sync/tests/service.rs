@@ -144,6 +144,7 @@ fn bench(relay: Option<&'static str>) -> Bench {
             relay_url: Arc::new(move || relay.map(str::to_owned)),
             device: Arc::new(|| "air".to_owned()),
             timing: Timing::default(),
+            leases: None,
         },
         vec![rows.clone()],
         clock,

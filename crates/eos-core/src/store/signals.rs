@@ -248,6 +248,8 @@ pub trait SignalRunnerRepo {
     /// Writes a routine's holder in place of the one before.
     fn put(&self, runner: &StoredSignalRunner) -> Result<(), Error>;
     fn find(&self, routine_id: &str) -> Result<Option<StoredSignalRunner>, Error>;
+    /// Every routine's holder, by routine id.
+    fn list(&self) -> Result<Vec<StoredSignalRunner>, Error>;
 }
 
 /// Clearing old signals (02 §3 I.44). A signal a run that still exists
