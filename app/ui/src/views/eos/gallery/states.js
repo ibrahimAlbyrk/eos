@@ -16,6 +16,7 @@ import runDetail from "./sample/run-detail.json";
 import drafts from "./sample/blueprint-drafts.json";
 import versionBodies from "./sample/blueprint-version-bodies.json";
 import { NEEDS_STATES } from "./needsStates.js";
+import { addHomeRuns, addOnce } from "../../../state/eos/homeRunsStore.js";
 import { applyBlueprintChange, makeRoutine, saveBlueprint } from "../../../state/eos/blueprintStore.js";
 
 const PAPER = paper.surface.id;
@@ -258,6 +259,15 @@ export const GALLERY_STATES = [
   { id: "home-loading", label: "Home · loading", location: "eos:/", answer: "loading" },
   { id: "home-error", label: "Home · cannot read", location: "eos:/", answer: "error" },
   { id: "home-offline", label: "Home · reconnecting", location: "eos:/", answer: "offline" },
+  { id: "home-live", label: "Home · four runs started from the input, one dropped", location: "eos:/", then: () => {
+    addHomeRuns([{ id: "rn-checking01", routineId: PR }]);
+    addHomeRuns(["rn-waiting01", "rn-queued01"].map((id) => ({ id, routineId: PR })));
+    addHomeRuns([{ id: "rn-running01", routineId: PR }], { stoppable: true });
+  } },
+  { id: "home-once", label: "Home · two tasks done once", location: "eos:/", then: () => {
+    addOnce({ routineId: PR, name: "Summarise this week's merged pull requests", runId: "rn-running01" });
+    addOnce({ routineId: PR, name: "Review the naming in the shop UI", runId: "rn-shown01" });
+  } },
   { id: "needs", label: "Needs you", location: "eos:/needs" },
   { id: "needs-empty", label: "Needs you · empty", location: "eos:/needs", reads: (s) => ({ ...s, [ROUTES.inbox]: empty, [`${ROUTES.inbox}?state=answered`]: answered(s) }) },
   { id: "need", label: "Needs you · a draft", location: `eos:/needs/${inbox.items.find((i) => i.kind === "draft")?.id}` },

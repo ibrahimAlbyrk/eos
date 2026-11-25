@@ -226,47 +226,61 @@
 .eos-cands__keys { margin-left: auto; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.02em; }
 
 /* ── Live lines and the tasks done once ───────────────────────────────────── */
-.eos-live { display: flex; flex-direction: column; gap: 8px; }
-.eos-live__lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+/* The runs started here hang under a label on hairlines, as any list does:
+   a mark in the run's tone (hollow in the queue, breathing at work, lit when
+   it waits for you, then how it ended), its sentence, Stop while a drop may
+   be stopped and a quiet Open. A task done once is a card: it is acted on
+   as a whole (kept, opened, dismissed). */
+.eos-live { display: flex; flex-direction: column; margin-top: 16px; }
+.eos-live__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.eos-live__more { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-live__lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .eos-live__line {
-  border-radius: 14px;
-  padding: 12px 14px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  background: #171717;
-  box-shadow: inset 0 0 0 1px var(--line);
-  font-size: 13.5px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  min-height: 52px; box-sizing: border-box; padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-base); line-height: 1.45;
 }
 .eos-live__dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  width: 8px; height: 8px; flex: none; box-sizing: border-box;
+  border-radius: 50%; border: 1.5px solid var(--fg-dim2); background: transparent;
 }
-.eos-live__dot--ended { background: var(--fg-dim2); box-shadow: none; }
-.eos-live__text { flex: 1 1 200px; min-width: 0; color: var(--fg); }
-.eos-live__line--ended .eos-live__text { color: var(--fg-mid); }
-.eos-live__more { margin: 0; padding: 0 8px; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-live__dot--working { border-color: var(--accent); background: var(--accent); animation: eos-beat-breathe calc(2400ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) infinite; }
+.eos-live__dot--you { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-live__dot--ok { border-color: var(--ok); background: var(--ok); }
+.eos-live__dot--err { border-color: var(--err); background: var(--err); }
+.eos-live__dot--ended { background: var(--fg-dim2); }
+.eos-live__text { flex: 1 1 260px; min-width: 0; color: var(--fg); text-wrap: pretty; }
+.eos-live__line--ended .eos-live__text { color: var(--fg-dim); }
+.eos-live__acts { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.eos-live__acts .eos-btn { height: 30px; }
+.eos-live__open {
+  height: 30px; padding: 0 12px; border: 0; border-radius: var(--r-pill); background: none;
+  font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer;
+  transition: background-color 140ms var(--ease, ease), color 140ms var(--ease, ease);
+}
+.eos-live__open:hover { background: var(--row-on); color: var(--fg-strong); }
+.eos-live__open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eos-live__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin-top: 16px; }
 
-.eos-onces { display: flex; flex-direction: column; gap: 10px; }
+.eos-onces { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.eos-live + .eos-onces { margin-top: 24px; }
 .eos-once {
-  border-radius: 18px;
-  padding: 16px 18px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: #171717;
-  box-shadow: inset 0 0 0 1px var(--line), 0 22px 50px -14px rgba(0, 0, 0, 0.6);
+  border-radius: 16px; padding: 18px 20px 16px;
+  display: flex; flex-direction: column;
+  background: #1b1b1b;
 }
-.eos-once__head { display: flex; flex-direction: column; gap: 2px; }
-.eos-once__name { margin: 0; font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
-.eos-once__status { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-once__result { max-height: 360px; overflow: auto; font-size: var(--text-sm); }
-.eos-once__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.eos-once__from { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.eos-once__name { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--fg-strong); text-wrap: pretty; }
+.eos-once__status { margin: 4px 0 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); }
+.eos-once__result {
+  margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: var(--bg);
+  max-height: 360px; overflow: auto; font-size: var(--text-sm);
+}
+.eos-once > .eos-skeleton, .eos-once > [class*="loading"] { margin-top: 14px; }
+.eos-once__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 16px; }
+.eos-once__actions .eos-btn { height: 32px; }
+@media (prefers-reduced-motion: reduce) { .eos-live__dot--working { animation: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); } }
 
 /* The Home input's freedom, project and model pills (Main.dc.html). */
 .eos-home-pill {
