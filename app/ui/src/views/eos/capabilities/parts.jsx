@@ -62,10 +62,21 @@ export function Loading({ blocks = 3 }) {
   );
 }
 
-export function LoadFailed({ what, retry }) {
+// A part whose read failed, said as a fact with the err mark: what could
+// not be read, that Eos did not answer, and Try again beside it. `inline`
+// keeps it one quiet line for Home's field, whose design draws it so.
+export function LoadFailed({ what, retry, inline = false }) {
+  if (inline) {
+    return (
+      <p className="eos-note" role="alert">
+        Couldn&apos;t load {what}. <button type="button" className="eos-link" onClick={retry}>Try again</button>
+      </p>
+    );
+  }
   return (
-    <p className="eos-note" role="alert">
-      Couldn&apos;t load {what}. <button type="button" className="eos-link" onClick={retry}>Try again</button>
+    <p className="eos-fact eos-fact--err eos-load-failed" role="alert">
+      <span>Couldn&apos;t load {what}. Eos did not answer this time.</span>
+      <button type="button" className="eos-btn eos-btn--quiet" onClick={retry}>Try again</button>
     </p>
   );
 }
