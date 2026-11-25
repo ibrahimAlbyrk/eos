@@ -119,10 +119,13 @@ async fn a_routine_that_needs_two_broken_capabilities_stays_paused_until_both_wo
 
     builtin.set_health(Event::Passed);
     rig.ask(Method::Post, "/api/capabilities/github/check", None).await;
-    until("github works", || resumed(&control, "capability:github") >= 2).await;
-    let calls = control.calls();
     let resume = ControlCall::Resume { routine_id: "rt-1".into(), reason: "capability:github".into() };
     let pause = ControlCall::Pause { routine_id: "rt-1".into(), reason: "capability:notes-db".into() };
-    let handed = calls.iter().position(|call| *call == resume).map(|at| &calls[at + 1..]);
-    assert_eq!(handed.and_then(<[ControlCall]>::first), Some(&pause), "it waits for notes-db now: {calls:?}");
+    // The call after the routine's own Resume, once one was made.
+    let after_resume = || {
+        let calls = control.calls();
+        calls.iter().position(|call| *call == resume).and_then(|at| calls.get(at + 1).cloned())
+    };
+    until("github works and its routine is handed on", || after_resume().is_some()).await;
+    assert_eq!(after_resume(), Some(pause), "it waits for notes-db now: {:?}", control.calls());
 }
