@@ -15,11 +15,11 @@ export const TAB_HINT = "Tab for other choices";
 
 // The verbs of the force menu (08 G11): Auto lets the rules decide.
 export const VERBS = [
-  { intent: null, label: "Auto" },
-  { intent: "run", label: "Run" },
-  { intent: "make", label: "Make" },
-  { intent: "once", label: "Once" },
-  { intent: "change", label: "Change" },
+  { intent: null, label: "Auto", line: "Eos reads what you mean" },
+  { intent: "run", label: "Run", line: "Start one of your routines" },
+  { intent: "make", label: "Make", line: "Make a new routine from it" },
+  { intent: "once", label: "Once", line: "Do it once, here" },
+  { intent: "change", label: "Change", line: "Change one of your routines" },
 ];
 
 const RUNG_WORDS = {

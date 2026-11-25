@@ -6,8 +6,8 @@ import { modelName, MODELS } from "../../../lib/models.js";
 // blueprint's Freedom row, which asks first. A one-off always asks (01).
 
 export const HOME_RUNGS = [
-  { value: "draft", label: "Ask before sending" },
-  { value: "ask", label: "Ask before each run" },
+  { value: "draft", label: "Ask before sending", line: "It works on its own; what goes out waits for you" },
+  { value: "ask", label: "Ask before each run", line: "Nothing starts until you say so" },
 ];
 
 export const NO_CHOICES = { rung: "draft", project: null, model: null };

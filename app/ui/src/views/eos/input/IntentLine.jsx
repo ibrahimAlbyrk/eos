@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChoiceMenu } from "./ChoiceMenu.jsx";
 import { ChoiceRow } from "./ChoiceRow.jsx";
 import { TAB_CYCLES_CHOICES } from "./intent/inputReducer.js";
 import {
@@ -46,23 +47,16 @@ function VerbMenu({ forced, onForce }) {
         aria-label={forced ? `Enter will ${label.toLowerCase()}. Change` : "Choose what Enter does"}
         onClick={() => setOpen(!open)}
       >
-        {forced ? `${label} ▾` : "▾"}
+        {forced && <span>{label}</span>}
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 16 16" className="eos-pill__chev"><path d="M4 6l4 4 4-4" /></svg>
       </button>
       {open && (
-        <span className="eos-intent__menu" role="menu">
-          {VERBS.map((v) => (
-            <button
-              key={v.label}
-              type="button"
-              role="menuitemradio"
-              aria-checked={v.intent === forced}
-              className="eos-intent__menuitem"
-              onClick={() => { setOpen(false); onForce(v.intent); }}
-            >
-              {v.label}
-            </button>
-          ))}
-        </span>
+        <ChoiceMenu
+          label="What Enter does"
+          items={VERBS.map((v) => ({ value: v.intent, label: v.label, line: v.line }))}
+          value={forced ?? null}
+          onPick={(intentKind) => { setOpen(false); onForce(intentKind); }}
+        />
       )}
     </span>
   );

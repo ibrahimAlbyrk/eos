@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { open as openRunSheet } from "../../../state/eos/runSheetStore.js";
 import { LaterPicker, whenWords } from "../runform/LaterPicker.jsx";
+import { ChoiceMenu } from "./ChoiceMenu.jsx";
 import { optionsOf, splitOptions, startBody } from "../runform/runFormModel.js";
 
 const word = (v) => String(v).charAt(0).toUpperCase() + String(v).slice(1);
@@ -37,13 +38,7 @@ export function InlineOptions({ routine, form, setForm, canRun, onRun }) {
               <span className="eos-pill__label">{o.label}</span>{word(value)}<Chevron />
             </button>
             {open === o.key && (
-              <span className="eos-intent__menu" role="menu">
-                {(o.values ?? []).map((v) => (
-                  <button key={v} type="button" role="menuitemradio" aria-checked={v === value} className="eos-intent__menuitem" onClick={() => { setOption(o.key, v); setOpen(null); }}>
-                    {word(v)}
-                  </button>
-                ))}
-              </span>
+              <ChoiceMenu label={o.label} items={(o.values ?? []).map((v) => ({ value: v, label: word(v) }))} value={value} onPick={(v) => { setOption(o.key, v); setOpen(null); }} />
             )}
           </span>
         );
