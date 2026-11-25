@@ -7,7 +7,7 @@ import { loadIssue } from "../../../state/eos/pageStore.js";
 import { pressId, runSurfaceAction } from "../../../state/eos/surfacesStore.js";
 import { transport } from "../../../state/eos/transport.js";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
-import { ConfirmBelow, SurfaceCard } from "../needs/SurfaceCard.jsx";
+import { ConfirmBelow, SurfaceCard, ViewAside } from "../needs/SurfaceCard.jsx";
 import { EosFrame } from "./EosFrame.jsx";
 import { PageRenderer } from "./PageRenderer.jsx";
 import { useLiveParts } from "./useLiveParts.js";
@@ -75,7 +75,16 @@ export function IssueBody({ surface, row, shown, maker, version, linked }) {
   if (!shown) return <Loading blocks={4} />;
   if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;
   const view = row.kind === "view" ? shown.body?.view : shown.body?.plain;
-  if (view) return <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} />;
+  if (view) {
+    const card = <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} />;
+    if (!shown.body?.aside?.length) return card;
+    return (
+      <div className="eos-needs-item__columns">
+        <div className="eos-needs-item__main">{card}</div>
+        <aside className="eos-needs-aside" aria-label="About this view"><ViewAside notes={shown.body.aside} /></aside>
+      </div>
+    );
+  }
   return (
     <EosFrame maker={maker} level="page" below={below}>
       <PageRenderer

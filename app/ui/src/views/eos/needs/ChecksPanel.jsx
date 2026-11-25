@@ -5,13 +5,23 @@ import { ROLES } from "../run/words.js";
 import { WhyPanel } from "./WhyPanel.jsx";
 
 // The aside of an item a run made: the notes that shaped it, what its checker
-// found, and who worked on it at what cost. Drawn once the run is read.
-export function ChecksPanel({ runId }) {
+// found, and who worked on it at what cost, once the run is read. `lead`
+// comes first: what a View's run wrote beside it.
+export function ChecksPanel({ runId, lead = null }) {
   const run = useRuns().details[runId];
-  if (!run) return null;
-  const { verdict, agents } = run;
+  if (!run && !lead) return null;
   return (
     <aside className="eos-needs-aside" aria-label="About this result">
+      {lead}
+      {run && <RunParts runId={runId} run={run} />}
+    </aside>
+  );
+}
+
+function RunParts({ runId, run }) {
+  const { verdict, agents } = run;
+  return (
+    <>
       <WhyPanel runId={runId} />
       {verdict && (
         <section className="eos-needs-aside__part">
@@ -42,6 +52,6 @@ export function ChecksPanel({ runId }) {
         </ul>
         <p className="eos-needs-aside__lead">In all {fmtUsd(run.run.costUsd)}</p>
       </section>
-    </aside>
+    </>
   );
 }

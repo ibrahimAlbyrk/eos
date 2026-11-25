@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ViewSurface } from "../../../genui/ViewBlock.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
+import { OptionFacts } from "../../../genui/runtime/optionFacts.js";
 import { SubmitOutside } from "../../../genui/runtime/submitOutside.js";
 import { notify } from "../../../lib/notify.js";
 import { refreshInbox } from "../../../state/eos/inboxStore.js";
@@ -9,7 +10,8 @@ import { EosFrame } from "../surface/EosFrame.jsx";
 
 // A routine's View in Needs you, a choice or a form (05, 08 §4.9): drawn in
 // EosFrame with an Eos host, so what the user picks or types goes with the
-// press and each button runs only the action its issue declared. When Eos
+// press and each button runs only the action its issue declared. The facts
+// the run handed in beside it show in its options' cards. When Eos
 // asks first, it asks here, below the frame, never inside it. A form's send
 // is Eos's too: the screen that holds the card draws it in its own actions
 // (onSubmitOffer), else the card draws it under the frame.
@@ -33,6 +35,7 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
       return settle(press, await runSurfaceAction(press), ask);
     },
   }), [issue.id, body, ask]);
+  const factsOf = useMemo(() => factsLookup(body.facts), [body.facts]);
   const confirm = async () => {
     const { press, token, typeToConfirm } = asking;
     ask(null);
@@ -42,10 +45,12 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
     <ConfirmBelow asking={asking} typed={typed} onType={setTyped} onConfirm={() => void confirm()} onCancel={() => ask(null)} />
   );
   const frame = (
-    <EosFrame maker={routineName} level="view" below={below}>
+    <EosFrame maker={routineName} level="view" below={below} outside={body.untrusted === true}>
       <GenuiHostContext.Provider value={host}>
         <SubmitOutside.Provider value={offer}>
-          <ViewSurface viewId={issue.id} spec={body.view} ts={issue.createdAt} variant="panel" />
+          <OptionFacts.Provider value={factsOf}>
+            <ViewSurface viewId={issue.id} spec={body.view} ts={issue.createdAt} variant="panel" />
+          </OptionFacts.Provider>
         </SubmitOutside.Provider>
       </GenuiHostContext.Provider>
     </EosFrame>
@@ -57,6 +62,25 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
       <span className="eos-actions"><ViewSubmit offer={ownSubmit} /></span>
     </div>
   );
+}
+
+// The facts the run handed in beside its View, found by an option's label or
+// value; null when it handed in none.
+export function factsLookup(facts) {
+  if (!Array.isArray(facts) || !facts.length) return null;
+  return (label, value) => facts.find((f) => f.option === label || f.option === value)?.rows ?? null;
+}
+
+// The notes the run handed in beside its View (why Eos asks, what the
+// answers change), drawn by Eos as plain text.
+export function ViewAside({ notes }) {
+  if (!Array.isArray(notes) || !notes.length) return null;
+  return notes.map((note, i) => (
+    <section key={i} className="eos-needs-aside__part">
+      <h2 className="eos-label">{note.title}</h2>
+      <p className="eos-needs-aside__text">{note.text}</p>
+    </section>
+  ));
 }
 
 // A View's form send, drawn by Eos outside the frame: its label, Sent once it

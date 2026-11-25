@@ -2,6 +2,7 @@
 
 import { useContext, useEffect, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
+import { OptionFacts } from "../../runtime/optionFacts.js";
 import { SubmitOutside } from "../../runtime/submitOutside.js";
 import { attrText, parseOptions, splitIds, splitLabels } from "../../../shared/genui/attrs.ts";
 import { ActionButton } from "../content/ActionButton.jsx";
@@ -138,7 +139,7 @@ export function Choice({ attrs = {}, node, children }) {
             <span className="gv-choice__mark" aria-hidden="true">
               {marks[i] === "right" ? "✓" : marks[i] === "wrong" ? "×" : ""}
             </span>
-            <span>{o.label}</span>
+            <OptionLabel label={o.label} value={o.value} />
             {marks[i] === "right" ? <span className="gv-sr"> (correct)</span> : marks[i] === "wrong" ? <span className="gv-sr"> (your answer, incorrect)</span> : null}
           </button>
         ))}
@@ -153,6 +154,25 @@ export function Choice({ attrs = {}, node, children }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+// An option's label, and under it the facts its host knows, as plain text.
+function OptionLabel({ label, value }) {
+  const facts = useContext(OptionFacts)?.(label, value);
+  if (!facts?.length) return <span>{label}</span>;
+  return (
+    <span className="gv-choice__body">
+      <span className="gv-choice__label">{label}</span>
+      <span className="gv-choice__facts">
+        {facts.map((f, i) => (
+          <span key={i} className="gv-choice__fact">
+            <span className="gv-choice__fact-label">{f.label}</span>
+            <span className="gv-choice__fact-value">{f.value}</span>
+          </span>
+        ))}
+      </span>
+    </span>
   );
 }
 
