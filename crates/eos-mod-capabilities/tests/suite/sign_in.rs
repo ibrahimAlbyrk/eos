@@ -1,10 +1,15 @@
 //! Signing in to GitHub by a code, with the GitHub capability itself on
 //! `FakeGitHub`: start, pending, signed in and ready, ended by the user,
-//! out of time, no client id, and who may ask.
+//! out of time, ended while its token is being kept, no client id, and who
+//! may ask.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use eos_core::capability::{BuiltinCapability, CapabilitySecrets};
+use eos_core::BoxFuture;
+use eos_core::capability::{ActionContext, ActionError, BuiltinCapability, CapabilitySecrets, DeviceSignIn};
+use eos_domain::capability::health::Event;
+use eos_domain::capability::manifest::Manifest;
 use eos_github::{GitHub, Parts};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::Method;
@@ -12,6 +17,7 @@ use eos_testkit::{
     FakeBuiltin, FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, GITHUB_TOKEN, GITHUB_USER_CODE,
 };
 use serde_json::{Value, json};
+use tokio::sync::{Notify, Semaphore};
 
 use crate::rig::{MAIL, Rig, rig_with};
 
@@ -145,4 +151,77 @@ async fn only_a_capability_that_signs_in_by_a_code_and_only_this_computer_may_as
         assert_eq!(s.rig.ask_as(phone, method, PATH, None).await.0, 403, "the phone");
     }
     assert!(s.fake.calls().is_empty());
+}
+
+/// GitHub whose first check waits until the test lets it go: the window
+/// after a sign-in kept its token, while its label is written and checked.
+struct FirstCheckHeld {
+    github: GitHub,
+    checks: AtomicUsize,
+    entered: Notify,
+    gate: Semaphore,
+}
+
+impl BuiltinCapability for FirstCheckHeld {
+    fn manifest(&self) -> &Manifest {
+        self.github.manifest()
+    }
+
+    fn call<'a>(
+        &'a self,
+        action: &'a str,
+        input: Value,
+        ctx: &'a ActionContext,
+    ) -> BoxFuture<'a, Result<Value, ActionError>> {
+        self.github.call(action, input, ctx)
+    }
+
+    fn health<'a>(&'a self, ctx: &'a ActionContext) -> BoxFuture<'a, Event> {
+        Box::pin(async move {
+            if self.checks.fetch_add(1, Ordering::SeqCst) == 0 {
+                self.entered.notify_one();
+                self.gate.acquire().await.expect("the gate stays open").forget();
+            }
+            self.github.health(ctx).await
+        })
+    }
+
+    fn device_sign_in(&self) -> Option<&dyn DeviceSignIn> {
+        self.github.device_sign_in()
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_ended_after_its_token_was_kept_ends_signed_out() {
+    let fake = Arc::new(FakeGitHub::new());
+    let secrets = Arc::new(FakeCapabilitySecrets::new());
+    let polls = Arc::new(FakeSleeper::default());
+    let held = Arc::new(FirstCheckHeld {
+        github: GitHub::new(Parts {
+            transport: fake.clone(),
+            secrets: secrets.clone(),
+            clock: Arc::new(FakeClock::at(1_763_460_000_000)),
+            sleeper: polls.clone(),
+            client_id: "Iv1.fake".into(),
+        }),
+        checks: AtomicUsize::new(0),
+        entered: Notify::new(),
+        gate: Semaphore::new(0),
+    });
+    let rig = rig_with(vec![held.clone(), Arc::new(FakeBuiltin::new(MAIL))], secrets.clone()).await;
+    let s = SignIn { rig, fake, secrets, polls };
+
+    s.fake.device_answers(vec![FakeGitHub::granted()]);
+    assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
+    s.poll().await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), held.entered.notified())
+        .await
+        .expect("the sign-in checks its kept token");
+
+    assert_eq!(s.rig.ask(Method::Delete, PATH, None).await, (200, json!({ "ok": true })));
+    assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None, "the cancel wins: no token stays");
+    let (_, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
+    assert_eq!(row["state"], "needs_setup");
+    assert!(row["accountLabel"].is_null(), "no account is named: {row}");
+    assert_eq!(s.rig.ask(Method::Get, PATH, None).await.0, 404, "no attempt left");
 }

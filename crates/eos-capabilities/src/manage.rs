@@ -105,10 +105,13 @@ impl CapabilityService {
         self.after_secret(id).await
     }
 
-    /// Forgets secret `name`; the capability needs it again before it is called.
+    /// Forgets secret `name`; the capability needs it again before it is
+    /// called. The account's label goes too: it named whom the secret
+    /// signed in as.
     pub async fn forget_secret(&self, id: &str, name: &str) -> Result<(), Error> {
         self.declared_secret(id, name).await?;
         self.ports.secrets.delete(id, name).await?;
+        self.keep_label(id, None).await?;
         tracing::info!(capability = id, "a capability's secret was forgotten");
         self.after_secret(id).await
     }

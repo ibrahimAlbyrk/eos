@@ -282,7 +282,7 @@ pub(crate) fn all(
     let sign_in_cancel = RouteDef::delete("/api/capabilities/{id}/sign-in", move |req: Request| {
         let p = p.clone();
         async move {
-            p.sign_ins.cancel(&p.service, &id_of(&req))?;
+            p.sign_ins.cancel(&p.service, &id_of(&req)).await?;
             Ok(Response::json(200, &json!({ "ok": true })))
         }
     });
