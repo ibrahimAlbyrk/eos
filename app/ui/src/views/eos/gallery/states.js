@@ -6,6 +6,7 @@
 import { ROUTES } from "../../../api/routes.js";
 import { RUNS_PATH } from "../../../state/eos/homeStore.js";
 import inbox from "./sample/inbox.json";
+import memory from "./sample/memory.json";
 import paper from "./sample/paper.json";
 import routineDetail from "./sample/routine-detail.json";
 import routinePaused from "./sample/routine-paused.json";
@@ -34,6 +35,8 @@ export const GALLERY_STATES = [
   { id: "run-failed", label: "Run · failed", location: "eos:/runs/rn-failed01" },
   { id: "run-queued", label: "Run · queued", location: "eos:/runs/rn-queued01" },
   { id: "memory", label: "Memory", location: "eos:/memory" },
+  { id: "memory-note", label: "Memory · a note open", location: `eos:/memory?tab=work&note=${memory.details.find((d) => d.note.text.startsWith("Run lint"))?.note.id ?? memory.details[0].note.id}` },
+  { id: "memory-about", label: "Memory · About you", location: "eos:/memory?tab=about" },
   { id: "capabilities", label: "Capabilities", location: "eos:/capabilities" },
   { id: "page", label: "Page · today's issue", location: `eos:/surfaces/${PAPER}` },
   { id: "page-old", label: "Page · an earlier issue", location: `eos:/surfaces/${PAPER}?issue=1` },
