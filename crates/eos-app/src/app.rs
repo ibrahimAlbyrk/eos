@@ -626,6 +626,7 @@ impl App {
             provider_keys: engine.clone(),
             commands: engine.clone(),
             one_shot,
+            credentials: credentials.clone(),
             workflow_files,
             sessions: sessions.clone(),
             peer: crate::peer::build(crate::peer::Parts {

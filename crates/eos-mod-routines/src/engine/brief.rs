@@ -36,6 +36,9 @@ pub(crate) const DESIGNER_DEFINITION: &str = "eos-run-designer";
 const NOT_HERE: &str = "This routine's team or workspace needs a newer Eos.";
 const NOT_VALID: &str = "This routine's blueprint no longer passes its rules.";
 const NO_APPS: &str = "Building an App needs a newer Eos.";
+const NO_SIGN_IN: &str = "Eos is not signed in to Claude: sign in under Settings › Accounts.";
+/// The provider every run session starts on.
+const PROVIDER: &str = "anthropic";
 
 /// What the brief station starts the lead from.
 struct Briefing {
@@ -75,6 +78,10 @@ async fn brief(engine: &Arc<Engine>, run_id: &str) -> Result<(), Refusal> {
     let Briefing { routine_id, version_id, blueprint, input, trust, builtin } = briefing;
     if !passes(&routine_id, &blueprint) {
         return Err((Reason::Invalid, Some(NOT_VALID), None));
+    }
+    // Fail fast (01 G27): a session without a credential would only decline its turn.
+    if engine.credentials.for_new_session(PROVIDER).await.is_none() {
+        return Err((Reason::NoCredential, Some(NO_SIGN_IN), None));
     }
     super::surfaces::created(engine, &routine_id, &version_id, &blueprint.makes.kind).await;
     let (mut agent, mut role, mut role_word, mut definition) =

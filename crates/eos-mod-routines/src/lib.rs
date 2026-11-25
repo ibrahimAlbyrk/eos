@@ -98,6 +98,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use eos_contracts::{RoutineChange, RunActivity, RunChange, RunsActive};
+use eos_core::accounts::SessionCredentials;
 use eos_core::agent::{LaunchSpec, OneShot, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
@@ -173,6 +174,9 @@ pub struct RoutinesParts {
     pub headroom: Arc<dyn PlanHeadroom>,
     /// The small model that reads what a sentence typed at Home asks for.
     pub one_shot: Arc<dyn OneShot>,
+    /// The credential a new session would start on: a run without one fails
+    /// at once (01 G27).
+    pub credentials: Arc<dyn SessionCredentials>,
     /// The power source: runs from triggers wait on a low battery.
     pub power: Arc<dyn Power>,
     /// Where the history retention clears goes (run folders, a deleted
@@ -239,6 +243,7 @@ impl RoutinesModule {
             settings,
             headroom,
             one_shot,
+            credentials,
             power,
             trash,
             packs,
@@ -288,6 +293,7 @@ impl RoutinesModule {
             usage: Mutex::new(None),
             architects: Mutex::new(HashMap::new()),
             one_shot,
+            credentials,
             intent_reads: Mutex::new(None),
             trash,
             retention: Mutex::default(),
