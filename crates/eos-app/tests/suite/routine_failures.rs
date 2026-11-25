@@ -4,6 +4,7 @@
 //! routines (SG-21).
 
 mod runs;
+mod signals;
 
 use eos_app::App;
 use eos_runtime::http::Method;
