@@ -114,10 +114,12 @@ fn version_in(tx: &dyn Tx, new: &NewRun) -> Result<(StoredVersion, Blueprint), S
 }
 
 /// What the runs need that is not set up here refuses the start before the
-/// write. A start the write refuses for another reason passes here.
+/// write, after what refuses any start now (halt, today's cap), so those are
+/// what it answers. A start the write refuses for another reason passes here.
 async fn ready(engine: &Engine, new: &NewRun) -> Result<(), StartError> {
-    let asked = new.clone();
-    let Ok((_, blueprint)) = engine.store.read(move |tx| Ok(version_in(tx, &asked))).await? else { return Ok(()) };
+    let (asked, day) = (new.clone(), super::budget::day(engine));
+    let read = engine.store.read(move |tx| Ok(taking_in(tx, &asked.origin, &day).map(|()| version_in(tx, &asked))));
+    let Ok((_, blueprint)) = read.await?? else { return Ok(()) };
     let Ok(inputs) = inputs(new, &blueprint) else { return Ok(()) };
     super::ready::check(engine, &blueprint, &inputs).await
 }

@@ -214,6 +214,10 @@ async fn a_start_whose_repository_has_no_local_clone_is_refused_before_any_run()
     let id = routine.clone();
     let runs = bench.temp.store.read_blocking(move |tx| tx.runs().by_routine(&id, 10)).expect("reads");
     assert!(runs.is_empty(), "nothing was queued");
+
+    bench.switch_halt(true);
+    let refused = bench.start(new_run(&routine, RunOrigin::Hand, Some(pull_request(1)))).await;
+    assert_eq!(refused.map(drop), Err(StartError::Halted), "a stopped Eos says so before what is not set up");
 }
 
 #[tokio::test(flavor = "multi_thread")]
