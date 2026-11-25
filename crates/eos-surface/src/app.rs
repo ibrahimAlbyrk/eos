@@ -110,7 +110,7 @@ fn glob_ok(glob: &str) -> bool {
     !glob.starts_with('/')
         && !glob.starts_with('~')
         && !glob.contains('\\')
-        && glob.split('/').all(|part| !part.is_empty() && part != "..")
+        && glob.split('/').all(|part| !part.is_empty() && !part.starts_with('.'))
 }
 
 fn file_scope(value: &Value, problems: &mut Vec<Problem>) -> Option<FileScope> {
@@ -128,7 +128,7 @@ fn file_scope(value: &Value, problems: &mut Vec<Problem>) -> Option<FileScope> {
         for (n, glob) in globs.iter().enumerate().filter(|(_, glob)| !glob_ok(glob)) {
             problems.push(Problem::new(
                 format!("manifest.files.{key}[{n}]"),
-                format!("`{glob}` is not a glob below the root: no `/` first, no `..`"),
+                format!("`{glob}` is not a glob below the root: no `/` first, no `..`, no hidden name"),
             ));
         }
     }

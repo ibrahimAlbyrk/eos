@@ -1,6 +1,8 @@
 //! Which files an App may reach (05 Q7): a path the App names is relative
 //! to its root, with no `..`, no `~`, no backslash and nothing absolute,
-//! and it matches one of its manifest's globs. A glob's `*` stands for any
+//! and it matches one of its manifest's globs. No part of it is a hidden
+//! name: `.git/hooks`, `.claude/settings.json`, `.envrc` and their kind run
+//! code outside any sandbox the next time the user works in the project. A glob's `*` stands for any
 //! run of characters inside one folder name, `**` for any number of
 //! folders. That a link inside the root points out of it is the file
 //! store's to refuse, since only the disk can tell.
@@ -20,8 +22,8 @@ pub fn app_path(path: &str) -> Result<&str, &'static str> {
     if path.starts_with('/') || path.starts_with('~') || path.contains(['\\', '\0']) {
         return Err("a path is relative to the App's root");
     }
-    if path.split('/').any(|part| part.is_empty() || part == "." || part == "..") {
-        return Err("a path names no `.` or `..` and no empty folder");
+    if path.split('/').any(|part| part.is_empty() || part.starts_with('.')) {
+        return Err("a path names no `.` or `..`, no hidden name and no empty folder");
     }
     Ok(path)
 }
