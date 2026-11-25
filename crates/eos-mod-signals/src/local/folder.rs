@@ -42,7 +42,7 @@ fn failure(error: &Error) -> &'static str {
 fn draft(dir: &Path, name: &str, kind: &str, (size, mtime): (u64, i64), now: i64) -> SignalDraft {
     let path = dir.join(name).to_string_lossy().into_owned();
     let (key, occurred_at) = match kind {
-        "removed" => (key::file_removed(&path, now), now),
+        super::REMOVED => (key::file_removed(&path, now), now),
         _ => (key::file(&path, size, mtime), mtime),
     };
     let version = format!("{size}-{mtime}");
@@ -105,7 +105,7 @@ impl Local {
             let gone: Vec<String> = kept.keys().filter(|name| !listing.contains_key(*name)).cloned().collect();
             for name in gone {
                 if let Some(stat) = kept.remove(&name) {
-                    items.push(draft(dir, &name, "removed", stat, now));
+                    items.push(draft(dir, &name, super::REMOVED, stat, now));
                 }
             }
         }

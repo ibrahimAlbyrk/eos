@@ -48,6 +48,8 @@ pub const GIT_PATHS_MAX: usize = 300;
 
 /// The kinds of the rows this module reads here.
 pub(crate) const FOLDER: &str = "folder";
+/// The kind of a file's signal once it is gone from its folder.
+pub(crate) const REMOVED: &str = "removed";
 pub(crate) const GIT: &str = "git";
 
 /// The scope hash of the folder at `path`.
