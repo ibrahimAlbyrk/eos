@@ -81,11 +81,15 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 }
 .eos-tab[aria-selected="true"] { color: var(--fg-strong); box-shadow: inset 0 -2px 0 var(--fg-strong); }
 .eos-tab-panel { display: flex; flex-direction: column; gap: 22px; }
-.eos-routine__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; }
-.eos-routine__columns > * { flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
-.eos-routine__columns > * + * { flex: 1 1 300px; max-width: 380px; }
-.eos-routine__now, .eos-routine__better { padding: 20px; border-radius: 16px; background: var(--panel); }
-.eos-routine__section { display: flex; flex-direction: column; gap: 10px; }
+.eos-routine__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; padding-top: 8px; }
+.eos-routine__columns > * { flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
+.eos-routine__columns > * + * { flex: 1 1 300px; max-width: 360px; }
+.eos-routine__section { display: flex; flex-direction: column; gap: 12px; }
+/* Right now and Getting better sit on a hairline like every other part of
+   the page; only the team members are cards. */
+.eos-routine__now > .eos-now-lead, .eos-routine__now > .eos-note, .eos-routine__now > .eos-now-lead + .eos-runs,
+.eos-routine__better > .eos-better__share { border-top: 1px solid var(--line); padding-top: 16px; }
+.eos-routine__now > .eos-now-lead + .eos-runs { margin-top: 4px; padding-top: 0; }
 /* Right now's lead run: its item, its state, and its team as small cards. */
 .eos-now-lead { display: flex; flex-direction: column; gap: 14px; }
 .eos-now-lead__title { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
@@ -96,10 +100,9 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-now-agent__name { display: flex; align-items: center; gap: 7px; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
 .eos-now-agent__mark { flex: none; color: var(--fg-dim); }
 .eos-now-agent__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-.eos-now-lead + .eos-runs { margin-top: 6px; border-top: 1px solid var(--line); }
 .eos-now-agent__line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-xs); color: var(--fg-mid); }
 .eos-routine__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.eos-learned { margin: 0; padding: 0; list-style: none; }
+.eos-learned { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .eos-learned li + li { border-top: 1px solid var(--line); }
 .eos-learned__open {
   width: 100%;
@@ -117,9 +120,9 @@ span.eos-station__mark { display: none; border-radius: 50%; }
 .eos-learned__why { font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-learned__open:hover .eos-learned__text { text-decoration: underline; }
 
-.eos-runs { margin: 0; padding: 4px 20px; list-style: none; }
-.eos-runs--flat, .eos-routine__now .eos-runs { padding: 0; }
+.eos-runs { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .eos-run-row + .eos-run-row { border-top: 1px solid var(--line); }
+.eos-run-row__open:hover .eos-run-row__title { text-decoration: underline; text-underline-offset: 3px; }
 .eos-run-row__open {
   width: 100%;
   display: flex;
@@ -132,9 +135,9 @@ span.eos-station__mark { display: none; border-radius: 50%; }
   text-align: left;
   cursor: pointer;
 }
-.eos-run-row__title { flex: none; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-strong); }
-.eos-run-row__line { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-run-row__num { flex: none; width: 44px; font-family: var(--font-mono); font-size: 12px; color: var(--fg-dim2); }
+.eos-run-row__title { flex: 0 1 auto; max-width: 40%; min-width: 0; overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.eos-run-row__line { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-run-row__num { flex: none; width: 52px; font-family: var(--font-mono); font-size: 12px; color: var(--fg-dim2); }
 .eos-run-row__state { flex: none; width: 128px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-run-row__state--active { color: var(--accent); }
 .eos-run-row__state--warn { color: var(--warn); }

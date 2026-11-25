@@ -104,6 +104,7 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
   const quiet = !making && !draft && said.length === 0 && !note;
   return (
     <section className="eos-bp-chat" aria-label="Conversation with the architect">
+      {!isNew && <h2 className="eos-label eos-bp-chat__label">The architect</h2>}
       {draft?.purpose && <div className="eos-bp-bubble">{draft.purpose}</div>}
       {said.map((words, n) => <div key={n} className="eos-bp-bubble">{words}</div>)}
       {draft?.architectId && <Replies workerId={draft.architectId} />}

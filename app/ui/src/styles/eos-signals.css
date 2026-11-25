@@ -1,5 +1,5 @@
 /* ── What starts a routine, and what it did with what came ───────────────── */
-.eos-triggers, .eos-signals { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-triggers, .eos-signals { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .eos-trigger, .eos-signal { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; font-size: var(--text-sm); }
 .eos-trigger + .eos-trigger, .eos-signal + .eos-signal { border-top: 1px solid var(--line); }
 .eos-trigger__name, .eos-signal__title { flex: 1 1 100%; min-width: 0; color: var(--fg-strong); overflow-wrap: anywhere; }

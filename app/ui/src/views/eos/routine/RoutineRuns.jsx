@@ -3,7 +3,7 @@ import { fmtUsd } from "../../../lib/format.js";
 import { ensureRunsLoaded, loadMoreRuns, loadRuns, useRuns } from "../../../state/eos/runsStore.js";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { openLocation } from "../nav/eosNav.js";
-import { ORIGIN_FILTERS, stateChip } from "../run/words.js";
+import { ORIGIN_FILTERS, originLine, stateChip } from "../run/words.js";
 
 export const runLocation = (id) => `eos:/runs/${encodeURIComponent(id)}`;
 
@@ -14,17 +14,22 @@ export function splitItemNumber(title) {
   return m ? { number: m[1], title: m[2] } : { number: null, title: title ?? "Run" };
 }
 
+const shortDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
 // One run as a row (SystemDetail.dc.html's Recent runs): the item's number,
-// its title, its headline, its state in its tone and its cost. Item titles
-// come from outside: React text only.
+// its title, its headline, its state in its tone and its cost. A run with no
+// numbered item stands its day in the number's column, and one with no item
+// at all is named by how it started, so no row has a hole. Item titles come
+// from outside: React text only.
 export function RunRow({ run, now }) {
   const { number, title } = splitItemNumber(run.itemTitle);
   const chip = stateChip(run, now);
+  const at = run.startedAt ?? run.createdAt;
   return (
     <li className="eos-run-row">
       <button type="button" className="eos-run-row__open" onClick={() => openLocation(runLocation(run.id))}>
-        <span className="eos-run-row__num">{number ?? ""}</span>
-        <span className="eos-run-row__title">{title}</span>
+        <span className="eos-run-row__num">{number ?? (at ? shortDay.format(at) : "")}</span>
+        <span className="eos-run-row__title">{run.itemTitle ? title : originLine(run.origin)}</span>
         <span className="eos-run-row__line">{run.headline ?? ""}</span>
         <span className={"eos-run-row__state" + (chip.tone ? ` eos-run-row__state--${chip.tone}` : "")}>{chip.text}</span>
         <span className="eos-run-row__cost">{fmtUsd(run.costUsd)}</span>
@@ -63,7 +68,7 @@ export function RoutineRuns({ routineId }) {
       {shown.length === 0 ? (
         <p className="eos-note">No runs yet.</p>
       ) : (
-        <ul className="eos-card eos-runs">{shown.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
+        <ul className="eos-runs">{shown.map((r) => <RunRow key={r.id} run={r} now={now} />)}</ul>
       )}
       {page.failed && <LoadFailed what="more runs" retry={() => void loadMoreRuns(routineId)} />}
       {page.nextBefore != null && !page.failed && (
