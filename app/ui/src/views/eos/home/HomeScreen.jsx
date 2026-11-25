@@ -78,8 +78,8 @@ export function HomeScreen({ clock = Date.now }) {
   const inert = fieldOpen ? "" : undefined;
 
   let body;
-  if (home.failed) body = <LoadFailed what="runs" retry={() => void refreshHome()} />;
-  else if (home.runs === null) body = <Loading blocks={3} />;
+  if (home.failed) body = <div className="eos-home-part"><LoadFailed what="runs" retry={() => void refreshHome()} /></div>;
+  else if (home.runs === null) body = <div className="eos-home-part"><Loading blocks={3} /></div>;
   else body = (
     <>
       {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}
@@ -101,7 +101,7 @@ export function HomeScreen({ clock = Date.now }) {
           <div className="eos-home__above" inert={inert}>
             <Horizon runs={today} scheduled={scheduled} names={names} now={now} />
             <p className="eos-home__date">{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
-            <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled ?? 0} needs={waiting.length} firstRun={firstRun} />
+            <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled} needs={waiting.length} firstRun={firstRun} />
           </div>
           <div ref={placeRef} className="eos-input-place" />
           <HomeInput inputRef={inputRef} blockRef={blockRef} onFocus={openField} />
