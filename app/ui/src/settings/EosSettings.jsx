@@ -2,6 +2,7 @@
 // from and written through the route of the area that owns it
 // (state/eos/eosSettingsStore.js): how much all routines may spend, keeping
 // the Mac awake for schedules, what may interrupt, learning and reminders,
+// how pages read (text size, more contrast, plain reading),
 // Start at login, the quick panel's shortcut and the eos command, a test notification, what leaves the Mac with forgetting
 // and exporting what was learned, and Stop everything.
 
@@ -59,6 +60,26 @@ function Switch({ area, settings, field, label, description }) {
     <Row label={label} description={description}>
       <ToggleControl value={settings[field]} onChange={(on) => void changeEosSetting(area, { [field]: on })} />
     </Row>
+  );
+}
+
+const TEXT_SCALES = [100, 115, 130];
+
+// How a routine's pages read (05 Q11): bigger text, more contrast, or every
+// issue in Eos's own plain look.
+function Reading({ settings }) {
+  return (
+    <>
+      <Row label="Text size" description="How large the text of a page is.">
+        <select className="stg-select" aria-label="Text size" value={settings.textScale} onChange={(e) => void changeEosSetting("surfaces", { textScale: Number(e.target.value) })}>
+          {TEXT_SCALES.map((n) => <option key={n} value={n}>{n} %</option>)}
+        </select>
+      </Row>
+      <Row label="More contrast" description="Text and lines on pages stand out more.">
+        <ToggleControl value={settings.contrast === "more"} onChange={(on) => void changeEosSetting("surfaces", { contrast: on ? "more" : "normal" })} />
+      </Row>
+      <Switch area="surfaces" settings={settings} field="plain" label="Plain reading" description="Every issue in Eos's own plain look instead of its page's design." />
+    </>
   );
 }
 
@@ -150,7 +171,7 @@ function StopEverything() {
 }
 
 export function EosSettings() {
-  const { routines, signals, attention, memory, forgotten } = useEosSettings();
+  const { routines, signals, attention, memory, surfaces, forgotten } = useEosSettings();
   useEffect(() => {
     void loadEosSettings();
     ensureHaltLoaded();
@@ -180,6 +201,11 @@ export function EosSettings() {
         <Group title="Memory">
           <Switch area="memory" settings={memory} field="learning" label="Learning" description="Eos writes down what your corrections and the work's outcomes teach it." />
           <Switch area="memory" settings={memory} field="reminders" label="Reminders" description="Agents are reminded of what Eos learned, in every chat and every run." />
+        </Group>
+      )}
+      {surfaces && (
+        <Group title="Pages">
+          <Reading settings={surfaces} />
         </Group>
       )}
       {doors && (
