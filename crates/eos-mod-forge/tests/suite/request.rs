@@ -84,10 +84,14 @@ async fn a_promoted_app_is_handed_to_the_run_and_one_that_is_no_app_in_use_is_re
     let started = &rig.runs.started()[0];
     assert_eq!(started.input.options.get("surface"), Some(&json!("sf-app")));
     let note = started.input.note.clone().unwrap_or_default();
-    assert!(note.starts_with("Make this App an Extension") && note.contains("«Level editor»"), "{note}");
+    assert!(note.starts_with("Make this App an Extension") && note.contains("`app/`"), "{note}");
+    assert!(!note.contains("Level editor"), "the App's words never reach the note: {note}");
+    assert!(!eos_domain::untrusted::holds_wrapped(&note), "the Forge run stays trusted, its builder sandboxed");
     let folder = eos_mod_forge::build_folder(&rig.home.join("scratch"), &run_id).join("app");
-    assert_eq!(std::fs::read_to_string(folder.join("index.html")).expect("code"), "<p>levels</p>");
-    assert!(std::fs::read_to_string(folder.join("manifest.json")).expect("manifest").contains("Level editor"));
+    let code = std::fs::read_to_string(folder.join("index.html")).expect("code");
+    assert_eq!(code, eos_domain::untrusted::wrap("app:sf-app", "<p>levels</p>"), "marked as outside text");
+    let manifest = std::fs::read_to_string(folder.join("manifest.json")).expect("manifest");
+    assert!(eos_domain::untrusted::holds_wrapped(&manifest) && manifest.contains("Level editor"));
 
     let mut unknown = asked("Make this an Extension", ForgeCaller::User);
     unknown.from_surface = Some("sf-page".into());

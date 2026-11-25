@@ -123,8 +123,11 @@ impl ForgeSteps {
     pub(crate) async fn hand_in_app(&self, run_id: &str, app: &eos_core::surface::PromotedApp) -> Result<(), Error> {
         let folder = self.folder(run_id)?.join(PROMOTED_APP_FOLDER);
         let manifest = serde_json::to_string_pretty(&app.manifest).map_err(|e| Error::storage(e.to_string()))?;
-        self.files.write_text(&folder.join("index.html"), &app.html, true).await?;
-        self.files.write_text(&folder.join("manifest.json"), &manifest, true).await?;
+        // An App's run may have read outside text: what it wrote is marked so.
+        let source = format!("app:{}", app.surface_id);
+        let marked = |text: &str| eos_domain::untrusted::wrap(&source, text);
+        self.files.write_text(&folder.join("index.html"), &marked(&app.html), true).await?;
+        self.files.write_text(&folder.join("manifest.json"), &marked(&manifest), true).await?;
         Ok(())
     }
 
