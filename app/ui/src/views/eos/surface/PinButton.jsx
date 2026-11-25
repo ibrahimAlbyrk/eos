@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { notify } from "../../../lib/notify.js";
 import { PIN_SLOTS, pin, replacePin, unpin, usePins } from "../../../state/eos/pinsStore.js";
+import { AskPick, Dialog } from "../frame.jsx";
+import { numberWord } from "../home/homeWords.js";
 
-// Pin to Home, or Pinned (unpins). Home holds three: pinning a fourth opens
-// "Unpin one first", listing the three, each to replace.
+const PIN_ICON = "M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5";
+
+// Pin to Home, or Pinned (unpins). Home holds three: pinning a fourth asks in
+// Eos's dialog which pinned page this one replaces, each named with its
+// headline, Cancel first and Replace once one is picked.
 export function PinButton({ surface }) {
   const { ids, tiles } = usePins();
   const [replacing, setReplacing] = useState(false);
-  const wrapRef = useMenuDismiss(replacing, () => setReplacing(false));
   if (ids === null) return null;
   const pinned = ids.includes(surface.id);
   const toggle = async () => {
@@ -16,27 +19,46 @@ export function PinButton({ surface }) {
     if (r.full) setReplacing(true);
     else if (!r.ok) notify.error(r.error, { title: "Pinning did not work" });
   };
-  const replace = async (out) => {
-    setReplacing(false);
-    const r = await replacePin(out, surface.id);
-    if (!r.ok) notify.error(r.error ?? "Home is full.", { title: "Pinning did not work" });
-  };
-  const titleOf = (id) => tiles?.find((t) => t.surfaceId === id)?.title ?? "A pinned page";
   return (
-    <span className="eos-menu-wrap" ref={wrapRef}>
+    <>
       <button type="button" className="eos-btn eos-btn--quiet" aria-pressed={pinned} onClick={() => void toggle()}>
         {pinned ? "Pinned to Home" : "Pin to Home"}
       </button>
-      {replacing && (
-        <div className="eos-menu eos-pin-full" role="dialog" aria-label="Unpin one first" onKeyDown={(e) => { if (e.key === "Escape") setReplacing(false); }}>
-          <p className="eos-pin-full__title">Unpin one first</p>
-          <p className="eos-pin-full__line">Home holds {PIN_SLOTS} pins. Pick the one this page replaces.</p>
-          {ids.map((id) => (
-            <button key={id} type="button" className="eos-menu__item" onClick={() => void replace(id)}>Replace {titleOf(id)}</button>
-          ))}
-          <button type="button" className="eos-menu__item eos-menu__item--more" onClick={() => setReplacing(false)}>Cancel</button>
-        </div>
+      {replacing && <ReplacePin surface={surface} ids={ids} tiles={tiles} onClose={() => setReplacing(false)} />}
+    </>
+  );
+}
+
+// The tile a pinned page shows on Home, as a pick: its title, its headline,
+// and what kind of thing it is.
+export const pickOf = (id, tiles) => {
+  const tile = tiles?.find((t) => t.surfaceId === id);
+  return { id, name: tile?.title ?? "A pinned page", line: tile?.headline, kind: tile?.level === "view" ? "View" : "Page" };
+};
+
+export function ReplacePin({ surface, ids, tiles, onClose, initial = null }) {
+  const [out, setOut] = useState(initial);
+  const replace = async () => {
+    onClose();
+    const r = await replacePin(out, surface.id);
+    if (!r.ok) notify.error(r.error ?? "Home is full.", { title: "Pinning did not work" });
+  };
+  return (
+    <Dialog
+      id="eos-pin-full"
+      from="Pin to Home"
+      icon={PIN_ICON}
+      title={`Which page does ${surface.title ?? "this page"} replace?`}
+      line={`Home holds ${numberWord(PIN_SLOTS)} pages, and all ${numberWord(PIN_SLOTS)} are pinned. The one you pick leaves Home and stays with its routine.`}
+      onClose={onClose}
+      actions={(
+        <>
+          <button type="button" className="eos-btn eos-btn--quiet" onClick={onClose}>Cancel</button>
+          <button type="button" className="eos-btn eos-btn--primary" disabled={out === null} onClick={() => void replace()}>Replace</button>
+        </>
       )}
-    </span>
+    >
+      <AskPick label="Pinned to Home" items={ids.map((id) => pickOf(id, tiles))} picked={out} onPick={setOut} />
+    </Dialog>
   );
 }

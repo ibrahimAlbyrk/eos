@@ -162,9 +162,6 @@
 .eos-tell__error { margin: 0 0 0 18px; font-size: var(--text-sm); color: var(--err); }
 
 /* Pinning a fourth. */
-.eos-pin-full { width: 280px; display: flex; flex-direction: column; gap: 2px; }
-.eos-pin-full__title { margin: 4px 10px 0; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
-.eos-pin-full__line { margin: 0 10px 6px; font-size: var(--text-xs); color: var(--fg-dim); }
 
 /* The mail as it will be sent: Eos's dialog, wide enough for a mail's
    column, the mail on its own ground in a frame that runs nothing. */

@@ -325,6 +325,21 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 .eos-ask__wrong { margin: 12px 0 0; font-size: var(--text-sm); line-height: 1.5; color: var(--err); }
 .eos-ask__acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .eos-ask__acts .eos-btn { height: 32px; padding: 0 16px; }
+/* A pick in a dialog: rows on hairlines lit past their edges on hover, a
+   hollow mark that fills in accent with a halo once picked. */
+.eos-ask__pick { display: flex; flex-direction: column; margin: 16px -12px 0; }
+/* Each row reaches 12 px past the text on either side, so hover and focus
+   light it past the words while its hairline keeps the text's edges. */
+.eos-ask__pick-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 12px; box-sizing: border-box; border: 0; border-radius: 8px; background: linear-gradient(var(--line), var(--line)) 12px 0 / calc(100% - 24px) 1px no-repeat; font: inherit; text-align: left; color: var(--fg); cursor: pointer; transition: background-color 140ms var(--ease); }
+.eos-ask__pick-row:last-child { background-image: linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line)); background-position: 12px 0, 12px 100%; background-size: calc(100% - 24px) 1px, calc(100% - 24px) 1px; }
+.eos-ask__pick-row:hover { background-color: var(--row-on); }
+.eos-ask__pick-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.eos-ask__pick-mark { flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); transition: background-color 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease); }
+.eos-ask__pick-row[aria-checked="true"] .eos-ask__pick-mark { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-ask__pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.eos-ask__pick-name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-ask__pick-line { font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
+.eos-ask__pick-kind { flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
 /* A field in a dialog: the same well as the blueprint's editors. */
 .eos-ask__field { margin-top: 16px; }
 @keyframes eos-ask-shade { from { opacity: 0; } }

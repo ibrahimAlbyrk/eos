@@ -110,6 +110,43 @@ export function AskRows({ rows }) {
   );
 }
 
+// One of a few things to pick in a dialog, each a row on hairlines with a
+// mark that fills when picked, its name, a line under it and a mono `kind` at
+// its right: `items` of { id, name, line, kind }. Arrows move the pick.
+export function AskPick({ label, items, picked, onPick }) {
+  const at = items.findIndex((it) => it.id === picked);
+  const keys = (e) => {
+    const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = (Math.max(at, 0) + step + items.length) % items.length;
+    onPick(items[next].id);
+    e.currentTarget.querySelectorAll("[role=radio]")[next]?.focus();
+  };
+  return (
+    <div className="eos-ask__pick" role="radiogroup" aria-label={label} onKeyDown={keys}>
+      {items.map((it, i) => (
+        <button
+          key={it.id}
+          type="button"
+          role="radio"
+          aria-checked={it.id === picked}
+          tabIndex={i === (at < 0 ? 0 : at) ? 0 : -1}
+          className="eos-ask__pick-row"
+          onClick={() => onPick(it.id)}
+        >
+          <span className="eos-ask__pick-mark" aria-hidden="true" />
+          <span className="eos-ask__pick-text">
+            <span className="eos-ask__pick-name">{it.name}</span>
+            {it.line && <span className="eos-ask__pick-line">{it.line}</span>}
+          </span>
+          {it.kind && <span className="eos-ask__pick-kind">{it.kind}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // A thing named by its glyph (a 16-viewBox path) in a 30 px ring lit in its
 // tone ("active", "ok", "warn", "err").
 export function Ring({ d, tone }) {
