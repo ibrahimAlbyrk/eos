@@ -169,10 +169,18 @@
 .eos-mail-preview__frame { display: block; width: 100%; height: min(62vh, 860px); margin-top: 16px; border: 0; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
 
 /* A routine's page, on its routine page. */
-.eos-page-link { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.eos-page-link__text { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.eos-page-link__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-page-link__line { font-size: var(--text-sm); color: var(--fg-dim); }
+/* A routine's Page on its overview: one row on hairlines, the whole of which
+   opens it, lit past its edges on hover, the arrow moving 3 px. */
+.eos-page-link__row { position: relative; flex-wrap: nowrap; gap: 14px; transition: background-color calc(140ms * var(--k, 1)) var(--ease), box-shadow calc(140ms * var(--k, 1)) var(--ease); }
+.eos-page-link__row:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-page-link__open { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; }
+.eos-page-link__open::after { content: ""; position: absolute; inset: 0; }
+.eos-page-link__open:focus-visible { outline: none; }
+.eos-page-link__row:has(.eos-page-link__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.eos-page-link__open svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform calc(160ms * var(--k, 1)) var(--ease); }
+.eos-page-link__row:hover .eos-page-link__open { color: var(--fg-strong); }
+.eos-page-link__row:hover .eos-page-link__open svg { transform: translateX(3px); }
+@media (prefers-reduced-motion: reduce) { .eos-page-link__row:hover .eos-page-link__open svg { transform: none; } }
 
 /* ── Reshape mode ─────────────────────────────────────────────────────────── */
 /* Leads as an object's page: what to do now, or where the change stands,
@@ -288,21 +296,37 @@
 .eos-pins__head { display: flex; align-items: baseline; gap: 12px; }
 .eos-pins__head .eos-label { flex: 1; }
 .eos-pins__count { font-size: var(--text-xs); color: var(--fg-dim2); }
-.eos-pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+/* Three places in a row (one under 560 px): each pinned thing a card the
+   whole of which opens it, its way in at the foot with an arrow that moves
+   on hover; the places left are one dashed ghost that says how to fill them. */
+.eos-pins { container-type: inline-size; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@container (max-width: 560px) { .eos-pins { grid-template-columns: minmax(0, 1fr); } .eos-pins > * { grid-column: auto !important; } }
 .eos-tile {
-  border-radius: 14px;
+  position: relative;
+  border-radius: 16px;
   background: #1b1b1b;
-  padding: 14px 14px 12px 16px;
+  padding: 16px 16px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  min-height: 132px;
+  box-sizing: border-box;
+  transition: background-color calc(140ms * var(--k, 1)) var(--ease);
 }
-.eos-tile__meta { display: flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--fg-dim); }
-.eos-tile__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eos-tile:not(.eos-tile--free):hover { background: var(--raised); }
+.eos-tile__meta { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-bottom: 6px; font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-tile__glyph { flex: none; fill: none; stroke: var(--fg-dim2); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.eos-tile__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.eos-tile__when { font-family: var(--font-mono); color: var(--fg-dim2); }
+/* Unpin takes the time's place on hover or focus. */
 .eos-tile__unpin {
-  width: 22px;
-  height: 22px;
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  right: 12px;
+  width: 26px;
+  height: 26px;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -311,13 +335,32 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity calc(140ms * var(--k, 1)) var(--ease);
 }
+.eos-tile:hover .eos-tile__unpin, .eos-tile__unpin:focus-visible { opacity: 1; }
+.eos-tile__when { transition: opacity calc(140ms * var(--k, 1)) var(--ease); }
+.eos-tile:is(:hover, :has(.eos-tile__unpin:focus-visible)) .eos-tile__when { opacity: 0; }
 .eos-tile__unpin:hover { color: var(--fg-strong); background: var(--chip); }
 .eos-tile__unpin svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.eos-tile__headline { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.3; color: var(--fg-strong); overflow-wrap: anywhere; }
-.eos-tile__detail { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
-.eos-tile__open { align-self: flex-start; margin-top: 4px; font-size: var(--text-sm); text-decoration: none; }
-.eos-tile__open:hover { text-decoration: underline; }
+.eos-tile__headline { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.35; color: var(--fg-strong); overflow-wrap: anywhere; text-wrap: pretty; }
+.eos-tile__detail { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); overflow-wrap: anywhere; }
+/* The way in covers the card, so the whole card opens it. */
+.eos-tile__open {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin-top: auto; padding: 10px 0 0;
+  border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer;
+}
+.eos-tile__open::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.eos-tile__open:focus-visible { outline: none; }
+.eos-tile:has(.eos-tile__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eos-tile__open svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; transition: transform calc(160ms * var(--k, 1)) var(--ease); }
+.eos-tile:hover .eos-tile__open { color: var(--fg-strong); }
+.eos-tile:hover .eos-tile__open svg { transform: translateX(3px); }
+.eos-tile--free { background: none; box-shadow: inset 0 0 0 1px var(--line); border: 0; justify-content: center; align-items: flex-start; padding: 16px 20px; }
+.eos-tile--free { outline: 1px dashed var(--fg-faint); outline-offset: -1px; box-shadow: none; }
+.eos-tile--free .eos-tile__headline { font-size: var(--text-base); color: var(--fg-mid); }
+.eos-tile--free .eos-tile__detail { color: var(--fg-dim2); }
+@media (prefers-reduced-motion: reduce) { .eos-tile__open svg { transition: none; } .eos-tile:hover .eos-tile__open svg { transform: none; } }
 
 /* ── The sample gallery's own bar (#eos-gallery only) ─────────────────────── */
 .eos-gallery-bar {

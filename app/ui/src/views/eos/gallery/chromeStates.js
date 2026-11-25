@@ -28,7 +28,23 @@ const resume = {
   then: () => [...document.querySelectorAll(".eos-halt button")].find((b) => b.textContent === "Resume")?.click(),
 };
 
+// Home with one pin: Morning Paper alone.
+const homeOne = (s) => ({ ...s, [ROUTES.surfacePins]: { surfaceIds: [PAPER] }, [ROUTES.surfaceTiles]: { tiles: [paper.tiles.tiles[0]] } });
+// Home with all three places pinned, Morning Paper among them.
+const homeThree = (s) => {
+  const full = homeFull(s);
+  return { ...full, [ROUTES.surfacePins]: { surfaceIds: [PAPER, ...full[ROUTES.surfacePins].surfaceIds.slice(0, 2)] }, [ROUTES.surfaceTiles]: { tiles: [paper.tiles.tiles[0], ...full[ROUTES.surfaceTiles].tiles.slice(0, 2)] } };
+};
+// PR Review filling Morning Paper's sheet, so its overview shows the page.
+const RT = routineDetail.routine.id;
+const withPage = (s) => ({ ...s, [`${ROUTES.surfaces}?routine=${RT}`]: { surfaces: [{ ...paper.surface, routineId: RT }] } });
+const withNoIssue = (s) => ({ ...withPage(s), [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } });
+
 export const CHROME_STATES = [
+  { id: "pins-one", label: "Home · one page pinned", location: "eos:/", reads: homeOne },
+  { id: "pins-three", label: "Home · three pinned", location: "eos:/", reads: homeThree },
+  { id: "routine-page", label: "Routine · the page it fills", location: `eos:/routines/${RT}`, reads: withPage },
+  { id: "routine-page-empty", label: "Routine · its page, no issue yet", location: `eos:/routines/${RT}`, reads: withNoIssue },
   { id: "halt", label: "Eos stopped · on Home", location: "eos:/", reads: stopped },
   { id: "halt-routine", label: "Eos stopped · on a routine", location: `eos:/routines/${routineDetail.routine.id}`, reads: stopped },
   { id: "halt-resumed", label: "Eos stopped · resumed here", location: "eos:/needs", ...resume },

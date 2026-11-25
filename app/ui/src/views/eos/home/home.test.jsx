@@ -12,7 +12,7 @@ import { homeNext, homeRuns } from "../gallery/sample/home.js";
 import inbox from "../gallery/sample/inbox.json";
 import { HomeScreen } from "./HomeScreen.jsx";
 import { _resetPins, refreshPins } from "../../../state/eos/pinsStore.js";
-import { tileAction, tileLocation, tileStatus } from "./PinnedTiles.jsx";
+import { tileAction, tileLocation, tileStatus, tileWhen } from "./PinnedTiles.jsx";
 
 const NOW = new Date(2026, 10, 17, 9, 12).getTime();
 
@@ -44,8 +44,14 @@ describe("Eos › Home", () => {
     expect(html).toContain('<h2 id="eos-home-pins" class="eos-label">Pinned</h2><span class="eos-pins__count">2 of 3</span>');
     expect(html).toContain('<p class="eos-tile__headline">Nothing broke overnight</p>');
     expect(html).toContain('aria-label="Unpin Morning Paper"');
-    expect(html).toContain(">Read today&#x27;s issue</button>");
+    expect(html).toContain('class="eos-tile__open">Read today&#x27;s issue<svg');
+    expect(html).toContain("One more place</p>");
     expect(html.indexOf("eos-home-needs")).toBeLessThan(html.indexOf("eos-home-pins"));
+    const now = new Date(2026, 10, 18, 12, 0).getTime();
+    expect(tileWhen(new Date(2026, 10, 18, 8, 0).getTime(), now)).toBe("08:00");
+    expect(tileWhen(new Date(2026, 10, 17, 20, 0).getTime(), now)).toBe("Yesterday");
+    expect(tileWhen(new Date(2026, 10, 12, 8, 0).getTime(), now)).toBe("Nov 12");
+    expect(tileWhen(undefined, now)).toBe(null);
     expect(tileLocation({ level: "page", surfaceId: "sf-1" })).toBe("eos:/surfaces/sf-1");
     expect(tileLocation({ level: "view", routineId: "rt-1" })).toBe("eos:/routines/rt-1");
     expect(tileAction({ level: "page" })).toBe("Read the issue");
