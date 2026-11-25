@@ -83,13 +83,19 @@
 
 /* Memory in the other screens: a draft's Why aside and a run's aside. */
 .eos-needs-why, .eos-run-memory { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
-.eos-needs-why__note { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: var(--text-sm); }
+.eos-needs-why { gap: 0; }
+.eos-needs-why__note { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: 12px; row-gap: 2px; padding: 9px 0; font-size: var(--text-sm); }
+.eos-needs-why__note + .eos-needs-why__note { border-top: 1px solid var(--line); }
+.eos-needs-why__note > :not(.eos-needs-why__not) { grid-column: 1; }
+.eos-needs-why__note > .eos-needs-why__ask { grid-column: 1 / -1; margin-top: 6px; }
+.eos-needs-why__not { grid-column: 2; grid-row: 1; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--fg-dim); cursor: pointer; }
+.eos-needs-why__not:hover { color: var(--fg-strong); }
 .eos-needs-why__text, .eos-run-memory__note {
   padding: 0;
   border: 0;
   background: none;
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   text-align: left;
   color: var(--fg);
   cursor: pointer;

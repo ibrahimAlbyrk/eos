@@ -16,7 +16,7 @@ function Recalled({ note, runId }) {
       <button type="button" className="eos-needs-why__text" onClick={() => openLocation(buildLocation({ screen: "memory", tab: "work", note: note.id }))}>{note.text}</button>
       {note.why && <span className="eos-needs-why__from">{note.why}</span>}
       {done && <span className="eos-needs-why__from" role="status">Eos will lean on it less.</span>}
-      {!done && !asking && <button type="button" className="eos-link" onClick={() => setAsking(true)}>Not right</button>}
+      {!done && !asking && <button type="button" className="eos-needs-why__not" onClick={() => setAsking(true)}>Not right</button>}
       {!done && asking && (
         <span className="eos-needs-why__ask">
           <input aria-label="What was wrong (optional)" placeholder="What was wrong? (optional)" maxLength={SAID_MAX} value={said} onChange={(e) => setSaid(e.target.value)} />

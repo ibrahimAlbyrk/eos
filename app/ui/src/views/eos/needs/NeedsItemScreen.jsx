@@ -97,16 +97,21 @@ export function NeedsItemScreen({ id }) {
   const stored = !isShownOnly(id);
   return (
     <main className="eos-screen">
-      <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]} />
-      {offline && <p className="eos-needs-offline" role="status">{OFFLINE}</p>}
-      <div className="eos-body eos-needs-item">
+      <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
         {at >= 0 && (
           <nav className="eos-needs-pager" aria-label="Items">
-            <button type="button" className="eos-btn" disabled={at === 0} onClick={() => page(-1)}>Previous</button>
             <span>{at + 1} of {order.length}</span>
-            <button type="button" className="eos-btn" disabled={at === order.length - 1} onClick={() => page(1)}>Next</button>
+            <button type="button" className="eos-icon-btn" aria-label="Previous" title="Previous (K)" disabled={at === 0} onClick={() => page(-1)}>
+              <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16"><path d="M10 4L6 8l4 4" /></svg>
+            </button>
+            <button type="button" className="eos-icon-btn" aria-label="Next" title="Next (J)" disabled={at === order.length - 1} onClick={() => page(1)}>
+              <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" /></svg>
+            </button>
           </nav>
         )}
+      </EosHeader>
+      {offline && <p className="eos-needs-offline" role="status">{OFFLINE}</p>}
+      <div className="eos-body eos-needs-item">
         {devRun && <DevRunNote />}
         {!detail && failed[id] === "gone" && <p className="eos-note">This is no longer in Needs you.</p>}
         {!detail && failed[id] === "error" && <LoadFailed what="this item" retry={() => void loadInboxItem(id)} />}
@@ -117,7 +122,7 @@ export function NeedsItemScreen({ id }) {
               {!open && <Closed detail={detail} refused={refused[id]} />}
               {detail.item.view
                 ? <ItemView item={detail.item} routineName={nameOf(detail.item.routineId)} />
-                : <Body detail={detail} values={values} setValue={setValue} routineName={nameOf(detail.item.routineId)} />}
+                : <article className="eos-needs-item__card"><Body detail={detail} values={values} setValue={setValue} routineName={nameOf(detail.item.routineId)} /></article>}
               {open && (
                 <div className="eos-actions eos-needs-item__actions">
                   {actions.map((a) => (
@@ -136,7 +141,7 @@ export function NeedsItemScreen({ id }) {
                     <button type="button" className="eos-btn" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
                   )}
                   {stored && (
-                    <button type="button" className="eos-btn" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
+                    <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
                   )}
                 </div>
               )}

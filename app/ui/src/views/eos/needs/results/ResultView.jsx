@@ -20,7 +20,7 @@ function Review({ doc }) {
   const comments = partsOf(doc, "c:");
   return (
     <div className="eos-result">
-      {event && <p className="eos-result__event">{EVENTS[event] ?? event}</p>}
+      {event && <p className={`eos-result__event eos-result__event--${event.toLowerCase()}`}>{EVENTS[event] ?? event}</p>}
       {summary && <Markdown className="eos-result__text" text={summary} />}
       {comments.length > 0 && (
         <ol className="eos-result__comments" aria-label="Line comments">

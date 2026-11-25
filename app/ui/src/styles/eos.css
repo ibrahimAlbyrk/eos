@@ -139,6 +139,24 @@
 .eos-btn:hover { color: var(--fg-strong); }
 .eos-btn--primary { background: var(--solid-btn-bg); color: var(--solid-btn-fg); }
 .eos-btn--primary:hover { background: var(--solid-btn-bg-hover); color: var(--solid-btn-fg); }
+.eos-btn:disabled { opacity: 0.45; cursor: default; }
+/* A bare glyph button in a header or a row. */
+.eos-icon-btn {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--fg-mid);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.eos-icon-btn svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.eos-icon-btn:hover { background: var(--raised); color: var(--fg-strong); }
+.eos-icon-btn:disabled { color: var(--fg-dim2); background: none; cursor: default; }
 .eos-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .eos-link {
   padding: 0;
