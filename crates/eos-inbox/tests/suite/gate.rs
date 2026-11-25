@@ -93,7 +93,7 @@ pub(crate) fn review(text: &str) -> ResultDoc {
     }
 }
 
-/// A PR Review result for the pull request `acme/game#482`, at `rung`. As a
+/// A PR Review result for the pull request `acme/game#482` at version `abc`, at `rung`. As a
 /// source writes them, the item names no repository; the signal's facts do.
 pub(crate) fn input(rung: &str) -> GateInput {
     GateInput {
@@ -104,10 +104,12 @@ pub(crate) fn input(rung: &str) -> GateInput {
         result_mode: GateMode::AsUsual,
         doc: review("Looks good."),
         targets: vec![pull_request()],
-        item_facts: json!({"kind": "github.pull_request", "key": "github:pr:acme/game#482@abc", "untrusted": true}),
+        item_facts: json!({"kind": "github.pull_request", "key": "github:pr:acme/game#482@abc", "version": "abc",
+                           "untrusted": true}),
         signal_facts: [("repo".to_owned(), eos_contracts::Fact::Text("acme/game".into()))].into_iter().collect(),
         untrusted_facts: Default::default(),
-        subject_key: Some("github:pr:acme/game#482".into()),
+        // Keyed with its version, as a source keys a run's item.
+        subject_key: Some("github:pr:acme/game#482@abc".into()),
         trust: Trust::Untrusted,
         freedom_confirmed: Some(freedom(rung)),
         goes_to_confirmed: vec![pull_request()],
