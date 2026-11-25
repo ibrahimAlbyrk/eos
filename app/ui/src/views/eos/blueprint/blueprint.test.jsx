@@ -127,7 +127,7 @@ describe("a new routine", () => {
 
   it("is made by hand from the filled blueprint, and shows what the rules refused", async () => {
     const html = renderToStaticMarkup(<BlueprintCard blueprint={HAND_BLUEPRINT} onEdit={() => {}} />);
-    expect(html).toContain('<button type="button" class="eos-bp-value" aria-haspopup="dialog" aria-expanded="false">New routine</button>');
+    expect(html).toContain('<button type="button" class="eos-bp-headvalue" aria-haspopup="dialog" aria-expanded="false">New routine</button>');
     expect(html).toContain('role="radiogroup" aria-label="How much Eos may do on its own"');
 
     const t = recording(async () => ({ ok: true, status: 201, body: { row: { ...routineDraft.routine, id: "rt-hand00000001" }, versionId: "rv-x", warnings: [] } }));
@@ -199,7 +199,8 @@ describe("a routine being made", () => {
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);
     expect(html).toContain('<span class="eos-bp-actions__cost">Uses github. At most $2 a run, stops at $5 a day.</span>');
-    expect(html).toContain('<button type="button" class="eos-bp-chip eos-bp-value" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">sonnet</span></button>');
+    expect(html).toContain('<button type="button" class="eos-bp-agent" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">Sonnet 5.5</span></button>');
+    expect(html).toContain('<dd class="eos-bp-row__value">A pull request is <button type="button" class="eos-bp-value"');
     expect(html).toContain("Where the item came from, on GitHub<span class=\"eos-sr\">, locked</span>");
   });
 

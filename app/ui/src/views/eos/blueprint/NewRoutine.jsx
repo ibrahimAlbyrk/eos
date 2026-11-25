@@ -32,7 +32,7 @@ export function NewRoutine() {
         <span className="eos-status">Draft, not running yet</span>
       </EosHeader>
       <div className="eos-body">
-        <div className="eos-bp">
+        <div className="eos-bp"><div className="eos-bp__cols">
           <ArchitectChat routineId={NEW} draft={null} note={note} />
           <div className="eos-bp__side">
             {note?.kind === "refused" && (
@@ -57,7 +57,7 @@ export function NewRoutine() {
               </OutlineCard>
             )}
           </div>
-        </div>
+        </div></div>
       </div>
     </main>
   );

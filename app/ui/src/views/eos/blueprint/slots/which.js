@@ -56,6 +56,7 @@ export function whichParts(which) {
     text: ask || "Add a question",
     value: ask,
     optional: !ask,
+    add: !ask,
     apply: (v) => {
       const rest = { ...w };
       delete rest.ask;

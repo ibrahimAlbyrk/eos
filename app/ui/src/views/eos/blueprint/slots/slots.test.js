@@ -6,6 +6,7 @@ import { localZone, whenParts } from "./when.js";
 import { whichParts } from "./which.js";
 import { whoParts } from "./who.js";
 import { freedomQuestion, withRung } from "../FreedomLadder.jsx";
+import { costLine } from "../words.js";
 
 const part = (parts, key) => parts.find((p) => typeof p === "object" && p.key === key);
 const words = (parts) => parts.map((p) => (typeof p === "string" ? p : p.break ? "|" : p.text)).join("");
@@ -52,8 +53,13 @@ describe("the When slot", () => {
       { after: { routine: "rt-a", outcome: "done" } },
     ] }, { routines });
     expect(words(parts.filter((p) => p.editor !== "act"))).toBe(
-      "github.pulls: opened in acme/game or A file is added in ~/Inbox named anything or New commits on main in /src/game or After Morning Paper finishes ",
+      "github.pulls: opened in acme/game or a file is added in ~/Inbox named anything or new commits on main in /src/game or after Morning Paper finishes ",
     );
+    const github = [{ id: "github", name: "GitHub" }];
+    const named = whenParts({ on: [{ source: "github.pulls", events: ["opened"] }] }, { capabilities: github });
+    expect(words(named.filter((p) => p.editor !== "act"))).toBe("GitHub pulls: opened ");
+    const taken = whenParts({ on: [{ source: "github.pulls", events: ["opened"] }] }, { capabilities: github, takes: { source: "github.pulls", label: "pull request" } });
+    expect(words(taken.filter((p) => p.editor !== "act"))).toBe("A pull request is opened ");
     expect(part(parts, "0.events").apply("opened, closed").on[0]).toEqual({ source: "github.pulls", scope: { repo: "acme/game" }, events: ["opened", "closed"], x: 1 });
     expect(part(parts, "0.scope.repo").apply("acme/web").on[0].scope).toEqual({ repo: "acme/web" });
     const names = part(parts, "1.folder.names");
@@ -117,7 +123,7 @@ describe("the Who, How and Goes-to slots", () => {
   it("opens an agent's brief and model from its chip", () => {
     const who = { depth: "team", agents: [{ key: "a", name: "Editor", model: "sonnet", brief: "Edit.", effort: "high", z: 1 }, { key: "b", name: "Reader", model: "haiku" }], checker: { model: "sonnet" } };
     const [editor, reader] = whoParts(who);
-    expect(editor).toMatchObject({ editor: "agent", chip: true, text: "Editor", sub: "sonnet", value: { brief: "Edit.", model: "sonnet" } });
+    expect(editor).toMatchObject({ editor: "agent", chip: true, text: "Editor", sub: "Sonnet 5.5", value: { brief: "Edit.", model: "sonnet" } });
     expect(reader.options.map((o) => o.label)).toEqual(["Haiku", "Sonnet", "Opus"]);
     const next = editor.apply({ brief: "Edit hard.", model: "opus" });
     expect(next.agents[0]).toEqual({ key: "a", name: "Editor", model: "opus", brief: "Edit hard.", effort: "high", z: 1 });
@@ -188,5 +194,13 @@ describe("Freedom", () => {
 
   it("keeps the grants when the rung changes", () => {
     expect(withRung(pr.freedom, "ask")).toEqual({ rung: "ask", grants: [{ id: "docs" }] });
+  });
+});
+
+describe("the cost line", () => {
+  it("names the capabilities a routine uses by their names", () => {
+    const bp = { needs: ["github", "unity-docs"], limits: { perDayUsd: 5 }, takes: { kind: "source", label: "pull request" } };
+    const capabilities = [{ id: "github", name: "GitHub" }, { id: "unity-docs", name: "Unity docs" }];
+    expect(costLine({ usual: { usd: 0.38 } }, bp, capabilities)).toBe("Uses GitHub and Unity docs. About $0.38 a pull request, stops at $5 a day.");
   });
 });

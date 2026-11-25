@@ -9,6 +9,17 @@ function Lock() {
   );
 }
 
+// How a value is drawn: an agent as a card of its name over its model, a
+// check as a pill, an adder as a dashed pill, a format as the line under
+// the checks, any other value as a small chip in the sentence.
+function partClass(part) {
+  if (part.editor === "agent") return "eos-bp-agent";
+  if (part.add) return "eos-bp-add";
+  if (part.chip) return "eos-bp-chip";
+  if (part.note) return "eos-bp-value eos-bp-value--note";
+  return "eos-bp-value";
+}
+
 // One part of a slot's words. Read-only, a part is plain text and the parts
 // that only add or remove are left out.
 function Part({ part, editable, open, setOpen, apply }) {
@@ -17,15 +28,15 @@ function Part({ part, editable, open, setOpen, apply }) {
   if (part.locked) return <span className="eos-bp-locked"><Lock />{part.text}<span className="eos-sr">, locked</span></span>;
   if (!editable) {
     if (part.editor === "act" || part.optional) return null;
-    return <span className={part.chip ? "eos-bp-chip" : undefined}>{part.text}{part.sub && <span className="eos-bp-chip__sub">{part.sub}</span>}</span>;
+    return <span className={part.editor === "agent" ? "eos-bp-agent" : part.chip ? "eos-bp-chip" : part.note ? "eos-bp-row__note" : undefined}>{part.text}{part.sub && <span className="eos-bp-chip__sub">{part.sub}</span>}</span>;
   }
   if (part.editor === "act") {
-    return <button type="button" className="eos-bp-act" aria-label={part.label} onClick={() => apply(part.apply())}>{part.text}</button>;
+    return <button type="button" className={part.add ? "eos-bp-add" : "eos-bp-act"} aria-label={part.label} onClick={() => apply(part.apply())}>{part.text}</button>;
   }
   return (
     <button
       type="button"
-      className={part.chip ? "eos-bp-chip eos-bp-value" : "eos-bp-value"}
+      className={partClass(part)}
       aria-haspopup={part.editor === "menu" ? "menu" : "dialog"}
       aria-expanded={open}
       onClick={() => setOpen(open ? null : part.key)}
@@ -36,7 +47,7 @@ function Part({ part, editable, open, setOpen, apply }) {
 }
 
 // A row of the blueprint card: the slot's name and its words. With `onApply`
-// each underlined value opens its own small editor, and a value chosen there
+// each value opens its own small editor, and a value chosen there
 // becomes the slot's new value. `changed` marks a slot that differs from
 // the version it is compared with; `preview` goes under its words.
 export function SlotRow({ label, parts, onApply, changed = false, preview }) {

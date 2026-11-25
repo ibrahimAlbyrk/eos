@@ -140,6 +140,9 @@
 .eos-btn--primary { background: var(--solid-btn-bg); color: var(--solid-btn-fg); }
 .eos-btn--primary:hover { background: var(--solid-btn-bg-hover); color: var(--solid-btn-fg); }
 .eos-btn:disabled { opacity: 0.45; cursor: default; }
+/* A second action beside a primary one: the words alone, a ground on hover. */
+.eos-btn--ghost { background: none; }
+.eos-btn--ghost:hover { background: var(--row-on); }
 /* A bare glyph button in a header or a row. */
 .eos-icon-btn {
   width: 30px;

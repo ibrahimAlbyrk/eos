@@ -24,7 +24,7 @@ export function howParts(how) {
       apply: (v) => ({ ...h, checks: v ? checks.map((c, i) => (i === n ? { ...c, text: v } : c)) : checks.filter((_, i) => i !== n) }),
     });
   }
-  parts.push({ key: "check.add", label: "New check", editor: "text", text: "Add a check", value: "", optional: true, apply: (v) => (v ? { ...h, checks: [...checks, { key: freeKey(checks), text: v }] } : h) });
-  parts.push({ break: true }, { key: "format", label: "Format", editor: "text", text: h.format || "Any format", value: h.format ?? "", apply: (v) => ({ ...h, format: v }) });
+  parts.push({ key: "check.add", label: "New check", editor: "text", text: "Add a check", value: "", optional: true, add: true, apply: (v) => (v ? { ...h, checks: [...checks, { key: freeKey(checks), text: v }] } : h) });
+  parts.push({ break: true }, { key: "format", label: "Format", editor: "text", note: true, text: h.format || "Any format", value: h.format ?? "", apply: (v) => ({ ...h, format: v }) });
   return parts;
 }

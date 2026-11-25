@@ -3,101 +3,177 @@
    cards under it, and the version menu and comparison. Text keeps eos.css's
    contrast floor: never dimmer than --fg-dim2 on the dark grounds. */
 
-.eos-bp { display: flex; align-items: flex-start; gap: 24px; }
+.eos-bp { container: eos-bp / inline-size; }
+.eos-bp__cols { display: flex; align-items: flex-start; gap: 28px; }
+/* As tall as the card beside it, so the input sits under the conversation
+   and stays in sight at the window's foot while the card scrolls. */
 .eos-bp-chat {
-  flex: 0 0 340px;
+  flex: 1 1 340px;
+  max-width: 400px;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
   min-height: 420px;
 }
-.eos-bp__side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.eos-bp__side { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
 
 /* ── Conversation ─────────────────────────────────────────────────────────── */
 .eos-bp-bubble {
   align-self: flex-end;
   max-width: 92%;
   padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--chip);
-  font-size: var(--text-sm);
-  color: var(--fg);
+  border-radius: 18px;
+  background: var(--bubble);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--bubble-fg);
   white-space: pre-wrap;
 }
-.eos-bp-reply { align-self: flex-start; max-width: 92%; font-size: var(--text-sm); color: var(--fg); }
+.eos-bp-reply { align-self: flex-start; max-width: 100%; font-size: var(--text-base); line-height: 1.6; color: var(--fg); }
+.eos-bp-reply strong, .eos-bp-reply b { font-weight: 600; color: var(--fg-strong); }
 .eos-bp-reply p { margin: 0 0 6px; }
 .eos-bp-reply p:last-child { margin-bottom: 0; }
-.eos-bp-checks { display: flex; flex-direction: column; gap: 6px; }
-.eos-bp-check { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-checks { display: flex; flex-direction: column; gap: 7px; }
+.eos-bp-check { display: flex; align-items: center; gap: 9px; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-bp-check svg { flex: none; color: var(--ok); }
-.eos-bp-question { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--panel); }
-.eos-bp-question__text { font-size: var(--text-base); color: var(--fg-strong); }
+.eos-bp-question { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: var(--r-card); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
+.eos-bp-question .eos-label { margin: 0; font-size: var(--text-xs); color: var(--fg-dim); letter-spacing: 0; text-transform: none; font-family: inherit; }
+.eos-bp-question .eos-actions { margin-top: 8px; }
+.eos-bp-question__text { font-size: var(--text-base); font-weight: 600; color: var(--fg-strong); }
 .eos-bp-question__text p { margin: 0; }
+.eos-bp-chat__hint { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--fg-dim); }
 .eos-bp-chat__fill { flex: 1; }
-.eos-bp-say { display: flex; gap: 8px; }
-.eos-bp-say .eos-bp-input { flex: 1; }
+.eos-bp-say { position: sticky; bottom: 16px; background: var(--pop); }
 
 /* ── Card ─────────────────────────────────────────────────────────────────── */
-.eos-bp-card { display: flex; flex-direction: column; gap: 16px; }
+.eos-bp-card { display: flex; flex-direction: column; gap: 16px; padding: 22px 26px 20px; }
 .eos-bp-card--outline { background: none; box-shadow: inset 0 0 0 1px var(--line); }
 .eos-bp-card__head { display: flex; align-items: center; gap: 10px; }
 .eos-bp-card__version { font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-bp-card__title { display: flex; align-items: flex-start; gap: 12px; }
+.eos-bp-card__title { display: flex; align-items: center; gap: 14px; }
+.eos-bp-card__words { flex: 1; min-width: 0; }
 .eos-bp-card__icon {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: var(--raised);
-  color: var(--fg-mid);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: #8ab9f0;
 }
-.eos-bp-card__name { margin: 0; font-size: var(--text-lg); font-weight: 500; color: var(--fg-strong); }
-.eos-bp-card__sentence { margin: 4px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp-card__glyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.eos-bp-card__letter { font-size: 16px; font-weight: 600; }
+.eos-bp-card__name { margin: 0; font-size: var(--text-3xl); line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; color: var(--fg-strong); }
+.eos-bp-card__sentence { margin: 2px 0 0; font-size: var(--text-base); color: var(--fg-dim); }
+.eos-bp-headvalue {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-bp-headvalue:hover { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 4px; }
 
 .eos-bp-rows { margin: 0; display: flex; flex-direction: column; }
-.eos-bp-row { display: flex; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.eos-bp-row { display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 12px 0; border-top: 1px solid var(--line); }
 .eos-bp-row--changed { box-shadow: inset 2px 0 0 var(--accent); padding-left: 10px; }
 .eos-bp-row__label {
   flex: 0 0 84px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding-top: 4px;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--fg-dim2);
 }
 .eos-bp-row__mark { font-family: inherit; letter-spacing: 0; text-transform: none; color: var(--accent); }
-.eos-bp-row__value { flex: 1; min-width: 0; margin: 0; font-size: var(--text-sm); line-height: 1.7; color: var(--fg); }
+.eos-bp-row__value { flex: 1 1 320px; min-width: 0; margin: 0; font-size: var(--text-base); line-height: 1.9; color: var(--fg); }
 .eos-bp-row__value--empty { color: var(--fg-dim2); }
 .eos-bp-row__note { margin: 8px 0 0; color: var(--fg-dim); }
-.eos-bp-break { display: block; height: 4px; }
+.eos-bp-break { display: block; height: 6px; }
 
+/* A value the user can change: a small chip inside the sentence. */
 .eos-bp-value {
-  padding: 0;
+  margin: 0 1px;
+  padding: 1px 8px;
   border: 0;
-  background: none;
+  border-radius: var(--r-icon);
+  background: var(--row-on);
   font: inherit;
+  line-height: 1.5;
   color: var(--fg-strong);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
   cursor: pointer;
 }
+.eos-bp-value:hover { background: var(--chip); }
+/* The result's shape: the quiet line under the checks. */
+.eos-bp-value--note, .eos-bp-row__value .eos-bp-row__note {
+  display: block;
+  margin: 0;
+  padding: 0;
+  background: none;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--fg-dim);
+}
+.eos-bp-value--note:hover { background: none; color: var(--fg-mid); }
 .eos-bp-chip {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  margin: 0 6px 4px 0;
+  margin: 0 6px 6px 0;
   padding: 2px 10px;
+  border: 0;
   border-radius: var(--r-pill);
   background: var(--raised);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--fg);
 }
-.eos-bp-chip.eos-bp-value { text-decoration: none; }
+button.eos-bp-chip { cursor: pointer; }
+button.eos-bp-chip:hover { background: var(--row-on); }
+.eos-bp-add {
+  margin: 0 6px 6px 0;
+  padding: 1px 10px;
+  border: 1px dashed var(--fg-mute);
+  border-radius: var(--r-pill);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.eos-bp-add:hover { color: var(--fg-strong); border-color: var(--fg-dim2); }
+/* An agent of the team: its name over its model. */
+.eos-bp-agent {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  vertical-align: top;
+  margin: 0 8px 8px 0;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--fg-strong);
+}
+button.eos-bp-agent { cursor: pointer; }
+button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-bp-chip__sub { font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-bp-agent .eos-bp-chip__sub { font-family: var(--font-mono); font-size: 11px; }
 .eos-bp-act {
   margin: 0 4px;
   padding: 0 8px;
@@ -126,8 +202,9 @@
 .eos-bp-input--glob { font-family: var(--font-mono); }
 .eos-bp-wrong { margin: 0; font-size: var(--text-xs); color: var(--err); }
 
-.eos-bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.eos-bp-actions__cost { margin-left: auto; font-size: var(--text-xs); color: var(--fg-dim); }
+.eos-bp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-top: 16px; border-top: 1px solid var(--line); }
+.eos-bp-actions .eos-btn { height: 36px; padding: 0 16px; font-size: var(--text-base); }
+.eos-bp-actions__cost { margin-left: auto; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-bp-issues { margin: 6px 0 0; padding-left: 18px; width: 100%; }
 
 /* ── Versions ───────────────────────────────────────────────────────────── */
@@ -145,9 +222,11 @@
 .eos-bp-trial__line { font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-bp-trial .eos-link { align-self: flex-start; font-size: var(--text-xs); }
 
-@media (max-width: 960px) {
-  .eos-bp { flex-direction: column; }
-  .eos-bp-chat { flex-basis: auto; width: 100%; min-height: 0; }
+/* Too narrow for both: the conversation over the card, its input under it. */
+@container eos-bp (max-width: 900px) {
+  .eos-bp__cols { flex-direction: column; align-items: stretch; }
+  .eos-bp-chat { flex-basis: auto; width: 100%; max-width: none; min-height: 0; }
+  .eos-bp-say { position: static; }
 }
 
 /* Slack's channels and people in the Goes-to dialog: a quiet list, the kind at the end. */

@@ -32,6 +32,7 @@ function slackAdd(list) {
     editor: "slack",
     text: "Add a Slack channel or person",
     optional: true,
+    add: true,
     value: { channel: "slack" },
     apply: ({ address, label }) => [...list, { id: freeId(list), kind: "fixed", channel: "slack", address, label }],
   };
@@ -46,6 +47,6 @@ export function goesToParts(goesTo, makes) {
   ]);
   if (list.length === 0) parts.push("Stays in Eos", { break: true });
   if (makes?.kind?.startsWith("slack.")) return [...parts, slackAdd(list)];
-  parts.push({ key: "to.add", label: "Add a recipient", editor: "recipient", text: "Add a recipient", optional: true, value: { channel: "mail", address: "" }, apply: ({ channel, address }) => [...list, { id: freeId(list), kind: "fixed", channel, address }] });
+  parts.push({ key: "to.add", label: "Add a recipient", editor: "recipient", text: "Add a recipient", optional: true, add: true, value: { channel: "mail", address: "" }, apply: ({ channel, address }) => [...list, { id: freeId(list), kind: "fixed", channel, address }] });
   return parts;
 }
