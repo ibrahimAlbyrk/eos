@@ -105,9 +105,9 @@ fn a_manifest_out_of_shape_says_each_problem() {
     let found = problems(&json!({"html": "<p>x</p>", "manifest": odd, "extra": 1}));
     assert_eq!(found.len(), 5, "{found:?}");
     let mut files = manifest();
-    files["files"] = json!({"root": "project", "read": ["../x"], "write": ["/abs"]});
+    files["files"] = json!({"root": "project", "read": ["../x"], "write": ["/abs", ".git/hooks/*", "a/.claude/*"]});
     let found = problems(&body("<p>x</p>", files));
-    assert_eq!(found.len(), 2, "{found:?}");
+    assert_eq!(found.len(), 4, "{found:?}");
     let big = "x".repeat(eos_surface::APP_HTML_BYTES + 1);
     assert_eq!(problems(&body(&big, manifest())).len(), 1);
 }

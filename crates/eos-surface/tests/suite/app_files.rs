@@ -9,6 +9,10 @@ fn a_path_stays_below_the_root() {
     for refused in ["", "/etc/passwd", "~/x", "../x", "levels/../../x", "a//b", "./a", "a\\b", "a\0b"] {
         assert!(app_path(refused).is_err(), "{refused:?} was taken");
     }
+    // Hidden names run code outside any sandbox once the user works in the project.
+    for hidden in [".git/hooks/pre-commit", ".claude/settings.json", ".mcp.json", ".envrc", "web/.npmrc", ".vscode/x"] {
+        assert!(app_path(hidden).is_err(), "{hidden:?} was taken");
+    }
 }
 
 #[test]
