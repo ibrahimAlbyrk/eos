@@ -7,16 +7,27 @@ import { ORIGIN_FILTERS, stateChip } from "../run/words.js";
 
 export const runLocation = (id) => `eos:/runs/${encodeURIComponent(id)}`;
 
-// One run as a row: its item, its headline, its state in words and its cost.
-// Item titles come from outside: React text only.
+// An item title that starts with its number ("#470 Fix the login") split
+// into the number and the rest, so the number can stand in its own column.
+export function splitItemNumber(title) {
+  const m = /^(#\d+)\s+(.+)$/.exec(title ?? "");
+  return m ? { number: m[1], title: m[2] } : { number: null, title: title ?? "Run" };
+}
+
+// One run as a row (SystemDetail.dc.html's Recent runs): the item's number,
+// its title, its headline, its state in its tone and its cost. Item titles
+// come from outside: React text only.
 export function RunRow({ run, now }) {
+  const { number, title } = splitItemNumber(run.itemTitle);
+  const chip = stateChip(run, now);
   return (
     <li className="eos-run-row">
       <button type="button" className="eos-run-row__open" onClick={() => openLocation(runLocation(run.id))}>
-        <span className="eos-run-row__title">{run.itemTitle ?? "Run"}</span>
+        <span className="eos-run-row__num">{number ?? ""}</span>
+        <span className="eos-run-row__title">{title}</span>
         <span className="eos-run-row__line">{run.headline ?? ""}</span>
-        <span className="eos-run-row__side">{stateChip(run, now).text}</span>
-        <span className="eos-run-row__side">{fmtUsd(run.costUsd)}</span>
+        <span className={"eos-run-row__state" + (chip.tone ? ` eos-run-row__state--${chip.tone}` : "")}>{chip.text}</span>
+        <span className="eos-run-row__cost">{fmtUsd(run.costUsd)}</span>
       </button>
     </li>
   );
