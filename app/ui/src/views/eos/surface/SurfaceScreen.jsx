@@ -35,12 +35,12 @@ function Verdict({ issueId }) {
   );
 }
 
-// eos:/surfaces/<id>?issue=<n>&mode=reshape — a routine's Page: the issue in
+// eos:/surfaces/<id>?issue=<n>&mode=reshape&button=&index= — a routine's Page: the issue in
 // Eos's dark frame as a light sheet, earlier issues in the design each was
 // made with, pin to Home, mail preview and a file to share, how the issue
 // was, and what to change about the page; in reshape mode, changing it by
 // saying or pointing.
-export function SurfaceScreen({ surfaceId, seq, mode }) {
+export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   const { pages, issues, versions } = usePages();
   const { list: routines } = useRoutines();
   const devRun = useDevRunSeen();
@@ -149,6 +149,8 @@ export function SurfaceScreen({ surfaceId, seq, mode }) {
             )}
             {row && (
               <IssueBody
+                key={row.id}
+                linked={linked}
                 surface={surface}
                 row={row}
                 shown={issues[row.id]}
