@@ -278,7 +278,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 .eos-sign-in__quiet { font-size: var(--text-sm); }
 
 /* ── Capabilities ─────────────────────────────────────────────────────────── */
-.eos-caps { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-caps { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .eos-cap-settings { display: grid; gap: 10px; }
 .eos-cap-settings input, .eos-cap-settings select {
   min-width: 0; max-width: 260px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
@@ -286,8 +286,9 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 }
 .eos-cap-offline { margin: 0; padding: 0 28px; font-size: var(--text-sm); color: var(--warn); }
 /* The state and its fix go under the name when both no longer fit beside it. */
-.eos-cap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 14px 0; }
-.eos-cap-row + .eos-cap-row { border-top: 1px solid var(--line); }
+.eos-cap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 52px; box-sizing: border-box; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.eos-cap-row__side { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.eos-cap-row__open:hover .eos-cap-row__name { text-decoration: underline; text-underline-offset: 3px; }
 .eos-cap-row__open {
   flex: 1 1 300px;
   min-width: 0;
@@ -302,7 +303,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
   cursor: pointer;
 }
 .eos-cap-row__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-cap-row__facts { margin: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-cap-row__facts { margin: 2px 0 0; font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-cap-state { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .eos-cap-line { font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-cap-section { display: flex; flex-direction: column; gap: 12px; }

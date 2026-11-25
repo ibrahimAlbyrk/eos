@@ -66,6 +66,7 @@ export const GALLERY_STATES = [
   { id: "memory-note", label: "Memory · a note open", location: `eos:/memory?tab=work&note=${memory.details.find((d) => d.note.text.startsWith("Run lint"))?.note.id ?? memory.details[0].note.id}` },
   { id: "memory-about", label: "Memory · About you", location: "eos:/memory?tab=about" },
   { id: "capabilities", label: "Capabilities", location: "eos:/capabilities" },
+  { id: "capabilities-empty", label: "Capabilities · none yet", location: "eos:/capabilities", reads: (s) => ({ ...s, [ROUTES.capabilities]: [] }) },
   { id: "page", label: "Page · today's issue", location: `eos:/surfaces/${PAPER}` },
   { id: "page-old", label: "Page · an earlier issue", location: `eos:/surfaces/${PAPER}?issue=1` },
   { id: "page-redesign", label: "Page · needs a new design", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...s, [ROUTES.surface(PAPER)]: { ...paper.surface, needsRedesign: { since: 1 } } }) },
