@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { notify } from "../../../lib/notify.js";
+import { Dialog } from "../frame.jsx";
 import { mailPreview, printIssue, revealFile, shareDocument } from "../../../state/eos/pageStore.js";
+
+const MAIL = "M2.5 4.5h11v7h-11zM2.5 4.5L8 9l5.5-4.5";
 
 // A file name from the page's title and the issue's number.
 export function shareName(title, seq) {
@@ -74,15 +77,17 @@ export function ShareMenu({ surface, row }) {
         )}
       </span>
       {mail && (
-        <div className="eos-sheet-overlay" role="presentation" onClick={() => setMail(null)}>
-          <div className="eos-sheet eos-mail-preview" role="dialog" aria-label="Mail preview" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Escape") setMail(null); }}>
-            <div className="eos-mail-preview__head">
-              <h2 className="eos-sheet__title">As the mail will look</h2>
-              <button type="button" className="eos-btn" autoFocus onClick={() => setMail(null)}>Close</button>
-            </div>
-            <iframe className="eos-mail-preview__frame" title="Mail preview" sandbox="" srcDoc={mail} />
-          </div>
-        </div>
+        <Dialog
+          id="eos-mail-preview"
+          from={`Mail preview · ${surface.title}`}
+          icon={MAIL}
+          title="As the mail will look"
+          line="One column, as a mail reader shows it; nothing in it runs here."
+          onClose={() => setMail(null)}
+          actions={<button type="button" className="eos-btn eos-btn--primary" onClick={() => setMail(null)}>Close</button>}
+        >
+          <iframe className="eos-mail-preview__frame" title="Mail preview" sandbox="" srcDoc={mail} />
+        </Dialog>
       )}
     </>
   );

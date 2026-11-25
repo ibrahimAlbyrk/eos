@@ -5,6 +5,7 @@
 import { ROUTES } from "../../../api/routes.js";
 import { applyDesignChange, reshape } from "../../../state/eos/pageStore.js";
 import paper from "./sample/paper.json";
+import pages from "./sample/paper-pages.json";
 
 const PAPER = paper.surface.id;
 const AT = `eos:/surfaces/${PAPER}`;
@@ -43,6 +44,12 @@ export const PAGE_STATES = [
   } },
   { id: "page-issues", label: "Page · the issues open", location: AT, then: () => press(".eos-issues__pick", "Issue") },
   { id: "page-share", label: "Page · Share open", location: AT, then: () => press(".eos-head__side button", "Share") },
+  { id: "page-mail", label: "Page · its mail preview", location: AT,
+    reads: (s) => ({ ...s, [ROUTES.surfaceIssueMail(PAPER, "si-7b3m1c000003")]: pages.mail }),
+    then: () => {
+      press(".eos-head__side button", "Share");
+      setTimeout(() => press(".eos-menu button", "Mail preview"), 200);
+    } },
   { id: "page-edit", label: "Page · editing its words", location: AT, then: () => press(".eos-page-end button", "Edit its words") },
   { id: "page-working", label: "Page · Eos redrawing it", location: CHANGING, sends: designing, then: said },
   { id: "page-checking", label: "Page · a new version being checked", location: CHANGING, then: () => applyDesignChange({ surfaceId: PAPER, version: 4, phase: "checking" }) },
