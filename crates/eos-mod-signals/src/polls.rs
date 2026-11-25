@@ -183,7 +183,19 @@ impl Polls {
                         scope_hash: scope_hash.clone(),
                         interval_ms: *interval_ms,
                     };
-                    let (row, _) = source_in(tx, ids.as_ref(), spec, now)?;
+                    let (mut row, _) = source_in(tx, ids.as_ref(), spec, now)?;
+                    if row.interval_ms != *interval_ms {
+                        // The source's declared interval changed: the next poll keeps to it.
+                        tracing::info!(source_id = %row.id, interval_ms, "a source's interval changed");
+                        let due = now + interval_ms;
+                        row = StoredSignalSource {
+                            interval_ms: *interval_ms,
+                            next_poll_at: row.next_poll_at.map(|at| at.min(due)),
+                            updated_at: now,
+                            ..row
+                        };
+                        tx.signal_sources().update(&row)?;
+                    }
                     if row.state == "stopped" {
                         tracing::info!(source_id = %row.id, state = "active", "a source resumes from its cursor");
                         let row = StoredSignalSource {
