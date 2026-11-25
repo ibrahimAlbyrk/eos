@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { saveBlueprint } from "../../../state/eos/blueprintStore.js";
+import { ensureCapabilitiesLoaded, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { addSourcePush, loadTriggerStatus, useSignals } from "../../../state/eos/signalsStore.js";
 import { LoadFailed } from "../capabilities/parts.jsx";
@@ -49,7 +50,7 @@ function ScheduleLine({ status, head, routineId, routines }) {
     <li className="eos-trigger">
       <span className="eos-trigger__name">{words}</span>
       {facts.length > 0 && <span className="eos-trigger__facts">{facts.join(" · ")}</span>}
-      {status.zoneDiffers && <ZoneHint status={status} trigger={trigger} routineId={routineId} head={head} />}
+      {status.zoneDiffers && zoneName(status.zone) !== zoneName(localZone()) && <ZoneHint status={status} trigger={trigger} routineId={routineId} head={head} />}
     </li>
   );
 }
@@ -76,6 +77,8 @@ function PushControl({ source, routineId }) {
 }
 
 function SourceLine({ source, now, routineId }) {
+  const capabilities = useCapabilities().list ?? [];
+  useEffect(() => ensureCapabilitiesLoaded(), []);
   const reason = sourceReason(source);
   const polls = [
     source.push === "on" && "Told at once by a webhook",
@@ -84,7 +87,7 @@ function SourceLine({ source, now, routineId }) {
   ].filter(Boolean);
   return (
     <li className="eos-trigger">
-      <span className="eos-trigger__name">{sourceName(source)}</span>
+      <span className="eos-trigger__name">{sourceName(source, capabilities)}</span>
       <span className={`eos-trigger__state eos-trigger__state--${source.state === "active" ? "ok" : "warn"}`}>
         {sourceStateWord(source.state)}{reason && `: ${reason}`}
       </span>
