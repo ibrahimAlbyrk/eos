@@ -96,7 +96,7 @@ describe("a capability's page", () => {
     expect(html).toContain('<h1 class="eos-title">GitHub</h1>');
     expect(html).toContain("Needs setup");
     expect(html).toContain("List open pull requests</span><span class=\"eos-cap-item__side\">Only reads</span>");
-    expect(html).toContain("Post a review on a pull request</span><span class=\"eos-cap-item__side\">Speaks for you to others · withdraw_review takes it back</span>");
+    expect(html).toContain("Post a review on a pull request</span><span class=\"eos-cap-item__side\">Speaks for you to others · Withdraw review takes it back</span>");
     expect(html).toContain("Cannot be taken back, or costs money");
     expect(html).toContain("<dt>Websites</dt><dd>api.github.com</dd>");
     expect(html).toContain("<dt>GitHub sign-in</dt><dd>Missing</dd>");
