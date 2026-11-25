@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SuggestionInbox } from "./SuggestionInbox.jsx";
 import { MemoryItem } from "./MemoryItem.jsx";
+import { _resetAgentIndex, updateAgentNames } from "../../lib/agentIndex.js";
 import { MemoryReviewRow } from "../../components/profile/ProfileMenuHeader.jsx";
 
 const suggestion = (id, over = {}) => ({
@@ -43,6 +44,16 @@ describe("MemoryItem", () => {
     expect(html).toContain('aria-label="Delete memory"');
     const od = renderToStaticMarkup(<MemoryItem memory={suggestion("um-2", { status: "active", tier: "on-demand" })} />);
     expect(od).toContain("On demand");
+    expect(od).not.toContain("from ");
+  });
+
+  it("a rule the user stated in a chat names that chat, and an archived one as such", () => {
+    _resetAgentIndex();
+    updateAgentNames([{ id: "w-7", name: "Launch notes" }]);
+    const mine = suggestion("um-3", { status: "active", source: { kind: "user" } });
+    expect(renderToStaticMarkup(<MemoryItem memory={mine} statedIn="w-7" />)).toContain("from chat Launch notes");
+    expect(renderToStaticMarkup(<MemoryItem memory={mine} statedIn="w-gone" />)).toContain("from an archived chat");
+    _resetAgentIndex();
   });
 });
 

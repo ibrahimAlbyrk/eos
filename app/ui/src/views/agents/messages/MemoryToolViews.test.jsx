@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-vi.mock("../../../api/client.js", () => ({ api: { listUserMemories: vi.fn() } }));
+vi.mock("../../../api/client.js", () => ({ api: { listUserMemories: vi.fn(), listStatedRules: vi.fn(async () => null) } }));
 
 import { api } from "../../../api/client.js";
 import { UiProvider } from "../../../state/ui.jsx";

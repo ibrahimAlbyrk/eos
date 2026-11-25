@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../api/client.js", () => ({
   api: {
     listUserMemories: vi.fn(),
+    listStatedRules: vi.fn(),
     approveUserMemory: vi.fn(),
     dismissUserMemory: vi.fn(),
     approveAllUserMemories: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock("../api/client.js", () => ({
 
 import { api } from "../api/client.js";
 import {
-  _resetUserMemories, approveMemory, dismissMemory, ensureUserMemoriesLoaded, getUserMemoriesState, pendingMemories,
+  _resetUserMemories, approveMemory, dismissMemory, ensureUserMemoriesLoaded, getUserMemoriesState, pendingMemories, refreshUserMemories,
 } from "./userMemoryStore.js";
 
 const m = (id, status = "active") => ({ id, text: id, status });
@@ -22,6 +23,7 @@ const m = (id, status = "active") => ({ id, text: id, status });
 beforeEach(() => {
   _resetUserMemories();
   vi.clearAllMocks();
+  api.listStatedRules.mockResolvedValue(null);
 });
 
 describe("userMemoryStore", () => {
@@ -55,5 +57,15 @@ describe("userMemoryStore", () => {
     await approveMemory("um-1");
     expect(getUserMemoriesState().error).toBe("ui token required");
     expect(getUserMemoriesState().memories[0].status).toBe("suggested");
+  });
+
+  it("knows the chat each stated rule was said in, and keeps it when the core has no memory to ask", async () => {
+    api.listUserMemories.mockResolvedValue([m("um-1"), m("um-2")]);
+    api.listStatedRules.mockResolvedValue([{ memoryId: "um-2", workerId: "w-9", rowId: 4, at: 1 }]);
+    await ensureUserMemoriesLoaded();
+    expect(getUserMemoriesState().stated).toEqual({ "um-2": "w-9" });
+    api.listStatedRules.mockResolvedValue(null);
+    await refreshUserMemories();
+    expect(getUserMemoriesState().stated).toEqual({ "um-2": "w-9" });
   });
 });
