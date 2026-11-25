@@ -1,13 +1,14 @@
 //! The failure policy: three failed runs in a row pause the routine with one
 //! alert, a run that ends well starts the count again, a run that spends far
 //! more than usual pauses it too, and most of today's budget spent is told
-//! once.
+//! once. A run with no credential fails at once, and three of them pause
+//! the routine for a sign-in.
 
 use eos_contracts::RoutineState;
 use eos_core::routine::{RunOrigin, SubmittedResult};
 use eos_core::store::{StoredItem, StoredRoutine};
 use eos_domain::inbox::ItemKind;
-use eos_domain::routine::run::{RunState, Station};
+use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::worker::Usage;
 use serde_json::{Value, json};
 
@@ -103,6 +104,28 @@ async fn three_failures_in_a_row_pause_with_one_alert_and_a_good_run_starts_the_
     // A fourth failure, by hand while paused, opens no second alert.
     bench.fails(&routine, 7).await;
     assert_eq!(bench.alerts("failures").len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn runs_without_a_credential_fail_at_once_and_three_pause_the_routine_for_a_sign_in() {
+    let bench = Bench::new(true);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
+    bench.supervise().await;
+    *bench.credentials.new_session.lock().expect("credential") = None;
+    for number in 1..=3 {
+        let new = new_run(&routine, RunOrigin::Hand, Some(pull_request(number)));
+        let id = bench.start(new).await.expect("starts").remove(0).id;
+        bench.eventually(|| bench.state(&id) == RunState::Failed).await;
+        let failed = bench.run(&id);
+        assert_eq!(failed.reason, Some(Reason::NoCredential));
+        assert!(failed.lead_id.is_none(), "no session started");
+    }
+    let paused = bench.stored(&routine);
+    assert_eq!((paused.state, paused.paused_reason.as_deref()), (RoutineState::Paused, Some("sign_in")));
+    let alerts = bench.alerts("sign_in");
+    assert_eq!(alerts.len(), 1);
+    assert!(alerts[0].summary.contains("Settings › Accounts"), "{}", alerts[0].summary);
+    assert!(bench.alerts("failures").is_empty(), "one item, for the sign-in");
 }
 
 #[tokio::test(flavor = "multi_thread")]

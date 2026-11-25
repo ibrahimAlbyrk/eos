@@ -76,6 +76,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{RunChange, RunInput, RunsActive};
+use eos_core::accounts::SessionCredentials;
 use eos_core::agent::{OneShot, ScratchFolders};
 use eos_core::capability::CapabilityReads;
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
@@ -174,6 +175,7 @@ pub(crate) struct Engine {
     /// The live architects, with when each was last active.
     pub(crate) architects: Mutex<HashMap<String, i64>>,
     pub(crate) one_shot: Arc<dyn OneShot>,
+    pub(crate) credentials: Arc<dyn SessionCredentials>,
     /// The model reads of the Home input today: the local day and how many.
     pub(crate) intent_reads: Mutex<Option<(String, i64)>>,
     /// Where what the retention pass clears goes: the trash.

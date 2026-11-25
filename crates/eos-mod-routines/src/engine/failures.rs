@@ -1,6 +1,7 @@
-//! The failure policy (01 §4.8, §4.10): a routine whose runs keep failing,
-//! or one run of which spent far more than its runs usually do, is paused
-//! with one `routine_alert`. Both are decided in the write that ends the run.
+//! The failure policy (01 §4.8, §4.10, G27): a routine whose runs keep
+//! failing, or one run of which spent far more than its runs usually do, is
+//! paused with one `routine_alert`; runs that failed for want of a sign-in
+//! pause it as `sign_in`. All are decided in the write that ends the run.
 
 use std::sync::Arc;
 
@@ -8,8 +9,8 @@ use eos_contracts::RoutineState;
 use eos_core::Error;
 use eos_core::store::{Outbox, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::routine::limits::{abnormal_spend, failure_streak, pauses_for_failures};
-use eos_domain::routine::run::RunState;
+use eos_domain::routine::limits::{FAILURES_TO_PAUSE, abnormal_spend, failure_streak, pauses_for_failures};
+use eos_domain::routine::run::{Reason, RunState};
 use eos_inbox::{NewItem, Opening, open_in};
 use serde_json::json;
 
@@ -18,6 +19,8 @@ use super::control::{Control, pause_in};
 
 /// Why a routine paused after its runs failed, and its alert's subject.
 pub(crate) const FAILURES: &str = "failures";
+/// Why a routine paused after its runs found no credential to start on.
+pub(crate) const SIGN_IN: &str = "sign_in";
 /// Why a routine paused after a run spent far more than usual.
 pub(crate) const SPEND: &str = "spend";
 /// Earlier runs read for the routine's usual spend: the newest ten finished
@@ -45,6 +48,11 @@ pub(crate) fn ended_in(
     if routine.state != RoutineState::Active {
         return Ok(());
     }
+    if pauses_for_failures(streak) && signed_out(tx, &routine.id)? {
+        tracing::info!(routine_id = %routine.id, run_id, "a routine's runs found no sign-in");
+        let summary = "Paused: its runs found no Claude sign-in. Sign in under Settings › Accounts, then resume it.";
+        return pause_with_alert(engine, tx, out, &run, SIGN_IN, summary, now);
+    }
     if pauses_for_failures(streak) {
         tracing::info!(routine_id = %routine.id, run_id, streak, "a routine's runs keep failing");
         return pause_with_alert(engine, tx, out, &run, FAILURES, "Paused after three failed runs in a row.", now);
@@ -62,6 +70,14 @@ pub(crate) fn ended_in(
         return pause_with_alert(engine, tx, out, &run, SPEND, &summary, now);
     }
     Ok(())
+}
+
+/// Whether the routine's newest failed runs in a row all found no credential.
+fn signed_out(tx: &dyn Tx, routine_id: &str) -> Result<bool, Error> {
+    let ended = tx.runs().by_routine(routine_id, RUNS_READ)?;
+    let mut ended = ended.into_iter().filter(|run| matches!(run.state, RunState::Done | RunState::Failed));
+    let newest = ended.by_ref().take(FAILURES_TO_PAUSE as usize);
+    Ok(newest.filter(|run| run.reason == Some(Reason::NoCredential)).count() == FAILURES_TO_PAUSE as usize)
 }
 
 fn pause_with_alert(

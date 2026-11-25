@@ -45,6 +45,8 @@ pub(crate) struct Context {
     pub(crate) commands: Arc<dyn eos_core::agent::CommandCatalog>,
     /// The model, asked once outside any conversation (summaries, titles, dreams).
     pub(crate) one_shot: Arc<dyn OneShot>,
+    /// The credential a new session starts on.
+    pub(crate) credentials: Arc<dyn eos_core::accounts::SessionCredentials>,
     /// The workflow run records and agent conversations the engine keeps.
     pub(crate) workflow_files: Arc<dyn WorkflowRunFiles>,
     pub(crate) sessions: eos_sessions::Sessions,
@@ -269,6 +271,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         settings: cx.settings.clone(),
         headroom: Arc::new(crate::headroom::CachedHeadroom { cache: cx.usage_cache.clone(), clock: cx.clock.clone() }),
         one_shot: cx.one_shot.clone(),
+        credentials: cx.credentials.clone(),
         power: power.clone(),
         trash: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), &cx.paths)),
         packs: memory.experience_packs(),
