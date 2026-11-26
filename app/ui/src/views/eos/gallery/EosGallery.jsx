@@ -31,7 +31,7 @@ import runsSample from "./sample/runs.json";
 import runResults from "./sample/run-results.json";
 import inboxSample from "./sample/inbox.json";
 import inboxItemsSample from "./sample/inbox-items.json";
-import capabilities from "./sample/capabilities.json";
+import { capabilities } from "./sample/capabilitiesNow.js";
 import signInFailed from "./sample/sign-in-failed.json";
 import triggerStatusSample from "./sample/trigger-status.json";
 import signalsSample from "./sample/signals.json";
@@ -62,11 +62,12 @@ const inbox = { ...inboxSample, items: inboxSample.items.map((i) => shift(i, by)
 const inboxItems = inboxItemsSample.map((d) => ({ ...d, item: shift(d.item, by) }));
 
 // The runs' samples moved the same way, so the working run started three
-// minutes before the gallery opened: every time named `…At` in them moves.
+// minutes before the gallery opened: every time named `…At` or `at` in them
+// moves, so an interruption never comes before the run it stopped.
 const later = (value, ms) => {
   if (Array.isArray(value)) return value.map((v) => later(v, ms));
   if (value === null || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, k.endsWith("At") && typeof v === "number" ? v + ms : later(v, ms)]));
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, (k.endsWith("At") || k === "at") && typeof v === "number" ? v + ms : later(v, ms)]));
 };
 const working = runsSample.find((d) => d.run.state === "running");
 const runsBy = Date.now() - 3 * MIN - working.run.startedAt;

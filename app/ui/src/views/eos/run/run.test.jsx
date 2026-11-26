@@ -121,7 +121,7 @@ describe("the run view", () => {
     expect(states(html)).toEqual(["done", "current*", "todo", "todo", "todo"]);
     expect(html).toMatch(/Interrupted at [^<]*, resumed /);
     expect([...html.matchAll(/<span class="eos-team-card__name">([^<]*)</g)].map((m) => m[1])).toEqual(["Reader", "Unity specialist", "Allocation specialist"]);
-    expect(html).toContain('<span class="eos-team-card__side">Opus 4.5 · working</span>');
+    expect(html).toContain('<span class="eos-team-card__side">Opus 5.5 · working</span>');
     expect(html).toContain("<li>reading CarouselPager.cs</li>");
     expect(html).toContain('aria-label="Tell the team something"');
     expect(html).toContain("<dt>Item</dt><dd>#470 Rework shop carousel paging</dd>");
@@ -191,7 +191,7 @@ describe("the run view", () => {
     expect(paused).toContain("Paused. Today&#x27;s spending limit was reached.");
     expect(states(paused)).toEqual(["done", "paused*", "todo", "todo", "todo"]);
     expect(paused).toContain(">Stop</button>");
-    expect(paused).toContain('<span class="eos-team-card__side">Sonnet 4.5 · resting</span>');
+    expect(paused).toContain('<span class="eos-team-card__side">Sonnet 5.5 · resting</span>');
   });
 
   it("says when the run is gone or could not be read", async () => {

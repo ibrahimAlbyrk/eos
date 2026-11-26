@@ -189,9 +189,9 @@ const crowdedRun = (s) => {
   const path = ROUTES.run("rn-running01");
   const detail = s[path];
   const more = [
-    { workerId: "w-x1", role: "specialist", name: "Shader specialist", model: "claude-sonnet-4-5", state: "WORKING", costUsd: 0.08, lastActivity: "comparing ShopCarousel.shader against the paging change in CarouselPager.cs and the snapshot tests" },
-    { workerId: "w-x2", role: "specialist", name: "Test writer", model: "claude-haiku-4-5", state: "DONE", costUsd: 0.03, lastActivity: "wrote three paging tests" },
-    { workerId: "w-x3", role: "checker", model: "claude-haiku-4-5", state: "SPAWNING" },
+    { workerId: "w-x1", role: "specialist", name: "Shader specialist", model: "claude-sonnet-5-5", state: "WORKING", costUsd: 0.08, lastActivity: "comparing ShopCarousel.shader against the paging change in CarouselPager.cs and the snapshot tests" },
+    { workerId: "w-x2", role: "specialist", name: "Test writer", model: "claude-haiku-5-5", state: "DONE", costUsd: 0.03, lastActivity: "wrote three paging tests" },
+    { workerId: "w-x3", role: "checker", model: "claude-haiku-5-5", state: "SPAWNING" },
   ];
   return { ...s, [path]: { ...detail, agents: [...detail.agents, ...more] } };
 };

@@ -83,7 +83,11 @@ export function NeedsItemScreen({ id }) {
   }, [runId]);
   useEffect(() => { setNextTime(""); }, [id]);
 
-  const order = list ? inListOrder(list.items) : [];
+  // The pager steps through what waits now, so its count is the badge's; an
+  // item put aside steps through Later instead.
+  const listed = list ? inListOrder(list.items) : [];
+  const aside = listed.find((i) => i.id === id)?.state === "later";
+  const order = listed.filter((i) => (i.state === "later") === aside);
   const at = order.findIndex((i) => i.id === id);
   const page = (by) => {
     const to = order[at + by];

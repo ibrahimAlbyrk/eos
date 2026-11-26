@@ -201,7 +201,7 @@ describe("a draft", () => {
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<button type="button" class="eos-crumb">Needs you</button>');
     expect(html).toContain('<h1 class="eos-title">Review of #470 Fix the login</h1>');
-    expect(html).toContain("<span>1 of 6</span>");
+    expect(html).toContain("<span>1 of 5</span>");
     expect(html).toContain('<p class="eos-result__event eos-result__event--request_changes">Request changes</p>');
     expect(html).toContain("<md>The login fix works, but **one change blocks**: the token is logged.</md>");
     expect(html).toContain('<span class="eos-result__place">src/<wbr/>auth/<wbr/>login.rs:42</span>');

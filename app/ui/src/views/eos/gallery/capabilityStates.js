@@ -5,7 +5,7 @@
 
 import { ROUTES } from "../../../api/routes.js";
 import { resyncCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
-import capabilities from "./sample/capabilities.json";
+import { capabilities } from "./sample/capabilitiesNow.js";
 
 const at = (id) => `eos:/capabilities/${encodeURIComponent(id)}`;
 

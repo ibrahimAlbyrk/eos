@@ -78,7 +78,7 @@
         "agentKey": "reader",
         "name": "Reader",
         "role": "lead",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "WORKING",
         "costUsd": 0.12,
         "startedAt": 1763539202000
@@ -88,7 +88,7 @@
         "agentKey": "unity",
         "name": "Unity specialist",
         "role": "specialist",
-        "model": "claude-opus-4-5",
+        "model": "claude-opus-5-5",
         "state": "WORKING",
         "costUsd": 0.06,
         "startedAt": 1763539202000,
@@ -99,7 +99,7 @@
         "agentKey": "alloc",
         "name": "Allocation specialist",
         "role": "specialist",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "IDLE",
         "costUsd": 0.03,
         "startedAt": 1763539202000
@@ -169,7 +169,7 @@
       {
         "workerId": "w-lead469",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "IDLE",
         "costUsd": 0.3,
         "startedAt": 1763539202000
@@ -177,7 +177,7 @@
       {
         "workerId": "w-check469",
         "role": "checker",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "state": "WORKING",
         "costUsd": 0.03,
         "startedAt": 1763539202000
@@ -232,7 +232,7 @@
       {
         "workerId": "w-lead468",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "IDLE",
         "costUsd": 0.36,
         "startedAt": 1763539202000
@@ -240,7 +240,7 @@
       {
         "workerId": "w-check468",
         "role": "checker",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "state": "DONE",
         "costUsd": 0.05,
         "startedAt": 1763539202000,
@@ -317,7 +317,7 @@
       {
         "workerId": "w-lead467",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "DONE",
         "costUsd": 0.34,
         "startedAt": 1763539202000,
@@ -326,7 +326,7 @@
       {
         "workerId": "w-check467",
         "role": "checker",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "state": "DONE",
         "costUsd": 0.04,
         "startedAt": 1763539202000,
@@ -384,7 +384,7 @@
       {
         "workerId": "w-lead466",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "DONE",
         "costUsd": 0.29,
         "startedAt": 1763539202000,
@@ -437,7 +437,7 @@
       {
         "workerId": "w-lead465",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "DONE",
         "costUsd": 0.44,
         "startedAt": 1763539202000,
@@ -446,7 +446,7 @@
       {
         "workerId": "w-check465",
         "role": "checker",
-        "model": "claude-haiku-4-5",
+        "model": "claude-haiku-5-5",
         "state": "DONE",
         "costUsd": 0.08,
         "startedAt": 1763539202000,
@@ -521,7 +521,7 @@
       {
         "workerId": "w-lead464",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "DONE",
         "costUsd": 0.05,
         "startedAt": 1763539202000,
@@ -577,7 +577,7 @@
       {
         "workerId": "w-lead463",
         "role": "solo",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
         "state": "SUSPENDED",
         "costUsd": 0.18,
         "startedAt": 1763539202000

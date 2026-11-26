@@ -33,7 +33,7 @@
     {
       "workerId": "w-3c7e1a9b5d2f",
       "role": "lead",
-      "model": "claude-sonnet-4-5",
+      "model": "claude-sonnet-5-5",
       "state": "done",
       "costUsd": 0.36,
       "startedAt": 1763452802000,
@@ -42,7 +42,7 @@
     {
       "workerId": "w-6b0d4f8a2c1e",
       "role": "checker",
-      "model": "claude-haiku-4-5",
+      "model": "claude-haiku-5-5",
       "state": "done",
       "costUsd": 0.06,
       "startedAt": 1763452951000,

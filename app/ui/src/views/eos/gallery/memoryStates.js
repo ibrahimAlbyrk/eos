@@ -43,7 +43,7 @@ const LINES = [
   ["lesson", "Name branches after the ticket", "You renamed two branches", "did"],
   ["example", "Release notes lead with what players notice", "You said so", "said"],
   ["lesson", "Do not touch the generated localisation tables", "An edit was overwritten", "outcome"],
-  ["fact", "Ada reviews shader changes", "You said so", "said"],
+  ["fact", "Ibrahim reviews shader changes", "You said so", "said"],
 ];
 const lots = (s) => {
   const many = [...notes];
