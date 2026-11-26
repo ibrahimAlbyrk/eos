@@ -20,8 +20,9 @@ const KINDS = {
 
 export const kindWord = (kind) => KINDS[kind] ?? "A note";
 
-// The source chip: how the note's knowledge reached Eos.
-const SOURCES = { said: "You said", did: "You did", outcome: "It failed", guess: "A guess" };
+// The source chip: how the note's knowledge reached Eos, said as where it
+// came from so it reads on its own beside the note.
+const SOURCES = { said: "You told it", did: "From your edits", outcome: "From a failure", guess: "Its own guess" };
 
 export const sourceWord = (trust) => SOURCES[trust] ?? "Learned";
 

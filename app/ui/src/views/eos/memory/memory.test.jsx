@@ -64,9 +64,9 @@ describe("Eos › Memory › Learned from work", () => {
     const groups = [...html.matchAll(/eos-mem-group__name">([^<]+)<\/h2><span class="eos-mem-group__count">(\d+)/g)].map((m) => `${m[1]} ${m[2]}`);
     expect(groups).toEqual(["PR Review 2", "game-client 2", "Everywhere 2"]);
     expect(html).toContain(`<span class="eos-mem-row__text">${summaryNote.text}</span><span class="eos-mem-row__why">You shortened four before sending. Trying it, helped 3 times.</span>`);
-    expect(html).toContain('<span class="eos-mem-row__source">You did</span><span class="eos-mem-strength" role="img" aria-label="Strength 4 of 5">');
+    expect(html).toContain('<span class="eos-mem-row__source">From your edits</span><span class="eos-mem-strength" role="img" aria-label="Strength 4 of 5">');
     expect(html).toContain(`${docsNote.text}</span><span class="eos-mem-row__why">You said so. Firm, helped 5 times.</span>`);
-    expect(html).toContain('<span class="eos-mem-row__source">You said</span><span class="eos-mem-strength" role="img" aria-label="Strength 5 of 5">');
+    expect(html).toContain('<span class="eos-mem-row__source">You told it</span><span class="eos-mem-strength" role="img" aria-label="Strength 5 of 5">');
     expect(html).toContain("Not used in 40 days. Cooling.");
     expect(html).toContain('aria-label="Strength 2 of 5"');
     expect(html).toContain("Text inside pull requests, mails or web pages can never write here.");
@@ -91,7 +91,7 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toContain("A push failed, lint fixed it.");
     expect(html).toContain('<li class="eos-chip">git push</li>');
     expect(html).toContain('<h3 class="eos-label">Next to it</h3>');
-    expect(html).toContain('<p class="eos-label eos-mem-detail__kind">It failed</p>');
+    expect(html).toContain('<p class="eos-label eos-mem-detail__kind">From a failure</p>');
     expect(html).toContain("An agent is about to push in game-client. It then reads:");
     expect(html).toContain(`<blockquote class="eos-mem-detail__quote">${lintNote.text}.</blockquote>`);
     expect(html).toContain('<dl class="eos-mem-figures" aria-label="Came back 6 times, used 5 times. It helped 4 times.">');

@@ -141,8 +141,12 @@ export function NoteKey() {
           <StrengthBar strength={0.6} />
           <span className="eos-mem-key__text"><span className="eos-mem-key__title">Strength</span><span className="eos-mem-key__line">How often it came back and helped.</span></span>
         </li>
+        <li className="eos-mem-key__item eos-mem-key__item--source">
+          <span className="eos-mem-key__from" aria-hidden="true">From</span>
+          <span className="eos-mem-key__text"><span className="eos-mem-key__title">Where it came from</span><span className="eos-mem-key__line">You told it, your edits taught it, a failure did, or it is Eos's own guess.</span></span>
+        </li>
       </ul>
-      <p className="eos-mem-key__foot">Open a note to see what taught it, when it comes back and whether it helped.</p>
+      <p className="eos-mem-key__foot">Open a note to see the moment that taught it, when it comes back and whether it helped.</p>
     </aside>
   );
 }

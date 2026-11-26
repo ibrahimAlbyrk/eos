@@ -90,7 +90,7 @@
 .eos-mem-row:has(.eos-mem-row__open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .eos-mem-row__text { font-size: var(--text-base); font-weight: 500; line-height: 1.4; color: var(--fg-strong); overflow-wrap: anywhere; text-wrap: pretty; }
 .eos-mem-row__why { font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); text-wrap: pretty; }
-.eos-mem-row__source { font-size: var(--text-xs); color: var(--fg-dim2); text-align: right; white-space: nowrap; }
+.eos-mem-row__source { font-size: var(--text-xs); color: var(--fg-dim); text-align: right; white-space: nowrap; }
 /* A cooling note reads quieter: it has not come back for a while. */
 .eos-mem-row--cooling .eos-mem-row__text { color: var(--fg-dim); }
 .eos-mem-hit { padding: 0 1px; border-radius: 3px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--fg-strong); }
@@ -127,6 +127,7 @@
 .eos-mem-key__item { display: grid; grid-template-columns: 37px minmax(0, 1fr); column-gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .eos-mem-key__item > .eos-mem-mark { justify-self: center; margin-top: 5px; }
 .eos-mem-key__item > .eos-mem-strength { justify-self: center; align-self: start; margin-top: 7px; }
+.eos-mem-key__from { justify-self: center; margin-top: 2px; font-size: var(--text-xs); color: var(--fg-dim); }
 .eos-mem-key__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .eos-mem-key__title { font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
 .eos-mem-key__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
