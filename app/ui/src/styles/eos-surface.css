@@ -72,7 +72,8 @@
   gap: 32px 56px;
   margin-top: 28px;
 }
-.eos-page-end--layout { grid-template-columns: minmax(0, 1fr); max-width: 680px; }
+/* Alone under the sheet, the layout keeps the sheet's edges. */
+.eos-page-end--layout { grid-template-columns: minmax(0, 1fr); }
 .eos-page-end__part { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .eos-page-end__part > * { max-width: 100%; }
 .eos-page-end__part > .eos-tell { align-self: stretch; margin-top: 4px; }
