@@ -1,40 +1,12 @@
 import { useEffect } from "react";
 import { loadRun, useRuns } from "../../../state/eos/runsStore.js";
 import { openLocation } from "../nav/eosNav.js";
-import { agentStateWord, hasEnded, ROLES, stateChip } from "../run/words.js";
+import { hasEnded, stateChip } from "../run/words.js";
+import { TeamCard } from "../run/TeamCard.jsx";
 import { runLocation } from "./RoutineRuns.jsx";
 
 // The states in which a run's team is at work.
 const WORKING = new Set(["running", "checking"]);
-
-const capital = (word) => word.charAt(0).toUpperCase() + word.slice(1);
-
-function Mark({ state }) {
-  if (state === "done") {
-    return <svg className="eos-now-agent__mark" width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>;
-  }
-  if (state === "working") return <span className="eos-now-agent__dot" aria-hidden="true" />;
-  return null;
-}
-
-// The team of the run at work, one small card each: who, and what it is at
-// (its last line while it works, else its state). Agent lines are plain text.
-function Team({ agents }) {
-  return (
-    <ol className="eos-now-team" aria-label="The team">
-      {agents.map((a) => {
-        const state = agentStateWord(a.state);
-        const line = state === "working" && a.lastActivity ? a.lastActivity : capital(state);
-        return (
-          <li key={a.workerId} className={state === "working" ? "eos-now-agent eos-now-agent--working" : "eos-now-agent"}>
-            <span className="eos-now-agent__name"><Mark state={state} />{a.name ?? ROLES[a.role] ?? a.role}</span>
-            <span className="eos-now-agent__line">{line}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
 
 const chipClass = (chip) => (chip.tone ? `eos-status eos-status--${chip.tone}` : "eos-status");
 
@@ -73,7 +45,11 @@ export function RightNow({ runs, now }) {
             <span className="eos-now-lead__item">{lead.itemTitle ?? "A run"}</span>
             <span className={chipClass(stateChip(lead, now))}>{stateChip(lead, now).text}</span>
           </p>
-          {agents?.length > 0 && <Team agents={agents} />}
+          {agents?.length > 0 && (
+            <div className="eos-team__cards" aria-label="The team">
+              {agents.map((a) => <TeamCard key={a.workerId} agent={a} />)}
+            </div>
+          )}
         </div>
       )}
       {rest.length > 0 && (

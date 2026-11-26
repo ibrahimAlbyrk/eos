@@ -182,13 +182,16 @@ describe("the routine page", () => {
     await loadRun(live.id);
     html = draw();
     now = html.slice(html.indexOf("Right now"), html.indexOf("Recent runs"));
-    const agents = [...now.matchAll(/<li class="(eos-now-agent[^"]*)"><span class="eos-now-agent__name">(?:<[^>]*>(?:<\/span>|<path[^>]*><\/path><\/svg>))?([^<]*)<\/span><span class="eos-now-agent__line">([^<]*)</g)]
-      .map((m) => [m[1].includes("--working"), m[2], m[3]]);
+    // The same cards as the run's own page: who, its model and state, and
+    // what it did last.
+    const agents = [...now.matchAll(/<article class="([^"]*)" aria-label="([^"]*)">.*?<span class="eos-team-card__side">([^<]*)<\/span>/g)]
+      .map((m) => [m[1].includes("eos-team-card--working"), m[2], m[3]]);
     expect(agents).toEqual([
-      [true, "Reader", "Working"],
-      [true, "Unity specialist", "reading CarouselPager.cs"],
-      [false, "Allocation specialist", "Waiting"],
+      [true, "Reader", "Sonnet 5.5 · working"],
+      [true, "Unity specialist", "Opus 5.5 · working"],
+      [false, "Allocation specialist", "Sonnet 5.5 · waiting"],
     ]);
+    expect(now).toContain("<li>reading CarouselPager.cs</li>");
     expect(html).toContain('<h2 class="eos-label">Getting better</h2><p class="eos-better__share"><span class="eos-better__pct">86%</span> sent without a single edit this week</p><div class="eos-better__plot" role="img" aria-label="First week 40%, this week 86%">');
     expect(html).toContain('<p class="eos-rlead__now">Working on #470 now; three things wait for you.</p>');
     expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--active eos-beat__stop--working eos-beat__stop--newest">');

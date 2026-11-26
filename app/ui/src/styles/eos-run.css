@@ -267,14 +267,6 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-now-lead { display: flex; flex-direction: column; gap: 14px; }
 .eos-now-lead__title { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-now-lead__item { min-width: 0; overflow-wrap: anywhere; }
-.eos-now-team { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
-.eos-now-agent { min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--raised); }
-.eos-now-agent--working { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
-.eos-now-agent__name { display: flex; align-items: center; gap: 7px; font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
-.eos-now-agent__mark { flex: none; color: var(--fg-dim); }
-.eos-now-agent__dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-/* What a member does wraps; a file name is never cut. */
-.eos-now-agent__line { overflow-wrap: anywhere; line-height: 1.45; font-size: var(--text-xs); color: var(--fg-mid); }
 .eos-routine__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .eos-learned { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .eos-learned li + li { border-top: 1px solid var(--line); }
