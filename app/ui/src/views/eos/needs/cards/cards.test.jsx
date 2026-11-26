@@ -351,7 +351,7 @@ describe("the other cards", () => {
     await refreshRoutines();
     const html = await screen("run_start");
     expect(html).toContain("<dt>From</dt>");
-    expect(html).toContain("<dt>Runs</dt><dd>When a pull request opens in acme/game</dd>");
+    expect(html).toContain("<dt>Runs</dt><dd>On new pull requests in acme/game, and weekdays at 05:00</dd>");
     _resetRoutines();
   });
 
