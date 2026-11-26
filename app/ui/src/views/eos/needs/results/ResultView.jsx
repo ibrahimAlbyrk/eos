@@ -62,8 +62,22 @@ function Mail({ doc }) {
   );
 }
 
+// Where a note to the user goes, said as mail says its recipients.
+const TO_YOU = { push: "as a notification", sms: "by text message" };
+
 function Text({ doc }) {
-  return <div className="eos-result">{doc.parts.map((p) => <Markdown key={p.key} className="eos-result__text" text={p.text} />)}</div>;
+  const how = doc.kind === "text" ? TO_YOU[doc.channel] : null;
+  return (
+    <div className="eos-result">
+      {how && (
+        <p className="eos-result__to eos-result__to--ruled">
+          To <span className="eos-chip eos-result__locked">you</span>
+          <span className="eos-result__fixed">{how}</span>
+        </p>
+      )}
+      {doc.parts.map((p) => <Markdown key={p.key} className="eos-result__text" text={p.text} />)}
+    </div>
+  );
 }
 
 const BY_KIND = { "github.review": Review, mail: Mail };

@@ -11,6 +11,10 @@ const LIVE_WORDS = {
   not_alerted: "The test did not reach you. Decline it, or ask Eos for another way.",
 };
 
+// What a setting's well shows before it is filled, and the line under it.
+const SETTING_PLACEHOLDERS = { phone: "+44 7700 900123" };
+const SETTING_HINTS = { phone: "With the country code. The test goes to this number only." };
+
 export const liveStateOf = (detail) => detail.payload?.liveTest?.state;
 export const settingKey = (name) => `setting:${name}`;
 
@@ -60,9 +64,14 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
             <input
               id={field}
               className="eos-needs-question__answer"
+              type={s.kind === "phone" ? "tel" : "text"}
+              autoComplete={s.kind === "phone" ? "tel" : "off"}
+              placeholder={SETTING_PLACEHOLDERS[s.kind]}
+              aria-describedby={SETTING_HINTS[s.kind] ? `${field}-hint` : undefined}
               value={values[settingKey(s.name)] ?? ""}
               onChange={(e) => setValue(settingKey(s.name), e.target.value)}
             />
+            {SETTING_HINTS[s.kind] && <p id={`${field}-hint`} className="eos-needs-question__hint">{SETTING_HINTS[s.kind]}</p>}
           </div>
         );
       })}
@@ -161,7 +170,7 @@ export function CapabilityProblem({ detail }) {
   if (!why && !detail.payload?.goBack) return null;
   return (
     <div className="eos-needs-card">
-      {why && <Fact className="eos-needs-card__class">{why}</Fact>}
+      {why && !steps && <Fact className="eos-needs-card__class">{why}</Fact>}
       {detail.payload?.goBack && <Fact className="eos-needs-card__class">Version {detail.payload.goBack} still works on this Mac.</Fact>}
       {steps && (
         <section className="eos-needs-steps" aria-label="How to allow it">

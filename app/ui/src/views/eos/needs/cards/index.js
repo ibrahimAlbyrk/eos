@@ -152,7 +152,8 @@ const KINDS = {
       propose("alerted", "Yes, it did", { primary: true, when: live("sent"), stays: true }),
       propose("not_alerted", "No", { when: live("sent"), stays: true }),
       propose("other_way", "Find another way", { when: live("not_alerted") }),
-      propose("decline", "Not now"),
+      // While the test waits for the user's word, No is the one negative.
+      propose("decline", "Not now", { when: (detail) => liveStateOf(detail) !== "sent" }),
     ],
   },
   capability_attention: {
@@ -191,7 +192,7 @@ const KINDS = {
         },
       },
       {
-        label: "Open",
+        label: "Open its page",
         when: (detail) => Boolean(detail.payload?.capabilityId),
         run: (detail) => {
           openLocation(`eos:/capabilities/${encodeURIComponent(detail.payload.capabilityId)}`);
