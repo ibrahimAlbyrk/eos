@@ -9,7 +9,7 @@ import { canRunAnyway, decisionLine, decisionTone, replayLine, RUN_THEM, SIGNAL_
 
 function DecisionFilter({ decision, onChange }) {
   return (
-    <div className="eos-seg" role="radiogroup" aria-label="Show signals">
+    <div className="eos-seg eos-seg--one-line" role="radiogroup" aria-label="Show signals">
       {SIGNAL_FILTERS.map(([key, label]) => (
         <button key={key || "all"} type="button" role="radio" aria-checked={decision === key} className="eos-seg__opt" onClick={() => onChange(key)}>
           {label}

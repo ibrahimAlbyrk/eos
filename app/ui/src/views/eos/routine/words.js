@@ -123,8 +123,8 @@ export const SIGNAL_FILTERS = [
   ["run", "Ran"],
   ["unmatched", "Turned away"],
   ["over-limit", "Over its limit"],
-  ["paused", "Came while paused"],
-  ["baseline", "There before it started"],
+  ["paused", "While paused"],
+  ["baseline", "Before it started"],
 ];
 
 // The decisions whose signals can all be run at once.
