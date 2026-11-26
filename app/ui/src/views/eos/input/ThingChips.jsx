@@ -17,7 +17,7 @@ export function ThingChips({ things, onRemove }) {
           <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" className="eos-thing__glyph">
             <path d={GLYPH[t.kind] ?? GLYPH.file} />
           </svg>
-          <span className="eos-thing__label">{t.label}</span>
+          <span className="eos-thing__label" title={t.label}>{t.label}</span>
           {t.status === "uploading" && <span className="eos-sr"> (adding)</span>}
           <button type="button" className="eos-thing__remove" aria-label={`Remove ${t.label}`} onClick={() => onRemove(t.id)}>×</button>
         </li>

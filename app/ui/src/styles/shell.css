@@ -220,6 +220,8 @@ html.native[data-os="windows"].fullscreen .window-controls { display: none; }
   pointer-events: none;
   background: radial-gradient(ellipse 90% 30% at 30% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
 }
+/* The quick panel stands alone, with no sidebar for the light to stand behind. */
+.app:has(.eos-quick)::before { display: none; }
 @media (prefers-reduced-motion: reduce) { .side { transition: none; } }
 
 /* ── Top chrome: traffic lights + collapse (web; hidden in native) ────────── */
