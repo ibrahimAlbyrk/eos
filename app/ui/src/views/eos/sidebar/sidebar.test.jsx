@@ -143,6 +143,12 @@ describe("the routine rows", () => {
     expect(rowOf(html, "Build Watch")).toContain('<span class="eos-side-line">When you run it</span>');
   });
 
+  it("say a trigger too long for the row's slot as waiting for it", async () => {
+    const long = { ...byName["Build Watch"], triggerLine: "When a pull request opens" };
+    await load({ [ROUTES.routines]: [long], [ROUTES.inbox]: { ...inbox, counts: { ...inbox.counts, byRoutine: {} } } });
+    expect(rowOf(draw(), "Build Watch")).toContain('<span class="eos-side-line">On its trigger</span>');
+  });
+
   it("say when there are none, for each filter", async () => {
     await load({ [ROUTES.routines]: [], [ROUTES.inbox]: inbox });
     expect(draw()).toContain('<p class="eos-side-note">No routines yet.<span class="eos-side-note__more">');
