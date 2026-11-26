@@ -11,8 +11,8 @@ use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
 use eos_sessions::{
-    CommandAnswer, Dispatched, MessageInput, ModelOutcome, ModelSet, NOTES_WAIT_MS, Reported, SessionDeps, SessionHooks,
-    Sessions, SpawnRequest,
+    CommandAnswer, Dispatched, MessageInput, ModelOutcome, ModelSet, NOTES_WAIT_MS, Reported, SessionDeps,
+    SessionHooks, Sessions, SpawnRequest,
 };
 use eos_testkit::agent::Call;
 use eos_testkit::{
