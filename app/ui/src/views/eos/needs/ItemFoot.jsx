@@ -8,15 +8,21 @@ const SHOWN = 3;
 
 // Under an item: what waits after it, so the answer
 // reads as one step through the list and the page does not end in a void.
-// `after` is the rest of the pager's order; `nameOf` names a routine.
-export function ItemFoot({ after, nameOf, onOpen }) {
-  const shown = after.slice(0, SHOWN);
-  const more = after.length - shown.length;
+// `after` is the rest of the pager's order; `nameOf` names a routine. The
+// last one names what still waits before it (`earlier`, nearest first), so
+// the page goes on there too; `paged` says K reaches them (they are before
+// it in the pager's order, not in another list).
+export function ItemFoot({ after, earlier = [], paged = true, nameOf, onOpen }) {
+  const back = after.length === 0 && earlier.length > 0;
+  const list = back ? earlier : after;
+  const shown = list.slice(0, SHOWN);
+  const more = list.length - shown.length;
+  const key = back ? "K" : "J";
   return (
     <Section
       id="eos-needs-then"
-      label="Then"
-      aside={after.length > 0 ? <><kbd className="eos-needs-foot__key">J</kbd> for the next</> : undefined}
+      label={back ? "Still waiting" : "Then"}
+      aside={list.length > 0 && (!back || paged) ? <><kbd className="eos-needs-foot__key">{key}</kbd> {back ? "for the one before" : "for the next"}</> : undefined}
     >
       {shown.length === 0
         ? <p className="eos-needs-foot__none">Nothing else waits for you.</p>

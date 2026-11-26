@@ -10,6 +10,7 @@ import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStor
 import { _resetRuns, loadRun } from "../../../state/eos/runsStore.js";
 import { _resetSurfaces, loadItemView } from "../../../state/eos/surfacesStore.js";
 import { notify } from "../../../lib/notify.js";
+import { ItemFoot } from "./ItemFoot.jsx";
 import { EosMain } from "../EosMain.jsx";
 import { UiProvider } from "../../../state/ui.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "../nav/eosNav.js";
@@ -515,6 +516,18 @@ describe("paging", () => {
     expect(next.length).toBeGreaterThan(0);
     expect(next).not.toContain("Mail Triage is paused");
     expect(html).toContain("A guess about you");
+  });
+
+  it("names what still waits before the last item, so the last one does not end in a void", () => {
+    const item = (id, title) => ({ id, title, kind: "question", routineId: null, createdAt: Date.now() });
+    const last = renderToStaticMarkup(<ItemFoot after={[]} earlier={[item("a", "Allow Bash?")]} nameOf={() => null} onOpen={() => {}} />);
+    expect(last).toContain("Still waiting");
+    expect(last).toContain("for the one before");
+    expect(last).toContain("Allow Bash?");
+    const elsewhere = renderToStaticMarkup(<ItemFoot after={[]} earlier={[item("a", "Allow Bash?")]} paged={false} nameOf={() => null} onOpen={() => {}} />);
+    expect(elsewhere).not.toContain("for the one before");
+    const alone = renderToStaticMarkup(<ItemFoot after={[]} nameOf={() => null} onOpen={() => {}} />);
+    expect(alone).toContain("Nothing else waits for you.");
   });
 
   it("says an item that is gone is no longer here", async () => {

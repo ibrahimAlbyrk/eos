@@ -213,7 +213,11 @@ export function NeedsItemScreen({ id }) {
                 </div>
               )}
               {open && at >= 0 && (
-                <ItemFoot after={order.slice(at + 1)} nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
+                <ItemFoot
+                  after={order.slice(at + 1)}
+                  earlier={at > 0 ? order.slice(0, at).reverse() : listed.filter((i) => i.state === "open" && i.id !== id)}
+                  paged={at > 0}
+                  nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
               )}
               {/* Sent, answered or gone from the list: it still ends on what waits now. */}
               {!open && at < 0 && list && (
