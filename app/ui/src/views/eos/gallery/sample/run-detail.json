@@ -5,7 +5,7 @@
     "kind": "standing",
     "origin": "trigger",
     "state": "done",
-    "itemTitle": "Fix the login",
+    "itemTitle": "#462 Fix the login",
     "needsUser": false,
     "costUsd": 0.42,
     "workMs": 184000,
@@ -18,9 +18,9 @@
   "input": {
     "item": {
       "kind": "github.pull_request",
-      "key": "github:pr:acme/game#470",
-      "title": "Fix the login",
-      "url": "https://github.com/acme/game/pull/470",
+      "key": "github:pr:acme/game#462",
+      "title": "#462 Fix the login",
+      "url": "https://github.com/acme/game/pull/462",
       "untrusted": true
     },
     "options": {

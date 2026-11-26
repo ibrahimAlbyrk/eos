@@ -206,7 +206,7 @@
       "origin": "hand",
       "state": "waiting_for_user",
       "station": "gate",
-      "headline": "Two findings, one of them blocking.",
+      "headline": "The first load waits on the shop; one question.",
       "itemTitle": "#468 Speed up the loader",
       "needsUser": true,
       "costUsd": 0.41,

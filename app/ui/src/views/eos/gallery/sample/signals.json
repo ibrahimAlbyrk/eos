@@ -62,7 +62,7 @@
     "item": {
       "kind": "github.pull_request",
       "key": "github:pr:acme/game#468@a39b2c3d",
-      "title": "Fix the login",
+      "title": "Speed up the loader",
       "url": "https://github.com/acme/game/pull/468"
     },
     "decisions": [

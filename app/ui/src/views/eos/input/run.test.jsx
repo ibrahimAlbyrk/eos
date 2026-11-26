@@ -104,7 +104,7 @@ describe("live lines", () => {
   it("say what the run works on, then how it ended", () => {
     const working = { ...runDetail, run: { ...runDetail.run, state: "running", headline: undefined } };
     expect(liveWords("PR Review", null, null)).toBe("PR Review is starting.");
-    expect(liveWords("PR Review", working, "The reader is on nine files.")).toBe("PR Review on #470. The reader is on nine files.");
+    expect(liveWords("PR Review", working, "The reader is on nine files.")).toBe("PR Review on #462. The reader is on nine files.");
     const waiting = { ...runDetail, run: { ...runDetail.run, state: "waiting_for_user", needsUser: true } };
     expect(liveWords("PR Review", waiting, null)).toBe("Done. A draft is in Needs you");
     expect(lineEnded(waiting.run)).toBe(true);

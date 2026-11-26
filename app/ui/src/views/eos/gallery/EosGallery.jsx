@@ -72,8 +72,12 @@ const later = (value, ms) => {
 const working = runsSample.find((d) => d.run.state === "running");
 const runsBy = Date.now() - 3 * MIN - working.run.startedAt;
 const runs = later(runsSample, runsBy);
-const runsPage = later(runsPageSample, runsBy);
-const runDetail = later(runDetailSample, runsBy);
+// The review waiting in Needs you was written by the done run: that run
+// ended a minute before its item arrived, in its page and in the Runs tab.
+const reviewed = inbox.items.find((i) => i.runId === runDetailSample.run.id);
+const doneBy = reviewed.createdAt - MIN - runDetailSample.run.endedAt;
+const runsPage = { ...runsPageSample, runs: runsPageSample.runs.map((r) => later(r, r.id === runDetailSample.run.id ? doneBy : runsBy)) };
+const runDetail = later(runDetailSample, doneBy);
 
 // PR Review's source last looked four minutes before the gallery opened; its
 // triggers and signals move with it.

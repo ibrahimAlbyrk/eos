@@ -101,14 +101,14 @@ describe("the Needs-you list", () => {
     expect(html).toContain('<p class="eos-rlead__now">A draft to send, two questions, a problem and a guess about you.</p>');
     expect(groups(html)).toEqual(["To check and send", "Questions", "Problems", "About you", "Later"]);
     expect(titles(html)).toEqual([
-      "Review of #470 Fix the login",
+      "Review of #462 Fix the login",
       "Allow Bash?", "Which branch should the review compare against?",
       "Mail Triage is paused",
       "You prefer short reviews with the blocking findings first.",
       "A run started late",
     ]);
     const row = (title) => html.split('<li class="eos-needs-row"').find((part) => part.includes(`eos-needs-row__title">${title}<`));
-    const draft = row("Review of #470 Fix the login");
+    const draft = row("Review of #462 Fix the login");
     expect(draft).toContain('<span class="eos-needs-row__routine">PR Review</span>');
     expect(draft).toContain('<span class="eos-needs-row__summary">Two findings, one of them blocking.</span>');
     expect(draft).toContain('<button type="button" class="eos-btn">Review</button><button type="button" class="eos-btn eos-btn--quiet">Later</button>');
@@ -180,7 +180,7 @@ describe("the Needs-you list", () => {
     expect(at("eos:/needs")).toContain('<h2 id="eos-needs-what" class="eos-label">What waits here</h2>');
     const { loadLastAnswered } = await import("../../../state/eos/inboxStore.js");
     await loadLastAnswered();
-    expect(at("eos:/needs")).toContain('<p class="eos-fact eos-fact--done eos-needs-last">Last answered: Review of #470 Fix the login, 5m ago.</p>');
+    expect(at("eos:/needs")).toContain('<p class="eos-fact eos-fact--done eos-needs-last">Last answered: Review of #462 Fix the login, 5m ago.</p>');
   });
 
   it("draws many items, loading blocks, and a failed read in words", async () => {
@@ -200,7 +200,7 @@ describe("a draft", () => {
     await loadRun(runDetail.run.id);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<button type="button" class="eos-crumb">Needs you</button>');
-    expect(html).toContain('<h1 class="eos-title">Review of #470 Fix the login</h1>');
+    expect(html).toContain('<h1 class="eos-title">Review of #462 Fix the login</h1>');
     expect(html).toContain("<span>1 of 5</span>");
     expect(html).toContain('<p class="eos-result__event eos-result__event--request_changes">Request changes</p>');
     expect(html).toContain("<md>The login fix works, but **one change blocks**: the token is logged.</md>");
@@ -490,7 +490,7 @@ describe("answers", () => {
     await laterInboxItem(DRAFT);
     expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxLater(DRAFT), {}]]);
     expect(groups(at("eos:/needs")).at(-1)).toBe("Later");
-    expect(titles(at("eos:/needs")).at(-2)).toBe("Review of #470 Fix the login");
+    expect(titles(at("eos:/needs")).at(-2)).toBe("Review of #462 Fix the login");
   });
 });
 

@@ -203,7 +203,7 @@ describe("the signal list", () => {
     const t = recording(async () => ({ ok: true, status: 200, body: {} }), { ...reads, [`${LIST}&decision=unmatched`]: [signals[1]] });
     let html = await page(`eos:/routines/${PR}?tab=signals`, t);
     expect(html).toContain('role="radiogroup" aria-label="Show signals"');
-    expect(lines(html, "eos-signal__title")).toEqual(["Rework shop carousel paging", "Bump the build tools", "Fix the login", "Add the inventory screen"]);
+    expect(lines(html, "eos-signal__title")).toEqual(["Rework shop carousel paging", "Bump the build tools", "Speed up the loader", "Add the inventory screen"]);
     expect(lines(html, "eos-signal__decision")).toEqual(["Over its limit", "Turned away by rule 1", "Ran", "There before it started"]);
     expect([...html.matchAll(/<span (?:data-tone="(\w+)" )?class="eos-signal__decision">/g)].map((m) => m[1] ?? null)).toEqual(["warn", null, "ok", null]);
     expect(html).toContain('<h2 class="eos-label">What came for it</h2><span class="eos-section__aside">4 signals · 1 ran</span>');
