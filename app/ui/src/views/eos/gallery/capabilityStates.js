@@ -4,7 +4,7 @@
 // each point of an attempt.
 
 import { ROUTES } from "../../../api/routes.js";
-import { resyncCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
+import { loadCapability, resyncCapabilities, rowOf } from "../../../state/eos/capabilitiesStore.js";
 import { capabilities } from "./sample/capabilitiesNow.js";
 
 const at = (id) => `eos:/capabilities/${encodeURIComponent(id)}`;
@@ -85,20 +85,42 @@ const withProposal = (s) => {
 };
 
 // Sign-in: the page's own button pressed, the start answered by `start`, the
-// attempt then read as `then`. The browser is never opened from the gallery.
-const signIn = (id, start, state) => ({
-  reads: (s) => {
-    const next = id === "slack" ? withSlack({ state: "needs_sign_in", stateCode: "scope_missing", accountLabel: undefined, secrets: [{ name: "token", label: "Slack sign-in", set: false }] })(s) : s;
-    return state ? { ...next, [ROUTES.capabilitySignIn(id)]: state } : next;
-  },
-  sends: async (method, path) => (path === ROUTES.capabilitySignIn(id) && method === "POST"
-    ? (start === "never" ? new Promise(() => {}) : start)
-    : { ok: false, status: 403, body: { error: "sample data" } }),
-  then: () => {
-    window.open = () => null;
-    [...document.querySelectorAll(".eos-body button, .eos-head button")].find((b) => /^(Sign in|Connect)$/.test(b.textContent.trim()))?.click();
-  },
-});
+// attempt then read as `then`. The service needs a sign-in (GitHub with its
+// client id set), so the page offers the button the state presses. Once the
+// attempt reads signed in, the capability reads as connected and the page
+// reads it again, as the core's change would make it. The browser is never
+// opened from the gallery.
+const NEEDS_SIGN_IN = {
+  github: (s) => withDetail({ ...sample("github"), state: "needs_sign_in", stateCode: undefined })(s),
+  slack: (s) => withSlack({ state: "needs_sign_in", stateCode: "scope_missing", accountLabel: undefined, secrets: [{ name: "token", label: "Slack sign-in", set: false }] })(s),
+};
+const SIGNED_IN = {
+  github: (s, account) => withDetail({ ...sample("github"), state: "ready", stateCode: undefined, accountLabel: account, secrets: [{ name: "token", label: "GitHub sign-in", set: true }] })(s),
+  slack: (s) => withSlack()(s),
+};
+const signIn = (id, start, state) => {
+  let reads = null;
+  return {
+    reads: (s) => {
+      const next = NEEDS_SIGN_IN[id](s);
+      reads = state ? { ...next, [ROUTES.capabilitySignIn(id)]: state } : next;
+      return reads;
+    },
+    sends: async (method, path) => (path === ROUTES.capabilitySignIn(id) && method === "POST"
+      ? (start === "never" ? new Promise(() => {}) : start)
+      : { ok: false, status: 403, body: { error: "sample data" } }),
+    then: () => {
+      window.open = () => null;
+      [...document.querySelectorAll(".eos-body button, .eos-head button")].find((b) => /^(Sign in|Connect)$/.test(b.textContent.trim()))?.click();
+      if (state?.state !== "signed_in" || !reads) return;
+      // The store reads the attempt every 2 s; once it has, the capability changed.
+      setTimeout(() => {
+        Object.assign(reads, SIGNED_IN[id](reads, state.accountLabel));
+        void loadCapability(id);
+      }, 2300);
+    },
+  };
+};
 const CODE = { ok: true, status: 200, body: { userCode: "WDJB-MJHT", verificationUri: "https://github.com/login/device" } };
 const BROWSER = { ok: true, status: 200, body: { verificationUri: "https://slack.com/oauth/v2/authorize" } };
 
@@ -137,7 +159,7 @@ export const CAPABILITY_STATES = [
   { id: "capability-remove", label: "Capability · asked before it is removed", location: at("rss-feeds"), then: clickText("Remove") },
   { id: "signin-starting", label: "Sign-in · GitHub, asking for a code", location: at("github"), ...signIn("github", "never") },
   { id: "signin-code", label: "Sign-in · GitHub, a code to enter", location: at("github"), ...signIn("github", CODE, { state: "pending" }) },
-  { id: "signin-done", label: "Sign-in · GitHub, signed in", location: at("github"), ...signIn("github", CODE, { state: "signed_in", accountLabel: "ada-lindqvist" }) },
+  { id: "signin-done", label: "Sign-in · GitHub, signed in", location: at("github"), ...signIn("github", CODE, { state: "signed_in", accountLabel: "ibrahim-albayrak" }) },
   { id: "signin-expired", label: "Sign-in · GitHub, the code ran out", location: at("github"), ...signIn("github", CODE, { state: "expired" }) },
   { id: "signin-denied", label: "Sign-in · GitHub, told not to let Eos in", location: at("github"), ...signIn("github", CODE, { state: "denied" }) },
   { id: "signin-failed", label: "Sign-in · GitHub, did not work", location: at("github"), ...signIn("github", CODE, { state: "failed" }) },

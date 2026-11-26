@@ -13,6 +13,7 @@ import { ENTER_MS } from "../field/transition.js";
 import paper from "./sample/paper.json";
 import decision from "./sample/surface-decision.json";
 import { holdNetwork } from "./holdNetwork.js";
+import { fixFor, signInLabel } from "../capabilities/words.js";
 import { aboutYouReads } from "./sample/about-you.js";
 
 const rendered = [];
@@ -95,6 +96,17 @@ describe("#eos-gallery", () => {
     void galleryTransport(stateOf("home-loading")).get(ROUTES.routines).then(() => { answered = true; });
     await new Promise((r) => setTimeout(r, 10));
     expect(answered).toBe(false);
+  });
+
+  it("gives every sign-in state a page that offers the Sign in or Connect its hook presses", async () => {
+    const states = GALLERY_STATES.filter((st) => st.id.startsWith("signin-"));
+    expect(states.length).toBeGreaterThan(8);
+    for (const st of states) {
+      const id = decodeURIComponent(st.location.split("/").pop());
+      const detail = (await galleryTransport(st).get(ROUTES.capability(id))).body;
+      expect(fixFor(detail, "page"), st.id).toBe("sign-in");
+      expect(signInLabel(detail), st.id).toBe(id === "slack" ? "Connect" : "Sign in");
+    }
   });
 
   it("draws a View that asks in Needs you, first in the list, inside the app's UI context", async () => {
