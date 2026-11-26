@@ -93,6 +93,22 @@ const doneBy = reviewed.createdAt - MIN - runDetailSample.run.endedAt;
 const runsPage = { ...runsPageSample, runs: runsPageSample.runs.map((r) => later(r, r.id === runDetailSample.run.id ? doneBy : runsBy)) };
 const runDetail = later(runDetailSample, doneBy);
 
+// Memory moved so its newest note was last used by #462 as that run started,
+// the run that read it. A note is written when it is learned, so what it was
+// learned from comes just before its first version. The week's count is the notes Eos learned in the last seven days
+// without being told.
+const DAY = 24 * 60 * MIN;
+const memBy = runDetail.run.startedAt - Math.max(...memory.notes.notes.map((n) => n.updatedAt));
+const learnedAt = (detail) => detail.versions[0].at;
+const memDetails = later(memory.details, memBy).map((d) => ({ ...d, learnedFrom: d.learnedFrom.map((e, i, all) => ({ ...e, at: learnedAt(d) - (all.length - 1 - i) * 3 * MIN })) }));
+const mem = {
+  ...memory,
+  summary: { ...memory.summary, weekly: memDetails.filter((d) => d.note.source !== "states_rule" && learnedAt(d) >= Date.now() - 7 * DAY).length },
+  notes: later(memory.notes, memBy),
+  details: memDetails,
+  recalled: { ...memory.recalled, notes: later(memory.recalled.notes, memBy).map((n, i) => ({ ...n, at: runDetail.run.startedAt + i * 1000 })) },
+};
+
 // PR Review's source last looked four minutes before the gallery opened; its
 // triggers and signals move with it.
 const signalsBy = Date.now() - 4 * MIN - triggerStatusSample[routineDetail.routine.id].sources[0].lastPollAt;
@@ -170,11 +186,11 @@ export const SAMPLE_READS = {
   [ROUTES.capabilitySignIn("github")]: signInFailed,
   ...Object.fromEntries(Object.entries(triggerStatus).map(([id, status]) => [ROUTES.signalsRoutine(id), status])),
   [`${ROUTES.signals}?routine=${routineDetail.routine.id}`]: signals,
-  [ROUTES.memorySummary]: memory.summary,
-  [ROUTES.memoryNotes]: memory.notes,
-  ...Object.fromEntries(routines.map((r) => [notesPath({ scope: routineScope(r.id) }), { notes: memory.notes.notes.filter((n) => n.scope.level === "routine" && n.scope.key === r.id) }])),
-  ...Object.fromEntries(memory.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
-  [`${ROUTES.memoryRecalled}?runId=${memory.recalled.runId}`]: { notes: memory.recalled.notes },
+  [ROUTES.memorySummary]: mem.summary,
+  [ROUTES.memoryNotes]: mem.notes,
+  ...Object.fromEntries(routines.map((r) => [notesPath({ scope: routineScope(r.id) }), { notes: mem.notes.notes.filter((n) => n.scope.level === "routine" && n.scope.key === r.id) }])),
+  ...Object.fromEntries(mem.details.map((detail) => [ROUTES.memoryNote(detail.note.id), detail])),
+  [`${ROUTES.memoryRecalled}?runId=${mem.recalled.runId}`]: { notes: mem.recalled.notes },
   [ROUTES.profile]: HOME_PROFILE,
   [ROUTES.signalsSummary]: HOME_SUMMARY,
   [RUNS_PATH]: { runs: homeRuns(Date.now()) },

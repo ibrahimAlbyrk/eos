@@ -49,7 +49,7 @@ describe("Eos › Memory › Learned from work", () => {
     await loaded();
     const html = at("eos:/memory");
     expect(html).toContain('<h1 class="eos-title">Memory</h1>');
-    expect(html).toContain('<p class="eos-lead">Eos learned three things this week, without asking.</p>');
+    expect(html).toContain('<p class="eos-lead">Eos learned four things this week, without asking.</p>');
     expect(html).toContain('aria-selected="false" class="eos-tab">About you<span class="eos-mem-tab-count">12</span>');
     expect(html).toContain('aria-selected="true" class="eos-tab">Learned from work<span class="eos-mem-tab-count">6</span>');
     const chips = [...html.matchAll(/class="eos-chip eos-mem-filter(?: eos-mem-filter--kind)?" aria-pressed="(true|false)">([^<]+)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
