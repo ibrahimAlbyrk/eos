@@ -96,10 +96,16 @@ export function FieldLayer({ routines, needs, next, caption, handled, status = n
   const shown = shownView(view, placed.fits);
   const radii = ringRadii(W, H);
   const delays = discDelays(order);
-  const [arc, setArc] = useState(null);
+  // The horizon is measured in the render that opens the field, so the rings
+  // are first drawn on it; measured later, a ring first styled at a fallback
+  // below the window would rise from there.
+  const arcRef = useRef(null);
+  const wasPhase = useRef("home");
+  if (phase === "entering" && wasPhase.current !== "entering") arcRef.current = arcCircle(W, H);
+  wasPhase.current = phase;
+  const arc = arcRef.current;
   useWindowLayoutEffect(() => {
     if (phase !== "entering") return;
-    setArc(arcCircle(W, H));
     aimDots(placed, W, H);
   }, [phase]);
 
@@ -195,13 +201,15 @@ export function FieldLayer({ routines, needs, next, caption, handled, status = n
       <p className="eos-field__legend eos-field__fx">
         {shown === "field" ? "The closer a routine sits to the centre, the sooner it needs you. Its size shows how much it does." : "Click a routine to give it something. Its arrow opens its page."}
       </p>
-      <div className="eos-field__views eos-field__fx" role="group" aria-label="View">
-        <button type="button" aria-pressed={shown === "field"} onClick={() => setFieldView("field")}>Field</button>
-        <button type="button" aria-pressed={shown === "list"} onClick={() => setFieldView("list")}>List</button>
+      <div className="eos-field__foot">
+        <div className="eos-field__views eos-field__fx" role="group" aria-label="View">
+          <button type="button" aria-pressed={shown === "field"} onClick={() => setFieldView("field")}>Field</button>
+          <button type="button" aria-pressed={shown === "list"} onClick={() => setFieldView("list")}>List</button>
+        </div>
+        <button type="button" className="eos-field__back eos-field__fx" onClick={leaveField}>
+          Back to home <span className="eos-intent__key">esc</span>
+        </button>
       </div>
-      <button type="button" className="eos-field__back eos-field__fx" onClick={leaveField}>
-        Back to home <span className="eos-intent__key">esc</span>
-      </button>
     </div>
   );
 }

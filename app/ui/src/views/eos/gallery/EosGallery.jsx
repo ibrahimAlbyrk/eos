@@ -43,7 +43,7 @@ import { holdHomeInMemory, refreshHome, RUNS_PATH } from "../../../state/eos/hom
 import { notesPath } from "../../../state/eos/notesStore.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
 import { holdHomeDraftInMemory } from "../../../state/eos/homeDraftStore.js";
-import { closeField, openField, setTransitionScale, useField } from "../field/fieldStore.js";
+import { closeField, modeClass, openField, setTransitionScale, useField } from "../field/fieldStore.js";
 import { ENTER_MS } from "../field/transition.js";
 import { failingTransport, GALLERY_STATES, loadingTransport, offlineTransport, stateOf, storedState, storeState } from "./states.js";
 import { refreshInbox } from "../../../state/eos/inboxStore.js";
@@ -212,7 +212,7 @@ function pick(id) {
 // Settings state opens the app's Settings modal over them. The chrome around them (the mode switcher, the account
 // footer) reads the core, so the gallery leaves it out.
 export function EosGallery({ state = "home" }) {
-  const { on: fieldOn } = useField();
+  const { on: fieldOn, open: fieldOpen } = useField();
   const { quick, settings, panel } = stateOf(state);
   if (quick) {
     return (
@@ -226,7 +226,7 @@ export function EosGallery({ state = "home" }) {
   }
   return (
     <UiProvider>
-      <div className={fieldOn ? "app eos-mode eos-mode--field" : "app eos-mode"}>
+      <div className={`app ${modeClass(fieldOpen, fieldOn)}`}>
         <GalleryBar current={state} onPick={pick} />
         <aside className="side">
           <div className="side-island side-island--agents"><EosSidebarRows /></div>
