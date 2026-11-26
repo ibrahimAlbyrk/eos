@@ -75,7 +75,7 @@ describe("Eos › Home", () => {
     expect(html).toContain("All 5 in Needs you");
     expect(html).toContain("While you were away");
     expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "Morning Paper", "PR Review", "Mail Triage"]);
-    expect(html).toContain("Eos learned three things this week.");
+    expect(html).toContain("Eos learned four things this week.");
     expect(html).not.toContain("autofocus");
   });
 
