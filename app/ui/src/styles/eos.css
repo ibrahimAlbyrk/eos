@@ -622,6 +622,8 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-rtable__act { width: 1%; text-align: right; }
 /* Narrow (under 1000 px): the week's cost steps aside so the Run button stays in
    view; the routine's page has it. */
+/* Narrower still (the side panel beside it), Last result goes too. */
+@container (max-width: 680px) { .eos-rtable__mid { display: none; } }
 @container (max-width: 1000px) {
   .eos-rtable__wide { display: none; }
   .eos-rtable th, .eos-rtable td { padding-left: 9px; padding-right: 9px; }
