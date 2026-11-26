@@ -143,7 +143,8 @@ export function RoutinesScreen() {
   return (
     <main className={none || resting || failed ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
       <EosHeader trail={[{ label: "Routines" }]}>
-        <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
+        {/* While the list failed, Try again is the one primary act. */}
+        <button type="button" className={failed ? "eos-btn" : "eos-btn eos-btn--primary"} onClick={() => openLocation("eos:/routines/new")}>New routine</button>
       </EosHeader>
       <div className="eos-body eos-routines">
         {list !== null && !resting && (list.length > 0 || filter !== "active") && (
