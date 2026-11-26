@@ -149,14 +149,14 @@ describe("doing it once from Home", () => {
     expect(routineRow("rt-once")?.name).toBe("Summarise");
   });
 
-  it("shows each result card until dismissed, with Keep as a routine", async () => {
+  it("shows each result card until dismissed, ready to keep as a routine once it finishes", async () => {
     setEosTransport(fixtureTransport({ [ROUTES.run("rn-once")]: { ...runDetail, run: { ...runDetail.run, id: "rn-once", state: "running", headline: undefined } } }));
     addOnce({ routineId: "rt-once", name: "Summarise the README", runId: "rn-once" });
     await loadRun("rn-once");
     let html = renderToStaticMarkup(<OnceResults />);
     expect(html).toContain("Summarise the README");
     expect(html).toContain("Working on it.");
-    expect(html).toContain("Keep as a routine");
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--ghost" disabled="">Ready to keep when it finishes</button>');
     expect(html).toContain("Dismiss");
     markOnceKept("rn-once");
     html = renderToStaticMarkup(<OnceResults />);

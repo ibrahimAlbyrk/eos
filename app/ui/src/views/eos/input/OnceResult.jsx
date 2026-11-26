@@ -44,7 +44,9 @@ function Card({ once }) {
             Kept. Open the routine
           </button>
         ) : (
-          <button type="button" className="eos-btn eos-btn--primary" disabled={!done} onClick={() => void keep()}>Keep as a routine</button>
+          done
+            ? <button type="button" className="eos-btn eos-btn--primary" onClick={() => void keep()}>Keep as a routine</button>
+            : <button type="button" className="eos-btn eos-btn--ghost" disabled>Ready to keep when it finishes</button>
         )}
         <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(runLocation(once.runId))}>Open the run</button>
         <span className="eos-input__gap" />

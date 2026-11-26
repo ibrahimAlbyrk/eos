@@ -1,7 +1,7 @@
 // The words of the intent line (08 §4.4, RunIntent.dc.html): what Enter will
 // do, said from the routine's own row (what it takes, where its result goes).
 
-export const IDLE_HINT = "Click a routine around the input, drop a file on one, or just type.";
+export const IDLE_HINT = "Pick a routine, drop a file on one, or just type.";
 // Before the first routine there is nothing around the input to click.
 export const FIRST_HINT = "Say what Eos should take care of, or drop a file here.";
 // Over another app there is nothing around the input: `/` lists the routines.

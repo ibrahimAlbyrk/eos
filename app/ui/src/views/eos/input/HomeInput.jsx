@@ -45,7 +45,8 @@ function UnderLine({ h, idleHint }) {
 // candidates; then the runs it started and the tasks done once. Entering
 // Home never focuses it (08 G10): a click or `/` does. The text survives
 // leaving Home.
-export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held, door, idleHint }) {
+// `starters` sit under the line, before the runs, so they stay by the input.
+export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held, door, idleHint, starters }) {
   const cardRef = useRef(null);
   const ownRef = useRef(null);
   const inputRef = givenRef ?? ownRef;
@@ -126,6 +127,7 @@ export function HomeInput({ onFocus, onBlur, inputRef: givenRef, blockRef, held,
         onChoose={h.choose}
         foot={routine ? usualLine(routine, h.plan) : null}
       />
+      {starters}
       <LiveRunLines byId={h.byId} />
       <OnceResults />
     </div>
