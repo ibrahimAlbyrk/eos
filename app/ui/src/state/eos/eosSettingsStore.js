@@ -7,10 +7,9 @@ import { ROUTES } from "../../api/routes.js";
 import { notify } from "../../lib/notify.js";
 import { transport } from "./transport.js";
 
-// Each area: the route that reads and writes it, and whether a write sends
-// only the changed fields (the others take the whole settings).
+// Each area: the route that reads and writes it; a write sends the whole
+// settings.
 const AREAS = {
-  routines: { path: ROUTES.routinesSettings, patch: true },
   signals: { path: ROUTES.signalsSettings },
   attention: { path: ROUTES.settingsAttention },
   memory: { path: ROUTES.memorySettings },
@@ -19,7 +18,7 @@ const AREAS = {
 
 // area → its settings, null until read. forgotten: how many notes the last
 // "Forget everything" forgot, until undone.
-const EMPTY = { routines: null, signals: null, attention: null, memory: null, surfaces: null, forgotten: null };
+const EMPTY = { signals: null, attention: null, memory: null, surfaces: null, forgotten: null };
 let state = EMPTY;
 const subs = new Set();
 
@@ -55,8 +54,8 @@ async function write(method, path, body) {
 }
 
 export async function changeEosSetting(area, patch) {
-  const { path, patch: partial } = AREAS[area];
-  const next = await write("PUT", path, partial ? patch : { ...state[area], ...patch });
+  const { path } = AREAS[area];
+  const next = await write("PUT", path, { ...state[area], ...patch });
   if (next) set({ [area]: next });
 }
 

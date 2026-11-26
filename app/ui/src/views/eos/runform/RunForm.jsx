@@ -15,7 +15,6 @@ import {
   startBody, takesItems, usualEstimate,
 } from "./runFormModel.js";
 
-const DAY_CAP_TEXT = "Routines have spent today's budget. Raise it for today to start this run.";
 const OFFLINE_TEXT = "Eos isn't reachable. Try again in a moment.";
 
 const newRequestId = () => crypto.randomUUID();
@@ -48,7 +47,7 @@ function Outcome({ outcome, routine, details, now, runAgain }) {
 
 // Why a start was refused, in words (not a repeat: that one asks).
 export const refusalText = (outcome) =>
-  (outcome.devRun ? DEV_RUN_TEXT : outcome.dayCap ? DAY_CAP_TEXT : outcome.offline ? OFFLINE_TEXT : outcome.error);
+  (outcome.devRun ? DEV_RUN_TEXT : outcome.offline ? OFFLINE_TEXT : outcome.error);
 
 // The run form (08 §4.7) over runFormModel: where it was asked from and the
 // routine, the item in a well, then the options, a note, where the result

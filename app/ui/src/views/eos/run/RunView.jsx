@@ -91,12 +91,12 @@ function ShownResult({ detail, result }) {
 }
 
 // Paused at a limit, the way on is to raise it, in Settings › Eos.
-const LIMITS = new Set(["day_cap", "budget_run", "budget_time"]);
-function RaiseLimit({ run }) {
+const LIMITS = new Set(["budget_run", "budget_time"]);
+function RaiseLimit() {
   const openSettings = useOpenSettings();
   return (
     <button type="button" className="eos-btn eos-btn--primary" onClick={() => openSettings("eos")}>
-      {run.reason === "day_cap" ? "Raise today's limit" : "Raise the limit"}
+      Raise the limit
     </button>
   );
 }
@@ -106,7 +106,7 @@ function RaiseLimit({ run }) {
 function leadAct(detail) {
   const { run } = detail;
   if (run.state === "failed") return <RunAgain detail={detail} primary />;
-  if (run.state === "paused" && LIMITS.has(run.reason)) return <RaiseLimit run={run} />;
+  if (run.state === "paused" && LIMITS.has(run.reason)) return <RaiseLimit />;
   return null;
 }
 

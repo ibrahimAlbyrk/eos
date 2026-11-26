@@ -145,7 +145,6 @@
 .eos-stg__choice .eos-seg__opt { transition: background 140ms var(--ease), color 140ms var(--ease); }
 .eos-stg__choice .eos-seg__opt:hover { color: var(--fg-strong); }
 .eos-stg__choice .eos-seg__opt[aria-checked="true"] { background: var(--chip); }
-.eos-stg__money,
 .eos-stg__times {
   display: inline-flex;
   align-items: center;
@@ -160,12 +159,7 @@
   font-size: var(--text-sm);
   color: var(--fg-dim);
 }
-.eos-stg__money:focus-within,
 .eos-stg__times:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
-.eos-stg__money { gap: 2px; cursor: text; }
-.eos-stg__money input { min-width: 1.5ch; max-width: 9ch; font: inherit; color: var(--fg-strong); }
-.eos-stg__money .eos-stg__unit { margin-left: 4px; }
-.eos-stg__unit { font-family: var(--font-ui); color: var(--fg-dim2); }
 .eos-stg__quiet { display: inline-flex; align-items: center; gap: 14px; }
 .eos-stg__times > span { font-family: var(--font-ui); color: var(--fg-dim2); }
 .eos-stg__times input { font: inherit; color: var(--fg-strong); background: none; border: 0; }

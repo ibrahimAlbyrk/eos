@@ -201,15 +201,15 @@ describe("Freedom", () => {
 
 describe("the cost line", () => {
   it("names the capabilities a routine uses by their names", () => {
-    const bp = { needs: ["github", "unity-docs"], limits: { perDayUsd: 5 }, takes: { kind: "source", label: "pull request" } };
+    const bp = { needs: ["github", "unity-docs"], limits: { perRunMinutes: 30, parallel: 1 }, takes: { kind: "source", label: "pull request" } };
     const capabilities = [{ id: "github", name: "GitHub" }, { id: "unity-docs", name: "Unity docs" }];
-    expect(costLine({ usual: { usd: 0.38 } }, bp, capabilities)).toBe("Uses GitHub and Unity docs. About $0.38 a pull request, stops at $5 a day.");
+    expect(costLine({ usual: { usd: 0.38 } }, bp, capabilities)).toBe("Uses GitHub and Unity docs. About $0.38 a pull request.");
   });
 
-  it("claims no dollar limit a routine does not have, and names one set by hand", () => {
+  it("names no dollar limit, even one an old blueprint still carries", () => {
     const bp = { limits: { perRunMinutes: 30, parallel: 1 }, takes: { kind: "none", label: "nothing" } };
     expect(costLine(null, bp)).toBe("");
     expect(costLine({ usual: { usd: 0.4 } }, bp)).toBe("About $0.40 a run.");
-    expect(costLine(null, { limits: { perRunUsd: 2, perDayUsd: 5 } })).toBe("At most $2 a run, stops at $5 a day.");
+    expect(costLine(null, { limits: { perRunUsd: 2, perDayUsd: 5 } })).toBe("");
   });
 });

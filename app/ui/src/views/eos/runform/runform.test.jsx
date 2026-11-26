@@ -172,10 +172,9 @@ describe("the run form's keys", () => {
 });
 
 describe("starting a run", () => {
-  it("tells a same-item refusal, the day cap, a dev run and other refusals apart", async () => {
+  it("tells a same-item refusal, a dev run and other refusals apart", async () => {
     const answer = (r) => { setEosTransport({ get: fixtureTransport({}).get, send: async () => r }); return startRun({}); };
     expect(await answer({ ok: false, status: 409, body: { error: "the routine handled this item lately", existingRunId: "rn-1" } })).toEqual({ repeat: "rn-1" });
-    expect(await answer({ ok: false, status: 409, body: { error: "routines spent today's budget", code: "day_cap" } })).toEqual({ dayCap: true });
     expect(await answer({ ok: false, status: 403, body: { error: "refused in a dev run: POST /api/runs" } })).toEqual({ devRun: true });
     expect(await answer({ ok: false, status: 400, body: { error: "invalid request: item: Required" } })).toEqual({ error: "invalid request: item: Required" });
   });

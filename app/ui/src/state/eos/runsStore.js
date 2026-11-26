@@ -150,26 +150,24 @@ export function messageRun(id, text) {
 
 // POST /api/runs from the run form; it waits for the core's answer. →
 // { runs } when it started, { repeat: existingRunId } when the routine
-// handled the same item lately, { dayCap: true } when routines spent today's
-// budget, { devRun: true }, { offline: true }, or { error } in words.
+// handled the same item lately, { devRun: true }, { offline: true }, or
+// { error } in words.
 export async function startRun(body) {
   const r = await transport.send("POST", ROUTES.runs, body).catch(() => null);
   if (r?.ok && Array.isArray(r.body?.runs)) return { runs: r.body.runs };
   if (r === null) return { offline: true };
   if (r.status === 409 && typeof r.body?.existingRunId === "string") return { repeat: r.body.existingRunId };
-  if (r.status === 409 && r.body?.code === "day_cap") return { dayCap: true };
   if (isDevRunRefusal(r)) return { devRun: true };
   return { error: r.body?.error ?? "Eos could not start the run." };
 }
 
 // POST /api/runs/once: do what the sentence asks, once. → { started:
-// { routineId, name, runId } }, or { devRun }, { dayCap }, { offline } or
-// { error } in words.
+// { routineId, name, runId } }, or { devRun }, { offline } or { error } in
+// words.
 export async function startOnce(body) {
   const r = await transport.send("POST", ROUTES.runsOnce, body).catch(() => null);
   if (r?.ok && typeof r.body?.run?.id === "string") return { started: { routineId: r.body.routineId, name: r.body.name, runId: r.body.run.id } };
   if (r === null) return { offline: true };
-  if (r.status === 409 && r.body?.code === "day_cap") return { dayCap: true };
   if (isDevRunRefusal(r)) return { devRun: true };
   return { error: r.body?.error ?? "Eos could not do it." };
 }

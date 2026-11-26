@@ -20,7 +20,7 @@ export const sentenceOf = (text, attachments, door = "home") =>
 // start the run (one per item), make a routine or change one through its
 // architect, or do it once. `act` answers whether it took the text; a
 // refusal stays on the line as `outcome` ({ repeat } with the earlier run,
-// { devRun }, { dayCap }, { offline } or { error }).
+// { devRun }, { offline } or { error }).
 // `door`: where the input sits (`home`, or the outside door that opened the
 // quick panel).
 export function useHomeActs(byId, door = "home") {

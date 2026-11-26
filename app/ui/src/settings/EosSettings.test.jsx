@@ -11,7 +11,6 @@ import { EosSettings, ForgetDialog } from "./EosSettings.jsx";
 import { visibleSections } from "./registry.jsx";
 
 const READS = {
-  [ROUTES.routinesSettings]: { dayBudgetUsd: 5, maxParallelRuns: 2, planHeadroomPct: 20 },
   [ROUTES.signalsSettings]: { keepAwakeForSchedules: false },
   [ROUTES.settingsAttention]: { quietOn: true, quietFrom: "22:00", quietTo: "08:00", digests: ["09:00", "17:00"], interrupts: "urgent" },
   [ROUTES.memorySettings]: { learning: true, reminders: false },
@@ -23,7 +22,6 @@ const READS = {
 function core() {
   const fixture = fixtureTransport(READS);
   const send = vi.fn(async (method, path, body) => {
-    if (path === ROUTES.routinesSettings) return { ok: true, status: 200, body: { ...READS[path], ...body } };
     if (path === ROUTES.eosHalt) return { ok: true, status: 200, body: { on: true, since: 1 } };
     if (path === ROUTES.memoryForgetAll) return { ok: true, status: 200, body: body.confirm ? { forgotten: 7 } : { restored: 7 } };
     if (path === ROUTES.memoryTidy) return { ok: true, status: 202, body: { started: true } };
@@ -54,9 +52,9 @@ describe("Settings › Eos", () => {
     const groups = [...html.matchAll(/eos-stg__label">([^<]+)</g)].map((m) => m[1]);
     expect(groups).toEqual(["Routines", "What interrupts you", "Memory", "Pages", "Remote", "What leaves the Mac"]);
     expect(standing(html)).toContain("Eos is running on this Mac.");
-    expect(standing(html)).toContain("Routines may spend $5 a day together.");
+    expect(standing(html)).not.toContain("spend");
     expect(standing(html)).toContain(">Stop everything</button>");
-    expect(row(html, "Daily limit for all routines")).toContain('value="5"');
+    expect(row(html, "Daily limit for all routines")).toBeUndefined();
     expect(row(html, "Keep the Mac awake for schedules")).toContain('aria-checked="false"');
     expect(row(html, "What may interrupt")).toMatch(/role="radio" aria-checked="true"[^>]*>Only urgent</);
     expect(row(html, "What may interrupt").match(/role="radio"/g)).toHaveLength(3);
@@ -72,22 +70,6 @@ describe("Settings › Eos", () => {
     expect(row(html, "Export what was learned")).toContain(">Export</button>");
   });
 
-  it("shows No limit while routines have no daily limit, and takes a limit away with null", async () => {
-    const send = core();
-    READS[ROUTES.routinesSettings] = { maxParallelRuns: 2, planHeadroomPct: 20 };
-    try {
-      await Promise.all([loadEosSettings(), loadHalt()]);
-      const html = renderToStaticMarkup(<EosSettings />);
-      expect(row(html, "Daily limit for all routines")).toMatch(/placeholder="No limit"[^>]*value=""/);
-      expect(row(html, "Daily limit for all routines")).not.toContain("a day</span>");
-      expect(standing(html)).not.toContain("Routines may spend");
-      await changeEosSetting("routines", { dayBudgetUsd: null });
-      expect(send.mock.calls).toEqual([["PUT", ROUTES.routinesSettings, { dayBudgetUsd: null }]]);
-    } finally {
-      READS[ROUTES.routinesSettings] = { dayBudgetUsd: 5, maxParallelRuns: 2, planHeadroomPct: 20 };
-    }
-  });
-
   it("offers Start at login through the shell's door, and leaves Doors out in a browser tab", async () => {
     core();
     await loadEosSettings();
@@ -96,23 +78,20 @@ describe("Settings › Eos", () => {
     expect(renderToStaticMarkup(<EosSettings />)).toContain(">Doors<");
   });
 
-  it("writes each setting through its own route: the limit's changed field, the others whole", async () => {
+  it("writes each setting through its own route, whole", async () => {
     const send = core();
     await loadEosSettings();
-    await changeEosSetting("routines", { dayBudgetUsd: 8 });
     await changeEosSetting("memory", { learning: false });
     await changeEosSetting("signals", { keepAwakeForSchedules: true });
     await changeEosSetting("attention", { interrupts: "none" });
     await changeEosSetting("surfaces", { contrast: "more" });
     expect(send.mock.calls).toEqual([
-      ["PUT", ROUTES.routinesSettings, { dayBudgetUsd: 8 }],
       ["PUT", ROUTES.memorySettings, { learning: false, reminders: false }],
       ["PUT", ROUTES.signalsSettings, { keepAwakeForSchedules: true }],
       ["PUT", ROUTES.settingsAttention, { ...READS[ROUTES.settingsAttention], interrupts: "none" }],
       ["PUT", ROUTES.settingsSurfaces, { ...READS[ROUTES.settingsSurfaces], contrast: "more" }],
     ]);
     const html = renderToStaticMarkup(<EosSettings />);
-    expect(row(html, "Daily limit for all routines")).toContain('value="8"');
     expect(row(html, "Learning")).toContain('aria-checked="false"');
     expect(row(html, "More contrast")).toContain('aria-checked="true"');
   });

@@ -2,12 +2,12 @@
 // from and written through the route of the area that owns it
 // (state/eos/eosSettingsStore.js). It opens on where Eos stands, in the
 // stopped band's shape with Stop everything or Resume beside it; then each
-// area under Eos's label on hairlines: how much all routines may spend and
-// keeping the Mac awake for schedules, what may interrupt, learning and
-// reminders, how pages read (text size, more contrast, plain reading), the
-// doors (Start at login, the quick panel's shortcut, the eos command), a test
-// notification, and what leaves the Mac with forgetting (asked in Eos's
-// dialog, with its way back) and exporting what was learned.
+// area under Eos's label on hairlines: keeping the Mac awake for schedules,
+// what may interrupt, learning and reminders, how pages read (text size, more
+// contrast, plain reading), the doors (Start at login, the quick panel's
+// shortcut, the eos command), a test notification, and what leaves the Mac
+// with forgetting (asked in Eos's dialog, with its way back) and exporting
+// what was learned.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -25,32 +25,6 @@ function Group({ title, children }) {
       <h3 className="eos-label eos-stg__label">{title}</h3>
       {children}
     </section>
-  );
-}
-
-const NO_LIMIT = "No limit";
-
-// No limit unless the user sets one: an empty field (or 0) takes it away.
-function DailyLimit({ settings }) {
-  const [text, setText] = useState(null);
-  const limit = settings.dayBudgetUsd ?? null;
-  const shown = text ?? (limit == null ? "" : String(limit));
-  const save = () => {
-    const usd = shown.trim() === "" ? 0 : Number(shown);
-    setText(null);
-    if (!Number.isFinite(usd) || usd < 0) return;
-    const next = usd > 0 ? usd : null;
-    if (next !== limit) void changeEosSetting("routines", { dayBudgetUsd: next });
-  };
-  const width = shown.length || NO_LIMIT.length;
-  return (
-    <Row label="Daily limit for all routines" description="Routines stop starting for the day once together they have spent this much. Leave it empty for no limit.">
-      <label className="eos-stg__money">
-        {shown !== "" && <span aria-hidden="true">$</span>}
-        <input aria-label="Daily limit in dollars" inputMode="decimal" placeholder={NO_LIMIT} value={shown} style={{ width: `${width + 0.5}ch` }} onChange={(e) => setText(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
-        {shown !== "" && <span className="eos-stg__unit">a day</span>}
-      </label>
-    </Row>
   );
 }
 
@@ -199,7 +173,7 @@ function Privacy({ forgotten }) {
 
 // Where Eos stands, said as an Eos screen leads: the fact at 24 with its
 // tone's mark in the margin, what it means dim under it, the one act after.
-function Standing({ routines }) {
+function Standing() {
   const { halt } = useHalt();
   const on = halt?.on === true;
   // Until Eos says whether it is stopped, the lead is a ghost and offers nothing.
@@ -213,7 +187,7 @@ function Standing({ routines }) {
   }
   let words = ["Stop everything", "No routine runs and nothing is sent until you resume."];
   if (on) words = [`Eos is stopped${halt.since != null ? ` since ${sinceAt(halt.since)}` : ""}.`, words[1]];
-  else if (halt) words = ["Eos is running on this Mac.", `${routines?.dayBudgetUsd != null ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
+  else if (halt) words = ["Eos is running on this Mac.", "Stop everything halts every run and every send at once."];
   let tone = "";
   if (halt) tone = on ? " eos-stg__fact--err" : " eos-stg__fact--ok";
   return (
@@ -230,7 +204,7 @@ function Standing({ routines }) {
 }
 
 export function EosSettings() {
-  const { routines, signals, attention, memory, surfaces, forgotten } = useEosSettings();
+  const { signals, attention, memory, surfaces, forgotten } = useEosSettings();
   useEffect(() => {
     void loadEosSettings();
     ensureHaltLoaded();
@@ -239,10 +213,9 @@ export function EosSettings() {
   return (
     <div className="eos-stg">
       <h2 className="eos-label eos-stg__title">Eos</h2>
-      <Standing routines={routines} />
+      <Standing />
       <Group title="Routines">
-        {routines ? <DailyLimit settings={routines} /> : <Ghost />}
-        {signals && (
+        {signals ? (
           <Switch
             area="signals"
             settings={signals}
@@ -250,7 +223,7 @@ export function EosSettings() {
             label="Keep the Mac awake for schedules"
             description="On mains power, the Mac does not sleep while a schedule waits to run."
           />
-        )}
+        ) : <Ghost />}
       </Group>
       <Group title="What interrupts you">
         {attention ? <Attention settings={attention} /> : <Ghost />}
