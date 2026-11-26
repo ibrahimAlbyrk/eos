@@ -677,11 +677,10 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-notices-anchor { position: absolute; inset: 0; pointer-events: none; visibility: hidden; }
 .eos-notices {
   position: fixed;
-  left: 50%;
+  right: 24px;
   bottom: 24px;
   z-index: 490; /* over Settings and Eos's dialogs, below the palette */
-  width: min(560px, calc(100% - 48px));
-  transform: translateX(-50%);
+  width: min(420px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -706,6 +705,8 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-notice--err::before { border-color: var(--err); background: var(--err); }
 .eos-notice__words { flex: 1; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; overflow-wrap: anywhere; text-wrap: pretty; }
 .eos-notice__words strong { font-weight: 500; color: var(--fg-strong); }
+.eos-notice__more { align-self: flex-start; margin-top: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--fg-dim2); cursor: pointer; }
+.eos-notice__more:hover { color: var(--fg-strong); }
 .eos-notice__close { flex: none; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: none; color: var(--fg-dim2); cursor: pointer; }
 .eos-notice__close:hover { background: var(--chip); color: var(--fg-strong); }
 .eos-notice__close svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
