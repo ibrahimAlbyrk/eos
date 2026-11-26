@@ -154,6 +154,10 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
   border-radius: 10px;
   background: var(--bg);
 }
+/* A row of filters too long for its column scrolls on one line instead of
+   leaving one option alone on a second. */
+.eos-seg--one-line { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.eos-seg--one-line .eos-seg__opt { flex: none; white-space: nowrap; }
 .eos-seg__opt {
   height: 26px;
   padding: 0 12px;
