@@ -199,7 +199,7 @@ describe("memory in the other screens", () => {
     const html = renderToStaticMarkup(<RunMemory runId={runId} />);
     expect(html).toContain("Memory that came with it");
     expect(html.match(/class="eos-run-memory__note"/g)).toHaveLength(3);
-    expect(html).toContain(">4 notes in all</button>");
+    expect(html).toContain(">Four notes in all</button>");
   });
 
   it("says Not right with the run and the user's words, and the note's new strength reaches the aside", async () => {
