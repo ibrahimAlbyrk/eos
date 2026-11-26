@@ -3,9 +3,7 @@
 
 use std::sync::Mutex;
 
-use eos_core::experience::{
-    CheckVerdict, ExperienceFeedback, ExperiencePacks, RunOutcome, RunPack, RunPackRequest, SurfaceSignal,
-};
+use eos_core::experience::{ExperienceFeedback, ExperiencePacks, RunOutcome, RunPack, RunPackRequest, SurfaceSignal};
 use eos_core::{BoxFuture, Error};
 
 fn locked<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -51,7 +49,6 @@ impl ExperiencePacks for FakeExperiencePacks {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FeedbackCall {
     RunEnded(RunOutcome),
-    CheckFailed(CheckVerdict),
     Surface(SurfaceSignal),
     RoutineRemoved(String),
 }
@@ -79,10 +76,6 @@ impl FakeExperienceFeedback {
 impl ExperienceFeedback for FakeExperienceFeedback {
     fn run_ended(&self, outcome: RunOutcome) -> BoxFuture<'_, Result<(), Error>> {
         self.record(FeedbackCall::RunEnded(outcome))
-    }
-
-    fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>> {
-        self.record(FeedbackCall::CheckFailed(verdict))
     }
 
     fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>> {

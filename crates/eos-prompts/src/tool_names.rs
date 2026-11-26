@@ -64,7 +64,6 @@ pub const TOOL_NAME_VARS: &[(&str, &str)] = &[
     ("REPORT_PROGRESS_TOOL", "report_progress"),
     ("SUBMIT_RESULT_TOOL", "submit_result"),
     ("REPORT_FAILURE_TOOL", "report_failure"),
-    ("SUBMIT_VERDICT_TOOL", "submit_verdict"),
     ("START_SPECIALIST_TOOL", "start_specialist"),
     ("MESSAGE_SPECIALIST_TOOL", "message_specialist"),
     ("STOP_SPECIALIST_TOOL", "stop_specialist"),

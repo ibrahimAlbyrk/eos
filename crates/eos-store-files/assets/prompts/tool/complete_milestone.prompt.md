@@ -8,4 +8,4 @@ Hand in the project's milestone you work on, once its "Done when" holds. Eos che
 - `summary`: what was done and where it is, in a few plain sentences the user reads.
 - `files`: paths of files the milestone carries, if any.
 
-Your turn ends here. A checker may send it back with what must be fixed: fix it and call this again. Once Eos is done with it, a message names the next milestone: work on that one. After the last milestone the run ends.
+Your turn ends here. Once Eos is done with it, a message names the next milestone: work on that one. After the last milestone the run ends.

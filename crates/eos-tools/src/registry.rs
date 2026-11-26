@@ -219,8 +219,8 @@ impl Tools {
         run_designer.extend(lead());
         let reaches_capabilities = |t: &Spec| t.name == "list_capabilities" || t.name == "call_capability";
         run_designer.extend(run_shared().into_iter().filter(|t| !reaches_capabilities(t)));
-        let mut run_checker = s.routines.as_ref().map(routines::checker_specs).unwrap_or_default();
-        run_checker.extend(run_shared());
+        // Eos starts no checker; a checker session in the data reads only what every run session does.
+        let run_checker = run_shared();
 
         let mut architect = s.architect.as_ref().map(architect::specs).unwrap_or_default();
         if let Some(calls) = &s.capabilities {

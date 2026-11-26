@@ -1890,63 +1890,6 @@
    "plugin": null
   },
   {
-   "name": "submit_verdict",
-   "inputSchema": {
-    "type": "object",
-    "properties": {
-     "pass": {
-      "type": "boolean",
-      "description": "True only when every check holds."
-     },
-     "checks": {
-      "type": "array",
-      "items": {
-       "type": "object",
-       "properties": {
-        "key": {
-         "type": "string",
-         "minLength": 1,
-         "description": "The check's key, as the brief lists it."
-        },
-        "ok": {
-         "type": "boolean",
-         "description": "Whether the result passes this check."
-        },
-        "note": {
-         "type": "string",
-         "description": "Why, in one sentence."
-        }
-       },
-       "required": [
-        "key",
-        "ok",
-        "note"
-       ],
-       "additionalProperties": false
-      },
-      "description": "One entry per check of the routine."
-     },
-     "mustFix": {
-      "type": "array",
-      "items": {
-       "type": "string"
-      },
-      "default": [],
-      "description": "What the lead must change, one point each."
-     }
-    },
-    "required": [
-     "pass",
-     "checks"
-    ],
-    "additionalProperties": false,
-    "$schema": "http://json-schema.org/draft-07/schema#"
-   },
-   "alwaysLoad": true,
-   "searchHint": null,
-   "plugin": null
-  },
-  {
    "name": "start_specialist",
    "inputSchema": {
     "type": "object",
@@ -3339,7 +3282,6 @@
    "focused": true,
    "pluginsOff": [],
    "names": [
-    "submit_verdict",
     "current_datetime",
     "search_memory",
     "list_capabilities",

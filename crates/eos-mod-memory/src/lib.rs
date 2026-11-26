@@ -48,8 +48,8 @@ use std::path::PathBuf;
 use eos_core::accounts::PlanAccess;
 use eos_core::agent::{CompactionNotice, NoteTurn, OneShot};
 use eos_core::experience::{
-    CheckVerdict, Embedder, ExperienceFeedback, ExperiencePacks, ExperienceSearch, FoundNote, RunOutcome, RunPack,
-    RunPackRequest, SurfaceSignal,
+    Embedder, ExperienceFeedback, ExperiencePacks, ExperienceSearch, FoundNote, RunOutcome, RunPack, RunPackRequest,
+    SurfaceSignal,
 };
 use eos_core::git::ProjectKeys;
 use eos_core::inbox::ResultEdits;
@@ -315,7 +315,7 @@ impl MemoryModule {
         );
         let feedback =
             Feedback::new(store.clone(), clock.clone(), ids.clone(), recall.clone(), credit.clone(), device.clone());
-        let runs_memory = Arc::new(RunMemory { feedback, wake: wake.clone() });
+        let runs_memory = Arc::new(RunMemory { feedback });
         let experience: Arc<dyn eos_core::experience::ExperienceSync> =
             Arc::new(sync::Experience::new(store.clone(), clock.clone(), device.clone()));
         let api = Arc::new(routes::Api {
@@ -381,8 +381,6 @@ impl MemoryModule {
 /// Memory as routines' runs see it.
 struct RunMemory {
     feedback: Feedback,
-    /// Wakes reflection when a failed check left a moment.
-    wake: Arc<Notify>,
 }
 
 impl ExperiencePacks for RunMemory {
@@ -394,15 +392,6 @@ impl ExperiencePacks for RunMemory {
 impl ExperienceFeedback for RunMemory {
     fn run_ended(&self, outcome: RunOutcome) -> BoxFuture<'_, Result<(), Error>> {
         Box::pin(async move { self.feedback.run_ended(&outcome.run_id, &outcome.kind).await })
-    }
-
-    fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>> {
-        Box::pin(async move {
-            if self.feedback.check_failed(verdict).await? {
-                self.wake.notify_one();
-            }
-            Ok(())
-        })
     }
 
     fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>> {

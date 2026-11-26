@@ -11,4 +11,4 @@ Hand in the run's result. Eos checks it and then, as the user allowed, shows it,
 - `body`: the result in the exact shape "What it makes" gives, like its example; plain text only when it gives no shape.
 - `files`: paths of files the result carries, if any.
 
-Call it once, at the end. A result of another kind or shape is refused at once with what to change: fix it and call this again. A checker may send the result back with what must be fixed: fix it and call this again. When the work cannot be done, call {{REPORT_FAILURE_TOOL}} instead.
+Call it once, at the end. A result of another kind or shape is refused at once with what to change: fix it and call this again. When the work cannot be done, call {{REPORT_FAILURE_TOOL}} instead.

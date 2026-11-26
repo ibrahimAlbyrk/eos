@@ -1,16 +1,13 @@
 //! What routines' runs give memory and take from it: the pack a run's lead
 //! reads with its brief (recorded for credit unless the run is a trial),
-//! how the run ended, a checker that did not pass its result (a moment to
-//! learn from in the lead's conversation), and a routine removed for good
-//! (its notes close).
+//! how the run ended, and a routine removed for good (its notes close).
 
 use std::sync::Arc;
 
-use eos_contracts::{ExperienceChange, WorkerEventType};
-use eos_core::experience::{CheckVerdict, RunPack, RunPackRequest};
-use eos_core::store::{NoteQuery, Store, StoredMoment};
+use eos_contracts::ExperienceChange;
+use eos_core::experience::{RunPack, RunPackRequest};
+use eos_core::store::{NoteQuery, Store};
 use eos_core::{Clock, Error, Ids};
-use eos_domain::experience::moments::Signal;
 use eos_domain::experience::{NoteKind, NoteState, ScopeLevel};
 
 use crate::credit::Credit;
@@ -87,38 +84,6 @@ impl Feedback {
     /// Credits the run's pack notes by how it ended.
     pub async fn run_ended(&self, run_id: &str, kind: &str) -> Result<(), Error> {
         self.credit.run_ended(run_id, kind).await.map(drop)
-    }
-
-    /// Keeps a "checker disagrees" moment at the end of the lead's
-    /// conversation, unless Learning is off. Answers whether it kept one.
-    pub async fn check_failed(&self, verdict: CheckVerdict) -> Result<bool, Error> {
-        let (id, now) = (self.ids.moment_id(), self.clock.now_ms());
-        self.store
-            .write(move |tx, _| {
-                if !settings::read_in(tx)?.learning {
-                    return Ok(false);
-                }
-                let last = tx.events().last_id_by_type(&verdict.worker_id, WorkerEventType::AgentEvent)?;
-                let row = last.unwrap_or(0);
-                tx.mem_moments().insert(&StoredMoment {
-                    id,
-                    worker_id: verdict.worker_id.clone(),
-                    source: "run".into(),
-                    run_id: Some(verdict.run_id.clone()),
-                    signal: Signal::CheckerDisagrees.as_str().into(),
-                    trust: Signal::CheckerDisagrees.trust(),
-                    row_from: row,
-                    row_to: row,
-                    cues: "[]".into(),
-                    state: "pending".into(),
-                    note_id: None,
-                    attempts: 0,
-                    created_at: now,
-                    done_at: None,
-                })?;
-                Ok(true)
-            })
-            .await
     }
 
     /// Closes every note of a routine removed for good. Answers how many.

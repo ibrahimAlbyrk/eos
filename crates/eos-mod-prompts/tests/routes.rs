@@ -79,12 +79,10 @@ const ADDED: &[&str] = &[
     "micro-tasks/signal-match",
     "role/focused/20-routine-architect",
     "role/focused/21-routine-lead",
-    "role/focused/22-routine-checker",
     "role/focused/23-routine-designer",
     "role/worker/20-routine-specialist",
     "routine/architect-change",
     "routine/architect-make",
-    "routine/check-brief",
     "routine/design-brief",
     "routine/intent-system",
     "routine/intent",
@@ -117,7 +115,6 @@ const ADDED: &[&str] = &[
     "tool/start_trial",
     "tool/stop_specialist",
     "tool/submit_result",
-    "tool/submit_verdict",
 ];
 
 /// A recorded answer as this app gives it: the catalog without the goal loop's

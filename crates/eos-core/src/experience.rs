@@ -89,15 +89,6 @@ pub struct RunOutcome {
     pub kind: String,
 }
 
-/// A run's checker did not pass its result.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckVerdict {
-    pub run_id: String,
-    pub routine_id: String,
-    /// The run's lead: the moment is read in its conversation.
-    pub worker_id: String,
-}
-
 /// What the user did with a routine's surface (05 gaps 22, 23): ids, parts
 /// and indexes, and for an edit the value before and after.
 #[derive(Debug, Clone, PartialEq)]
@@ -153,7 +144,6 @@ impl SurfaceSignalKind {
 /// What routines and their surfaces tell memory about their runs.
 pub trait ExperienceFeedback: Send + Sync {
     fn run_ended(&self, outcome: RunOutcome) -> BoxFuture<'_, Result<(), Error>>;
-    fn check_failed(&self, verdict: CheckVerdict) -> BoxFuture<'_, Result<(), Error>>;
     /// Called after the write it reports was committed.
     fn surface_signal(&self, signal: SurfaceSignal) -> BoxFuture<'_, Result<(), Error>>;
     /// The routine left the trash for good: its notes close.

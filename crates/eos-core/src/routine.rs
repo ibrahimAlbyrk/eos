@@ -5,8 +5,8 @@
 use std::path::PathBuf;
 
 use eos_contracts::{
-    BlueprintIssue, CheckVerdict, Freedom, ItemRef, Recipient, RecipientKind, RecipientsUnconfirmed, ResultDoc,
-    RoutineKind, RoutineState, RunInput, Rung, UnconfirmedRecipient, When, Which,
+    BlueprintIssue, Freedom, ItemRef, Recipient, RecipientKind, RecipientsUnconfirmed, ResultDoc, RoutineKind,
+    RoutineState, RunInput, Rung, UnconfirmedRecipient, When, Which,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
@@ -501,18 +501,15 @@ pub trait RoutineTools: Send + Sync {
         line: &'a str,
         milestone: Option<&'a str>,
     ) -> BoxFuture<'a, Result<(), Error>>;
-    /// Keeps a copy of the result and its files, then moves the run to its
-    /// check.
+    /// Keeps a copy of the result and its files, then hands it to the gate;
+    /// one that does not fit what the routine makes is refused.
     fn submit_result<'a>(&'a self, worker_id: &'a str, result: SubmittedResult) -> BoxFuture<'a, Result<(), Error>>;
     /// A project run's lead hands in the milestone it works on: it goes
-    /// through the check and the gate as a result does, then the run goes on
+    /// through the gate as a result does, then the run goes on
     /// with the next one.
     fn complete_milestone<'a>(&'a self, worker_id: &'a str, done: MilestoneDone) -> BoxFuture<'a, Result<(), Error>>;
     /// Ends the run as failed, the agent's reason its headline.
     fn report_failure<'a>(&'a self, worker_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>>;
-    /// The checker's verdict on the result it was given: a pass goes on, a
-    /// fail goes back to the lead (once) or fails the run.
-    fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>>;
     /// A team lead starts the specialist `agent` of its routine on `task`.
     fn start_specialist<'a>(
         &'a self,

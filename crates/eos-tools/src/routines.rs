@@ -1,8 +1,7 @@
 //! The tools of a routine run's sessions: the lead reports where the run is
 //! (`report_progress`), hands in its result (`submit_result`) or, in a
 //! project, the milestone at work (`complete_milestone`), or says the run
-//! cannot be done (`report_failure`); the checker gives its verdict on a
-//! result (`submit_verdict`); a team's lead starts, follows up, stops and
+//! cannot be done (`report_failure`); a team's lead starts, follows up, stops and
 //! lists its specialists (`start_specialist`, `message_specialist`,
 //! `stop_specialist`, `list_specialists`). Each call goes to the routines feature
 //! ([`RoutineTools`]), which knows the caller's run; a worker of no run is
@@ -14,7 +13,6 @@
 
 use std::sync::Arc;
 
-use eos_contracts::CheckVerdict;
 use eos_core::BoxFuture;
 use eos_core::routine::{ChatRoutines, ChatRunAsk, ChatStart, MilestoneDone, RoutineTools, SubmittedResult};
 use serde::Deserialize;
@@ -35,7 +33,7 @@ pub(crate) const DESIGNER_DEFINITION: &str = "eos-run-designer";
 /// The worker definition an App's reviewer starts as.
 pub(crate) const APP_REVIEWER_DEFINITION: &str = "app-reviewer";
 
-/// The worker definition a run's checker starts as.
+/// The worker definition of a run checker session in the data; Eos starts none.
 pub(crate) const CHECKER_DEFINITION: &str = "eos-run-checker";
 
 struct ReportProgress(Arc<dyn RoutineTools>);
@@ -113,44 +111,6 @@ impl Handler for ReportFailure {
             Ok(Output::EndTurn("The run ended as failed.".into()))
         })
     }
-}
-
-struct SubmitVerdict(Arc<dyn RoutineTools>);
-
-impl Handler for SubmitVerdict {
-    fn run<'a>(&'a self, call: Call<'a>, input: Value) -> BoxFuture<'a, Outcome> {
-        Box::pin(async move {
-            let verdict: CheckVerdict = args(input)?;
-            self.0.submit_verdict(call.self_id, verdict).await?;
-            Ok(Output::EndTurn("Verdict handed in.".into()))
-        })
-    }
-}
-
-/// The checker's one tool. Sent with every request.
-pub(crate) fn checker_specs(tools: &Arc<dyn RoutineTools>) -> Vec<Spec> {
-    let check = object(vec![
-        ("key", string().min(1).describe("The check's key, as the brief lists it.")),
-        ("ok", boolean().describe("Whether the result passes this check.")),
-        ("note", string().describe("Why, in one sentence.")),
-    ]);
-    vec![
-        Spec::new(
-            "submit_verdict",
-            object(vec![
-                ("pass", boolean().describe("True only when every check holds.")),
-                ("checks", array(check).describe("One entry per check of the routine.")),
-                (
-                    "mustFix",
-                    array(string())
-                        .default(serde_json::json!([]))
-                        .describe("What the lead must change, one point each."),
-                ),
-            ]),
-            SubmitVerdict(tools.clone()),
-        )
-        .always_load(),
-    ]
 }
 
 /// The lead's four tools. Sent with every

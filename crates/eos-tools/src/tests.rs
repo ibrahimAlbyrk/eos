@@ -178,14 +178,6 @@ impl RoutineTools for RunCalls {
         self.record(worker_id, format!("failure {worker_id} {reason}"))
     }
 
-    fn submit_verdict<'a>(
-        &'a self,
-        worker_id: &'a str,
-        verdict: eos_contracts::CheckVerdict,
-    ) -> eos_core::BoxFuture<'a, Result<(), eos_core::Error>> {
-        self.record(worker_id, format!("verdict {worker_id} {} {:?}", verdict.pass, verdict.must_fix))
-    }
-
     fn start_specialist<'a>(
         &'a self,
         worker_id: &'a str,
@@ -583,14 +575,14 @@ fn a_runs_lead_gets_its_own_list_whatever_kind_of_session_it_is() {
     // A chat never gets a run's tools.
     for kind in ["orchestrator", "worker", "focused", "focused-peer"] {
         let names = bench.names(kind);
-        assert!(!names.iter().any(|name| name == "submit_result" || name == "submit_verdict"), "{kind}");
+        assert!(!names.iter().any(|name| name == "submit_result"), "{kind}");
     }
     // The App's reviewer only gives its verdict.
     assert_eq!(bench.names_of("app-reviewer"), ["app_review", "current_datetime"]);
-    // The checker gives its verdict and reads; it hands in no result and asks nobody.
+    // A checker session in the data only reads; it hands in nothing and asks nobody.
     assert_eq!(
         bench.names("run-checker"),
-        ["submit_verdict", "current_datetime", "search_memory", "list_capabilities", "call_capability"]
+        ["current_datetime", "search_memory", "list_capabilities", "call_capability"]
     );
 }
 
@@ -658,18 +650,13 @@ async fn the_run_tools_hand_the_call_to_the_routines_feature() {
     let failed =
         call(&bench.tool("run-lead", "report_failure"), "w-lead", serde_json::json!({"reason": "Closed."})).await;
     assert!(!failed.is_error && failed.ends_turn);
-    let verdict = serde_json::json!({"pass": false, "checks": [{"key": "tests", "ok": false, "note": "None."}],
-                                     "mustFix": ["Add a test."]});
-    let judged = call(&bench.tool("run-checker", "submit_verdict"), "w-check", verdict).await;
-    assert!(!judged.is_error && judged.ends_turn, "{}", judged.text);
     assert_eq!(
         *bench.runs.0.lock().expect("calls"),
         [
             "progress w-lead Reading None",
             r#"result w-lead github.review Two issues {"summary":"s"} []"#,
             r#"milestone w-lead m1 Login screen done. ["login.png"]"#,
-            "failure w-lead Closed.",
-            r#"verdict w-check false ["Add a test."]"#
+            "failure w-lead Closed."
         ]
     );
     let refused = call(&bench.tool("run-lead", "report_failure"), "w-none", serde_json::json!({"reason": "x"})).await;

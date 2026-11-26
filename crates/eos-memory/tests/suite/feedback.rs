@@ -1,11 +1,9 @@
 //! Runs: the pack a run's lead reads (recorded unless a trial), credit by
-//! how the run ended, a failed check kept as a moment, and a removed
-//! routine's notes closed.
+//! how the run ended, and a removed routine's notes closed.
 
 use std::sync::Arc;
 
-use eos_contracts::WorkerEventType;
-use eos_core::experience::{CheckVerdict, RunPackRequest};
+use eos_core::experience::RunPackRequest;
 use eos_domain::experience::{NoteState, Trust};
 use eos_memory::{Credit, Feedback, Recall};
 use eos_testkit::{FakeClock, SeqIds, TempStore};
@@ -82,32 +80,6 @@ async fn a_run_sent_as_it_was_helps_its_notes_and_an_edited_one_only_uses_them()
     feedback.run_ended("rn-3", "discarded").await.unwrap();
     assert_eq!(temp.count("SELECT COUNT(*) FROM mem_uses WHERE run_id = 'rn-3' AND outcome = 'discarded'"), n);
     assert_eq!(temp.count("SELECT COUNT(*) FROM mem_credit WHERE helped = 1 AND used = 2"), n, "nothing for a discard");
-}
-
-#[tokio::test]
-async fn a_failed_check_is_a_moment_unless_learning_is_off() {
-    let temp = TempStore::new();
-    temp.store
-        .write_blocking(|tx, _| {
-            tx.events().append(
-                "w-lead",
-                1,
-                WorkerEventType::AgentEvent,
-                Some(r#"{"type":"message","role":"assistant","blocks":[]}"#),
-            )
-        })
-        .unwrap();
-    let feedback = feedback(&temp);
-    let verdict = CheckVerdict { run_id: "rn-1".into(), routine_id: "rt-1".into(), worker_id: "w-lead".into() };
-    assert!(feedback.check_failed(verdict.clone()).await.unwrap());
-    assert_eq!(
-        temp.count(
-            "SELECT COUNT(*) FROM mem_moments WHERE signal = 'checker_disagrees' AND source = 'run' AND row_to > 0"
-        ),
-        1
-    );
-    temp.exec("INSERT OR REPLACE INTO mem_settings (key, value) VALUES ('learning', 'off')");
-    assert!(!feedback.check_failed(verdict).await.unwrap());
 }
 
 #[tokio::test]

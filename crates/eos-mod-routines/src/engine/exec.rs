@@ -6,7 +6,6 @@
 
 use std::sync::Arc;
 
-use eos_contracts::CheckVerdict;
 use eos_contracts::Milestone;
 use eos_core::routine::{MilestoneDone, RoutineTools, RunRef, Specialist, SubmittedResult};
 use eos_core::store::StoredRunResult;
@@ -127,11 +126,6 @@ impl RoutineTools for Tools {
             let run = self.working_run(worker_id).await?;
             fail(&self.0, &run.run_id, Reason::Reported, Some(reason.to_owned())).await
         })
-    }
-
-    fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>> {
-        let _ = (worker_id, verdict);
-        Box::pin(async { Err(Error::Conflict("no checker reads a run's result".into())) })
     }
 
     fn start_specialist<'a>(
