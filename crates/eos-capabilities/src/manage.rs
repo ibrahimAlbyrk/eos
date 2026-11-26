@@ -107,10 +107,13 @@ impl CapabilityService {
 
     /// Forgets secret `name`; the capability needs it again before it is
     /// called. The account's label goes too: it named whom the secret
-    /// signed in as.
+    /// signed in as. So do the secrets a built-in keeps beside it.
     pub async fn forget_secret(&self, id: &str, name: &str) -> Result<(), Error> {
         self.declared_secret(id, name).await?;
         self.ports.secrets.delete(id, name).await?;
+        for undeclared in self.builtins.get(id).map_or(&[][..], |builtin| builtin.undeclared_secrets()) {
+            self.ports.secrets.delete(id, undeclared).await?;
+        }
         self.keep_label(id, None).await?;
         tracing::info!(capability = id, "a capability's secret was forgotten");
         self.after_secret(id).await

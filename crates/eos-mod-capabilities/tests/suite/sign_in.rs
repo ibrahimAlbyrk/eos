@@ -1,7 +1,7 @@
 //! Signing in to GitHub by a code, with the GitHub capability itself on
 //! `FakeGitHub`: start, pending, signed in and ready, ended by the user,
-//! out of time, ended while its token is being kept, no client id, and who
-//! may ask.
+//! forgotten with its refresh token, out of time, ended while its token is
+//! being kept, no client id, and who may ask.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,11 +10,12 @@ use eos_core::BoxFuture;
 use eos_core::capability::{ActionContext, ActionError, BuiltinCapability, CapabilitySecrets, DeviceSignIn};
 use eos_domain::capability::health::Event;
 use eos_domain::capability::manifest::Manifest;
-use eos_github::{GitHub, Parts};
+use eos_github::{GitHub, Parts, REFRESH_TOKEN};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::Method;
 use eos_testkit::{
-    FakeBuiltin, FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, GITHUB_TOKEN, GITHUB_USER_CODE,
+    FakeBuiltin, FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, GITHUB_REFRESH_TOKEN, GITHUB_TOKEN,
+    GITHUB_USER_CODE,
 };
 use serde_json::{Value, json};
 use tokio::sync::{Notify, Semaphore};
@@ -104,6 +105,22 @@ async fn a_sign_in_shows_the_code_waits_and_leaves_github_signed_in_and_ready() 
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn forgetting_the_sign_in_forgets_its_refresh_token_too() {
+    let s = sign_in("Iv1.fake").await;
+    s.fake.device_answers(vec![FakeGitHub::granted_expiring()]);
+    assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
+    s.poll().await;
+    assert_eq!(s.ended().await["state"], "signed_in");
+    let kept = s.secrets.read("github", REFRESH_TOKEN).await.expect("reads").expect("kept");
+    assert_eq!(kept.as_str(), GITHUB_REFRESH_TOKEN);
+
+    let forget = "/api/capabilities/github/secrets/token";
+    assert_eq!(s.rig.ask(Method::Delete, forget, None).await, (200, json!({ "ok": true })));
+    assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None);
+    assert_eq!(s.secrets.read("github", REFRESH_TOKEN).await.expect("reads"), None, "the refresh token goes too");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_sign_in_the_user_ends_stops_polling_and_one_out_of_time_says_expired() {
     let s = sign_in("Iv1.fake").await;
     assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
@@ -189,6 +206,10 @@ impl BuiltinCapability for FirstCheckHeld {
     fn device_sign_in(&self) -> Option<&dyn DeviceSignIn> {
         self.github.device_sign_in()
     }
+
+    fn undeclared_secrets(&self) -> &[&'static str] {
+        self.github.undeclared_secrets()
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -211,7 +232,7 @@ async fn a_sign_in_ended_after_its_token_was_kept_ends_signed_out() {
     let rig = rig_with(vec![held.clone(), Arc::new(FakeBuiltin::new(MAIL))], secrets.clone()).await;
     let s = SignIn { rig, fake, secrets, polls };
 
-    s.fake.device_answers(vec![FakeGitHub::granted()]);
+    s.fake.device_answers(vec![FakeGitHub::granted_expiring()]);
     assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
     s.poll().await;
     tokio::time::timeout(std::time::Duration::from_secs(10), held.entered.notified())
@@ -220,6 +241,7 @@ async fn a_sign_in_ended_after_its_token_was_kept_ends_signed_out() {
 
     assert_eq!(s.rig.ask(Method::Delete, PATH, None).await, (200, json!({ "ok": true })));
     assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None, "the cancel wins: no token stays");
+    assert_eq!(s.secrets.read("github", REFRESH_TOKEN).await.expect("reads"), None, "nor its refresh token");
     let (_, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
     assert_eq!(row["state"], "needs_setup");
     assert!(row["accountLabel"].is_null(), "no account is named: {row}");

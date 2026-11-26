@@ -115,6 +115,11 @@ pub trait BuiltinCapability: Send + Sync {
     fn browser_sign_in(&self) -> Option<&dyn BrowserSignIn> {
         None
     }
+    /// Secrets it keeps beside the ones its manifest declares, such as a
+    /// sign-in's refresh token: they are forgotten with any of its secrets.
+    fn undeclared_secrets(&self) -> &[&'static str] {
+        &[]
+    }
 }
 
 /// An installed package's version, as its runner needs it.

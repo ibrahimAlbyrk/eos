@@ -165,4 +165,8 @@ impl BuiltinCapability for GitHub {
     fn device_sign_in(&self) -> Option<&dyn DeviceSignIn> {
         Some(self)
     }
+
+    fn undeclared_secrets(&self) -> &[&'static str] {
+        &[REFRESH_TOKEN]
+    }
 }
