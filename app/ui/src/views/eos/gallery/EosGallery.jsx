@@ -51,15 +51,21 @@ import { refreshInbox } from "../../../state/eos/inboxStore.js";
 import { FixedSettings } from "../../../state/settings.jsx";
 import { AppSurface } from "../surface/AppSurface.jsx";
 
-// Needs you's samples moved so the newest arrived twenty minutes before the
-// gallery opened, the rest as far before it as recorded: times read "20m ago",
-// never a year.
+// Needs you's samples moved so the newest recorded one lands twenty minutes
+// before the gallery opened, the rest as far before it as recorded: times
+// read "20m ago", never a year.
 const MIN = 60 * 1000;
 // Each PR Review item names the run that asked it: the push is the working
 // run's (#470, review/470), the branch question the waiting run's (#468), and
 // only the review comes from the done run (#462), which ended before it.
 const ASKED_BY = { "perm:pa-7f3k1m9q": "rn-running01", "ib-3k9d2f7h1j5l": "rn-waiting01" };
-const shift = (row, by) => ({ ...row, runId: ASKED_BY[row.id] ?? row.runId, createdAt: row.createdAt + by, updatedAt: row.updatedAt + by });
+// The working run started three minutes ago, so its push was asked within
+// them: two minutes before the gallery opened, after the run began.
+const ASKED_AGO = { "perm:pa-7f3k1m9q": 2 };
+const shift = (row, by) => {
+  const at = ASKED_AGO[row.id] == null ? null : Date.now() - ASKED_AGO[row.id] * MIN;
+  return { ...row, runId: ASKED_BY[row.id] ?? row.runId, createdAt: at ?? row.createdAt + by, updatedAt: at ?? row.updatedAt + by };
+};
 const newest = Math.max(...inboxSample.items.map((i) => i.createdAt));
 const by = Date.now() - 20 * MIN - newest;
 const inbox = { ...inboxSample, items: inboxSample.items.map((i) => shift(i, by)) };
