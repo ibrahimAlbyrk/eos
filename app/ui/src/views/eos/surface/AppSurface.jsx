@@ -12,7 +12,7 @@ import { FailedLead } from "../frame.jsx";
 import { ConfirmBelow } from "../needs/SurfaceCard.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { PinButton } from "./PinButton.jsx";
-import { timeAt } from "../routine/words.js";
+import { sinceAt } from "../routine/words.js";
 
 const isAction = (name) => !name.startsWith("query.") && !name.startsWith("state.") && !name.startsWith("files.");
 
@@ -199,7 +199,7 @@ export function AppSurface({ surfaceId, inPanel = false }) {
         <div>
           <p className="eos-lead">{n == null ? "Not ready yet." : (manifest.summary ?? title)}</p>
           <p className="eos-rlead__now">
-            {n == null ? "It shows here once its review and its tests pass and you keep it." : `Version ${n}, in use${version?.meta?.createdAt ? ` since ${timeAt(version.meta.createdAt)}` : ""}.`}
+            {n == null ? "It shows here once its review and its tests pass and you keep it." : `Version ${n}, in use${version?.meta?.createdAt ? ` since ${sinceAt(version.meta.createdAt)}` : ""}.`}
           </p>
         </div>
         {version?.accessLine && <AccessFact line={version.accessLine} />}

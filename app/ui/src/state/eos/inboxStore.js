@@ -57,6 +57,17 @@ function rank(item) {
   return (item.state === "later" ? 3 : 0) + (ATTENTION_ORDER[item.attention] ?? 2);
 }
 
+// What waits now for each routine: the core's per-routine counts take in
+// what was put off for Later, which the badge and Needs you's lead leave out,
+// so the Later items the list holds are taken back off.
+export function waitingByRoutine(list) {
+  const counts = { ...(list?.counts.byRoutine ?? {}) };
+  for (const item of list?.items ?? []) {
+    if (item.state === "later" && item.routineId && counts[item.routineId] > 0) counts[item.routineId] -= 1;
+  }
+  return counts;
+}
+
 export function byNeedsOrder(a, b) {
   return rank(a) - rank(b) || b.createdAt - a.createdAt || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 }

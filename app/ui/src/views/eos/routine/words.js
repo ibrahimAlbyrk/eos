@@ -20,6 +20,13 @@ const clock = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-di
 // A time as the trigger lines say it: "Mon 09:00".
 export const timeAt = (ms) => clock.format(new Date(ms));
 
+const hours = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+// A past moment after "since": the time alone when it was today ("since
+// 13:38"), the weekday with it before.
+export const sinceAt = (ms, now = Date.now()) =>
+  new Date(ms).toDateString() === new Date(now).toDateString() ? hours.format(new Date(ms)) : timeAt(ms);
+
 // A zone as people say it: "Europe/Istanbul" → "Istanbul".
 export const zoneName = (zone) => zone.split("/").pop().replace(/_/g, " ");
 

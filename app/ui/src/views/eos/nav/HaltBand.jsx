@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { dismissResumed, ensureHaltLoaded, resumeEos, useHalt } from "../../../state/eos/haltStore.js";
-import { timeAt } from "../routine/words.js";
+import { sinceAt } from "../routine/words.js";
 import { openLocation } from "./eosNav.js";
 
 const STOP = "M5.5 5.5h5v5h-5z";
@@ -27,7 +27,7 @@ export function HaltBand() {
       <div className="eos-halt eos-halt--stopped" role="status">
         <Mark d={STOP} tone="err" />
         <p className="eos-halt__words">
-          <strong>Eos is stopped{halt.since != null ? ` since ${timeAt(halt.since)}` : ""}.</strong> No routine runs and nothing is sent until you resume.
+          <strong>Eos is stopped{halt.since != null ? ` since ${sinceAt(halt.since)}` : ""}.</strong> No routine runs and nothing is sent until you resume.
         </p>
         <button type="button" className="eos-btn eos-btn--primary" onClick={() => void resumeEos()}>Resume</button>
       </div>

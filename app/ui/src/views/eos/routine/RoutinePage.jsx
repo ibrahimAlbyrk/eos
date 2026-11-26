@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
+import { ensureInboxLoaded, useInbox, waitingByRoutine } from "../../../state/eos/inboxStore.js";
 import { loadRoutineView, useSurfaces } from "../../../state/eos/surfacesStore.js";
 import { loadRoutine, setRoutineState, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
@@ -48,7 +48,7 @@ function Pause({ routine }) {
 // is its Blueprint tab showing that version.
 export function RoutinePage({ id, tab, version }) {
   const { details, failed, list, unconfirmed } = useRoutines();
-  const waiting = useInbox().list?.counts.byRoutine[id] ?? 0;
+  const waiting = waitingByRoutine(useInbox().list)[id] ?? 0;
   const view = useSurfaces().byRoutine[id];
   const devRun = useDevRunSeen();
   useEffect(() => {

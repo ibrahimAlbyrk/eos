@@ -15,7 +15,7 @@ import {
 } from "../state/eos/eosSettingsStore.js";
 import { ensureHaltLoaded, resumeEos, stopEos, useHalt } from "../state/eos/haltStore.js";
 import { Dialog } from "../views/eos/frame.jsx";
-import { timeAt } from "../views/eos/routine/words.js";
+import { sinceAt } from "../views/eos/routine/words.js";
 import { ToggleControl } from "./controls.jsx";
 import { AccessibilityRow, Choice, CommandRow, Row, ShortcutRow } from "./EosDoors.jsx";
 
@@ -198,7 +198,7 @@ function Standing({ routines }) {
   const { halt } = useHalt();
   const on = halt?.on === true;
   let words = ["Stop everything", "No routine runs and nothing is sent until you resume."];
-  if (on) words = [`Eos is stopped${halt.since != null ? ` since ${timeAt(halt.since)}` : ""}.`, words[1]];
+  if (on) words = [`Eos is stopped${halt.since != null ? ` since ${sinceAt(halt.since)}` : ""}.`, words[1]];
   else if (halt) words = ["Eos is running on this Mac.", `${routines ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
   let tone = "";
   if (halt) tone = on ? " eos-stg__fact--err" : " eos-stg__fact--ok";

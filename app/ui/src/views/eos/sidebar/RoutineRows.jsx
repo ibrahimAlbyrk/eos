@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMenuDismiss } from "../menu/useMenuDismiss.js";
 import { refreshRoutines, undeleteRoutine, useRoutines } from "../../../state/eos/routinesStore.js";
-import { useInbox } from "../../../state/eos/inboxStore.js";
+import { useInbox, waitingByRoutine } from "../../../state/eos/inboxStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
 import { DevRunNote } from "../capabilities/parts.jsx";
 import { openLocation } from "../nav/eosNav.js";
@@ -143,7 +143,7 @@ function EmptyNote({ filter, list, onShow }) {
 // and a Run button.
 export function RoutineRows({ selectedId }) {
   const { list, listFailed } = useRoutines();
-  const byRoutine = useInbox().list?.counts.byRoutine ?? {};
+  const byRoutine = waitingByRoutine(useInbox().list);
   const devRun = useDevRunSeen();
   const [filter, setFilter] = useState(storedFilter);
   useEffect(() => { keepFilter(filter); }, [filter]);

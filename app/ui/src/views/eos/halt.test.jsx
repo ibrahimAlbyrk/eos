@@ -10,7 +10,7 @@ import { notify } from "../../lib/notify.js";
 import { EosMain } from "./EosMain.jsx";
 import { _resetEosNav, eosLocation, openLocation } from "./nav/eosNav.js";
 import { UnconfirmedRecipients } from "./routine/Unconfirmed.jsx";
-import { timeAt } from "./routine/words.js";
+import { sinceAt } from "./routine/words.js";
 import routines from "./gallery/sample/routines.json";
 import routinePaused from "./gallery/sample/routine-paused.json";
 import inbox from "./gallery/sample/inbox.json";
@@ -82,7 +82,7 @@ describe("the Eos is stopped band", () => {
     applyEosEvent("inbox:halt", { on: true, since: SINCE });
     html = draw();
     expect(html).toContain('</header><div class="eos-halt eos-halt--stopped" role="status">');
-    expect(html).toContain(`<strong>Eos is stopped since ${timeAt(SINCE)}.</strong> No routine runs and nothing is sent until you resume.</p><button type="button" class="eos-btn eos-btn--primary">Resume</button></div>`);
+    expect(html).toContain(`<strong>Eos is stopped since ${sinceAt(SINCE)}.</strong> No routine runs and nothing is sent until you resume.</p><button type="button" class="eos-btn eos-btn--primary">Resume</button></div>`);
     openLocation(`eos:/routines/${MAIL}`);
     expect(draw()).toContain(STOPPED);
 

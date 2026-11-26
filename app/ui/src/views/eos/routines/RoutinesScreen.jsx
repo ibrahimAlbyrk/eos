@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { refreshHome, useHome } from "../../../state/eos/homeStore.js";
-import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
+import { ensureInboxLoaded, useInbox, waitingByRoutine } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { LoadingRows } from "../capabilities/parts.jsx";
@@ -112,7 +112,7 @@ function Row({ row, now, hosted, shared }) {
 // sorted by any column, filtered by state, each with its Run button.
 export function RoutinesScreen() {
   const { list, listFailed } = useRoutines();
-  const byRoutine = useInbox().list?.counts.byRoutine ?? {};
+  const byRoutine = waitingByRoutine(useInbox().list);
   const { next } = useHome();
   const { hosted } = useRunSheet();
   const [filter, setFilter] = useState("active");

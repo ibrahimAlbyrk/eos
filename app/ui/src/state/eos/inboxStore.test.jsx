@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "./transport.js";
 import {
+  waitingByRoutine,
   _resetInbox, applyInboxChange, applyInboxDelivery, byNeedsOrder, ensureInboxLoaded, loadInboxItem, refreshInbox, resyncInbox, useInbox,
 } from "./inboxStore.js";
 import inbox from "../../views/eos/gallery/sample/inbox.json";
@@ -150,5 +151,16 @@ describe("inbox:delivery", () => {
     applyInboxDelivery({ id: "dl-9", runId: "rn-1", state: "sent" });
     expect(current().details).toEqual({});
     expect(t.get).not.toHaveBeenCalled();
+  });
+});
+
+describe("waitingByRoutine", () => {
+  it("leaves out what was put off for Later, as the badge does", () => {
+    const later = inbox.items.find((i) => i.state === "later");
+    const counts = waitingByRoutine(inbox);
+    expect(counts[later.routineId]).toBe(inbox.counts.byRoutine[later.routineId] - 1);
+    const open = inbox.items.filter((i) => i.state === "open" && i.routineId);
+    expect(Object.values(counts).reduce((a, b) => a + b, 0)).toBe(open.length);
+    expect(waitingByRoutine(null)).toEqual({});
   });
 });
