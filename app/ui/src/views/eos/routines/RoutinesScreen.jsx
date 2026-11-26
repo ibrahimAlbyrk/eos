@@ -13,7 +13,7 @@ import { RoutinesResting } from "./RoutinesResting.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
-import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, statusWords, usd } from "./tableWords.js";
+import { kindWord, lastWord, nextWord, routinesLead, rungWord, sharedRung, soonestLine, sortRows, statusWords, usd } from "./tableWords.js";
 
 const FILTERS = {
   active: { label: "Active", states: ["active", "draft"] },
@@ -35,7 +35,8 @@ const COLUMNS = [
 // What sits beside a routine's name: its freedom, and its kind when it is not
 // the usual standing one. Said once per row instead of as two columns that
 // repeat the same words down the table.
-const contextOf = (routine) => [routine.kind !== "standing" && kindWord(routine.kind), rungWord(routine.rung)].filter(Boolean).join(" · ");
+// The freedom most rows share is said once in the lead, so a row says only one that differs.
+const contextOf = (routine, shared) => [routine.kind !== "standing" && kindWord(routine.kind), routine.rung !== shared && rungWord(routine.rung)].filter(Boolean).join(" · ");
 
 const Dot = ({ tone }) => <span className={tone ? `eos-dot eos-dot--${tone}` : "eos-dot"} aria-hidden="true" />;
 
@@ -71,7 +72,7 @@ function SortHead({ column, sort, setSort }) {
   );
 }
 
-function Row({ row, now, hosted }) {
+function Row({ row, now, hosted, shared }) {
   const { routine } = row;
   const last = lastWord(routine.lastRun, now);
   const openPage = () => openLocation(`eos:/routines/${encodeURIComponent(routine.id)}`);
@@ -85,7 +86,7 @@ function Row({ row, now, hosted }) {
           <span className="eos-rtable__words">
             <span className="eos-rtable__head">
               <span className="eos-rtable__title">{routine.name}</span>
-              <span className="eos-rtable__ctx">{contextOf(routine)}</span>
+              {contextOf(routine, shared) && <span className="eos-rtable__ctx">{contextOf(routine, shared)}</span>}
             </span>
             {routine.summary && <span className="eos-rtable__summary">{routine.summary}</span>}
           </span>
@@ -133,6 +134,7 @@ export function RoutinesScreen() {
   // No routines at all: no filters to choose, just how one begins.
   const none = list !== null && list.length === 0;
   // Some routines, none of them active: a first step back instead of an empty tab.
+  const shared = sharedRung(rows);
   const resting = list !== null && list.length > 0 && filter === "active" && rows.length === 0;
   const failed = list === null && listFailed;
   return (
@@ -145,6 +147,7 @@ export function RoutinesScreen() {
           <header className="eos-routines__head">
             <p className="eos-lead">{rows.length > 0 ? routinesLead(rows) : FILTERS[filter].empty}</p>
             {rows.length === 0 && <p className="eos-lead__sub">{FILTERS[filter].text}</p>}
+            {shared && <p className="eos-rlead__now">{shared.line}</p>}
             {filter !== "active" && soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
           </header>
         )}
@@ -177,7 +180,7 @@ export function RoutinesScreen() {
                       </th>
                     </tr>
                   )}
-                  {sortRows(g.rows, sort.key, sort.dir).map((row) => <Row key={row.routine.id} row={row} now={now} hosted={hosted} />)}
+                  {sortRows(g.rows, sort.key, sort.dir).map((row) => <Row key={row.routine.id} row={row} now={now} hosted={hosted} shared={shared?.rung} />)}
                 </tbody>
               ))}
             </table>

@@ -30,7 +30,7 @@ beforeEach(async () => {
 afterEach(() => setEosTransport(null));
 
 describe("all routines", () => {
-  it("is a table of the active routines by name, each with what it waits on, its week's cost and its freedom", () => {
+  it("is a table of the active routines by name, each with what it waits on and its week's cost, the freedom they share said once", () => {
     const html = draw();
     expect(html).not.toContain("This part of Eos is not here yet.");
     expect(html).toContain('<h1 class="eos-title">Routines</h1>');
@@ -41,10 +41,11 @@ describe("all routines", () => {
     expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');
     expect(html).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="eos-rtable__sort">Routine<span aria-hidden="true"> ↑</span></button></th>');
     const pr = html.split("<tr>").find((row) => row.includes(">PR Review<"));
-    // What waits is said once, in its tone; the freedom sits by the name.
+    // What waits is said once, in its tone; the freedom they share once, in the lead.
     expect(pr).toContain('<td class="eos-rtable__line eos-rtable__line--active">3 waiting</td>');
     expect(pr).toContain("$2.84");
-    expect(pr).toContain('<span class="eos-rtable__ctx">Draft, I send</span>');
+    expect(html).toMatch(/<p class="eos-rlead__now">(All four|Three of them) draft for you to send\.<\/p>/);
+    expect(pr).not.toContain("eos-rtable__ctx");
     expect(html).not.toContain(">Kind<");
     expect(html).not.toContain(">Freedom<");
     expect(pr).toContain("Done");
