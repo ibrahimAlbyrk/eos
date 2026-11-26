@@ -55,7 +55,11 @@ import { AppSurface } from "../surface/AppSurface.jsx";
 // gallery opened, the rest as far before it as recorded: times read "20m ago",
 // never a year.
 const MIN = 60 * 1000;
-const shift = (row, by) => ({ ...row, createdAt: row.createdAt + by, updatedAt: row.updatedAt + by });
+// Each PR Review item names the run that asked it: the push is the working
+// run's (#470, review/470), the branch question the waiting run's (#468), and
+// only the review comes from the done run (#462), which ended before it.
+const ASKED_BY = { "perm:pa-7f3k1m9q": "rn-running01", "ib-3k9d2f7h1j5l": "rn-waiting01" };
+const shift = (row, by) => ({ ...row, runId: ASKED_BY[row.id] ?? row.runId, createdAt: row.createdAt + by, updatedAt: row.updatedAt + by });
 const newest = Math.max(...inboxSample.items.map((i) => i.createdAt));
 const by = Date.now() - 20 * MIN - newest;
 const inbox = { ...inboxSample, items: inboxSample.items.map((i) => shift(i, by)) };
@@ -71,10 +75,20 @@ const later = (value, ms) => {
 };
 const working = runsSample.find((d) => d.run.state === "running");
 const runsBy = Date.now() - 3 * MIN - working.run.startedAt;
-const runs = later(runsSample, runsBy);
+// The waiting run (#468) holds its branch question, the item that asked it.
+const heldBy = (detail) =>
+  detail.run.id === "rn-waiting01"
+    ? { ...detail, events: detail.events.map((e) => (e.kind === "held" ? { ...e, data: { ...e.data, itemId: "ib-3k9d2f7h1j5l" } } : e)) }
+    : detail;
+// PR Review's runs started one after another, not all at once: the waiting
+// run began before it asked its question (13:55), the finished ones earlier
+// today and yesterday, so none ends after the gallery's now. Minutes before
+// the working run started.
+const STARTED_BEFORE = { "rn-waiting01": 23, "rn-shown01": 190, "rn-trial01": 300, "rn-failed01": 24 * 60 + 40, "rn-cancelled01": 26 * 60 };
+const runs = runsSample.map((d) => later(heldBy(d), runsBy - (STARTED_BEFORE[d.run.id] ?? 0) * MIN));
 // The review waiting in Needs you was written by the done run: that run
 // ended a minute before its item arrived, in its page and in the Runs tab.
-const reviewed = inbox.items.find((i) => i.runId === runDetailSample.run.id);
+const reviewed = inbox.items.find((i) => i.runId === runDetailSample.run.id && i.kind === "draft");
 const doneBy = reviewed.createdAt - MIN - runDetailSample.run.endedAt;
 const runsPage = { ...runsPageSample, runs: runsPageSample.runs.map((r) => later(r, r.id === runDetailSample.run.id ? doneBy : runsBy)) };
 const runDetail = later(runDetailSample, doneBy);
@@ -92,16 +106,17 @@ const shiftedStatus = later(triggerStatusSample, signalsBy);
 const triggerStatus = { ...shiftedStatus, [routineDetail.routine.id]: onWeekdays(shiftedStatus[routineDetail.routine.id]) };
 const signals = later(signalsSample, signalsBy);
 
-// PR Review's week, so its page shows how it gets better.
+// PR Review's week, so its page shows how it gets better; its runs and what
+// they cost this week are the runs it lists.
 // Its recent runs are the runs the gallery holds for it, newest first, so
 // Right now shows the one working and the one waiting, and Recent runs
-// those with the week's finished ones.
-const RECENT = ["rn-running01", "rn-waiting01", "rn-shown01", "rn-trial01", "rn-failed01", "rn-cancelled01"];
-const prRuns = RECENT.map((id) => runs.find((d) => d.run.id === id).run);
+// those with the week's finished ones, #462's review among them.
+const RECENT = ["rn-running01", "rn-waiting01", runDetailSample.run.id, "rn-shown01", "rn-trial01", "rn-failed01", "rn-cancelled01"];
+const prRuns = RECENT.map((id) => [runDetail, ...runs].find((d) => d.run.id === id).run);
 const withStats = {
   ...routineDetail,
   runs: prRuns,
-  routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, 0.68, 0.79], runs7d: 7, cost7d: 2.1, setupUsd: 0.5 } },
+  routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, 0.68, 0.79], runs7d: prRuns.length, cost7d: Math.round(prRuns.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 100) / 100, setupUsd: 0.5 } },
 };
 
 // What the gallery's reads answer, by the path each store asks. The routines

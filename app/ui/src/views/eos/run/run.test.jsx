@@ -144,7 +144,7 @@ describe("the run view", () => {
     const waiting = await screen("waiting01");
     expect(states(waiting)).toEqual(["done", "done", "done", "current*", "todo"]);
     expect(waiting).toContain('<span class="eos-status eos-status--active">Waiting for you</span>');
-    expect(waiting).toContain('<p class="eos-run__sentence">The result waits for you in Needs you.</p>');
+    expect(waiting).toContain('<p class="eos-run__sentence">This run waits for you in Needs you.</p>');
     expect(waiting).toContain('<p class="eos-rlead__now eos-rlead__now--active" role="status">Nothing goes out until you answer.</p>');
     expect(waiting).toContain('<button type="button" class="eos-btn eos-btn--primary">Open it in Needs you</button>');
     expect(waiting).toContain("waits for you</span>");

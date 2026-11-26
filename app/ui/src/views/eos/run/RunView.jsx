@@ -45,7 +45,7 @@ export function runSentence({ run, input }) {
     case "queued": return item ? `Waiting to start on ${item}.` : "Waiting to start.";
     case "running": return item ? `Working on ${item}.` : "Working.";
     case "checking": return item ? `Checking the result for ${item}.` : "Checking the result.";
-    case "waiting_for_user": return "The result waits for you in Needs you.";
+    case "waiting_for_user": return "This run waits for you in Needs you.";
     case "delivering": return "Sending the result.";
     case "paused": return `Paused. ${reasonLine(run)}`;
     case "done": return run.headline ?? "Done.";
