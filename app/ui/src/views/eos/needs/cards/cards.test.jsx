@@ -147,6 +147,8 @@ describe("the other cards", () => {
     expect(proposal).toContain("<dt>Reaches</dt><dd>com.apple.iCal</dd>");
     const problem = await screen("capability_attention");
     expect(problem).toContain("macOS has not let it control the app it needs.");
+    expect(problem).toContain("Choose Automation.");
+    expect(problem).toContain("Come back here and choose Check again.");
     const offer = await screen("freedom_offer");
     expect(offer).toContain("<span>Draft, I send</span><span aria-hidden=\"true\"> → </span><strong>Send, then tell me</strong>");
     expect(offer).toContain("10 in a row went out as written.");

@@ -193,7 +193,9 @@
 .eos-needs-question__answer {
   width: 100%;
   box-sizing: border-box;
-  resize: vertical;
+  resize: none;
+  field-sizing: content;
+  min-height: 64px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -269,7 +271,7 @@
 .eos-result__para { margin: 0; max-width: 64ch; white-space: pre-wrap; }
 
 /* The aside: the run's account, each part a label, a hairline, its content. */
-.eos-needs-aside { flex: 1 1 300px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 36px; padding-top: 24px; }
+.eos-needs-aside { flex: 1 1 300px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 36px; padding-top: 8px; }
 .eos-needs-aside__part { display: flex; flex-direction: column; gap: 12px; }
 .eos-needs-aside__part > .eos-label + * { padding-top: 12px; border-top: 1px solid var(--line); }
 .eos-needs-aside__lead { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
@@ -383,3 +385,21 @@
 .eos-needs-sheet .eos-edit__finding--out .eos-result__place { color: var(--fg-dim2); }
 .eos-needs-sheet .eos-edit__revert { font-size: var(--text-sm); }
 .eos-needs-item__facts:empty { display: none; }
+
+/* Steps the user takes outside Eos: numbered on hairlines under their label. */
+.eos-needs-steps { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+.eos-needs-steps .eos-label { margin: 0; }
+.eos-needs-steps__list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.eos-needs-steps__list > li { display: flex; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: var(--text-base); line-height: 1.5; color: var(--fg); }
+.eos-needs-steps__n { flex: none; width: 20px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* A draft's wells grow with their words (no grip), from two lines up. */
+.eos-needs-sheet .eos-edit__text { resize: none; field-sizing: content; min-height: calc(2 * 1.55em + 24px); }
+/* Keep a finding: Eos's 9 px mark, hollow when left out, filled in the accent with its halo when kept. */
+.eos-needs-sheet .eos-edit__include input[type="checkbox"] {
+  appearance: none; flex: none; width: 9px; height: 9px; margin: 0 4px 0 0; box-sizing: border-box;
+  border: 1px solid var(--fg-dim2); border-radius: 50%; background: none; cursor: pointer;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease);
+}
+.eos-needs-sheet .eos-edit__include input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.eos-needs-sheet .eos-edit__include input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
