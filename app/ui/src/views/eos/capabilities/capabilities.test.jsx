@@ -48,9 +48,9 @@ describe("the Capabilities list", () => {
     expect(html).toContain('<h1 class="eos-title">Capabilities</h1>');
 
     const expected = {
-      GitHub: ["eos-cap-row__state eos-cap-row__state--warn\">Needs setup", "Eos has no GitHub client id to sign in with.", "Sign in"],
+      GitHub: ["eos-cap-row__state eos-cap-row__state--warn\">Needs setup", "Eos has no GitHub client id to sign in with.", "Set it up"],
       SMS: ["eos-cap-row__state eos-cap-row__state--ok\">Ready", null, null],
-      Linear: ["eos-cap-row__state eos-cap-row__state--warn\">Needs sign-in", "The service no longer accepts its sign-in.", "Check now"],
+      Linear: ["eos-cap-row__state eos-cap-row__state--warn\">Needs sign-in", "The service no longer accepts its sign-in.", "Sign in again"],
       Weather: ["eos-cap-row__state eos-cap-row__state--warn\">Slow", "The service is limiting how often Eos may ask.", "Check now"],
       "RSS feeds": ["eos-cap-row__state eos-cap-row__state--err\">Broken", "Its answers no longer have the shape it promised.", "Check now"],
       Notify: ["eos-cap-row__state\">Disabled", "You turned it off.", "Enable"],
@@ -113,7 +113,7 @@ describe("a capability's page", () => {
     return at(`eos:/capabilities/${id}`);
   }
 
-  it("shows what it does and reaches, its sign-in as set or missing, and Sign in for GitHub", async () => {
+  it("shows what it does and reaches, its sign-in as set or missing, and with no client id how to set one, never Sign in", async () => {
     const html = await page("github");
     expect(html).toContain('<button type="button" class="eos-crumb">Capabilities</button>');
     expect(html).toContain('<h1 class="eos-title">GitHub</h1>');
@@ -126,14 +126,18 @@ describe("a capability's page", () => {
     expect(html).toContain('<dt>Websites</dt><dd><span class="eos-cap-place">api.github.com</span></dd>');
     expect(html).toContain('<h2 class="eos-label">Sign-in</h2>');
     expect(html).toContain('<span class="eos-cap-fact__name">GitHub sign-in</span><span class="eos-cap-fact__value eos-cap-fact__value--warn">Missing</span>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Sign in</button>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Check now</button>');
+    expect(html).toContain('<p class="eos-fact">Set github.clientId in Eos&#x27;s config file, then check again.</p>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
+    expect(html).not.toContain(">Sign in<");
+    expect(html.match(/>Check now</g)).toHaveLength(1);
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Disable</button>');
     expect(html).not.toContain(">Remove<");
     expect(html).toContain("Not called yet.");
   });
 
   it("offers the app's own prompt for a secret, never a field on the page, and none for a sign-in", async () => {
+    const working = { ...byId["linear-issues"], state: "ready", stateCode: undefined };
+    setEosTransport(fixtureTransport(reads([working])));
     const html = await page("linear-issues");
     expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">Set</span>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Replace Linear API key</button>');
@@ -143,6 +147,7 @@ describe("a capability's page", () => {
     setEosTransport(fixtureTransport(reads([missing])));
     const asked = await page("linear-issues");
     expect(asked).toContain('<button type="button" class="eos-btn eos-btn--primary">Enter Linear API key</button>');
+    expect(asked.match(/>Enter Linear API key</g)).toHaveLength(1);
     expect(asked).not.toContain(">Forget Linear API key<");
     expect(await page("github")).not.toContain(">Enter GitHub sign-in<");
   });
@@ -266,7 +271,8 @@ describe("a capability's page", () => {
     html = await page("linear-issues");
     expect(html).toContain("Needs sign-in: the service no longer accepts its sign-in.");
     expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">Set</span>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Replace Linear API key</button>');
+    expect(html.match(/>Replace Linear API key</g)).toHaveLength(1);
 
     html = await page("notify");
     expect(html).toContain("Disabled: you turned it off.");

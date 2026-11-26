@@ -1,5 +1,6 @@
 import { checkCapability, setCapabilityEnabled, useCapabilities } from "../../../state/eos/capabilitiesStore.js";
 import { startSignIn } from "../../../state/eos/capabilitySignInStore.js";
+import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { fixLabel, stateLine, stateTone, stateWord } from "./words.js";
 
 // The core did not answer the last read; what was read stays (08 G35).
@@ -26,10 +27,14 @@ export function CapabilityState({ row }) {
   );
 }
 
+const openPage = (id) => openLocation(buildLocation({ screen: "capability", capabilityId: id }));
 const RUN_FIX = {
   "sign-in": (id) => startSignIn(id),
   enable: (id) => setCapabilityEnabled(id, true),
   check: (id) => checkCapability(id),
+  // The step happens on its page: a key to enter, a client id to set.
+  "open-setup": openPage,
+  "open-key": openPage,
 };
 
 export function FixButton({ row, fix, primary = false }) {

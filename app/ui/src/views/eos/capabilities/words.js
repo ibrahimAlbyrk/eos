@@ -92,19 +92,52 @@ export const signsIn = (row) => row.id === "github" || row.id === "slack";
 // What the button that signs in says: Slack is connected.
 export const signInLabel = (row) => (row.id === "slack" ? "Connect" : "Sign in");
 
-// The one action that fixes a bad state: sign in, enable, or check again
-// once the cause is gone. None for a capability that works.
-export function fixFor(row) {
+// The one action that fixes a bad state, said as what it does: sign in,
+// enable, enter a key, check again once the cause is gone. A step that
+// happens on the capability's page (a key, a client id) is, in the list,
+// "open" with the step's words. None for a capability that works.
+export function fixFor(row, on = "list") {
   if (row.state === "ready" || row.state === "available") return null;
   if (row.state === "disabled") return "enable";
+  const code = row.stateCode ?? "";
+  if (code === "client_id_missing") return on === "page" ? "check" : "open-setup";
   if (signsIn(row) && (row.state === "needs_sign_in" || row.state === "needs_setup")) return "sign-in";
+  const keyed = row.state === "needs_sign_in" || code.startsWith("secret_missing:");
+  if (keyed) {
+    if (on === "list") return "open-key";
+    return (row.secrets ?? []).length > 0 ? "key" : "check";
+  }
+  if (row.state === "needs_setup") return on === "page" ? "check" : "open-setup";
   return "check";
 }
 
-export const FIX_LABELS = { "sign-in": "Sign in", enable: "Enable", check: "Check now" };
+export const FIX_LABELS = { "sign-in": "Sign in", enable: "Enable", check: "Check now", "open-setup": "Set it up", "open-key": "Sign in again" };
 
-// The fix's label for `row`: Slack is connected, not signed in to.
-export const fixLabel = (row, fix) => (fix === "sign-in" ? signInLabel(row) : FIX_LABELS[fix]);
+// The key a sign-in that is no longer accepted needs again: the missing one,
+// else the first.
+export function keyFor(row) {
+  const secrets = row.secrets ?? [];
+  const named = (row.stateCode ?? "").startsWith("secret_missing:") ? row.stateCode.slice("secret_missing:".length) : null;
+  return secrets.find((s) => s.name === named) ?? secrets.find((s) => !s.set) ?? secrets[0] ?? null;
+}
+
+// The fix's label for `row`: Slack is connected, not signed in to; a key is
+// entered or replaced by its own name.
+export function fixLabel(row, fix) {
+  if (fix === "sign-in") return signInLabel(row);
+  if (fix === "key") {
+    const key = keyFor(row);
+    return key?.set ? `Replace ${key.label}` : `Enter ${key?.label ?? "its key"}`;
+  }
+  return FIX_LABELS[fix];
+}
+
+// What the user does before checking again, where only they can: a client id
+// lives in Eos's config file.
+export function setupStep(row) {
+  if (row.stateCode === "client_id_missing") return `Set ${row.id}.clientId in Eos's config file, then check again.`;
+  return "";
+}
 
 // Each form's glyph (16 viewBox), drawn in its ring: a built-in's box, a
 // script's prompt, a server's plug, a plugin's piece, a skill's spark.

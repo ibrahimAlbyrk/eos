@@ -12,7 +12,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { DevRunNote, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { CLASSES, fixFor, fixLabel, madeOf, OUTCOMES, signInLabel, signsIn, stateLine, stateTone, stateWord, VERSION_STATUSES, WORKS } from "./words.js";
+import { CLASSES, fixFor, fixLabel, keyFor, setupStep, madeOf, OUTCOMES, signInLabel, signsIn, stateLine, stateTone, stateWord, VERSION_STATUSES, WORKS } from "./words.js";
 
 const LIST = "eos:/capabilities";
 const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5";
@@ -46,31 +46,35 @@ function nowLine(detail, routineNames) {
 }
 
 const RUN_FIX = {
-  "sign-in": (id) => startSignIn(id),
-  enable: (id) => setCapabilityEnabled(id, true),
-  check: (id) => checkCapability(id),
+  "sign-in": (detail) => startSignIn(detail.id),
+  enable: (detail) => setCapabilityEnabled(detail.id, true),
+  check: (detail) => checkCapability(detail.id),
+  key: (detail) => enterSecret(detail.id, keyFor(detail)?.name),
 };
 
 // The lead, as an object's page leads: how it is made and where it works as
 // a label, what it does, where it stands now (its tone's mark in the margin
 // when it needs a look), who it is signed in as, and the one thing to do.
 function Lead({ detail, names }) {
-  const fix = fixFor(detail);
+  const fix = fixFor(detail, "page");
+  const step = setupStep(detail);
   const tone = stateTone(detail);
   const marked = tone === "warn" || tone === "err";
   const label = [...madeOf(detail), detail.version && `Version ${detail.version}`, WORKS[detail.works] ?? detail.works].filter(Boolean).join(" · ");
   const account = detail.accountLabel && (detail.id === "slack" ? `Connected to ${detail.accountLabel}` : `Signed in as ${detail.accountLabel}`);
   const signedIn = signsIn(detail) && detail.secrets.some((s) => s.set);
-  const again = signsIn(detail) && fix !== "sign-in" && detail.state !== "available";
+  // No sign-in can start without a client id, so none is offered then.
+  const again = signsIn(detail) && fix !== "sign-in" && detail.state !== "available" && detail.stateCode !== "client_id_missing";
   let primary = null;
   if (detail.state === "available") primary = <button type="button" className="eos-btn eos-btn--primary" onClick={() => void installCapabilityHere(detail.id)}>Install on this Mac</button>;
-  else if (fix) primary = <button type="button" className="eos-btn eos-btn--primary" onClick={() => void RUN_FIX[fix](detail.id)}>{fixLabel(detail, fix)}</button>;
+  else if (fix) primary = <button type="button" className="eos-btn eos-btn--primary" onClick={() => void RUN_FIX[fix](detail)}>{fixLabel(detail, fix)}</button>;
   return (
     <header className="eos-rlead eos-cap-lead">
       <p className="eos-label">{label}</p>
       <p className="eos-lead">{detail.summary}</p>
       <p className={marked ? `eos-rlead__now eos-rlead__now--${tone}` : "eos-rlead__now"}>{nowLine(detail, names)}</p>
       {account && <Fact tone={detail.state === "ready" ? "ok" : undefined}>{account}</Fact>}
+      {step && <Fact>{step}</Fact>}
       {(primary || again || signedIn) && (
         <div className="eos-rlead__acts">
           {primary}
@@ -84,7 +88,7 @@ function Lead({ detail, names }) {
 
 // The header's quiet moves: those the lead does not already offer.
 function HeaderActions({ detail, onRemove }) {
-  const fix = fixFor(detail);
+  const fix = fixFor(detail, "page");
   const enabled = detail.state !== "disabled";
   if (detail.state === "available") return <button type="button" className="eos-btn eos-btn--quiet" onClick={onRemove}>Remove</button>;
   return (
@@ -181,6 +185,8 @@ function UsedBy({ detail, names }) {
 // a sign-in's secret is kept by signing in.
 function Secrets({ detail }) {
   const typed = !signsIn(detail);
+  // The key the lead asks for is replaced there, not twice.
+  const led = fixFor(detail, "page") === "key" ? keyFor(detail)?.name : null;
   return (
     <ul className="eos-cap-facts">
       {detail.secrets.map((s) => (
@@ -191,9 +197,11 @@ function Secrets({ detail }) {
           </span>
           {typed && (
             <span className="eos-cap-fact__acts">
-              <button type="button" className={s.set ? "eos-btn eos-btn--quiet" : "eos-btn eos-btn--primary"} onClick={() => void enterSecret(detail.id, s.name)}>
-                {s.set ? `Replace ${s.label}` : `Enter ${s.label}`}
-              </button>
+              {s.name !== led && (
+                <button type="button" className={s.set ? "eos-btn eos-btn--quiet" : "eos-btn eos-btn--primary"} onClick={() => void enterSecret(detail.id, s.name)}>
+                  {s.set ? `Replace ${s.label}` : `Enter ${s.label}`}
+                </button>
+              )}
               {s.set && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void forgetSecret(detail.id, s.name)}>Forget {s.label}</button>}
             </span>
           )}
