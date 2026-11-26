@@ -97,7 +97,7 @@
       }
     ],
     "runs7d": 7,
-    "activeRuns": 1,
+    "activeRuns": 0,
     "triggerLine": "Every day at 08:00",
     "stats": {
       "sentUnedited7d": 0.9,

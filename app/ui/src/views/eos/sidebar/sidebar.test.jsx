@@ -73,7 +73,7 @@ describe("the routine rows", () => {
     const expected = {
       "PR Review": ["eos-side-dot--active", '<span class="eos-side-line eos-side-line--active">3 waiting</span>'],
       // Its one item was put off for Later: nothing of it waits now.
-      "Morning Paper": ["eos-side-dot--ok", '<span class="eos-side-line">Running</span>'],
+      "Morning Paper": ["eos-side-dot--ok", '<span class="eos-side-line">Every day at 08:00</span>'],
       "Mail Triage": ["eos-side-dot--warn", '<span class="eos-side-line eos-side-line--warn">Paused, 1 waiting</span>'],
       "Build Watch": ["eos-side-dot--ok", '<span class="eos-side-line">Every 30 minutes</span>'],
       "Release Notes": ['class="eos-side-dot"', '<span class="eos-side-line">Being made</span>'],
@@ -137,7 +137,7 @@ describe("the routine rows", () => {
   it("say a running routine, a failed last run and a routine run only by hand in words", async () => {
     const failed = { ...byName["Mail Triage"], state: "active" };
     const byHand = { ...byName["Build Watch"], triggerLine: undefined };
-    await load({ [ROUTES.routines]: [failed, byHand, byName["Morning Paper"]], [ROUTES.inbox]: { ...inbox, counts: { ...inbox.counts, byRoutine: {} } } });
+    await load({ [ROUTES.routines]: [failed, byHand, { ...byName["Morning Paper"], activeRuns: 1 }], [ROUTES.inbox]: { ...inbox, counts: { ...inbox.counts, byRoutine: {} } } });
     const html = draw();
     expect(rowOf(html, "Morning Paper")).toContain('<span class="eos-side-dot eos-side-dot--ok" aria-hidden="true"></span>');
     expect(rowOf(html, "Morning Paper")).toContain('<span class="eos-side-line">Running</span>');
