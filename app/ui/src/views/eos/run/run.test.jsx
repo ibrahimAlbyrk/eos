@@ -188,10 +188,13 @@ describe("the run view", () => {
 
     const paused = await screen("paused01");
     expect(paused).toContain('<span class="eos-status eos-status--warn">Paused</span>');
-    expect(paused).toContain("Paused. Today&#x27;s spending limit was reached.");
+    expect(paused).toContain("Paused. It spent all the money one run may spend.");
     expect(states(paused)).toEqual(["done", "paused*", "todo", "todo", "todo"]);
     expect(paused).toContain(">Stop</button>");
     expect(paused).toContain('<span class="eos-team-card__side">Sonnet 5.5 · resting</span>');
+    // Paused at its limit, the way on is to raise it; a run that has not ended never runs again.
+    expect(paused).toContain(">Raise the limit</button>");
+    expect(paused).not.toContain(">Run again</button>");
   });
 
   it("ends on its routine's other runs, without itself, and the way to every run", async () => {

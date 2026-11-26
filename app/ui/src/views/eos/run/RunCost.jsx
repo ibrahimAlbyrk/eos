@@ -4,10 +4,14 @@ import { duration, hasEnded } from "./words.js";
 // What the run has cost and taken so far, against what a run of its routine
 // usually costs and takes (D7: the run's own cost and working time): two
 // figures side by side, the usual under each.
+// A figure in the aside's 20 px mono, kept to one line: under a minute is
+// said short.
+const figure = (ms) => (ms >= 60_000 ? duration(ms) : ms > 0 ? "< 1 min" : "0 min");
+
 export function RunCost({ run, usual }) {
   const ended = hasEnded(run);
   const figures = [
-    ["Time", duration(run.workMs), usual && duration(usual.ms)],
+    ["Time", figure(run.workMs ?? 0), usual && duration(usual.ms)],
     ["Cost", fmtUsd(run.costUsd), usual && fmtUsd(usual.usd)],
   ];
   return (

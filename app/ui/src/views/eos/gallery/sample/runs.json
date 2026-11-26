@@ -551,7 +551,7 @@
       "origin": "hand",
       "state": "paused",
       "station": "work",
-      "reason": "day_cap",
+      "reason": "budget_run",
       "itemTitle": "#463 Split the shop scene",
       "needsUser": false,
       "costUsd": 0.18,

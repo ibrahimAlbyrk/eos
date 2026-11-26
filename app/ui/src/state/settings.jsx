@@ -195,3 +195,10 @@ export function useSettings() {
   if (!c) throw new Error("useSettings outside SettingsProvider");
   return c;
 }
+
+// Opens Settings at a pane, from a leaf that may draw outside the provider
+// (tests, the gallery): there it does nothing.
+export function useOpenSettings() {
+  const c = useContext(SettingsContext);
+  return c?.openSettings ?? (() => {});
+}

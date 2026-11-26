@@ -103,7 +103,7 @@
 
 /* Tell the team follows the team, not the window's foot, and stays in
    view while a long team scrolls. */
-.eos-run__tell { position: sticky; bottom: 16px; z-index: 1; margin-top: -16px; }
+.eos-run__tell { position: relative; z-index: 1; }
 
 .eos-run-aside { flex: 1 1 280px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; gap: 40px; }
 .eos-run-aside__part { display: flex; flex-direction: column; gap: 12px; }

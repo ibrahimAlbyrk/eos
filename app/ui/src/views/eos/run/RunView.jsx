@@ -18,6 +18,7 @@ import { RunGone, RunLead, RunLeadGhost } from "./RunLead.jsx";
 import { RunTook } from "./RunTook.jsx";
 import { TeamCard } from "./TeamCard.jsx";
 import { TellTeam } from "./TellTeam.jsx";
+import { useOpenSettings } from "../../../state/settings.jsx";
 import { hasEnded, isShownOnly, itemLine, reasonLine, stateChip } from "./words.js";
 
 // The user may tell the team something while it works, checks or waits for
@@ -90,6 +91,26 @@ function ShownResult({ detail, result }) {
   );
 }
 
+// Paused at a limit, the way on is to raise it, in Settings › Eos.
+const LIMITS = new Set(["day_cap", "budget_run", "budget_time"]);
+function RaiseLimit({ run }) {
+  const openSettings = useOpenSettings();
+  return (
+    <button type="button" className="eos-btn eos-btn--primary" onClick={() => openSettings("eos")}>
+      {run.reason === "day_cap" ? "Raise today's limit" : "Raise the limit"}
+    </button>
+  );
+}
+
+// The one act the lead offers: Run again once it failed, the limit's way on
+// while it is paused at one.
+function leadAct(detail) {
+  const { run } = detail;
+  if (run.state === "failed") return <RunAgain detail={detail} primary />;
+  if (run.state === "paused" && LIMITS.has(run.reason)) return <RaiseLimit run={run} />;
+  return null;
+}
+
 const teamCount = (n) => (n === 1 ? "one agent" : `${n} agents`);
 
 function RunBody({ detail, options, result, lines, devRun, now, routineName }) {
@@ -98,7 +119,7 @@ function RunBody({ detail, options, result, lines, devRun, now, routineName }) {
   return (
     <div className="eos-body eos-run">
       {devRun && <DevRunNote />}
-      <RunLead detail={detail} sentence={runSentence(detail)} now={now} act={run.state === "failed" ? <RunAgain detail={detail} primary /> : null} />
+      <RunLead detail={detail} sentence={runSentence(detail)} now={now} act={leadAct(detail)} />
       <div className="eos-run__columns">
         <section className="eos-run__main" aria-label="The run">
           {run.state === "done" && shownOnly && <ShownResult detail={detail} result={result} />}
@@ -174,8 +195,8 @@ export function RunView({ id }) {
                 {stopping[id] ? "Stopping…" : "Stop"}
               </button>
             )}
-            {/* A failed run offers Run again beside what went wrong. */}
-            {run.state !== "failed" && <RunAgain detail={detail} />}
+            {/* Only a run that ended runs again; a failed one offers it beside what went wrong. */}
+            {hasEnded(run) && run.state !== "failed" && <RunAgain detail={detail} />}
           </>
         )}
       </EosHeader>
