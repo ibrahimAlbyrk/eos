@@ -58,9 +58,15 @@ function DeletedRow({ routine }) {
   );
 }
 
+// The row's slot holds a short state; a trigger said at length ("When a pull
+// request opens") is too long for it, so it says only that it waits for one.
+const SLOT = 20;
+
 function RoutineRow({ routine, waiting, selected }) {
   if (routine.state === "deleted") return <DeletedRow routine={routine} />;
-  const { tone, line } = routineStatus(routine, waiting);
+  const status = routineStatus(routine, waiting);
+  const { tone } = status;
+  const line = status.line.length > SLOT && status.line === routine.triggerLine ? "On its trigger" : status.line;
   return (
     <li className="eos-side-routine">
       <button
