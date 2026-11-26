@@ -33,7 +33,7 @@ export function homeRuns(now) {
     run("rn-h5", PR, now - 64 * MIN, "waiting_for_user", { itemTitle: "#482 Fix pooled particle leak", headline: "Review ready for #482." }),
     run("rn-h4", PR, now - 142 * MIN, "waiting_for_user", { itemTitle: "#481 Shop carousel snaps", headline: "Review ready for #481." }),
     run("rn-h3", BUILD, now - 190 * MIN, "done", { headline: "The nightly build passed on main." }),
-    run("rn-h2", PAPER, midnight + 300 * MIN, "done", { headline: "Issue 41 is ready. Nine stories, two from sources you starred." }),
+    run("rn-h2", PAPER, midnight + 300 * MIN, "done", { headline: "Issue 3 is ready. Nine stories, two from sources you starred." }),
     run("rn-h1", PR, midnight + 221 * MIN, "done", { headline: "Approved #479 and posted it." }),
     run("rn-h0", MAIL, midnight + 130 * MIN, "done", { headline: "Sorted 23 mails. Two from the publisher are summarised." }),
   ];
