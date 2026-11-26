@@ -181,3 +181,26 @@
 /* No capabilities yet: the greeting, its one act, then how one comes. */
 .eos-caps-first > .eos-rlead__acts { margin-top: 24px; }
 .eos-caps-first > .eos-ways { margin-top: 56px; }
+
+/* One action, said as a statement: its mark in the margin, the action at 17,
+   what its class means under it. */
+.eos-cap-lone { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 20px 0 22px; border-bottom: 1px solid var(--line); }
+.eos-cap-lone::before { content: ""; position: absolute; left: -23px; top: 28px; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
+.eos-cap-lone--acts::before { background: var(--fg-dim2); }
+.eos-cap-lone--speaks::before { border-color: var(--fg-mid); background: var(--fg-mid); }
+.eos-cap-lone--final::before { border-color: var(--warn); background: var(--warn); }
+.eos-cap-lone p { margin: 0; }
+.eos-cap-lone__name { font-size: var(--text-xl); font-weight: 500; line-height: 1.35; color: var(--fg-strong); overflow-wrap: anywhere; }
+.eos-cap-lone__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-cap-lone__class { color: var(--fg); }
+.eos-cap-lone--final .eos-cap-lone__class { color: var(--warn); }
+.eos-cap-lone__undo { font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* Nothing uses it: the one next step, as words with an arrow that moves. */
+.eos-cap-unused { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.eos-cap-next { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); color: var(--fg); cursor: pointer; }
+.eos-cap-next span { transition: transform 160ms var(--ease); }
+.eos-cap-next:hover { color: var(--fg-strong); }
+.eos-cap-next:hover span, .eos-cap-next:focus-visible span { transform: translateX(3px); }
+.eos-cap-next:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .eos-cap-next span { transition: none; } }

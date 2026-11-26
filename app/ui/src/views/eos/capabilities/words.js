@@ -65,6 +65,16 @@ export const CLASSES = {
   irreversible: "Cannot be taken back, or costs money",
 };
 
+// What a class means for whoever it reaches, said under a capability's one
+// action, where a list of one would say too little.
+export const CLASS_MEANING = {
+  read: "It reads, and changes nothing.",
+  write_local: "What it changes stays on this Mac.",
+  tell_user: "It reaches only you, never anyone else.",
+  speak: "It speaks for you to other people, so what it sends waits for you until a routine's Freedom lets it go.",
+  irreversible: "What it does cannot be taken back, or it costs money.",
+};
+
 export const VERSION_STATUSES = { proposed: "Proposed", installed: "Kept", retired: "Retired", rejected: "Turned down" };
 
 // Why a call failed, by the failure kind the core names, where the item's

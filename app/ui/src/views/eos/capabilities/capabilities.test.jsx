@@ -229,7 +229,13 @@ describe("a capability's page", () => {
 
   it("shows a working capability's settings, versions and recent calls, with Remove", async () => {
     const html = await page("sms-messages");
-    expect(html).toContain("Ready. No routine uses it yet.");
+    // Its last call worked, so where it stands says so; its one action is a statement, not a list of one.
+    expect(html).toMatch(/Ready\. No routine uses it yet; it last worked [^<]+ ago\./);
+    expect(html).toContain('<section class="eos-cap-part" aria-label="What it does">');
+    expect(html).toContain('<span class="eos-cap-lone__class">Tells you</span> · It reaches only you, never anyone else.');
+    expect(html).not.toContain("eos-cap-acts");
+    // Nothing uses it, so Used by offers the one next step.
+    expect(html).toContain('<p class="eos-cap-quiet">No routine uses it yet.</p><button type="button" class="eos-cap-next">Make a routine with it');
     expect(html).toContain('<dt>Apps</dt><dd><span class="eos-cap-place">com.apple.MobileSMS</span></dd>');
     expect(html).toContain('<span>Your phone number</span><input type="tel" placeholder="Not set" value="+15550100"/>');
     expect(html).toContain('<span class="eos-cap-fact__mono">1.0.1</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">In use · ');

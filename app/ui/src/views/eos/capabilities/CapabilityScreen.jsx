@@ -12,7 +12,7 @@ import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { DevRunNote, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
-import { CLASSES, fixFor, fixLabel, keyFor, setupStep, madeOf, OUTCOMES, signInLabel, signsIn, stateLine, stateTone, stateWord, VERSION_STATUSES, WORKS } from "./words.js";
+import { CLASS_MEANING, CLASSES, fixFor, fixLabel, keyFor, setupStep, madeOf, OUTCOMES, signInLabel, signsIn, stateLine, stateTone, stateWord, VERSION_STATUSES, WORKS } from "./words.js";
 
 const LIST = "eos:/capabilities";
 const TRASH_ICON = "M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5";
@@ -35,7 +35,10 @@ function nowLine(detail, routineNames) {
   if (detail.state === "ready") {
     const ids = detail.usedBy ?? [];
     const names = ids.map((id) => routineNames[id]).filter(Boolean);
-    if (ids.length === 0) return "Ready. No routine uses it yet.";
+    if (ids.length === 0) {
+      const last = detail.recentCalls?.[0];
+      return last?.outcome === "ok" ? `Ready. No routine uses it yet; it last worked ${fmtTimeAgo(last.at)}.` : "Ready. No routine uses it yet.";
+    }
     return names.length === ids.length ? `Ready, and ${names.join(", ")} ${names.length === 1 ? "uses" : "use"} it.` : "Ready, and in use.";
   }
   const why = stateLine(detail);
@@ -129,6 +132,22 @@ function Actions({ actions }) {
   );
 }
 
+// A capability that can do one thing says it as a statement, with what its
+// class means, rather than as a list of one.
+function LoneAction({ action, actions }) {
+  const mark = ACT_MARKS[action.class];
+  return (
+    <div className={mark ? `eos-cap-lone eos-cap-lone--${mark}` : "eos-cap-lone"}>
+      <p className="eos-cap-lone__name">{action.summary || action.name}</p>
+      <p className="eos-cap-lone__line">
+        <span className="eos-cap-lone__class">{CLASSES[action.class] ?? action.class}</span>
+        {CLASS_MEANING[action.class] && <> · {CLASS_MEANING[action.class]}</>}
+      </p>
+      {action.undo && <p className="eos-cap-lone__undo">{undoWords(actions, action.undo)} takes it back.</p>}
+    </div>
+  );
+}
+
 function Reach({ reach }) {
   const parts = [["Websites", reach.hosts], ["Apps", reach.apps], ["Files", reach.files]].filter(([, items]) => items.length > 0);
   if (parts.length === 0) return <p className="eos-cap-quiet">Nothing outside Eos.</p>;
@@ -168,7 +187,20 @@ function Calls({ calls }) {
 // Who uses it: each routine by name, opening it; a count until names are read.
 function UsedBy({ detail, names }) {
   const ids = detail.usedBy ?? [];
-  if (ids.length === 0) return <p className="eos-cap-quiet">No routine uses it yet.</p>;
+  if (ids.length === 0) {
+    // The one next step for a thing nothing uses: a routine that does.
+    const say = `Use ${detail.name} to `;
+    return (
+      <div className="eos-cap-unused">
+        <p className="eos-cap-quiet">No routine uses it yet.</p>
+        {detail.state === "ready" && (
+          <button type="button" className="eos-cap-next" onClick={() => openLocation(buildLocation({ screen: "new-routine", say }))}>
+            Make a routine with it <span aria-hidden="true">→</span>
+          </button>
+        )}
+      </div>
+    );
+  }
   if (!ids.every((id) => names[id])) return <p className="eos-cap-quiet">{ids.length === 1 ? "One routine" : `${ids.length} routines`}</p>;
   return (
     <ul className="eos-cap-facts">
@@ -314,9 +346,13 @@ function Detail({ detail, names }) {
       <Lead detail={detail} names={names} />
       <div className="eos-cap-cols">
         <div className="eos-cap-main">
-          <Part label="What it can do" aside={detail.actions.length || undefined}>
-            {detail.actions.length ? <Actions actions={detail.actions} /> : <p className="eos-cap-quiet">No actions.</p>}
-          </Part>
+          {detail.actions.length === 1 ? (
+            <Part label="What it does"><LoneAction action={detail.actions[0]} actions={detail.actions} /></Part>
+          ) : (
+            <Part label="What it can do" aside={detail.actions.length || undefined}>
+              {detail.actions.length ? <Actions actions={detail.actions} /> : <p className="eos-cap-quiet">No actions.</p>}
+            </Part>
+          )}
           <Part label="What it reaches"><Reach reach={detail.reach} /></Part>
           <Part label="Recent calls" aside={detail.recentCalls.length || undefined}>
             {detail.recentCalls.length ? <Calls calls={detail.recentCalls} /> : <p className="eos-cap-quiet">Not called yet.</p>}
@@ -374,7 +410,7 @@ export function CapabilityScreen({ id }) {
   else body = <Ghost />;
 
   return (
-    <main className="eos-screen eos-screen--wide">
+    <main className="eos-screen">
       <EosHeader trail={[{ label: "Capabilities", location: LIST }, { label: name }]}>
         {detail && <HeaderActions detail={detail} onRemove={() => setRemoving(true)} />}
       </EosHeader>
