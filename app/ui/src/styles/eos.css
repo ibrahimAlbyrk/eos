@@ -668,8 +668,10 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-ring--warn { border-color: color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); }
 .eos-ring--err { border-color: color-mix(in srgb, var(--err) 60%, transparent); color: var(--err); }
 /* Where a thing stands, under its lead: the mark, the words, an action. */
-.eos-fact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
-.eos-fact::before { content: ""; flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); margin-right: 2px; }
+/* The mark hangs before the first line, out of the flow, so words too long
+   for one line wrap beside it instead of dropping under it. */
+.eos-fact { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0; padding-left: 21px; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); }
+.eos-fact::before { content: ""; position: absolute; left: 0; top: calc((1.5em - 9px) / 2); width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
 .eos-fact--done::before { background: var(--fg-dim2); }
 .eos-fact--ok::before { border-color: var(--ok); background: var(--ok); }
 .eos-fact--active::before { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
