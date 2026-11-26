@@ -8,6 +8,7 @@ import { callSurfaceApp, pressId, promoteApp } from "../../../state/eos/surfaces
 import { useSettingOr } from "../../../state/settings.jsx";
 import { AppFrame } from "../../../genui/apps/AppFrame.jsx";
 import { Loading, LoadFailed } from "../capabilities/parts.jsx";
+import { FailedLead } from "../frame.jsx";
 import { ConfirmBelow } from "../needs/SurfaceCard.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { PinButton } from "./PinButton.jsx";
@@ -133,7 +134,10 @@ export function AppSurface({ surfaceId, inPanel = false }) {
 
   const page = pages[surfaceId];
   if (page?.failed === "gone") return <p className="eos-note">This App is no longer here.</p>;
-  if (page?.failed === "error") return <LoadFailed what="this App" retry={() => void loadPage(surfaceId)} />;
+  if (page?.failed === "error") {
+    const retry = () => void loadPage(surfaceId);
+    return inPanel ? <LoadFailed what="this App" retry={retry} /> : <FailedLead what="this App" retry={retry} back={{ label: "Back to Home", location: "eos:/" }} />;
+  }
   if (!surface) return <Loading blocks={3} />;
   const routine = routines?.find((r) => r.id === surface.routineId);
   const version = n != null ? versions[versionKey(surfaceId, n)] : null;

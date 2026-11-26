@@ -3,18 +3,20 @@ import { refreshHome, useHome } from "../../../state/eos/homeStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { ensureRoutinesLoaded, refreshRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
-import { LoadingRows, LoadFailed } from "../capabilities/parts.jsx";
+import { LoadingRows } from "../capabilities/parts.jsx";
+import { FailedLead } from "../frame.jsx";
 import { ComingUp } from "../home/ComingUp.jsx";
 import { comingUp } from "../home/homeWords.js";
 import { RoutineGlyph } from "./RoutineGlyph.jsx";
 import { RoutinesFirst } from "./RoutinesFirst.jsx";
+import { RoutinesResting } from "./RoutinesResting.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { routineStatus } from "../sidebar/RoutineRows.jsx";
 import { kindWord, lastWord, nextWord, routinesLead, rungWord, soonestLine, sortRows, statusWords, usd } from "./tableWords.js";
 
 const FILTERS = {
-  active: { label: "Active", states: ["active", "draft"], empty: "Nothing active.", text: "Each of your routines is paused or archived. Resume one to have it run again." },
+  active: { label: "Active", states: ["active", "draft"] },
   paused: { label: "Paused", states: ["paused"], empty: "No paused routines.", text: "A routine you pause waits here, with what it learned, until you start it again." },
   archived: { label: "Archived", states: ["archived"], empty: "No archived routines.", text: "A routine you archive keeps its runs and what it learned here, out of the way." },
 };
@@ -130,13 +132,16 @@ export function RoutinesScreen() {
 
   // No routines at all: no filters to choose, just how one begins.
   const none = list !== null && list.length === 0;
+  // Some routines, none of them active: a first step back instead of an empty tab.
+  const resting = list !== null && list.length > 0 && filter === "active" && rows.length === 0;
+  const failed = list === null && listFailed;
   return (
-    <main className={none ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
+    <main className={none || resting || failed ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: "Routines" }]}>
         <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
       </EosHeader>
       <div className="eos-body eos-routines">
-        {list !== null && (list.length > 0 || filter !== "active") && (
+        {list !== null && !resting && (list.length > 0 || filter !== "active") && (
           <header className="eos-routines__head">
             <p className="eos-lead">{rows.length > 0 ? routinesLead(rows) : FILTERS[filter].empty}</p>
             {rows.length === 0 && <p className="eos-lead__sub">{FILTERS[filter].text}</p>}
@@ -144,13 +149,14 @@ export function RoutinesScreen() {
           </header>
         )}
         {filter === "active" && rows.length > 0 && <ComingUp slots={comingUp(next, now)} names={namesOf(list)} now={now} />}
-        {!none && !(list === null && listFailed) && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
+        {!none && !resting && !failed && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
           {Object.entries(FILTERS).map(([key, f]) => (
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
           ))}
         </div>}
         {list === null && !listFailed && <LoadingRows rows={4} />}
-        {list === null && listFailed && <LoadFailed what="routines" retry={() => void refreshRoutines()} />}
+        {failed && <FailedLead what="routines" retry={() => void refreshRoutines()} />}
+        {resting && <RoutinesResting list={list} showArchived={() => setFilter("archived")} />}
         {none && <RoutinesFirst />}
         {rows.length > 0 && (
           <div className="eos-rtable-wrap">

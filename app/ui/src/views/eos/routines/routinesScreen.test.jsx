@@ -111,12 +111,14 @@ describe("all routines", () => {
     expect(draw()).toMatch(/<textarea[^>]*>Tell me when the build breaks<\/textarea>/);
   });
 
-  it("says when every routine is paused or archived, without offering to make the first", async () => {
+  it("says when every routine is paused or archived, and offers each paused one back, without offering to make the first", async () => {
     setEosTransport(fixtureTransport({ [ROUTES.routines]: routines.map((r) => ({ ...r, state: "paused" })), [ROUTES.inbox]: inbox }));
     await refreshRoutines();
     const html = draw();
-    expect(html).toContain('<p class="eos-lead">Nothing active.</p><p class="eos-lead__sub">Each of your routines is paused or archived. Resume one to have it run again.</p>');
-    expect(html).not.toContain("eos-first");
+    expect(html).toContain('<h2 class="eos-first__ask">Nothing active.</h2><p class="eos-first__dim">Each of your routines is paused or archived.</p>');
+    expect(html.match(/aria-label="Resume [^"]+">Resume</g)).toHaveLength(routines.length);
+    expect(html).not.toContain("Start from one of these");
+    expect(html).not.toContain("eos-seg");
   });
 
   it("says the next run by its day", () => {

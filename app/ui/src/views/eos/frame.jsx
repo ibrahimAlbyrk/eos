@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { openLocation } from "./nav/eosNav.js";
 
 // The shared parts of an Eos screen, drawn with eos.css's frame classes: a
 // section with its label, an empty state that says what a screen is for and
@@ -169,15 +170,21 @@ export function Fact({ tone, role, className, children, actions }) {
   );
 }
 
-// A screen whose read failed, said as its lead: what could not be read, that
-// Eos did not answer, in the err tone, and Try again.
-export function FailedLead({ what, retry }) {
+// A screen whose read failed, said as its lead in a reading column centred
+// in the window: the err mark before what could not be read, that Eos did
+// not answer, Try again, and the quiet way `back` ({ label, location }).
+export function FailedLead({ what, retry, back }) {
   return (
-    <header className="eos-rlead eos-failed" role="alert">
-      <p className="eos-lead">Couldn&apos;t load {what}.</p>
-      <p className="eos-rlead__now eos-rlead__now--err">Eos did not answer this time.</p>
-      <div className="eos-rlead__acts"><button type="button" className="eos-btn" onClick={retry}>Try again</button></div>
-    </header>
+    <section className="eos-failed" role="alert">
+      <div>
+        <p className="eos-lead eos-failed__what">Couldn&apos;t load {what}.</p>
+        <p className="eos-rlead__now">Eos did not answer this time.</p>
+      </div>
+      <div className="eos-rlead__acts">
+        <button type="button" className="eos-btn eos-btn--primary" onClick={retry}>Try again</button>
+        {back && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => openLocation(back.location)}>{back.label}</button>}
+      </div>
+    </section>
   );
 }
 

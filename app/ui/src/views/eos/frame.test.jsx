@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AskRows, Band, Dialog, EmptyState, Section, askKey } from "./frame.jsx";
+import { AskRows, Band, Dialog, EmptyState, FailedLead, Section, askKey } from "./frame.jsx";
 
 describe("Eos's shared screen parts", () => {
   it("a section is labelled by its heading, with its aside at the right", () => {
@@ -15,6 +15,12 @@ describe("Eos's shared screen parts", () => {
 
   it("a band carries its tone in its class and its role for screen readers", () => {
     expect(renderToStaticMarkup(<Band tone="err" role="alert">Could not save.</Band>)).toBe('<div class="eos-band eos-band--err" role="alert"><span class="eos-band__text">Could not save.</span></div>');
+  });
+
+  it("a failed read leads with what could not be read, then Try again and the quiet way back", () => {
+    const html = renderToStaticMarkup(<FailedLead what="this run" retry={() => {}} back={{ label: "Back to Routines", location: "eos:/routines" }} />);
+    expect(html).toContain('<p class="eos-lead eos-failed__what">Couldn&#x27;t load this run.</p><p class="eos-rlead__now">Eos did not answer this time.</p>');
+    expect(html).toMatch(/eos-btn--primary">Try again<\/button><button type="button" class="eos-btn eos-btn--quiet">Back to Routines<\/button>/);
   });
 
   it("a dialog names where it comes from, asks its question, and puts Cancel before the act", () => {

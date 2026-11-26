@@ -4,7 +4,8 @@ import { loadRoutineView, useSurfaces } from "../../../state/eos/surfacesStore.j
 import { loadRoutine, setRoutineState, useRoutines } from "../../../state/eos/routinesStore.js";
 import { open as openRunSheet, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { useDevRunSeen } from "../../../state/eos/transport.js";
-import { DevRunNote, LoadFailed } from "../capabilities/parts.jsx";
+import { DevRunNote } from "../capabilities/parts.jsx";
+import { FailedLead } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { SurfaceCard } from "../needs/SurfaceCard.jsx";
@@ -69,7 +70,7 @@ export function RoutinePage({ id, tab, version }) {
   return (
     <main className="eos-screen eos-screen--wide">
       <EosHeader
-        trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? "Routine" }]}
+        trail={[{ label: "Routines", location: "eos:/routines" }, { label: routine?.name ?? (failed[id] ? "A routine" : "Loading…") }]}
         mark={routine && (
           <>
             <StatusChip routine={routine} />
@@ -91,7 +92,7 @@ export function RoutinePage({ id, tab, version }) {
       <div className="eos-body eos-routine">
         {devRun && <DevRunNote />}
         {!detail && failed[id] === "gone" && <p className="eos-note">This routine is no longer here.</p>}
-        {!detail && failed[id] === "error" && <LoadFailed what="this routine" retry={() => void loadRoutine(id)} />}
+        {!detail && failed[id] === "error" && <FailedLead what="this routine" retry={() => void loadRoutine(id)} back={{ label: "Back to Routines", location: "eos:/routines" }} />}
         {!detail && !failed[id] && <RoutineLeadGhost />}
         {detail && (
           <>

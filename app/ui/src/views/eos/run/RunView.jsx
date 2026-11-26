@@ -151,8 +151,8 @@ export function RunView({ id }) {
   const routine = run && (routines.details[run.routineId]?.routine ?? routines.list?.find((r) => r.id === run.routineId));
   const item = detail && itemLine(detail.input);
   const trail = [
-    run ? { label: routine?.name ?? "Routine", location: `eos:/routines/${encodeURIComponent(run.routineId)}` } : { label: "Eos", location: "eos:/" },
-    { label: item ? `Run on ${splitItemNumber(item).number ?? item}` : "Run" },
+    run ? { label: routine?.name ?? "Routine", location: `eos:/routines/${encodeURIComponent(run.routineId)}` } : { label: "Routines", location: "eos:/routines" },
+    { label: item ? `Run on ${splitItemNumber(item).number ?? item}` : run ? "Run" : failed[id] ? "A run" : "Loading…" },
   ];
   const chip = run && stateChip(run, now);
   return (
@@ -178,7 +178,7 @@ export function RunView({ id }) {
         )}
       </EosHeader>
       {!detail && failed[id] === "gone" && <div className="eos-body eos-run"><RunGone /></div>}
-      {!detail && failed[id] === "error" && <div className="eos-body eos-run"><FailedLead what="this run" retry={() => void loadRun(id)} /></div>}
+      {!detail && failed[id] === "error" && <div className="eos-body eos-run"><FailedLead what="this run" retry={() => void loadRun(id)} back={{ label: "Back to Routines", location: "eos:/routines" }} /></div>}
       {!detail && !failed[id] && <div className="eos-body eos-run"><RunLeadGhost /></div>}
       {detail && (
         <RunBody

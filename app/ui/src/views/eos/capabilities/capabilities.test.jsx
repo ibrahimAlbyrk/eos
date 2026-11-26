@@ -88,7 +88,7 @@ describe("the Capabilities list", () => {
 
     setEosTransport(fixtureTransport({}));
     await refreshCapabilities();
-    expect(at("eos:/capabilities")).toContain('<p class="eos-lead">Couldn&#x27;t load capabilities.</p>');
+    expect(at("eos:/capabilities")).toContain('<p class="eos-lead eos-failed__what">Couldn&#x27;t load capabilities.</p>');
     expect(at("eos:/capabilities")).toContain(">Try again</button>");
 
     setEosTransport(fixtureTransport({ [ROUTES.capabilities]: [] }));
