@@ -231,7 +231,8 @@ function Secrets({ detail }) {
         <li key={s.name} className="eos-cap-fact">
           <span className="eos-cap-fact__row">
             <span className="eos-cap-fact__name">{s.label}</span>
-            <span className={s.set ? "eos-cap-fact__value eos-cap-fact__value--ok" : "eos-cap-fact__value eos-cap-fact__value--warn"}>{s.set ? "Set" : "Missing"}</span>
+            {/* A key that is set but the service refused is what the lead asks to replace. */}
+            <span className={s.set && s.name !== led ? "eos-cap-fact__value eos-cap-fact__value--ok" : "eos-cap-fact__value eos-cap-fact__value--warn"}>{!s.set ? "Missing" : s.name === led ? "Refused" : "Set"}</span>
           </span>
           {typed && (
             <span className="eos-cap-fact__acts">

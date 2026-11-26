@@ -276,7 +276,7 @@ describe("a capability's page", () => {
 
     html = await page("linear-issues");
     expect(html).toContain("Needs sign-in: the service no longer accepts its sign-in.");
-    expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--ok">Set</span>');
+    expect(html).toContain('<span class="eos-cap-fact__name">Linear API key</span><span class="eos-cap-fact__value eos-cap-fact__value--warn">Refused</span>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Replace Linear API key</button>');
     expect(html.match(/>Replace Linear API key</g)).toHaveLength(1);
 
