@@ -9,6 +9,8 @@ import { actionsOf } from "./index.js";
 import { pageOf } from "./DraftCard.jsx";
 import inbox from "../../gallery/sample/inbox.json";
 import inboxItems from "../../gallery/sample/inbox-items.json";
+import routines from "../../gallery/sample/routines.json";
+import { _resetRoutines, refreshRoutines } from "../../../../state/eos/routinesStore.js";
 
 vi.mock("../../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 vi.mock("../../../../keymap/useKeymap.js", () => ({ useGlobalKeymap: () => {}, useKeybinding: () => {} }));
@@ -125,7 +127,7 @@ describe("the other cards", () => {
       about_you: ["Yes, keep it", "No", "Edit"],
       freedom_offer: ["Allow", "Not now", "Later", "Discard"],
       capability_install: ["Install", "Not now", "Later", "Discard"],
-      capability_attention: ["Check again", "Open", "Later", "Discard"],
+      capability_attention: ["Check again", "Open its page", "Later", "Discard"],
     };
     for (const [kind, labels] of Object.entries(expected)) expect(buttons(await screen(kind)), kind).toEqual(labels);
   });
@@ -146,7 +148,8 @@ describe("the other cards", () => {
     expect(proposal).toContain("List today&#x27;s events");
     expect(proposal).toContain("<dt>Reaches</dt><dd>com.apple.iCal</dd>");
     const problem = await screen("capability_attention");
-    expect(problem).toContain("macOS has not let it control the app it needs.");
+    // The steps say what the lead's fact would repeat.
+    expect(problem).not.toContain("macOS has not let it control the app it needs.");
     expect(problem).toContain("Choose Automation.");
     expect(problem).toContain("Come back here and choose Check again.");
     const offer = await screen("freedom_offer");
@@ -177,7 +180,7 @@ describe("the other cards", () => {
     expect(before).toContain('<section class="eos-needs-live" aria-label="One real test">');
     expect(before).toContain('<li class="eos-beat__stop eos-beat__stop--newest eos-beat__stop--active">');
     expect(await screen("capability_install", at("not_alerted"))).toContain('<span class="eos-beat__word eos-beat__word--warn">It did not</span>');
-    expect(buttons(await screen("capability_install", at("sent")))).toEqual(["Yes, it did", "No", "Not now", "Later", "Discard"]);
+    expect(buttons(await screen("capability_install", at("sent")))).toEqual(["Yes, it did", "No", "Later", "Discard"]);
     expect(buttons(await screen("capability_install", at("not_alerted")))).toEqual(["Send a test", "Find another way", "Not now", "Later", "Discard"]);
     expect(buttons(await screen("capability_install", at("alerted")))).toEqual(["Install", "Not now", "Later", "Discard"]);
 
@@ -218,7 +221,7 @@ describe("the other cards", () => {
       payload: { capabilityId: "notes-db", state: "broken", stateCode: "hash_mismatch", repair: true, goBack: "1.0.0" },
     };
     const html = await screen("capability_attention", broken);
-    expect(buttons(html)).toEqual(["Check again", "Repair", "Go back", "Open", "Later", "Discard"]);
+    expect(buttons(html)).toEqual(["Check again", "Repair", "Go back", "Open its page", "Later", "Discard"]);
     expect(html).toContain("Version 1.0.0 still works on this Mac.");
 
     const t = recording(async () => ({ ok: true, status: 200, body: { runId: "rn-9" } }));
@@ -340,6 +343,16 @@ describe("the other cards", () => {
       { kind: "freedom_offer", choice: "accept" },
       { kind: "freedom_offer", choice: "not_now" },
     ]);
+  });
+
+  it("show an item its lead says whole on the routine it comes from", async () => {
+    _resetRoutines();
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: routines }));
+    await refreshRoutines();
+    const html = await screen("run_start");
+    expect(html).toContain("<dt>From</dt>");
+    expect(html).toContain("<dt>Runs</dt><dd>When a pull request opens in acme/game</dd>");
+    _resetRoutines();
   });
 
   it("show a kind with no card as its title and summary, with Open and Later", async () => {
