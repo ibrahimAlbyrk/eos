@@ -6,7 +6,7 @@ import { itemTone, kindGlyph } from "./words.js";
 // How many of the items after this one the foot names.
 const SHOWN = 3;
 
-// Under a short item that has no aside: what waits after it, so the answer
+// Under an item: what waits after it, so the answer
 // reads as one step through the list and the page does not end in a void.
 // `after` is the rest of the pager's order; `nameOf` names a routine.
 export function ItemFoot({ after, nameOf, onOpen }) {

@@ -211,7 +211,7 @@ export function NeedsItemScreen({ id }) {
                   />
                 </div>
               )}
-              {!hasAside && open && at >= 0 && (
+              {open && at >= 0 && (
                 <ItemFoot after={order.slice(at + 1)} nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
               )}
             </div>
