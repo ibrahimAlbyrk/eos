@@ -511,7 +511,7 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-new__stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .eos-new__veil {
   position: absolute; inset: 0; z-index: 20;
-  display: flex; align-items: center; justify-content: center; padding: 32px var(--eos-frame-x, 32px);
+  display: flex; align-items: center; justify-content: center; padding: 32px var(--eos-frame-r, 32px) 32px var(--eos-frame-x, 32px);
   background: var(--bg);
   pointer-events: none;
   animation: eos-ask-shade 160ms cubic-bezier(.2, .8, .2, 1) both;

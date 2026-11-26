@@ -2,7 +2,7 @@
    capability's page (eos:/capabilities/<id>). Built from eos.css's parts;
    text is never dimmer than --fg-dim2 (eos.css's contrast note holds here too). */
 
-.eos-cap-offline { margin: 0; padding: 0 var(--eos-frame-x, 28px); font-size: var(--text-sm); color: var(--warn); }
+.eos-cap-offline { margin: 0; padding: 0 var(--eos-frame-r, 28px) 0 var(--eos-frame-x, 28px); font-size: var(--text-sm); color: var(--warn); }
 
 /* ── The list ─────────────────────────────────────────────────────────────── */
 .eos-caps-lead { padding-top: 8px; margin-bottom: 16px; }

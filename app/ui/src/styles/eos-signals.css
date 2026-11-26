@@ -44,7 +44,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 14px;
-  margin: 16px var(--eos-frame-x) 0;
+  margin: 16px var(--eos-frame-r) 0 var(--eos-frame-x);
   padding: 10px 12px 10px 12px;
   border-radius: 14px;
   background: var(--raised);
