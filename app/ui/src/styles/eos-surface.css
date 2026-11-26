@@ -14,7 +14,7 @@
    the page screen's measure is the sheet's. */
 .eos-screen:has(> .eos-page) { --eos-measure: 1000px; }
 .eos-page { align-items: center; }
-.eos-page > .eos-skeleton, .eos-page > .eos-rlead { align-self: stretch; }
+.eos-page > .eos-skeleton, .eos-page > .eos-rlead, .eos-page > .eos-section { align-self: stretch; }
 .eos-page > .eos-failed { align-self: flex-start; }
 .eos-page__column { width: 100%; display: flex; flex-direction: column; gap: 20px; container-type: inline-size; }
 .eos-head .eos-btn--quiet:hover, .eos-page .eos-btn--quiet:hover { background: var(--chip); }
@@ -94,7 +94,6 @@
 .eos-page__edit > .eos-section__head { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 
 /* No issue yet: a first step, then the sheet as a ghost in hairlines. */
-.eos-page-first { padding-top: 24px; }
 .eos-page-first__title { margin: 0; font-size: 32px; font-weight: 400; line-height: 1.25; letter-spacing: -0.02em; color: var(--fg-strong); }
 .eos-page-first > .eos-rlead__now { margin-top: -12px; }
 .eos-page-ghost {
@@ -119,7 +118,6 @@
 .eos-page-loading .eos-skeleton__label { width: 180px; margin: 11px 0 24px; }
 .eos-page-loading__sheet { height: 620px; border-radius: 6px; background: var(--raised); }
 
-.eos-page-gone { padding-top: 24px; }
 .eos-page-gone > .eos-rlead__now { margin-top: -12px; }
 
 /* The line to tell Eos what to change: Home's input in small. */
