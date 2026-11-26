@@ -273,6 +273,11 @@ fn render(
         .collect();
     let steps: Vec<String> = blueprint.how.steps.iter().map(|step| format!("- {step}")).collect();
     let mut how = format!("{}\n\nHow the result reads: {}", steps.join("\n"), blueprint.how.format);
+    // No checker reads the result: the routine's checks are the lead's to meet.
+    if !blueprint.how.checks.is_empty() {
+        let checks: Vec<String> = blueprint.how.checks.iter().map(|check| format!("- {}", check.text)).collect();
+        how = format!("{how}\n\nBefore you hand it in, make sure it holds to these:\n{}", checks.join("\n"));
+    }
     if let Some(call) = script_call {
         how = format!("{call}\n\n{how}");
     }

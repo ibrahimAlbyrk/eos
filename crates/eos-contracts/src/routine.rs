@@ -300,7 +300,7 @@ pub struct RoutineScript {
 
 impl Validate for RoutineScript {}
 
-/// How the work goes and how its result is checked.
+/// How the work goes and what its result must hold to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct How {
@@ -310,7 +310,7 @@ pub struct How {
     pub checks: Vec<RoutineCheck>,
     /// The shape of the result.
     pub format: String,
-    /// A checker agent reads every result before it goes anywhere.
+    /// Read and kept, never acted on: no checker reads a result.
     pub check_agent: bool,
     /// Keys this version does not know; kept so a round trip loses nothing.
     #[serde(flatten)]

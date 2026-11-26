@@ -3,8 +3,8 @@
 //! again. A queued run waits, unless its time is more than a day past
 //! (`skipped: too_late`, with one notice). A running run is picked up once: its lead is
 //! told Eos restarted (its session comes back on the message); the second
-//! time the run fails as `interrupted`. A checking run's lead is held again
-//! and its check starts over with a new checker. Waiting, delivering and
+//! time the run fails as `interrupted`. A run found at its check goes on
+//! to the gate, any checker session of it suspended. Waiting, delivering and
 //! paused runs stay as they are. Each run's cost and working time are
 //! recounted from its sessions and timeline. Off the network (a dev run)
 //! nothing is touched.
@@ -35,8 +35,8 @@ enum Pick {
     /// The lead is told; `None` when it never started (the brief starts it).
     Resume(Option<String>),
     Fail,
-    /// The check starts over; its lead is held already (`launch::rebuild`).
-    Recheck {
+    /// It goes on to the gate; its lead is held already (`launch::rebuild`).
+    ToGate {
         checkers: Vec<String>,
     },
 }
@@ -59,7 +59,7 @@ pub(crate) async fn recover(engine: &Arc<Engine>) -> Result<(), Error> {
                 // A system step that was under way starts again.
                 super::system::begin(engine, id);
             }
-            Pick::Recheck { checkers } => {
+            Pick::ToGate { checkers } => {
                 for checker in checkers {
                     if let Err(error) = engine.sessions.suspend(&checker, "routine_run").await {
                         tracing::debug!(run_id = id, worker_id = %checker, %error, "a checker was not suspended");
@@ -109,7 +109,7 @@ fn recount_and_pick(
             _ => {
                 tx.runs().append_event(&run.id, now, RESUMED, Some(&json!({"at": now}).to_string()))?;
                 let checkers = sessions.iter().filter(|s| s.role == "checker").map(|s| s.worker_id.clone()).collect();
-                Pick::Recheck { checkers }
+                Pick::ToGate { checkers }
             }
         };
         picks.push((run, pick));

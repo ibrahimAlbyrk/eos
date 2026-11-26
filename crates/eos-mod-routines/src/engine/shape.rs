@@ -1,9 +1,10 @@
 //! What a run's result must look like, from the shape the channel that
-//! sends it declares: the text its lead and checker read, and the check
-//! that holds a result to it, so the two never differ. The check runs when
-//! the lead hands a result in, so a wrong shape costs no check round, and
-//! again at the check station.
+//! sends it declares: the text its lead reads, and the check that holds a
+//! result to it when the lead hands it in, so the two never differ. A
+//! result that does not fit is refused there with what to fix, and the
+//! lead hands it in again; the gate only ever sees one that fits.
 
+use eos_contracts::RunInput;
 use eos_core::Error;
 use eos_domain::result_doc::shape::{ResultShape, body_misfits};
 use serde_json::Value;
@@ -52,13 +53,14 @@ fn body_fits(shape: &ResultShape, kind: &str, body: &Value) -> Vec<String> {
 }
 
 /// Refuses a result handed in for `run_id` whose kind or shape does not fit
-/// what its routine makes, with every point to fix.
+/// what its routine makes, or that the channel's own check of it against
+/// the run's items refuses, with every point to fix.
 pub(crate) async fn refuse_misfit(engine: &Engine, run_id: &str, kind: &str, body: &Value) -> Result<(), Error> {
     if kind == NOTHING {
         return Ok(());
     }
     let id = run_id.to_owned();
-    let makes = engine
+    let found = engine
         .store
         .read(move |tx| {
             let Some(run) = tx.runs().find(&id)? else { return Ok(None) };
@@ -67,11 +69,22 @@ pub(crate) async fn refuse_misfit(engine: &Engine, run_id: &str, kind: &str, bod
             }
             let version_id = run.version_id.unwrap_or_default();
             let Some(version) = tx.routine_versions().find(&run.routine_id, &version_id)? else { return Ok(None) };
-            Ok(readable(&version)?.map(|blueprint| blueprint.makes.kind))
+            let items = serde_json::from_str::<RunInput>(&run.input)
+                .map(|input| input.item.into_iter().chain(input.items.into_iter().flatten()).collect::<Vec<_>>())
+                .unwrap_or_default();
+            Ok(readable(&version)?.map(|blueprint| (blueprint.makes.kind, items)))
         })
         .await?;
-    let Some(makes) = makes else { return Ok(()) };
-    let found = misfits(engine, kind, &makes, body);
+    let Some((makes, items)) = found else { return Ok(()) };
+    let mut found = misfits(engine, kind, &makes, body);
+    if found.is_empty() {
+        let doc = doc_of(kind, body.clone());
+        for item in &items {
+            if let Err(texts) = engine.reads.validate_result(&makes, &doc, item).await {
+                found.extend(texts);
+            }
+        }
+    }
     if found.is_empty() {
         return Ok(());
     }

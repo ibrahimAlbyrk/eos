@@ -38,33 +38,8 @@
       "costUsd": 0.36,
       "startedAt": 1763452802000,
       "endedAt": 1763452950000
-    },
-    {
-      "workerId": "w-6b0d4f8a2c1e",
-      "role": "checker",
-      "model": "claude-haiku-5-5",
-      "state": "done",
-      "costUsd": 0.06,
-      "startedAt": 1763452951000,
-      "endedAt": 1763452986000
     }
   ],
-  "verdict": {
-    "pass": true,
-    "checks": [
-      {
-        "key": "cites_lines",
-        "ok": true,
-        "note": "Every finding names its file and line."
-      },
-      {
-        "key": "no_secrets",
-        "ok": true,
-        "note": "Nothing secret-like in the text."
-      }
-    ],
-    "mustFix": []
-  },
   "usual": {
     "usd": 0.4,
     "ms": 180000

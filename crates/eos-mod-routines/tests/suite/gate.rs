@@ -1,8 +1,8 @@
-//! A checked result at the gate: what the gate is given, each of its
+//! A handed-in result at the gate: what the gate is given, each of its
 //! decisions, a result with nothing to send, the show-only gate, and what
 //! Needs you reports afterwards.
 
-use eos_contracts::{CheckVerdict, RoutineState, RunChange};
+use eos_contracts::{RoutineState, RunChange};
 use eos_core::routine::{GateDecision, GateMode, RunOrigin, SubmittedResult};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
@@ -33,29 +33,19 @@ async fn working(bench: &Bench, blueprint: Value) -> (String, String) {
     (id, lead)
 }
 
-fn checker(bench: &Bench, n: usize) -> Option<String> {
-    let started = bench.agents.started();
-    let mut checkers = started.iter().filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker"));
-    checkers.nth(n - 1).map(|s| s.worker_id.clone())
+fn checkers(bench: &Bench) -> usize {
+    bench.agents.started().iter().filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker")).count()
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_result_that_fails_its_check_once_then_passes_reaches_the_gate_once_and_is_held() {
+async fn a_handed_in_result_goes_straight_to_the_gate_and_is_held_though_the_blueprint_asks_for_a_checker() {
     let bench = Bench::new(true);
     let (run, lead) = working(&bench, blueprint(1)).await;
-    let tools = bench.module.tools();
     bench.gate.decide(GateDecision::Held { item_id: "in-1".into() });
-    let fail = CheckVerdict { pass: false, checks: vec![], must_fix: vec!["Shorter.".into()] };
-    let pass = CheckVerdict { pass: true, checks: vec![], must_fix: vec![] };
-    for (round, verdict) in [(1, fail), (2, pass)] {
-        tools.submit_result(&lead, review()).await.expect("handed in");
-        bench.eventually(|| checker(&bench, round).is_some()).await;
-        let checker = checker(&bench, round).expect("a checker");
-        tools.submit_verdict(&checker, verdict).await.expect("judged");
-    }
+    bench.module.tools().submit_result(&lead, review()).await.expect("handed in");
 
     let inputs = bench.gate.inputs();
-    assert_eq!(inputs.len(), 1, "only the passed result reaches the gate");
+    assert_eq!(inputs.len(), 1, "the result reached the gate once");
     let input = &inputs[0];
     assert_eq!(
         (input.run_id.as_str(), input.result_mode, input.trust),
@@ -66,14 +56,17 @@ async fn a_result_that_fails_its_check_once_then_passes_reaches_the_gate_once_an
     assert!(input.freedom_confirmed.is_some(), "the user's own version");
     let held = bench.run(&run);
     assert_eq!((held.state, held.station), (RunState::WaitingForUser, Some(Station::Gate)));
-    assert!(!bench.module.holds_worker(&lead), "let go as the run left its check");
+    assert!(!bench.module.holds_worker(&lead), "not held once the gate took it");
+    assert_eq!(checkers(&bench), 0, "no checker read it");
+    let changes = bench.changes();
+    assert!(!changes.iter().any(|change| change["station"] == "check"), "{changes:?}");
     let id = run.clone();
     let events = bench.temp.store.read_blocking(move |tx| tx.runs().events(&id)).expect("reads");
     assert!(events.iter().any(|e| e.kind == "held" && e.data.as_deref() == Some(r#"{"itemId":"in-1"}"#)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_result_with_nothing_to_send_skips_the_check_and_the_gate() {
+async fn a_result_with_nothing_to_send_skips_the_gate() {
     let bench = Bench::new(true);
     let (run, lead) = working(&bench, blueprint(1)).await;
     let nothing =
@@ -81,7 +74,7 @@ async fn a_result_with_nothing_to_send_skips_the_check_and_the_gate() {
     bench.module.tools().submit_result(&lead, nothing).await.expect("handed in");
     bench.eventually(|| bench.state(&run) == RunState::Done).await;
     assert_eq!(bench.run(&run).outcome, Some(Outcome::Nothing));
-    assert!(bench.gate.inputs().is_empty() && checker(&bench, 1).is_none());
+    assert!(bench.gate.inputs().is_empty() && checkers(&bench) == 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]

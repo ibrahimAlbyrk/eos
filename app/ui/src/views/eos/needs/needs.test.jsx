@@ -195,7 +195,7 @@ describe("the Needs-you list", () => {
 });
 
 describe("a draft", () => {
-  it("shows a review with its line comments read-only, the run's checks and team, and Send", async () => {
+  it("shows a review with its line comments read-only, the run's team, and Send", async () => {
     await loaded();
     await loadInboxItem(DRAFT);
     await loadRun(runDetail.run.id);
@@ -210,8 +210,7 @@ describe("a draft", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Send<span class="eos-needs-key">');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet">Later</button>');
     expect(html).toContain(">Discard</button>");
-    expect(html).toContain("Checked before it reached you");
-    expect(html).toContain("It passed every check.");
+    expect(html).not.toContain("Checked before it reached you");
     expect(html).toContain("Who worked on it");
     expect(html).toContain("In all $0.42");
   });

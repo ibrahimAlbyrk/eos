@@ -138,68 +138,6 @@
   },
   {
     "run": {
-      "id": "rn-checking01",
-      "routineId": "rt-4k2n8q1x7m3p",
-      "kind": "standing",
-      "origin": "hand",
-      "state": "checking",
-      "station": "check",
-      "itemTitle": "#469 Fix the save slot",
-      "needsUser": false,
-      "costUsd": 0.33,
-      "workMs": 180000,
-      "createdAt": 1763539200000,
-      "startedAt": 1763539202000
-    },
-    "input": {
-      "item": {
-        "kind": "github.pull_request",
-        "key": "github:pr:acme/game#469",
-        "title": "#469 Fix the save slot",
-        "url": "https://github.com/acme/game/pull/469",
-        "untrusted": true
-      },
-      "options": {
-        "depth": "deep"
-      },
-      "result": "usual"
-    },
-    "attempt": 1,
-    "agents": [
-      {
-        "workerId": "w-lead469",
-        "role": "solo",
-        "model": "claude-sonnet-5-5",
-        "state": "IDLE",
-        "costUsd": 0.3,
-        "startedAt": 1763539202000
-      },
-      {
-        "workerId": "w-check469",
-        "role": "checker",
-        "model": "claude-haiku-5-5",
-        "state": "WORKING",
-        "costUsd": 0.03,
-        "startedAt": 1763539202000
-      }
-    ],
-    "usual": {
-      "usd": 0.55,
-      "ms": 300000
-    },
-    "events": [
-      {
-        "id": 1,
-        "at": 1763539200000,
-        "kind": "state",
-        "data": {
-          "state": "queued"
-        }
-      }
-    ]
-  },
-  {
-    "run": {
       "id": "rn-waiting01",
       "routineId": "rt-4k2n8q1x7m3p",
       "kind": "standing",
@@ -236,28 +174,8 @@
         "state": "IDLE",
         "costUsd": 0.36,
         "startedAt": 1763539202000
-      },
-      {
-        "workerId": "w-check468",
-        "role": "checker",
-        "model": "claude-haiku-5-5",
-        "state": "DONE",
-        "costUsd": 0.05,
-        "startedAt": 1763539202000,
-        "endedAt": 1763539480000
       }
     ],
-    "verdict": {
-      "pass": true,
-      "checks": [
-        {
-          "key": "cites_lines",
-          "ok": true,
-          "note": "Every finding names its file and line."
-        }
-      ],
-      "mustFix": []
-    },
     "usual": {
       "usd": 0.55,
       "ms": 300000
@@ -288,7 +206,7 @@
       "kind": "standing",
       "origin": "hand",
       "state": "done",
-      "station": "check",
+      "station": "work",
       "outcome": "shown",
       "headline": "One note about naming.",
       "itemTitle": "#467 Tidy the shop UI",
@@ -322,15 +240,6 @@
         "costUsd": 0.34,
         "startedAt": 1763539202000,
         "endedAt": 1763539450000
-      },
-      {
-        "workerId": "w-check467",
-        "role": "checker",
-        "model": "claude-haiku-5-5",
-        "state": "DONE",
-        "costUsd": 0.04,
-        "startedAt": 1763539202000,
-        "endedAt": 1763539462000
       }
     ],
     "usual": {
@@ -355,7 +264,7 @@
       "kind": "trial",
       "origin": "trial",
       "state": "done",
-      "station": "check",
+      "station": "work",
       "outcome": "shown",
       "headline": "Looks good; one question.",
       "itemTitle": "#466 Add haptics to combos",
@@ -409,8 +318,8 @@
       "kind": "standing",
       "origin": "hand",
       "state": "failed",
-      "station": "check",
-      "reason": "check_failed",
+      "station": "work",
+      "reason": "no_result",
       "itemTitle": "#465 Rework tile pooling",
       "needsUser": false,
       "costUsd": 0.52,
@@ -432,7 +341,7 @@
       },
       "result": "usual"
     },
-    "attempt": 2,
+    "attempt": 1,
     "agents": [
       {
         "workerId": "w-lead465",
@@ -442,35 +351,8 @@
         "costUsd": 0.44,
         "startedAt": 1763539202000,
         "endedAt": 1763539500000
-      },
-      {
-        "workerId": "w-check465",
-        "role": "checker",
-        "model": "claude-haiku-5-5",
-        "state": "DONE",
-        "costUsd": 0.08,
-        "startedAt": 1763539202000,
-        "endedAt": 1763539522000
       }
     ],
-    "verdict": {
-      "pass": false,
-      "checks": [
-        {
-          "key": "cites_lines",
-          "ok": false,
-          "note": "Two findings name no line."
-        },
-        {
-          "key": "no_secrets",
-          "ok": true,
-          "note": "Nothing secret-like in the text."
-        }
-      ],
-      "mustFix": [
-        "Name the line of each finding."
-      ]
-    },
     "usual": {
       "usd": 0.55,
       "ms": 300000

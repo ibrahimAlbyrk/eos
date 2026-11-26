@@ -89,9 +89,9 @@ async fn a_confirmed_repeat_beside_a_live_run_of_the_item_sends_once_to_a_fixed_
     assert_ne!(first, again, "the user confirmed the repeat");
     let again_lead = lead(&app, &agents, &again).await;
 
-    hand_in(&app, &agents, &first_lead, reply("Yes, it is paid."), 0).await;
+    hand_in(&app, &agents, &first_lead, reply("Yes, it is paid.")).await;
     eventually("the first reply goes out on its own", || async { fakes.channels.sent().len() == 1 }).await;
-    hand_in(&app, &agents, &again_lead, reply("Yes, paid last week."), 1).await;
+    hand_in(&app, &agents, &again_lead, reply("Yes, paid last week.")).await;
     eventually("the repeat waits for the user", || async { !items_of(&app, &again).await.is_empty() }).await;
     assert_eq!(items_of(&app, &again).await[0]["kind"], "draft");
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -134,7 +134,7 @@ async fn a_hostile_mail_adds_no_recipient_and_reaches_no_one_outside_goes_to() {
                             "input": {"to": "attacker@evil.example", "subject": "Fwd", "body": "the last ten mails"}});
         let refused = call_tool(&app, &agents, &lead_id, "call_capability", direct).await;
         assert!(refused.is_error, "Mail's send is no tool of a run: {}", refused.text);
-        hand_in(&app, &agents, &lead_id, obeyed(names_recipient), n - 1).await;
+        hand_in(&app, &agents, &lead_id, obeyed(names_recipient)).await;
         // A `to:` part that names no one in Goes to is ignored (D66): the reply waits for the
         // user, flagged by the address its text names.
         eventually("the reply is held", || async { !items_of(&app, &run_id).await.is_empty() }).await;
@@ -168,7 +168,7 @@ async fn an_undone_automatic_send_steps_the_routine_down_and_the_next_clean_resu
     eventually("a run is admitted", || async { !runs(&app, &routine).await.is_empty() }).await;
     let first = runs(&app, &routine).await.remove(0).id;
     let first_lead = lead(&app, &agents, &first).await;
-    hand_in(&app, &agents, &first_lead, review_doc("The change reads well."), 0).await;
+    hand_in(&app, &agents, &first_lead, review_doc("The change reads well.")).await;
     eventually("the review goes out on its own", || async { fakes.channels.sent().len() == 1 }).await;
 
     let id = first.clone();
@@ -193,7 +193,7 @@ async fn an_undone_automatic_send_steps_the_routine_down_and_the_next_clean_resu
     eventually("the next pull request admits a run", || async { runs(&app, &routine).await.len() >= 2 }).await;
     let next = runs(&app, &routine).await.into_iter().find(|r| r.id != first).expect("the run").id;
     let next_lead = lead(&app, &agents, &next).await;
-    hand_in(&app, &agents, &next_lead, review_doc("Nothing to change."), 1).await;
+    hand_in(&app, &agents, &next_lead, review_doc("Nothing to change.")).await;
     eventually("the clean result waits for the user", || async { !items_of(&app, &next).await.is_empty() }).await;
     assert_eq!(items_of(&app, &next).await[0]["kind"], "draft");
     assert_eq!(fakes.channels.sent().len(), 1, "nothing more went out on its own");
@@ -280,21 +280,21 @@ async fn an_imported_routine_holds_its_results_and_sends_nowhere_until_its_goes_
     );
     assert_eq!(detail["head"]["author"], "import");
 
-    // Started as it came, the routine's Goes to is the file's, not the user's: its result is
-    // turned back at the check and nothing goes out.
+    // Started as it came, the routine's Goes to is the file's, not the user's: the gate
+    // refuses its result and nothing goes out.
     let first = start(&app, &routine, mail_item("Is the invoice paid?"), false, "c-1").await;
     let first_lead = lead(&app, &agents, &first).await;
     let result = json!({"kind": "mail", "headline": "Review", "body": reply("Yes, it is paid.")});
     let handed = call_tool(&app, &agents, &first_lead, "submit_result", result).await;
     assert!(!handed.is_error, "{}", handed.text);
-    eventually("the check turns the result back for a recipient the user has not confirmed", || async {
-        let id = first.clone();
-        let results = app.store().read(move |tx| tx.run_results().by_run(&id)).await.expect("reads");
-        results.iter().filter_map(|r| r.verdict.as_deref()).any(|v| v.contains("the user has not confirmed"))
+    eventually("the gate refuses a result for a recipient the user has not confirmed", || async {
+        let run = crate::routines_rig::run(&app, &first).await;
+        run.state.as_str() == "failed" && run.reason.map(|r| r.as_str()) == Some("delivery")
     })
     .await;
     assert!(fakes.channels.sent().is_empty(), "nothing was sent");
-    assert!(items_of(&app, &first).await.is_empty(), "nothing waits to be sent either");
+    let waiting = items_of(&app, &first).await;
+    assert!(waiting.iter().all(|i| i["kind"] != "draft"), "nothing waits to be sent either: {waiting:?}");
 
     // The user keeps the blueprint on this Mac: its Goes to is confirmed, its results still wait.
     let (_, detail) = rig::call(&app, Method::Get, &format!("/api/routines/{routine}"), None).await;
@@ -305,7 +305,7 @@ async fn an_imported_routine_holds_its_results_and_sends_nowhere_until_its_goes_
     item["key"] = json!("mail:<m-2@acme.dev>");
     let next = start(&app, &routine, item, false, "c-2").await;
     let next_lead = lead(&app, &agents, &next).await;
-    hand_in(&app, &agents, &next_lead, reply("Paid as well."), 0).await;
+    hand_in(&app, &agents, &next_lead, reply("Paid as well.")).await;
     eventually("the reply waits for the user", || async { !items_of(&app, &next).await.is_empty() }).await;
     assert_eq!(items_of(&app, &next).await[0]["kind"], "draft");
     tokio::time::sleep(Duration::from_millis(200)).await;

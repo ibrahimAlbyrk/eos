@@ -64,27 +64,29 @@ describe("a run's stations", () => {
   const at = (state, station, reason) => stationStates({ state, station, reason }).map((s) => s.state);
 
   it("are none reached while queued or skipped, and all passed once done, ending lit where it reached you", () => {
-    expect(at("queued")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
-    expect(at("skipped", undefined, "superseded")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
-    expect(at("done", "check")).toEqual(["done", "done", "done", "done", "arrived"]);
+    expect(at("queued")).toEqual(["todo", "todo", "todo", "todo"]);
+    expect(at("skipped", undefined, "superseded")).toEqual(["todo", "todo", "todo", "todo"]);
+    expect(at("done", "work")).toEqual(["done", "done", "done", "arrived"]);
   });
 
   it("mark the station a live run is at", () => {
-    expect(at("running", "brief")).toEqual(["current", "todo", "todo", "todo", "todo"]);
-    expect(at("running", "work")).toEqual(["done", "current", "todo", "todo", "todo"]);
-    expect(at("checking", "check")).toEqual(["done", "done", "current", "todo", "todo"]);
-    expect(at("waiting_for_user", "gate")).toEqual(["done", "done", "done", "current", "todo"]);
-    expect(at("delivering", "deliver")).toEqual(["done", "done", "done", "done", "current"]);
-    expect(at("paused", "work", "day_cap")).toEqual(["done", "paused", "todo", "todo", "todo"]);
+    expect(at("running", "brief")).toEqual(["current", "todo", "todo", "todo"]);
+    expect(at("running", "work")).toEqual(["done", "current", "todo", "todo"]);
+    // A run stored at the check stands at Work.
+    expect(at("checking", "check")).toEqual(["done", "current", "todo", "todo"]);
+    expect(at("waiting_for_user", "gate")).toEqual(["done", "done", "current", "todo"]);
+    expect(at("delivering", "deliver")).toEqual(["done", "done", "done", "current"]);
+    expect(at("paused", "work", "day_cap")).toEqual(["done", "paused", "todo", "todo"]);
   });
 
   it("mark where a run failed or was stopped, whatever the reason", () => {
     for (const reason of ["no_result", "check_failed", "crashed", "budget_run", "interrupted", "reported"]) {
-      expect(at("failed", "check", reason)).toEqual(["done", "done", "failed", "todo", "todo"]);
+      expect(at("failed", "work", reason)).toEqual(["done", "failed", "todo", "todo"]);
     }
-    expect(at("failed", undefined, "invalid")).toEqual(["failed", "todo", "todo", "todo", "todo"]);
-    expect(at("cancelled", "work", "user")).toEqual(["done", "stopped", "todo", "todo", "todo"]);
-    expect(at("cancelled", undefined, "user")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
+    expect(at("failed", "check", "check_failed")).toEqual(["done", "failed", "todo", "todo"]);
+    expect(at("failed", undefined, "invalid")).toEqual(["failed", "todo", "todo", "todo"]);
+    expect(at("cancelled", "work", "user")).toEqual(["done", "stopped", "todo", "todo"]);
+    expect(at("cancelled", undefined, "user")).toEqual(["todo", "todo", "todo", "todo"]);
   });
 
   it("say each interruption and when the run carried on", () => {
@@ -110,7 +112,7 @@ describe("the run view", () => {
     expect(html).toContain('<p class="eos-rlead__now">It starts as soon as Eos has room for it.</p>');
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--ghost eos-btn--stop">Stop</button>');
     expect(html).toContain("Waiting to start on #471 Pool the combo particles.");
-    expect(states(html)).toEqual(["todo", "todo", "todo", "todo", "todo"]);
+    expect(states(html)).toEqual(["todo", "todo", "todo", "todo"]);
     expect(html).not.toContain('class="eos-team"');
   });
 
@@ -118,7 +120,7 @@ describe("the run view", () => {
     const html = await screen("running01");
     expect(html).toMatch(/<span class="eos-status eos-status--active">Working, \d+ (min|h)/);
     expect(html).toContain("Shown to you only. Nothing will be sent from this run.");
-    expect(states(html)).toEqual(["done", "current*", "todo", "todo", "todo"]);
+    expect(states(html)).toEqual(["done", "current*", "todo", "todo"]);
     expect(html).toMatch(/Interrupted at [^<]*, resumed /);
     expect([...html.matchAll(/<span class="eos-team-card__name">([^<]*)</g)].map((m) => m[1])).toEqual(["Reader", "Unity specialist", "Allocation specialist"]);
     expect(html).toContain('<span class="eos-team-card__side">Opus 5.5 · working</span>');
@@ -135,26 +137,22 @@ describe("the run view", () => {
     expect(html).toContain('<dt>Cost</dt><dd class="eos-run-cost__value">$0.21</dd><dd class="eos-run-cost__usual">usually $0.55</dd>');
   });
 
-  it("draws a run being checked and one that waits for the user, with the way to its item", async () => {
-    const checking = await screen("checking01");
-    expect(states(checking)).toEqual(["done", "done", "current*", "todo", "todo"]);
-    expect(checking).toContain("Checking the result for #469 Fix the save slot.");
-    expect(checking).toContain('<span class="eos-team-card__name">Checker</span>');
-
+  it("draws a run that waits for the user, with the way to its item and no check", async () => {
     const waiting = await screen("waiting01");
-    expect(states(waiting)).toEqual(["done", "done", "done", "current*", "todo"]);
+    expect(states(waiting)).toEqual(["done", "done", "current*", "todo"]);
     expect(waiting).toContain('<span class="eos-status eos-status--active">Waiting for you</span>');
     expect(waiting).toContain('<p class="eos-run__sentence">This run waits for you in Needs you.</p>');
     expect(waiting).toContain('<p class="eos-rlead__now eos-rlead__now--active" role="status">Nothing goes out until you answer.</p>');
     expect(waiting).toContain('<button type="button" class="eos-btn eos-btn--primary">Open it in Needs you</button>');
     expect(waiting).toContain("waits for you</span>");
-    expect(waiting).toContain('<h2 class="eos-label">The check</h2><span class="eos-section__aside">Passed</span>');
+    expect(waiting).not.toContain("The check");
+    expect(waiting).not.toContain("Checker");
   });
 
   it("shows a finished show-only run's result, read-only, and a trial's under its own heading", async () => {
     const shown = await screen("shown01");
     expect(shown).toMatch(/<span class="eos-status eos-status--ok">Done in 4 min<\/span>/);
-    expect(states(shown)).toEqual(["done", "done", "done", "done", "arrived"]);
+    expect(states(shown)).toEqual(["done", "done", "done", "arrived"]);
     expect(shown).toContain('<h2 class="eos-label">What it made</h2>');
     expect(shown).toContain("<md>Clean change. One note about naming.</md>");
     expect(shown).not.toContain(">Stop</button>");
@@ -168,15 +166,12 @@ describe("the run view", () => {
     expect(trial).toContain("<md>Looks good. Should the haptics follow the system setting?</md>");
   });
 
-  it("marks where a failed run failed, says why in its lead and which checks failed", async () => {
+  it("marks where a failed run failed and says why in its lead", async () => {
     const html = await screen("failed01");
     expect(html).toContain('<span class="eos-status eos-status--err">Failed</span>');
-    expect(states(html)).toEqual(["done", "done", "failed*", "todo", "todo"]);
-    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--err" role="status">Its result failed the check twice.</p>');
-    expect(html).toContain('<span class="eos-section__aside eos-run-check__failed">1 of 2 failed</span>');
-    expect(html).toContain('<li class="eos-fact eos-fact--err">Two findings name no line.<span class="eos-sr">, failed</span></li>');
-    expect(html).toContain('<li class="eos-fact eos-fact--done">Nothing secret-like in the text.<span class="eos-sr">, passed</span></li>');
-    expect(html).toContain("<li>Name the line of each finding.</li>");
+    expect(states(html)).toEqual(["done", "failed*", "todo", "todo"]);
+    expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--err" role="status">It ended twice without handing in a result.</p>');
+    expect(html).not.toContain("The check");
     expect(html).not.toContain(">Stop</button>");
   });
 
@@ -184,12 +179,12 @@ describe("the run view", () => {
     const cancelled = await screen("cancelled01");
     expect(cancelled).toContain('<span class="eos-status">Stopped</span>');
     expect(cancelled).toContain("You stopped this run.");
-    expect(states(cancelled)).toEqual(["done", "stopped*", "todo", "todo", "todo"]);
+    expect(states(cancelled)).toEqual(["done", "stopped*", "todo", "todo"]);
 
     const paused = await screen("paused01");
     expect(paused).toContain('<span class="eos-status eos-status--warn">Paused</span>');
     expect(paused).toContain("Paused. It spent all the money one run may spend.");
-    expect(states(paused)).toEqual(["done", "paused*", "todo", "todo", "todo"]);
+    expect(states(paused)).toEqual(["done", "paused*", "todo", "todo"]);
     expect(paused).toContain(">Stop</button>");
     expect(paused).toContain('<span class="eos-team-card__side">Sonnet 5.5 · resting</span>');
     // Paused at its limit, the way on is to raise it; a run that has not ended never runs again.

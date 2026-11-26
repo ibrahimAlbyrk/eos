@@ -34,7 +34,6 @@ struct RoleTable {
 
 const LEAD: RoleTable = RoleTable { tokens_in: 20_000, cache_read: 60_000, tokens_out: 6_000, minutes: 6 };
 const SPECIALIST: RoleTable = RoleTable { tokens_in: 15_000, cache_read: 40_000, tokens_out: 4_000, minutes: 4 };
-const CHECKER: RoleTable = RoleTable { tokens_in: 10_000, cache_read: 20_000, tokens_out: 1_500, minutes: 2 };
 
 impl RoleTable {
     fn usage(&self) -> Usage {
@@ -109,8 +108,8 @@ fn signature_of(blueprint: &Blueprint, run: &StoredRun) -> Option<String> {
     Some(option_signature(&blueprint.options, &input.options))
 }
 
-/// Each agent's usual tokens at its model's price; the time is the lead's
-/// and the checker's, as the specialists work beside the lead.
+/// Each agent's usual tokens at its model's price; the time is the lead's,
+/// as the specialists work beside the lead.
 fn table(
     blueprint: &Blueprint,
     input: &RunInput,
@@ -126,10 +125,6 @@ fn table(
         if leads {
             minutes += role.minutes;
         }
-    }
-    if blueprint.how.check_agent {
-        agents.push((CHECKER.usage(), price(&blueprint.who.checker.model)));
-        minutes += CHECKER.minutes;
     }
     let usd = table_usd(agents.iter().map(|(usage, pricing)| (usage, pricing.as_ref())));
     Spend { usd, ms: minutes * MINUTE_MS }

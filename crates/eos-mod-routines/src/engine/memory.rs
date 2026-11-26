@@ -1,10 +1,10 @@
 //! Memory at the stations (01 §4.7, 04 §6): the lead starts with the notes
-//! recalled for its item, and memory hears how each run ended, each check
-//! its checker failed, and each routine that left for good. Memory failing
+//! recalled for its item, and memory hears how each run ended and each
+//! routine that left for good. Memory failing
 //! never holds up a run: it is logged and the run goes on without it.
 
 use eos_contracts::{RunChange, RunInput};
-use eos_core::experience::{CheckVerdict, RunOutcome, RunPackRequest};
+use eos_core::experience::{RunOutcome, RunPackRequest};
 use eos_domain::experience::cues;
 use eos_domain::routine::run::RunState;
 
@@ -91,15 +91,6 @@ pub(crate) async fn run_ended(engine: &Engine, change: &RunChange) {
     let outcome = RunOutcome { run_id: run.id, routine_id: run.routine_id, note, kind };
     if let Err(error) = engine.feedback.run_ended(outcome).await {
         tracing::warn!(run_id = %change.run_id, %error, "a run's end was not told to memory");
-    }
-}
-
-/// Tells memory the checker did not pass the lead's result.
-pub(crate) async fn check_failed(engine: &Engine, run_id: &str, routine_id: &str, lead: &str) {
-    let verdict =
-        CheckVerdict { run_id: run_id.to_owned(), routine_id: routine_id.to_owned(), worker_id: lead.to_owned() };
-    if let Err(error) = engine.feedback.check_failed(verdict).await {
-        tracing::warn!(run_id, %error, "a failed check was not told to memory");
     }
 }
 

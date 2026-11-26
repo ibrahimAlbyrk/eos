@@ -39,17 +39,16 @@
 //! ([`RoutinesModule::grants`]).
 //!
 //! The lead starts with the notes memory recalls for its item
-//! ([`ExperiencePacks`]); memory hears how each run ended, each check that
-//! failed and each routine that left for good ([`ExperienceFeedback`]). A
+//! ([`ExperiencePacks`]); memory hears how each run ended and each routine
+//! that left for good ([`ExperienceFeedback`]). A
 //! routine that makes a view, a page or an app takes its surface through its
 //! life ([`SurfaceAuthoring`]). Its surface's buttons run it again, run it
 //! on an item and open a run, and its live parts read how it stands and its
 //! last runs, through the direct-action registry.
 //!
-//! A handed-in result waits at the check while its lead is held: the rules,
-//! then a checker session (`eos-run-checker`) when the routine asks for one.
-//! A passed result goes to the gate ([`RunGate`], Needs you's) in the run's
-//! own write; Needs you reports
+//! A handed-in result that fits what the routine makes goes straight to the
+//! gate ([`RunGate`], Needs you's) in the run's own write; one that does not
+//! is refused to the lead with what to fix. Needs you reports
 //! what became of it through [`RunOutcomes`].
 //!
 //! A run from a trigger of a routine whose confirmed rung is Ask waits in

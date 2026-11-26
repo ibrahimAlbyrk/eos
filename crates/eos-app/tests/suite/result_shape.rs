@@ -50,8 +50,8 @@ async fn a_review_of_the_wrong_kind_or_shape_is_refused_at_hand_in_and_the_shown
 
     let reply = call_tool(&app, &agents, &lead, "submit_result", submit("github.review", example)).await;
     assert!(!reply.is_error, "{}", reply.text);
-    eventually("the result is checked", || async {
-        crate::routines_rig::run(&app, &run).await.state == RunState::Checking
+    eventually("the result goes on to the gate", || async {
+        crate::routines_rig::run(&app, &run).await.state != RunState::Running
     })
     .await;
     app.shutdown(Duration::from_secs(5)).await;

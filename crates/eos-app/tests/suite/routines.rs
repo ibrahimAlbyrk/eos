@@ -29,7 +29,7 @@ async fn a_pull_request_runs_once_waits_as_a_draft_goes_stale_and_expires_and_no
         .await;
     let first = runs(&app, &routine).await.remove(0);
     assert_eq!((first.origin.as_str(), first.item_key.as_deref()), ("trigger", Some("github:pr:acme/game#7")));
-    hand_in(&app, &agents, &first.id, "Looks fine", review_doc("Looks fine."), true).await;
+    hand_in(&app, &agents, &first.id, "Looks fine", review_doc("Looks fine.")).await;
     eventually("the draft waits", || async { !inbox(&app).await.is_empty() }).await;
     let items = inbox(&app).await;
     let draft = &items[0];

@@ -1,4 +1,4 @@
-//! A run that fails, a check that fails twice, a budget hit, a spent day and a missing
+//! A run that fails, a budget hit, a spent day and a missing
 //! sign-in, each where the user reads it: the run view, the routine page, Home's runs and
 //! Needs you.
 
@@ -6,12 +6,12 @@ use std::time::Duration;
 
 use eos_app::App;
 use eos_domain::worker::Usage;
-use eos_testkit::{ScriptedRuntime, TempHome};
+use eos_testkit::TempHome;
 use serde_json::{Value, json};
 
 use super::{by_hand, items, read};
 use crate::routines_rig::{
-    Fakes, call_tool, eventually, lead, make, page, pull, review_blueprint, review_doc, run, runs, working_agents,
+    Fakes, call_tool, eventually, lead, make, page, pull, review_blueprint, run, runs, working_agents,
 };
 
 /// The run view's run.
@@ -79,38 +79,14 @@ async fn a_failed_run_shows_in_the_run_view_the_routine_page_and_home_and_three_
     app.shutdown(Duration::from_secs(5)).await;
 }
 
-/// The lead of `run_id` hands in a review; the checker's verdict on it.
-async fn checked(app: &App, agents: &ScriptedRuntime, lead_id: &str, pass: bool) {
-    let checkers =
-        || agents.started().into_iter().filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker"));
-    let before = checkers().count();
-    let result = json!({"kind": "github.review", "headline": "A review", "body": review_doc("Fine.")});
-    let reply = call_tool(app, agents, lead_id, "submit_result", result).await;
-    assert!(!reply.is_error, "{}", reply.text);
-    eventually("a checker starts", || async { checkers().count() > before }).await;
-    let checker = checkers().next_back().expect("a checker").worker_id;
-    let verdict = match pass {
-        true => json!({"pass": true, "checks": [], "mustFix": []}),
-        false => json!({"pass": false, "checks": [{"key": "tone", "ok": false, "note": "n"}], "mustFix": ["Say why."]}),
-    };
-    let reply = call_tool(app, agents, &checker, "submit_verdict", verdict).await;
-    assert!(!reply.is_error, "{}", reply.text);
-}
-
 #[tokio::test(flavor = "multi_thread")]
-async fn a_twice_failed_check_and_a_spent_budget_name_their_reason_in_the_run_view() {
+async fn a_spent_budget_names_its_reason_in_the_run_view() {
     let (home, agents, fakes) = (TempHome::new(), working_agents(), Fakes::new());
     let app = fakes.app(home.path(), &agents, true);
     app.start().await.expect("starts");
     let routine = make(&app, review_blueprint("Review the pull request.")).await;
 
-    let twice = by_hand(&app, &routine, 1).await;
-    let lead_id = lead(&app, &agents, &twice).await;
-    checked(&app, &agents, &lead_id, false).await;
-    checked(&app, &agents, &lead_id, false).await;
-    assert_eq!(failed(&app, &twice).await["reason"], "check_failed");
-
-    let spent = by_hand(&app, &routine, 2).await;
+    let spent = by_hand(&app, &routine, 1).await;
     let lead_id = lead(&app, &agents, &spent).await;
     spends(&app, &lead_id, 3.0).await;
     assert_eq!(failed(&app, &spent).await["reason"], "budget_run");

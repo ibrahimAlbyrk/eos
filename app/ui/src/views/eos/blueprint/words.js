@@ -69,7 +69,7 @@ export const SLOT_GUIDE = [
   ["When", "What starts it: a time, something that happens, or you."],
   ["Which", "Which of those it picks up, and which it leaves."],
   ["Who", "The agents that do the work, and the models they use."],
-  ["How", "The steps they follow and the checks before anything leaves."],
+  ["How", "The steps they follow and what a result must hold to."],
   ["Makes", "What a run hands back: a review, a page, a draft."],
   ["Goes to", "Where the result goes: to you, a channel, a pull request."],
   ["Freedom", "How much it may do on its own before it asks you."],

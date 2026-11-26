@@ -173,7 +173,7 @@
           }
         ],
         "format": "Summary first, then findings by severity, each with its file and line.",
-        "checkAgent": true
+        "checkAgent": false
       },
       "makes": {
         "kind": "github.review",

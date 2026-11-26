@@ -1,7 +1,6 @@
 //! A routine on a pull request source in the composed app, with fakes only: the source,
 //! the channels and the clock are the test's, the agents the scripted runtime's. Made
-//! through the routes, its runs driven through the run tools as the lead and the checker
-//! would call them.
+//! through the routes, its runs driven through the run tools as the lead would call them.
 #![allow(dead_code, unreachable_pub)]
 
 use std::path::Path;
@@ -73,8 +72,8 @@ impl Fakes {
     }
 }
 
-/// Agents whose every turn keeps working until stopped: a run's lead and checker never
-/// end a turn without the result the test hands in for them.
+/// Agents whose every turn keeps working until stopped: a run's lead never ends a turn
+/// without the result the test hands in for them.
 pub fn working_agents() -> ScriptedRuntime {
     let agents = ScriptedRuntime::new();
     agents.otherwise(|_, _| Turn::reply("Working on it.").held().0);
@@ -103,7 +102,7 @@ pub fn page(items: Vec<SignalDraft>, more: bool) -> PollPage {
     PollPage { items, cursor: json!({"page": 1}), more, baseline: false, poll_after_ms: None, retry_at: None }
 }
 
-/// A review of [`REPO`]'s pull requests, by one agent with a checker, held as a draft.
+/// A review of [`REPO`]'s pull requests, by one agent, held as a draft.
 pub fn review_blueprint(brief: &str) -> Value {
     json!({
         "format": 1, "name": "PR Review", "summary": "Reviews a pull request.", "icon": "eye", "kind": "standing",
@@ -186,22 +185,12 @@ pub async fn lead(app: &App, agents: &ScriptedRuntime, run_id: &str) -> String {
     run(app, run_id).await.lead_id.expect("a lead")
 }
 
-/// The lead of `run` hands in `doc`; a checker, when the routine has one, passes it.
-pub async fn hand_in(app: &App, agents: &ScriptedRuntime, run_id: &str, headline: &str, doc: Value, checked: bool) {
+/// The lead of `run` hands in `doc`; it goes straight to the gate.
+pub async fn hand_in(app: &App, agents: &ScriptedRuntime, run_id: &str, headline: &str, doc: Value) {
     let lead = lead(app, agents, run_id).await;
-    let checkers =
-        || agents.started().into_iter().filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker"));
-    let before = checkers().count();
     let result = json!({"kind": doc["kind"], "headline": headline, "body": doc});
     let reply = call_tool(app, agents, &lead, "submit_result", result).await;
     assert!(!reply.is_error, "{}", reply.text);
-    if checked {
-        eventually("a checker starts", || async { checkers().count() > before }).await;
-        let checker = checkers().next_back().expect("a checker").worker_id;
-        let verdict = json!({"pass": true, "checks": [], "mustFix": []});
-        let reply = call_tool(app, agents, &checker, "submit_verdict", verdict).await;
-        assert!(!reply.is_error, "{}", reply.text);
-    }
 }
 
 /// The items waiting in Needs you.

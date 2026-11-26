@@ -123,7 +123,7 @@ export function itemLine(input) {
 const capital = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const NUMBERS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 const agentsWord = (n) => `${NUMBERS[n] ?? n} ${n === 1 ? "agent" : "agents"}`;
-const STATION_WORDS = { brief: "the brief", work: "the work", check: "the check", gate: "the gate", deliver: "sending" };
+const STATION_WORDS = { brief: "the brief", work: "the work", check: "the work", gate: "the gate", deliver: "sending" };
 
 // Where the run stands, said under its sentence as Home's second line says
 // the day: how long it has been at it and with whom, or how it ended, with
@@ -138,7 +138,7 @@ export function standingLine({ run, agents }, now) {
     case "checking":
       return { text: working ? `${capital(agentsWord(working))} at work, ${took} in.` : `${capital(took)} in.` };
     case "waiting_for_user": return { text: "Nothing goes out until you answer.", tone: "active" };
-    case "delivering": return { text: `Checked and passed, ${took} in.` };
+    case "delivering": return { text: `On its way, ${took} in.` };
     case "paused": return { text: at ? `It waits at ${at} until it may go on.` : "It waits until it may go on.", tone: "warn" };
     case "done": return { text: `Done in ${took} for ${fmtUsd(run.costUsd)}.` };
     case "skipped": return { text: "It never started." };

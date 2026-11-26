@@ -1,7 +1,6 @@
 //! One routine end to end in the composed app (09 §10), with fakes only: a PR Review team
 //! held as drafts; a pull request polled from the source admits one run; the lead starts two
-//! specialists, they report, the checker fails the result once and passes it the second time;
-//! the draft waits in Needs you and stays open across a restart; sent with one comment
+//! specialists, they report, and the lead's result goes straight to the gate; the draft waits in Needs you and stays open across a restart; sent with one comment
 //! removed, it goes out once with its marker and the run ends `sent_edited`; memory learns
 //! from that edit a note for the routine, and the next pull request's lead starts with it. A
 //! show-only run in between sends nothing.
@@ -42,24 +41,6 @@ fn review() -> Value {
     ]})
 }
 
-fn checkers(agents: &ScriptedRuntime) -> Vec<String> {
-    let started = agents.started().into_iter();
-    started.filter(|s| s.worker_definition.as_deref() == Some("eos-run-checker")).map(|s| s.worker_id).collect()
-}
-
-/// The `n`-th checker's verdict on the lead's result.
-async fn judge(app: &App, agents: &ScriptedRuntime, n: usize, pass: bool) {
-    eventually("a checker starts", || async { checkers(agents).len() >= n }).await;
-    let checker = checkers(agents)[n - 1].clone();
-    let verdict = if pass {
-        json!({"pass": true, "checks": [], "mustFix": []})
-    } else {
-        json!({"pass": false, "checks": [{"key": "tone", "ok": false, "note": "n"}], "mustFix": ["Say why."]})
-    };
-    let reply = call_tool(app, agents, &checker, "submit_verdict", verdict).await;
-    assert!(!reply.is_error, "{}", reply.text);
-}
-
 async fn submit(app: &App, agents: &ScriptedRuntime, lead: &str, doc: Value) {
     let result = json!({"kind": "github.review", "headline": "Two small points", "body": doc});
     let reply = call_tool(app, agents, lead, "submit_result", result).await;
@@ -95,7 +76,7 @@ async fn a_sent_edit_becomes_a_note_that_the_next_run_s_lead_receives() {
     let first = runs(&app, &routine).await.remove(0);
     assert_eq!(first.item_key.as_deref(), Some("github:pr:acme/game#7"));
 
-    // 3. The lead starts two specialists; they report; the checker fails once, then passes.
+    // 3. The lead starts two specialists; they report; the lead hands in its result.
     let lead_id = lead(&app, &agents, &first.id).await;
     for (agent, task) in [("tester", "Run the tests."), ("reader", "Read the diff.")] {
         let reply = call_tool(&app, &agents, &lead_id, "start_specialist", json!({"agent": agent, "task": task})).await;
@@ -114,9 +95,6 @@ async fn a_sent_edit_becomes_a_note_that_the_next_run_s_lead_receives() {
     let team = call_tool(&app, &agents, &lead_id, "list_specialists", json!({})).await;
     assert!(team.text.contains("All tests pass.") && team.text.contains("The diff is small."), "{}", team.text);
     submit(&app, &agents, &lead_id, review()).await;
-    judge(&app, &agents, 1, false).await;
-    submit(&app, &agents, &lead_id, review()).await;
-    judge(&app, &agents, 2, true).await;
 
     // 4. The gate holds a draft, announced once the run's write is committed.
     let announced = frames
@@ -172,7 +150,6 @@ async fn a_sent_edit_becomes_a_note_that_the_next_run_s_lead_receives() {
     let shown_only = started["runs"][0]["id"].as_str().expect("a run").to_owned();
     let lead_id = lead(&app, &agents, &shown_only).await;
     submit(&app, &agents, &lead_id, review()).await;
-    judge(&app, &agents, 1, true).await;
     eventually("the show-only run ends", || async { run(&app, &shown_only).await.state == RunState::Done }).await;
     assert_eq!(fakes.channels.sent().len(), 1, "nothing more went out");
 

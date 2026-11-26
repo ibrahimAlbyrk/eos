@@ -63,7 +63,7 @@ async fn a_solo_run_starts_its_lead_with_its_brief_then_goes_to_work() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn submit_result_keeps_a_copy_with_its_files_and_the_run_waits_at_the_check() {
+async fn submit_result_keeps_a_copy_with_its_files_and_the_run_goes_to_the_gate() {
     let bench = Bench::new(true);
     let routine = bench.routine(RoutineState::Active, blueprint(1));
     let (run, lead) = at_work(&bench, &routine, "quick").await;
@@ -82,7 +82,11 @@ async fn submit_result_keeps_a_copy_with_its_files_and_the_run_waits_at_the_chec
     std::fs::write(&file, "changed after").expect("a change");
 
     let stored = bench.run(&run);
-    assert_eq!((stored.state, stored.station), (RunState::Checking, Some(Station::Check)));
+    assert_eq!(
+        (stored.state, stored.station),
+        (RunState::Done, Some(Station::Work)),
+        "shown, as the fake gate decides"
+    );
     assert_eq!(stored.headline.as_deref(), Some("Two issues"));
     let id = run.clone();
     let results = bench.temp.store.read_blocking(move |tx| tx.run_results().by_run(&id)).expect("reads");

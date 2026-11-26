@@ -1,11 +1,11 @@
 //! After Eos restarts: a working run picks up once and fails the second
-//! time, a checking run checks again with its lead held, a queued run more
+//! time, a run found at its check goes on to the gate, a queued run more
 //! than a day late is skipped; a run whose routine was switched off before
 //! it started never starts; an ended run's sessions are suspended.
 
 use eos_contracts::{RoutineState, WorkerState};
 use eos_core::Clock;
-use eos_core::routine::{RunOrigin, SubmittedResult};
+use eos_core::routine::RunOrigin;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_runtime::module::Module;
 use serde_json::json;
@@ -56,25 +56,36 @@ async fn a_working_run_picks_up_once_after_a_restart_and_fails_the_second_time()
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_checking_run_checks_again_with_its_lead_held() {
+async fn a_run_found_at_its_check_goes_on_to_the_gate_and_its_lead_is_let_go() {
     let bench = Bench::new(true);
     let (run, lead) = working(&bench).await;
-    let result =
-        SubmittedResult { kind: "github.review".into(), headline: "R".into(), body: json!("b"), files: vec![] };
-    bench.module.tools().submit_result(&lead, result).await.expect("handed in");
-    let is_checker = |s: &eos_core::agent::LaunchSpec| s.worker_definition.as_deref() == Some("eos-run-checker");
-    bench.eventually(|| bench.agents.started().iter().any(is_checker)).await;
-    let first = bench.agents.started().into_iter().find(is_checker).expect("a checker").worker_id;
-    bench.agents.settled().await;
+    let id = run.clone();
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            tx.run_results().insert(&eos_core::store::StoredRunResult {
+                run_id: id,
+                attempt: 1,
+                kind: "github.review".into(),
+                headline: "R".into(),
+                body: json!("b").to_string(),
+                files: None,
+                verdict: None,
+                created_at: 0,
+            })
+        })
+        .expect("writes");
+    bench.temp.exec(&format!("UPDATE runs SET state = 'checking', station = 'check' WHERE id = '{run}'"));
     bench.module.stop().await;
 
     let restarted = bench.another_module();
-    assert!(!restarted.holds_worker(&lead));
     restarted.after_ready().await.expect("starts");
-    assert!(restarted.holds_worker(&lead), "held again while its result is checked");
-    bench.eventually(|| bench.agents.started().iter().filter(|s| is_checker(s)).count() == 2).await;
-    bench.eventually(|| state_of(&bench, &first) == WorkerState::Suspended).await;
-    assert_eq!(bench.state(&run), RunState::Checking);
+    bench.eventually(|| bench.state(&run) == RunState::Done).await;
+    assert_eq!(bench.gate.inputs().len(), 1, "the gate took it");
+    bench.eventually(|| !restarted.holds_worker(&lead)).await;
+    let is_checker = |s: &eos_core::agent::LaunchSpec| s.worker_definition.as_deref() == Some("eos-run-checker");
+    assert!(!bench.agents.started().iter().any(is_checker), "no checker starts");
     restarted.stop().await;
 }
 

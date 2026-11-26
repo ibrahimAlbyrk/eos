@@ -13,7 +13,6 @@ import { splitItemNumber } from "../routine/RoutineRuns.jsx";
 import { RunCost } from "./RunCost.jsx";
 import { RunMemory } from "./RunMemory.jsx";
 import { RunNeighbours } from "./RunNeighbours.jsx";
-import { RunCheck } from "./RunCheck.jsx";
 import { RunGone, RunLead, RunLeadGhost } from "./RunLead.jsx";
 import { RunTook } from "./RunTook.jsx";
 import { TeamCard } from "./TeamCard.jsx";
@@ -58,7 +57,7 @@ export function runSentence({ run, input }) {
 }
 
 // A run's result as parts: as the lead wrote it when it is one, else its body
-// as one text part (as the core reads it for the check).
+// as one text part (as the core reads it for the gate).
 export function resultDoc(result) {
   if (Array.isArray(result.body?.parts)) return result.body;
   const text = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
@@ -135,7 +134,6 @@ function RunBody({ detail, options, result, lines, devRun, now, routineName }) {
             </section>
           )}
           {TELLABLE.has(run.state) && <TellTeam runId={run.id} />}
-          <RunCheck verdict={detail.verdict} />
           <RunNeighbours run={run} routineName={routineName} now={now} />
         </section>
         <aside className="eos-run-aside" aria-label="About this run">

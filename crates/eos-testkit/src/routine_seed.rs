@@ -25,9 +25,9 @@ pub const PR_REVIEW_FIRST: &str = "rv-sample000001";
 pub const PR_REVIEW_HEAD: &str = "rv-sample000002";
 const MORNING_PAPER_HEAD: &str = "rv-sample000003";
 const RELEASE_NOTES_DRAFT: &str = "rv-sample000004";
-/// PR Review's runs: shown, failed its check, found nothing, a trial.
+/// PR Review's runs: shown, failed, found nothing, a trial.
 pub const RUN_SHOWN: &str = "rn-sample000001";
-pub const RUN_CHECK_FAILED: &str = "rn-sample000002";
+pub const RUN_FAILED: &str = "rn-sample000002";
 pub const RUN_NOTHING: &str = "rn-sample000003";
 pub const RUN_TRIAL: &str = "rn-sample000004";
 
@@ -184,16 +184,12 @@ struct SampleRun {
 const DONE: &[(RunState, Option<Station>, Option<Reason>)] = &[
     (RunState::Running, Some(Station::Brief), None),
     (RunState::Running, Some(Station::Work), None),
-    (RunState::Checking, Some(Station::Check), None),
     (RunState::Done, Some(Station::Gate), None),
 ];
-const CHECK_FAILED: &[(RunState, Option<Station>, Option<Reason>)] = &[
+const FAILED: &[(RunState, Option<Station>, Option<Reason>)] = &[
     (RunState::Running, Some(Station::Brief), None),
     (RunState::Running, Some(Station::Work), None),
-    (RunState::Checking, Some(Station::Check), None),
-    (RunState::Running, Some(Station::Work), None),
-    (RunState::Checking, Some(Station::Check), None),
-    (RunState::Failed, Some(Station::Check), Some(Reason::CheckFailed)),
+    (RunState::Failed, Some(Station::Work), Some(Reason::NoResult)),
 ];
 const NOTHING: &[(RunState, Option<Station>, Option<Reason>)] = &[
     (RunState::Running, Some(Station::Brief), None),
@@ -216,7 +212,7 @@ fn runs() -> [SampleRun; 4] {
     };
     [
         run(RUN_TRIAL, "trial", "trial", 455, 50, DONE, Some(Outcome::Shown), "Two notes on the cache", 0.42, 6),
-        run(RUN_CHECK_FAILED, "standing", "hand", 468, 3, CHECK_FAILED, None, "The review missed the tests", 0.95, 14),
+        run(RUN_FAILED, "standing", "hand", 468, 3, FAILED, None, "The review missed the tests", 0.95, 14),
         run(RUN_NOTHING, "standing", "hand", 469, 2, NOTHING, Some(Outcome::Nothing), "Nothing to say", 0.18, 3),
         run(
             RUN_SHOWN,
@@ -247,12 +243,6 @@ fn review(headline: &str) -> String {
          "meta": {"path": "src/login.rs", "line": 42, "side": "RIGHT"}},
     ]});
     doc.to_string()
-}
-
-fn verdict(pass: bool) -> String {
-    let must_fix: Vec<&str> = if pass { vec![] } else { vec!["Name the line of each comment."] };
-    json!({"pass": pass, "checks": [{"key": "cites", "ok": pass, "note": "Checked each comment."}], "mustFix": must_fix})
-        .to_string()
 }
 
 fn write_run(tx: &dyn Tx, sample: &SampleRun) -> Result<(), Error> {
@@ -290,25 +280,22 @@ fn write_run(tx: &dyn Tx, sample: &SampleRun) -> Result<(), Error> {
     })?;
     tx.runs().append_event(sample.id, sample.at, RUN_STATE_EVENT, Some(r#"{"state":"queued"}"#))?;
     let step = sample.work_ms / sample.moves.len() as i64;
-    let mut attempt = 0;
     for (i, (state, station, reason)) in sample.moves.iter().enumerate() {
         let at = sample.at + MINUTE + i as i64 * step;
-        tx.runs().move_to(sample.id, &RunMove { state: *state, station: *station, reason: *reason, at })?;
-        if *state == RunState::Checking {
-            attempt += 1;
-            let pass = sample.outcome.is_some();
+        // The result is handed in as the run leaves work for the gate.
+        if *station == Some(Station::Gate) {
             tx.run_results().insert(&StoredRunResult {
                 run_id: sample.id.to_owned(),
-                attempt,
+                attempt: 1,
                 kind: "github.review".to_owned(),
                 headline: sample.headline.to_owned(),
                 body: review(sample.headline),
                 files: None,
-                verdict: Some(verdict(pass)),
+                verdict: None,
                 created_at: at,
             })?;
-            tx.runs().set_attempt(sample.id, attempt)?;
         }
+        tx.runs().move_to(sample.id, &RunMove { state: *state, station: *station, reason: *reason, at })?;
     }
     if let Some(outcome) = sample.outcome {
         tx.runs().set_outcome(sample.id, outcome)?;

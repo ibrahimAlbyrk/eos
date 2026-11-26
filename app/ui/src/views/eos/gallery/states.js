@@ -183,15 +183,14 @@ const unconfirmedResume = {
 };
 const archivedPr = (s) => prWith(s, (d) => ({ ...d, runs: d.runs.filter((r) => ["done", "cancelled", "failed"].includes(r.state)), routine: { ...d.routine, state: "archived", activeRuns: 0, lastRun: d.runs.find((r) => r.state === "done") } }));
 
-// The working run with a team of six: three more specialists, one of them
-// done, one starting, one with a long line of what it does.
+// The working run with a team of five: two more specialists, one of them
+// done, one with a long line of what it does.
 const crowdedRun = (s) => {
   const path = ROUTES.run("rn-running01");
   const detail = s[path];
   const more = [
     { workerId: "w-x1", role: "specialist", name: "Shader specialist", model: "claude-sonnet-5-5", state: "WORKING", costUsd: 0.08, lastActivity: "comparing ShopCarousel.shader against the paging change in CarouselPager.cs and the snapshot tests" },
     { workerId: "w-x2", role: "specialist", name: "Test writer", model: "claude-haiku-5-5", state: "DONE", costUsd: 0.03, lastActivity: "wrote three paging tests" },
-    { workerId: "w-x3", role: "checker", model: "claude-haiku-5-5", state: "SPAWNING" },
   ];
   return { ...s, [path]: { ...detail, agents: [...detail.agents, ...more] } };
 };
@@ -266,8 +265,7 @@ export const GALLERY_STATES = [
   { id: "home-loading", label: "Home · loading", location: "eos:/", answer: "loading" },
   { id: "home-error", label: "Home · cannot read", location: "eos:/", answer: "error" },
   { id: "home-offline", label: "Home · reconnecting", location: "eos:/", answer: "offline" },
-  { id: "home-live", label: "Home · four runs started from the input, one dropped", location: "eos:/", then: () => {
-    addHomeRuns([{ id: "rn-checking01", routineId: PR }]);
+  { id: "home-live", label: "Home · three runs started from the input, one dropped", location: "eos:/", then: () => {
     addHomeRuns(["rn-waiting01", "rn-queued01"].map((id) => ({ id, routineId: PR })));
     addHomeRuns([{ id: "rn-running01", routineId: PR }], { stoppable: true });
   } },
@@ -337,12 +335,11 @@ export const GALLERY_STATES = [
   { id: "run-waiting", label: "Run · waiting for you", location: "eos:/runs/rn-waiting01" },
   { id: "run-failed", label: "Run · failed", location: "eos:/runs/rn-failed01" },
   { id: "run-queued", label: "Run · queued", location: "eos:/runs/rn-queued01" },
-  { id: "run-checking", label: "Run · being checked", location: "eos:/runs/rn-checking01" },
   { id: "run-shown", label: "Run · done, shown to you only", location: "eos:/runs/rn-shown01" },
   { id: "run-trial", label: "Run · a trial", location: "eos:/runs/rn-trial01" },
   { id: "run-paused", label: "Run · paused by the day's limit", location: "eos:/runs/rn-paused01" },
   { id: "run-cancelled", label: "Run · stopped by you", location: "eos:/runs/rn-cancelled01" },
-  { id: "run-crowded", label: "Run · a team of six", location: "eos:/runs/rn-running01", reads: crowdedRun },
+  { id: "run-crowded", label: "Run · a team of five", location: "eos:/runs/rn-running01", reads: crowdedRun },
   { id: "run-loading", label: "Run · loading", location: "eos:/runs/rn-running01", answer: "loading" },
   { id: "run-error", label: "Run · cannot read", location: "eos:/runs/rn-running01", answer: "error" },
   { id: "run-gone", label: "Run · no longer here", location: "eos:/runs/rn-gone" },

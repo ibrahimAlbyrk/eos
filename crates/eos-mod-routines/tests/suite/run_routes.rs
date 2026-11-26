@@ -120,10 +120,10 @@ async fn the_estimate_comes_from_the_routines_runs_its_trials_or_the_table() {
     assert_eq!(status, 200, "{table}");
     assert_eq!(
         (table["basis"].as_str(), table["n"].as_i64(), table["ms"].as_i64()),
-        (Some("table"), Some(0), Some(8 * 60_000))
+        (Some("table"), Some(0), Some(6 * 60_000))
     );
-    // Lead and checker on sonnet: (20k × 3 + 6k × 15 + 60k × 0.3 + 10k × 3 + 1.5k × 15 + 20k × 0.3) / 1M, twice.
-    assert!((table["usd"].as_f64().expect("usd") - 2.0 * 0.2265).abs() < 1e-9, "{table}");
+    // The lead on sonnet, and no checker though the blueprint asks for one: (20k × 3 + 6k × 15 + 60k × 0.3) / 1M, twice.
+    assert!((table["usd"].as_f64().expect("usd") - 2.0 * 0.168).abs() < 1e-9, "{table}");
 
     let trial = bench.hand(&routine, Some(pull_request(8))).await;
     bench.temp.exec(&format!(
@@ -175,9 +175,7 @@ async fn candidates_are_the_sources_items_and_the_routines_own_newest_first_each
 async fn the_history_one_run_its_result_and_its_timeline_read_back() {
     let routes = Routes::new();
     let bench = &routes.bench;
-    let mut unchecked = blueprint(1);
-    unchecked["how"]["checkAgent"] = json!(false);
-    let routine = bench.routine(RoutineState::Active, unchecked);
+    let routine = bench.routine(RoutineState::Active, blueprint(1));
     bench.supervise().await;
     let (run, lead) = routes.working(&routine, 1).await;
     bench.module.tools().report_progress(&lead, "Reading the diff", None).await.expect("noted");
@@ -203,13 +201,13 @@ async fn the_history_one_run_its_result_and_its_timeline_read_back() {
     let (status, result) = routes.get(&format!("/api/runs/{run}/result")).await;
     assert_eq!(status, 200, "{result}");
     assert_eq!(
-        (result["headline"].as_str(), result["body"].as_str(), result["verdict"]["pass"].as_bool()),
-        (Some("Fine"), Some("All good."), Some(true))
+        (result["headline"].as_str(), result["body"].as_str(), result["verdict"].is_null()),
+        (Some("Fine"), Some("All good."), true)
     );
     let (_, events) = routes.get(&format!("/api/runs/{run}/events")).await;
     let states: Vec<&str> =
         events.as_array().expect("events").iter().filter_map(|e| e["data"]["state"].as_str()).collect();
-    assert_eq!(states, ["queued", "running", "running", "checking", "done"]);
+    assert_eq!(states, ["queued", "running", "running", "done"], "from work to the gate, no check");
 
     let other = bench.hand(&routine, Some(pull_request(2))).await;
     let (_, page) = routes.get(&format!("/api/runs?routineId={routine}&limit=1")).await;
@@ -237,24 +235,15 @@ async fn a_message_reaches_the_lead_and_reopens_a_check_or_a_held_result_but_not
     bench.eventually(|| bench.agents.sent(&lead).iter().any(|text| text.contains("Mind the tests."))).await;
     assert!(!bench.agents.sent(&lead).iter().any(|text| text.contains("routine_note")), "the user's own words");
 
-    bench.module.tools().submit_result(&lead, result()).await.expect("handed in");
-    assert_eq!(bench.state(&running), RunState::Checking);
-    let is_checker = |s: &eos_core::agent::LaunchSpec| s.worker_definition.as_deref() == Some("eos-run-checker");
-    bench.eventually(|| bench.agents.started().iter().any(is_checker)).await;
-    let checker = bench.agents.started().into_iter().find(is_checker).expect("a checker").worker_id;
+    // A run found at its check goes back to work on the user's word.
+    bench.temp.exec(&format!("UPDATE runs SET state = 'checking', station = 'check' WHERE id = '{running}'"));
     let (path, body) = tell(&running);
     assert_eq!(routes.post(&path, body).await.0, 200);
     let reopened = bench.run(&running);
     assert_eq!((reopened.state, reopened.station), (RunState::Running, Some(Station::Work)));
     assert!(!bench.module.holds_worker(&lead));
-    let id = checker.clone();
-    let worker = bench.temp.store.read_blocking(move |tx| tx.workers().find(&id)).expect("reads").expect("a row");
-    assert_eq!(worker.state, eos_contracts::WorkerState::Suspended, "the check stops");
-    let again = SubmittedResult { headline: "R2".into(), ..result() };
-    bench.module.tools().submit_result(&lead, again).await.expect("the reopened round is handed in again");
-    assert_eq!(bench.state(&running), RunState::Checking);
-    let (_, latest) = routes.get(&format!("/api/runs/{running}/result")).await;
-    assert_eq!((latest["attempt"].clone(), latest["headline"].clone()), (json!(1), json!("R2")));
+    bench.module.tools().submit_result(&lead, result()).await.expect("the reopened round is handed in");
+    assert!(bench.state(&running).is_terminal(), "shown, as the fake gate decides");
 
     let (held, held_lead) = routes.working(&routine, 2).await;
     bench.temp.exec(&format!("UPDATE runs SET state = 'waiting_for_user', station = 'gate' WHERE id = '{held}'"));

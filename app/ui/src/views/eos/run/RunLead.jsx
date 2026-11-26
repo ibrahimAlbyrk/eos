@@ -63,7 +63,7 @@ export function RunLeadGhost() {
       <span className="eos-rlead__bar eos-rlead__bar--dim" />
       <div className="eos-stations-wrap" aria-hidden="true">
         <ol className="eos-stations">
-          {Array.from({ length: 5 }, (_, i) => <li key={i} className="eos-station eos-station--todo"><span className="eos-station__mark" /></li>)}
+          {Array.from({ length: 4 }, (_, i) => <li key={i} className="eos-station eos-station--todo"><span className="eos-station__mark" /></li>)}
         </ol>
       </div>
     </div>

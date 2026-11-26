@@ -70,15 +70,6 @@
 .eos-run-result { display: flex; flex-direction: column; gap: 12px; }
 .eos-run-result > .eos-label + * { padding-top: 16px; border-top: 1px solid var(--line); }
 
-/* The check: each rule on a hairline after its mark; what it must fix under. */
-.eos-run-check__failed { color: var(--err); }
-.eos-run-check__rows { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.eos-run-check__rows > li { padding: 12px 0; border-bottom: 1px solid var(--line); }
-.eos-run-check__rows > .eos-fact--err { color: var(--fg); }
-/* What it must fix is its own small part on the column's edge, under a label. */
-.eos-run-check__fix { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
-.eos-run-check__fix-label { margin: 0; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
-.eos-run-check__fix ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg); }
 
 /* The team: each agent a card, side by side as space allows; its state a
    mark before its name (accent and breathing while it works), its cost at

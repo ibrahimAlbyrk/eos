@@ -1,4 +1,4 @@
-//! The gate a checked result passes (01 §4.9, 03 §4.8), called inside the
+//! The gate a handed-in result passes (01 §4.9, 03 §4.8), called inside the
 //! run's own write job so the decision, the run's state and its event
 //! commit together; and the gate an action of a run's agent that reaches
 //! past this computer passes, by the same facts (D73).
@@ -21,8 +21,6 @@ use super::versions::{SourceFacts, untrusted_for};
 use super::{Engine, failures, move_run};
 use crate::routes::readable;
 
-/// Hands the passed result of `run` to the gate and moves the run by its
-/// decision. A result with nothing to send skips the gate (01 G20).
 /// The facts the source of the signal that started the run read, empty for a
 /// run without one or after retention cleared them.
 fn signal_facts_in(tx: &dyn Tx, input: &eos_contracts::RunInput) -> Result<eos_contracts::Facts, Error> {
@@ -33,7 +31,24 @@ fn signal_facts_in(tx: &dyn Tx, input: &eos_contracts::RunInput) -> Result<eos_c
     Ok(facts.and_then(|json| serde_json::from_str(&json).ok()).unwrap_or_default())
 }
 
-pub(crate) fn hand_over(
+/// Hands the result of `run` to the gate and moves the run by its
+/// decision; whether the run is back at work after (a project's next
+/// milestone).
+pub(crate) fn pass_in(
+    engine: &Arc<Engine>,
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    run: &StoredRun,
+    untrusted: &SourceFacts,
+    now: i64,
+) -> Result<bool, Error> {
+    hand_over(engine, tx, out, run, untrusted, now)?;
+    Ok(tx.runs().find(&run.id)?.is_some_and(|run| run.state == RunState::Running))
+}
+
+/// Hands the result of `run` to the gate and moves the run by its
+/// decision. A result with nothing to send skips the gate (01 G20).
+fn hand_over(
     engine: &Arc<Engine>,
     tx: &dyn Tx,
     out: &mut Outbox,

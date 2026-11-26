@@ -47,7 +47,7 @@ fn placeholder(name: &str, rung: Rung) -> Result<Prepared, Error> {
         "when": {"on": []},
         "which": {},
         "who": {"depth": "solo", "agents": [], "checker": {"model": "sonnet", "effort": "high"}},
-        "how": {"format": "", "checkAgent": true},
+        "how": {"format": "", "checkAgent": false},
         "makes": {"kind": "nothing", "description": ""},
         "freedom": {"rung": rung},
     });

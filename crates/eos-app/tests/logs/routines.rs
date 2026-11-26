@@ -49,7 +49,7 @@ pub(crate) async fn steps() -> Area {
     let (status, started) = rig::call(&app, Method::Post, "/api/runs", Some(start)).await;
     assert!(status < 300, "{started}");
     let run = runs(&app, &routine).await.remove(0).id;
-    hand_in(&app, &agents, &run, RESULT, review_doc(DRAFT), false).await;
+    hand_in(&app, &agents, &run, RESULT, review_doc(DRAFT)).await;
     eventually("the draft waits", || async { !inbox(&app).await.is_empty() }).await;
     let draft = inbox(&app).await.remove(0);
     let id = draft["id"].as_str().expect("an id").to_owned();

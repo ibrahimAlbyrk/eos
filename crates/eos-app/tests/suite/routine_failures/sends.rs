@@ -30,7 +30,7 @@ async fn sent_into(kind: SendErrorKind, idempotency: Idempotency) -> (TempHome, 
     app.start().await.expect("starts");
     let routine = make(&app, review_blueprint("Review the pull request.")).await;
     let run_id = by_hand(&app, &routine, 1).await;
-    hand_in(&app, &agents, &run_id, "Looks fine", review_doc("Looks fine."), true).await;
+    hand_in(&app, &agents, &run_id, "Looks fine", review_doc("Looks fine.")).await;
     eventually("the draft waits", || async { !inbox(&app).await.is_empty() }).await;
     let draft = inbox(&app).await.remove(0);
     let (id, rev) = (draft["id"].as_str().expect("an id"), draft["rev"].as_i64().expect("a revision"));

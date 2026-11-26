@@ -1,11 +1,10 @@
-// Where a run is: its stations Brief → Work → Check → Gate → To you as an
+// Where a run is: its stations Brief → Work → Gate → To you as an
 // ordered list, the one it is at marked `aria-current="step"`; a run that
 // ended shows its end there (G28). Each station says its state in words.
 
 export const STATIONS = [
   { key: "brief", label: "Brief" },
   { key: "work", label: "Work" },
-  { key: "check", label: "Check" },
   { key: "gate", label: "Gate" },
   { key: "deliver", label: "To you" },
 ];
@@ -31,7 +30,9 @@ export function stationStates(run) {
   if (run.state === "done") return STATIONS.map((s, i) => ({ ...s, state: i === STATIONS.length - 1 ? "arrived" : "done" }));
   const notStarted = run.state === "cancelled" && !run.station;
   if (run.state === "queued" || run.state === "skipped" || notStarted) return STATIONS.map((s) => ({ ...s, state: "todo" }));
-  const at = Math.max(0, STATIONS.findIndex((s) => s.key === run.station));
+  // A run stored at the check station stands at Work: no check runs.
+  const station = run.station === "check" ? "work" : run.station;
+  const at = Math.max(0, STATIONS.findIndex((s) => s.key === station));
   const here = AT[run.state] ?? "current";
   return STATIONS.map((s, i) => ({ ...s, state: i < at ? "done" : i === at ? here : "todo" }));
 }

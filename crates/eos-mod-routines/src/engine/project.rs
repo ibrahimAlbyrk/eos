@@ -41,16 +41,6 @@ pub(crate) fn current<'a>(blueprint: &'a Blueprint, run: &StoredRun) -> Option<&
     blueprint.project.as_ref()?.milestones.get(done)
 }
 
-/// The first round of the milestone the run works on, from its timeline:
-/// a check counts its rounds from there.
-pub(crate) fn first_round_in(tx: &dyn Tx, run_id: &str) -> Result<i64, Error> {
-    let began = tx.runs().events(run_id)?.into_iter().rev().find(|event| event.kind == MILESTONE_BEGAN);
-    let round = began.and_then(|event| event.data).and_then(|data| {
-        serde_json::from_str::<serde_json::Value>(&data).ok().and_then(|data| data["attempt"].as_i64())
-    });
-    Ok(round.unwrap_or(1))
-}
-
 /// Counts the project run's milestones from 0 as it goes to work.
 pub(crate) fn begin_in(tx: &dyn Tx, run: &StoredRun) -> Result<(), Error> {
     let Some(blueprint) = blueprint_in(tx, run)? else { return Ok(()) };

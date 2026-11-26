@@ -1,5 +1,5 @@
 //! One run: the states it moves through and which moves exist, the station
-//! the run view shows, why a run ended or stopped, and its check rounds.
+//! the run view shows, and why a run ended or stopped.
 //! Each move is one write job of the engine; this says only which are
 //! allowed.
 
@@ -8,7 +8,8 @@ words! {
         /// Waits for its time, a free slot or the user's go-ahead.
         Queued = "queued",
         Running = "running",
-        /// Its result is being checked.
+        /// Its result waits at the check station; a handed-in result goes
+        /// from work to the gate, so only a run stored so is found here.
         Checking = "checking",
         /// Its result is held at the gate for the user.
         WaitingForUser = "waiting_for_user",
@@ -32,11 +33,12 @@ impl RunState {
         matches!(self, RunState::Failed | RunState::Skipped | RunState::Cancelled | RunState::Paused)
     }
 
-    /// Whether a run may move from this state to `next`. Work goes back to
-    /// `running` from the check (it failed once, or the user told the team
-    /// something), from the gate (revise) and from a delivered milestone of a
-    /// project. A result that is shown only, or says there is nothing to
-    /// send, is done at the check; a held one is done when the user discards
+    /// Whether a run may move from this state to `next`. A handed-in result
+    /// goes from work to the gate, and a run found at its check goes there
+    /// too. Work goes back to `running` from the check (the user told the
+    /// team something), from the gate (revise) and from a delivered milestone
+    /// of a project. A result that is shown only, or says there is nothing to
+    /// send, is done at once; a held one is done when the user discards
     /// it or it expires or is replaced. A send whose subject moved on is held
     /// for the user again. Only a run that has not started is
     /// skipped; a delivery is never cancelled.
@@ -44,7 +46,7 @@ impl RunState {
         use RunState::*;
         match self {
             Queued => matches!(next, Running | Skipped | Cancelled),
-            Running => matches!(next, Checking | Paused | Failed | Cancelled),
+            Running => matches!(next, WaitingForUser | Delivering | Done | Paused | Failed | Cancelled),
             Checking => matches!(next, WaitingForUser | Delivering | Done | Running | Paused | Failed | Cancelled),
             WaitingForUser => matches!(next, Delivering | Done | Running | Cancelled),
             Delivering => matches!(next, WaitingForUser | Done | Running | Failed),
@@ -102,16 +104,6 @@ words! {
         Reported = "reported",
         Internal = "internal",
     }
-}
-
-/// A run's result is checked at most this many times.
-pub const CHECK_ROUNDS_MAX: i64 = 2;
-
-/// After a failed check of round `attempt` (counted from 1): the round the
-/// run goes back to work for, or `None` when that was the last and the run
-/// fails as `check_failed`.
-pub fn next_attempt(attempt: i64) -> Option<i64> {
-    (attempt < CHECK_ROUNDS_MAX).then_some(attempt + 1)
 }
 
 #[cfg(test)]
@@ -183,7 +175,9 @@ mod tests {
             (Queued, Running),
             (Queued, Skipped),
             (Queued, Cancelled),
-            (Running, Checking),
+            (Running, WaitingForUser),
+            (Running, Delivering),
+            (Running, Done),
             (Running, Paused),
             (Running, Failed),
             (Running, Cancelled),
@@ -222,11 +216,5 @@ mod tests {
         }
         let with_reason: Vec<RunState> = RunState::ALL.iter().copied().filter(|state| state.takes_reason()).collect();
         assert_eq!(with_reason, [Skipped, Cancelled, Paused, Failed]);
-    }
-
-    #[test]
-    fn a_result_is_checked_twice_at_most() {
-        assert_eq!(next_attempt(1), Some(2), "the first failed check sends the run back to work");
-        assert_eq!(next_attempt(CHECK_ROUNDS_MAX), None, "the second fails the run");
     }
 }

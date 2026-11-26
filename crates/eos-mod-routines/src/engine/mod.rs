@@ -133,11 +133,11 @@ pub(crate) struct Engine {
     pub(crate) reads: Arc<dyn CapabilityReads>,
     /// The item patterns each routine row carries.
     pub(crate) patterns: Arc<crate::patterns::ItemPatterns>,
-    /// Leads held while their result is checked: messages to them queue.
+    /// Leads Eos owes a word before they go on: messages to them queue.
     pub(crate) held: Mutex<HashSet<String>>,
     /// Specialists being started, by their lead and agent key: a second start of one is refused.
     pub(crate) starting: Mutex<HashSet<(String, String)>>,
-    /// Where a checked result goes.
+    /// Where a handed-in result goes.
     pub(crate) gate: Arc<dyn RunGate>,
     /// Model prices, for the estimate.
     pub(crate) config: Arc<dyn ConfigSource>,

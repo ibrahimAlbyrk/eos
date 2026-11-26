@@ -1,6 +1,6 @@
 //! The shape of the result a routine makes, as its channel declares it: the
-//! lead's brief and the checker's state it, and a result of another shape
-//! is sent back with what to change.
+//! lead's brief states it, and a result of another shape is sent back with
+//! what to change.
 
 use eos_contracts::RoutineState;
 use eos_core::routine::{RunOrigin, SubmittedResult};
@@ -77,9 +77,9 @@ async fn working(bench: &Bench) -> (String, String) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_lead_and_the_checker_are_told_the_kind_and_shape_the_channel_declares() {
+async fn the_lead_is_told_the_kind_and_shape_the_channel_declares() {
     let bench = bench();
-    let (_, lead) = working(&bench).await;
+    let (run, lead) = working(&bench).await;
     let told = review_shape().describe();
     let started = bench.agents.started();
     let brief = started[0].prompt.clone().expect("the brief");
@@ -87,9 +87,8 @@ async fn the_lead_and_the_checker_are_told_the_kind_and_shape_the_channel_declar
     assert!(told.contains("Hand in kind `github.review`") && told.contains("```json"), "{told}");
 
     bench.module.tools().submit_result(&lead, handed(fitting())).await.expect("handed in");
-    bench.eventually(|| bench.agents.started().len() == 2).await;
-    let checker = bench.agents.started()[1].prompt.clone().expect("the checker's brief");
-    assert!(checker.contains(&told), "{checker}");
+    assert_eq!(bench.state(&run), RunState::Done, "a fitting result goes on");
+    assert_eq!(bench.agents.started().len(), 1, "no checker");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -105,9 +104,8 @@ async fn a_result_of_another_shape_is_refused_at_once_with_what_to_change() {
     assert!(told.contains("hand in the whole result as one object with kind, channel, action and parts"), "{told}");
     let at = bench.run(&run);
     assert_eq!((at.state, at.station, at.attempt), (RunState::Running, Some(Station::Work), 1), "no round spent");
-    assert_eq!(bench.agents.started().len(), 1, "no checker for a result of the wrong shape");
     bench.module.tools().submit_result(&lead, handed(fitting())).await.expect("the right shape is taken");
-    bench.eventually(|| bench.state(&run) == RunState::Checking).await;
+    assert_eq!(bench.state(&run), RunState::Done);
 }
 
 #[tokio::test(flavor = "multi_thread")]

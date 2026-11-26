@@ -1,7 +1,7 @@
 //! The user steering a run (01 §4.7, G18): telling its team something,
-//! pausing, resuming and stopping it. A message reopens the work: while the
-//! result is checked the check stops, while it waits for the user the gate
-//! takes it back; while it is delivering it cannot be stopped halfway. A
+//! pausing, resuming and stopping it. A message reopens the work: a run
+//! found at its check goes back to work, while it waits for the user the
+//! gate takes it back; while it is delivering it cannot be stopped halfway. A
 //! paused or stopped run's sessions are interrupted and suspended, their
 //! conversations kept.
 
@@ -20,7 +20,7 @@ const RESUMED_BY_USER: &str = "The user resumed this run. Carry on where you lef
 /// The user's words to the run's lead, as their own.
 pub(crate) async fn message(engine: &Engine, run_id: &str, text: &str) -> Result<(), Error> {
     let (id, now, gate) = (run_id.to_owned(), engine.clock.now_ms(), engine.gate.clone());
-    let (lead, was_checking) = engine
+    let lead = engine
         .store
         .write(move |tx, out| {
             let run = tx.runs().find(&id)?.ok_or_else(|| Error::not_found("run", id.clone()))?;
@@ -42,14 +42,10 @@ pub(crate) async fn message(engine: &Engine, run_id: &str, text: &str) -> Result
                 }
                 _ => return Err(Error::Conflict("the run is not at work".into())),
             }
-            Ok((lead, run.state == RunState::Checking))
+            Ok(lead)
         })
         .await?;
     Engine::locked(&engine.held).remove(&lead);
-    if was_checking {
-        // The check stops: its checker gives no verdict on a result the lead now reworks.
-        quiet_where(engine, run_id, |role| role == "checker").await;
-    }
     let words = MessageInput {
         worker_id: lead.clone(),
         text: text.to_owned(),

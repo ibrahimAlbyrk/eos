@@ -1,11 +1,11 @@
 //! A team run: the lead starts its specialists where the blueprint says
 //! they work, they report (a reader of outside text inside the untrusted
-//! wrapper), the lead hands in its result, and it is checked and gated.
+//! wrapper), the lead hands in its result, and it is gated.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use eos_contracts::{CheckOutcome, CheckVerdict, RoutineState, ToolScope};
+use eos_contracts::{RoutineState, ToolScope};
 use eos_core::capability::Checkout;
 use eos_core::routine::{GateDecision, RunOrigin, StartError, SubmittedResult, Unready};
 use eos_domain::routine::run::{Reason, RunState, Station};
@@ -85,20 +85,12 @@ fn worker_of(bench: &Bench, run: &str, agent: &str) -> String {
     sessions.into_iter().find(|s| s.agent_key.as_deref() == Some(agent)).expect("a session").worker_id
 }
 
-fn verdict(pass: bool) -> CheckVerdict {
-    CheckVerdict {
-        pass,
-        checks: vec![CheckOutcome { key: "tests".into(), ok: pass, note: "n".into() }],
-        must_fix: if pass { vec![] } else { vec!["Name the failing test.".into()] },
-    }
-}
-
 fn review() -> SubmittedResult {
     SubmittedResult { kind: "github.review".into(), headline: "R".into(), body: json!({"summary": "s"}), files: vec![] }
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked_and_gated() {
+async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_gated() {
     let repo = repo();
     let bench = Bench::with_reads(true, reads(&repo));
     bench.keys.clone_at("git:github.com/acme/game", &repo.clone.to_string_lossy());
@@ -187,21 +179,11 @@ async fn a_lead_runs_its_team_where_the_blueprint_says_and_its_result_is_checked
     let told = bench.agents.sent(&reader).into_iter().find(|t| t.contains("/run pr-review 9")).expect("told");
     assert!(told.starts_with("<agent_message") && told.contains(&format!("from-id=\"{lead}\"")), "{told}");
 
-    // The result is checked: failed once, passed the second time, held at the gate.
+    // The result goes straight to the gate, which holds it.
     bench.gate.decide(GateDecision::Held { item_id: "ib-1".into() });
-    for (round, pass) in [(1, false), (2, true)] {
-        tools.submit_result(&lead, review()).await.expect("handed in");
-        let checker = checker(&bench, round).await;
-        tools.submit_verdict(&checker, verdict(pass)).await.expect("judged");
-    }
+    tools.submit_result(&lead, review()).await.expect("handed in");
     let held = bench.run(&run);
     assert_eq!((held.state, held.station), (RunState::WaitingForUser, Some(Station::Gate)));
-}
-
-async fn checker(bench: &Bench, n: usize) -> String {
-    let is_checker = |s: &eos_core::agent::LaunchSpec| s.worker_definition.as_deref() == Some("eos-run-checker");
-    bench.eventually(|| bench.agents.started().iter().filter(|s| is_checker(s)).count() >= n).await;
-    bench.agents.started().iter().filter(|s| is_checker(s)).nth(n - 1).map(|s| s.worker_id.clone()).expect("one")
 }
 
 #[tokio::test(flavor = "multi_thread")]

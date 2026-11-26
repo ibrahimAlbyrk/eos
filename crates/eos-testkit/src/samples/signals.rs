@@ -8,7 +8,7 @@ use eos_domain::signals::decision::Decision;
 use serde_json::json;
 
 use crate::routine_seed::{
-    BASE_MS, DAY, MINUTE, MORNING_PAPER, PR_REVIEW, PR_REVIEW_HEAD, RUN_CHECK_FAILED, RUN_NOTHING, RUN_SHOWN,
+    BASE_MS, DAY, MINUTE, MORNING_PAPER, PR_REVIEW, PR_REVIEW_HEAD, RUN_FAILED, RUN_NOTHING, RUN_SHOWN,
 };
 
 const SOURCE: &str = "ss-sample000001";
@@ -37,7 +37,7 @@ pub(super) fn write(tx: &dyn Tx) -> Result<(), Error> {
     let signals = [
         (466, 26 * 60, Decision::Baseline, None),
         (467, 5 * 60, Decision::Unmatched, None),
-        (468, 3 * 60 + 5, Decision::Run, Some(RUN_CHECK_FAILED)),
+        (468, 3 * 60 + 5, Decision::Run, Some(RUN_FAILED)),
         (469, 2 * 60 + 5, Decision::Run, Some(RUN_NOTHING)),
         (470, 65, Decision::Run, Some(RUN_SHOWN)),
         (471, 10, Decision::Batched, None),

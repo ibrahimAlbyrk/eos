@@ -2,20 +2,20 @@
 //! known by its worker id: only a run's lead, while its run is at work, is
 //! heard. A project's lead hands in each milestone instead of one result
 //! (`project`). A result is copied, files and all, before the run moves on, so
-//! what is checked is what the lead handed in, whatever it does next.
+//! what the gate decides on is what the lead handed in, whatever it does next.
 
 use std::sync::Arc;
 
 use eos_contracts::CheckVerdict;
 use eos_contracts::Milestone;
 use eos_core::routine::{MilestoneDone, RoutineTools, RunRef, Specialist, SubmittedResult};
-use eos_core::store::{RunMove, StoredRunResult};
+use eos_core::store::StoredRunResult;
 use eos_core::{BoxFuture, Error};
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_domain::run_scope::RunRole;
 use serde_json::json;
 
-use super::{Engine, check, fail, move_run, project, shape, team};
+use super::{Engine, fail, gate, project, shape, team};
 
 /// The largest result body kept, in bytes of its JSON.
 pub(crate) const RESULT_BODY_MAX_BYTES: usize = 512 * 1024;
@@ -130,12 +130,8 @@ impl RoutineTools for Tools {
     }
 
     fn submit_verdict<'a>(&'a self, worker_id: &'a str, verdict: CheckVerdict) -> BoxFuture<'a, Result<(), Error>> {
-        Box::pin(async move {
-            let Some((run_id, attempt)) = check::current_checker(&self.0, worker_id).await? else {
-                return Err(Error::Conflict("this session checks no result now".into()));
-            };
-            check::judged(&self.0, &run_id, attempt, verdict).await
-        })
+        let _ = (worker_id, verdict);
+        Box::pin(async { Err(Error::Conflict("no checker reads a run's result".into())) })
     }
 
     fn start_specialist<'a>(
@@ -166,7 +162,7 @@ impl RoutineTools for Tools {
 }
 
 /// Keeps a copy of the result handed in for `run_id` (by its lead, or by a
-/// system step without one), then moves the run to its check.
+/// system step without one) and hands it to the gate in the same write.
 pub(crate) async fn hand_in(
     engine: &Arc<Engine>,
     lead: Option<&str>,
@@ -181,11 +177,13 @@ pub(crate) async fn hand_in(
     shape::refuse_misfit(engine, run_id, &result.kind, &result.body).await?;
     let kept = engine.folders.keep_files(routine_id, run_id, &result.files).await?;
     let files: Vec<_> = kept.iter().map(|file| json!({"name": file.name, "bytes": file.bytes})).collect();
-    let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
+    let untrusted = super::versions::untrusted_facts(engine).await?;
+    let (id, now, job) = (run_id.to_owned(), engine.clock.now_ms(), engine.clone());
     let (kind, headline) = (result.kind, result.headline);
     let size = body.len();
-    // Held from before the run moves to its check until the check lets it go, so nothing the
-    // user says after the move reaches the lead: it waits.
+    // Held from before the run moves on until Eos owes the lead no word: a
+    // project's lead hears of its next milestone before it is reminded to
+    // hand in.
     let newly_held = lead.is_some_and(|lead| Engine::locked(&engine.held).insert(lead.to_owned()));
     let moved = engine
         .store
@@ -205,16 +203,19 @@ pub(crate) async fn hand_in(
                 created_at: now,
             })?;
             tx.runs().set_headline(&id, &headline)?;
-            let check = RunMove { state: RunState::Checking, station: Some(Station::Check), reason: None, at: now };
-            move_run(tx, out, &run, check).map(drop)
+            gate::pass_in(&job, tx, out, &run, &untrusted, now)
         })
         .await;
-    if let (Err(_), Some(lead), true) = (&moved, lead, newly_held) {
+    let release = match moved {
+        Ok(back_at_work) => !back_at_work,
+        Err(_) => newly_held,
+    };
+    if let (true, Some(lead)) = (release, lead) {
         Engine::locked(&engine.held).remove(lead);
     }
     moved?;
     Engine::locked(&engine.progress).remove(run_id);
-    check::begin(engine, run_id);
+    engine.wake.notify_one();
     tracing::info!(run_id, worker_id = ?lead, bytes = size, files = kept.len(), "a run's result was handed in");
     Ok(())
 }

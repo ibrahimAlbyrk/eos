@@ -4,8 +4,7 @@
 //! the run fails as `no_result`. A lead whose session ends unexpectedly is
 //! resumed once with a message; the second time the run fails as
 //! `crashed`. Both count from the run's own timeline, so a restart forgets
-//! nothing. A checker that goes quiet or dies without its verdict is the
-//! check station's (`check::checker_failed`).
+//! nothing.
 
 use std::sync::Arc;
 
@@ -89,11 +88,7 @@ pub(crate) fn lead_idle_hook(engine: &Arc<Engine>) -> IdleHook {
 }
 
 async fn idle(engine: &Arc<Engine>, worker_id: &str) -> Result<bool, Error> {
-    let Some((run, nudged)) = at_work(engine, worker_id, NUDGED, true).await? else {
-        // A checker that ends its turn without a verdict gives none.
-        check::checker_failed(engine, worker_id).await?;
-        return Ok(false);
-    };
+    let Some((run, nudged)) = at_work(engine, worker_id, NUDGED, true).await? else { return Ok(false) };
     // Eos has not told it of what it works on now (its next milestone): the lead waits.
     if check::holds(engine, worker_id) {
         return Ok(false);
@@ -148,9 +143,7 @@ pub(crate) fn session_exited(engine: &Arc<Engine>, worker_id: &str) {
 }
 
 async fn exited(engine: &Arc<Engine>, worker_id: &str) -> Result<(), Error> {
-    let Some((run, crashed)) = at_work(engine, worker_id, CRASHED, false).await? else {
-        return check::checker_failed(engine, worker_id).await;
-    };
+    let Some((run, crashed)) = at_work(engine, worker_id, CRASHED, false).await? else { return Ok(()) };
     if crashed > 0 {
         return fail(engine, &run.run_id, Reason::Crashed, None).await;
     }
