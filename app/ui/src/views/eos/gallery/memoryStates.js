@@ -33,7 +33,7 @@ const PLACES = [
   { level: "project", key: "pk-tools", label: "liveops-tools" },
   { level: "project", key: "pk-site", label: "studio-site" },
   { level: "routine", key: "rt-4k2n8q1x7m3p", label: "rt-4k2n8q1x7m3p" },
-  { level: "routine", key: "rt-9d3f6h2j5k8l", label: "rt-9d3f6h2j5k8l" },
+  { level: "routine", key: "rt-7b3m1c9d0e4f", label: "rt-7b3m1c9d0e4f" },
   { level: "everywhere", key: "", label: "" },
 ];
 const LINES = [
@@ -44,13 +44,42 @@ const LINES = [
   ["example", "Release notes lead with what players notice", "You said so", "said"],
   ["lesson", "Do not touch the generated localisation tables", "An edit was overwritten", "outcome"],
   ["fact", "Ibrahim reviews shader changes", "You said so", "said"],
+  ["lesson", "Link the ticket in the first line of a review", "You added it four times", "did"],
+  ["fact", "The shop scene loads its banners late", "A test timed out", "outcome"],
+  ["skill", "Rebuild the addressables before a device test", "A build missed new art", "outcome"],
+  ["lesson", "Keep a paper's lead story under 120 words", "You cut two leads", "did"],
+  ["fact", "Tiles are pooled per scene", "A review flagged a leak", "outcome"],
+  ["example", "A review that lists the blocking finding first", "You kept it unedited", "did"],
+  ["lesson", "Skip funding news in the morning paper", "You skipped it three weeks", "did"],
+  ["fact", "CI caches the Library folder for a day", "A build used a stale cache", "outcome"],
+  ["skill", "Profile the loader with the deep profiler off", "The profiler stalled a run", "outcome"],
+  ["lesson", "Ask before pushing to a release branch", "You said so", "said"],
+  ["fact", "The leaderboard API limits to 30 calls a minute", "A run was throttled", "outcome"],
+  ["lesson", "Group changelog lines by what players see", "You moved six lines", "did"],
+  ["fact", "Haptics follow the system setting", "You said so", "said"],
+  ["skill", "Run the snapshot tests at 1x scale", "Two snapshots differed", "outcome"],
+  ["lesson", "Mention the build number in a failure note", "You added it twice", "did"],
+  ["fact", "The publisher writes from two addresses", "Mail Triage missed one", "outcome"],
+  ["example", "A morning paper with one long read", "You marked it a good issue", "did"],
+  ["lesson", "Keep shader reviews to the changed passes", "You trimmed two reviews", "did"],
+  ["fact", "The save slot format changed in 2.3", "A run read old saves", "outcome"],
+  ["skill", "Clear the shader cache after an SDK bump", "A build showed pink materials", "outcome"],
+  ["lesson", "Say which file a finding is in", "You asked twice", "said"],
+  ["fact", "Release branches are named release/x.y", "A run looked for main", "outcome"],
+  ["lesson", "Do not review generated protobuf files", "You dismissed three findings", "did"],
+  ["fact", "The tools repo has no CI on weekends", "A check waited all Saturday", "outcome"],
+  ["example", "A note that says only what broke", "You sent it unedited", "did"],
+  ["lesson", "Batch draw-call findings into one comment", "You merged four comments", "did"],
+  ["fact", "Night builds run at 02:00", "A run collided with one", "outcome"],
+  ["skill", "Read crash logs from the newest first", "A run read a stale log", "outcome"],
+  ["lesson", "Leave style nits out of blocking findings", "You moved two to nits", "did"],
 ];
 const lots = (s) => {
   const many = [...notes];
   for (let i = 0; many.length < 42; i++) {
     const [kind, text, why, trust] = LINES[i % LINES.length];
     many.push({
-      id: `mn-lot${String(i).padStart(9, "0")}`, kind, text: i < LINES.length ? text : `${text} (${Math.floor(i / LINES.length) + 1})`, why, source: "edits",
+      id: `mn-lot${String(i).padStart(9, "0")}`, kind, text, why, source: "edits",
       state: i % 5 === 0 ? "cooling" : i % 2 ? "firm" : "trying", trust, helped: i % 6, used: (i % 6) + 1, strength: ((i * 37) % 100) / 100,
       scope: PLACES[i % PLACES.length], rev: 1, updatedAt: notes[0].updatedAt - i * DAY,
     });

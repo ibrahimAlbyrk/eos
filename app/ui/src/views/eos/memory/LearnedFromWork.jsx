@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { loadMoreNotes, loadNotes, notesPath, useNotes } from "../../../state/eos/notesStore.js";
-import { LoadFailed, LoadingRows } from "../capabilities/parts.jsx";
-import { Fact, Ways } from "../frame.jsx";
+import { LoadingRows } from "../capabilities/parts.jsx";
+import { Fact, FailedLead, Ways } from "../frame.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
 import { foundLine, KIND_FILTERS, provenance, scopeName, sourceWord, strengthSteps } from "./words.js";
@@ -73,7 +73,8 @@ function groupsOf(notes, scopes, routines, narrowed) {
 // read as one: where a note holds (anywhere, each project and routine with
 // notes) and what kind it is. On a place's own page only the kind is asked.
 function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
-  const places = placed ? [] : (scopes ?? []).filter((s) => s.level === "project" || s.level === "routine");
+  // A routine's scope shows once its routine is known by name; a raw id never does.
+  const places = placed ? [] : (scopes ?? []).filter((s) => s.level === "project" || (s.level === "routine" && routines?.some((r) => r.id === s.key)));
   const chip = (on, label, onClick, key, kindOf = false) => (
     <button key={key} type="button" className={kindOf ? "eos-chip eos-mem-filter eos-mem-filter--kind" : "eos-chip eos-mem-filter"} aria-pressed={on} onClick={onClick}>{label}</button>
   );
@@ -82,7 +83,7 @@ function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
       {!placed && places.length > 0 && (
         <div className="eos-mem-filters__line" role="group" aria-labelledby="eos-mem-where">
           <span id="eos-mem-where" className="eos-label">Where</span>
-          {chip(!scope, "Everything", () => onScope(undefined), "all")}
+          {chip(!scope, "All", () => onScope(undefined), "all")}
           {places.map((s) => {
             const value = `${s.level}:${s.key}`;
             return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
@@ -179,7 +180,10 @@ export function LearnedFromWork({ summary, query = "", selected, routineId, onCl
   };
 
   let body;
-  if (!page) body = pagesFailed[path] ? <LoadFailed what="notes" retry={() => void loadNotes(path)} /> : <LoadingRows />;
+  // A failed read stands as every screen's does, in place of the list, and the
+  // filters leave with the list they would narrow.
+  const failedRead = !page && Boolean(pagesFailed[path]);
+  if (!page) body = failedRead ? <FailedLead what="the notes" retry={() => void loadNotes(path)} /> : <LoadingRows />;
   else if (page.notes.length === 0) {
     body = narrowed
       ? (
@@ -232,7 +236,7 @@ export function LearnedFromWork({ summary, query = "", selected, routineId, onCl
             {page && <span className="eos-mem-group__count">{groups.reduce((n, g) => n + (g.count ?? g.rows.length), 0)}</span>}
           </header>
         )}
-        {!bare && <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />}
+        {!bare && !failedRead && <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />}
         {body}
       </div>
       {withKey && page?.notes.length > 0 && <NoteKey />}

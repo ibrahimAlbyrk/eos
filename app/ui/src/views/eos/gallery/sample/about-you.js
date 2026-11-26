@@ -31,7 +31,8 @@ export function aboutYouReads(now) {
     "/api/memory/stated": { rules: [] },
     "/api/profile": { profile: { rev: 1, dreaming: { enabled: true, schedule: "nightly", nightlyAt: "03:00" } } },
     "/api/profile/preview": { text: "", tokens: 412, budgetTokens: 1200, overflow: 0 },
-    "/api/dreams/status": { running: false, nextAt: at(-9), lastRun: null },
+    // The next dream at 03:00 tomorrow, as the nightly schedule says.
+    "/api/dreams/status": { running: false, nextAt: new Date(now).setHours(27, 0, 0, 0), lastRun: null },
     "/api/dreams": { runs: [] },
     "/projects": { projects: [] },
   };
@@ -40,8 +41,10 @@ export function aboutYouReads(now) {
 // Four nights of dreaming, newest first: one that proposed two memories (one
 // still waiting), one that found nothing new, one skipped and one that failed;
 // one chat is kept out of every dream.
+// Each dream ran at 03:00, as the nightly schedule says.
 export function dreamRuns(now) {
-  const at = (h) => now - h * HOUR;
+  const night3 = new Date(now).setHours(3, 0, 0, 0);
+  const at = (h) => night3 - (h - 7) * HOUR;
   const night = (id, h, over) => ({
     id, trigger: "nightly", status: "done", reason: null, startedAt: at(h), finishedAt: at(h - 0.2), model: "opus",
     chatsRead: 0, observations: 0, candidates: 0, proposed: 0, tokens: 0, dropped: {}, chats: [], rejected: [], ...over,

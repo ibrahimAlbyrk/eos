@@ -185,7 +185,9 @@
 .eos-mem-edit__text {
   width: 100%;
   box-sizing: border-box;
-  resize: vertical;
+  resize: none;
+  field-sizing: content;
+  min-height: 4.5em;
   padding: 10px 12px;
   border: 1px solid var(--accent);
   border-radius: 10px;
@@ -196,8 +198,9 @@
   color: var(--fg-strong);
 }
 .eos-mem-edit__text:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-.eos-mem-edit__foot { display: flex; align-items: center; gap: 6px; }
-.eos-mem-edit__keys { margin-right: auto; white-space: nowrap; font-size: var(--text-xs); color: var(--fg-dim2); }
+/* The keys, Cancel and Save wrap inside the card's padding, never past its edge. */
+.eos-mem-edit__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.eos-mem-edit__keys { margin-right: auto; font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* About you: the Agents Memory body drawn in Eos's hand. Scoped here, so the
    Agents takeover keeps its own look. Groups are sections on hairlines (a

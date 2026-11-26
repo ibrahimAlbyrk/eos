@@ -53,7 +53,7 @@ describe("Eos › Memory › Learned from work", () => {
     expect(html).toContain('aria-selected="false" class="eos-tab">About you<span class="eos-mem-tab-count">12</span>');
     expect(html).toContain('aria-selected="true" class="eos-tab">Learned from work<span class="eos-mem-tab-count">6</span>');
     const chips = [...html.matchAll(/class="eos-chip eos-mem-filter(?: eos-mem-filter--kind)?" aria-pressed="(true|false)">([^<]+)</g)].map((m) => `${m[2]}${m[1] === "true" ? "*" : ""}`);
-    expect(chips).toEqual(["Everything*", "game-client", "PR Review", "All*", "Lessons", "Facts", "Skills", "Good examples"]);
+    expect(chips).toEqual(["All*", "game-client", "PR Review", "All*", "Lessons", "Facts", "Skills", "Good examples"]);
     expect(html).toContain('class="eos-chip eos-mem-filter eos-mem-filter--kind" aria-pressed="false">Lessons</button>');
     expect(html).toContain('<li class="eos-mem-row eos-mem-row--cooling"><span class="eos-mem-mark eos-mem-mark--cooling" aria-hidden="true"></span><button type="button" class="eos-mem-row__open"><span class="eos-mem-row__text">Reports open with a chart</span>');
   });
