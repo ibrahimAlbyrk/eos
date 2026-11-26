@@ -24,10 +24,17 @@ const RUNNABLE = new Set(["active", "paused"]);
 
 const namesOf = (list) => Object.fromEntries((list ?? []).map((r) => [r.id, r.name]));
 
+// The status column says a state; the schedule the sidebar shows in its place
+// is already the Next run column's.
+function tableStatus(routine, waiting) {
+  const status = routineStatus(routine, waiting);
+  return status.line === routine.triggerLine ? { ...status, line: "On schedule" } : status;
+}
+
 const COLUMNS = [
   { key: "name", label: "Routine" },
   { key: "status", label: "Status" },
-  { key: "next", label: "Next run" },
+  { key: "next", label: "Next run", soft: true },
   { key: "last", label: "Last result", mid: true },
   { key: "cost", label: "This week", numeric: true, narrow: false },
 ];
@@ -64,7 +71,7 @@ function SortHead({ column, sort, setSort }) {
   const on = sort.key === column.key;
   const flip = () => setSort({ key: column.key, dir: on && sort.dir === "ascending" ? "descending" : "ascending" });
   return (
-    <th scope="col" aria-sort={on ? sort.dir : undefined} className={[column.numeric && "eos-rtable__num", column.narrow === false && "eos-rtable__wide", column.mid && "eos-rtable__mid"].filter(Boolean).join(" ") || undefined}>
+    <th scope="col" aria-sort={on ? sort.dir : undefined} className={[column.numeric && "eos-rtable__num", column.narrow === false && "eos-rtable__wide", column.mid && "eos-rtable__mid", column.soft && "eos-rtable__soft"].filter(Boolean).join(" ") || undefined}>
       <button type="button" className="eos-rtable__sort" onClick={flip}>
         {column.label}
         {on && <span aria-hidden="true">{sort.dir === "ascending" ? " ↑" : " ↓"}</span>}
@@ -94,7 +101,7 @@ function Row({ row, now, hosted, shared }) {
         </button>
       </th>
       <td className={row.tone ? `eos-rtable__line eos-rtable__line--${row.tone}` : "eos-rtable__line"}>{statusWords(row)}</td>
-      <td>{nextWord(row.nextAt, now) ?? <span className="eos-rtable__none">—</span>}</td>
+      <td className="eos-rtable__soft">{nextWord(row.nextAt, now) ?? <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__mid">{last ? <span className="eos-rtable__last"><Dot tone={last.tone} />{last.text}</span> : <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__num eos-rtable__wide">{usd(routine.stats?.cost7d) ?? <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__act">
@@ -131,7 +138,7 @@ export function RoutinesScreen() {
     .filter((r) => FILTERS[filter].states.includes(r.state) || (filter === "active" && r.state === "paused" && (byRoutine[r.id] ?? 0) > 0))
     .map((routine) => {
       const waiting = byRoutine[routine.id] ?? 0;
-      return { routine, waiting, nextAt: nextOf[routine.id], ...routineStatus(routine, waiting) };
+      return { routine, waiting, nextAt: nextOf[routine.id], ...tableStatus(routine, waiting) };
     });
 
   // No routines at all: no filters to choose, just how one begins.

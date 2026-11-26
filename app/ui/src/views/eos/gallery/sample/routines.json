@@ -104,6 +104,19 @@
       "runs7d": 7,
       "cost7d": 0.61,
       "setupUsd": 0.4
+    },
+    "lastRun": {
+      "id": "rn-7b3m1c000003",
+      "routineId": "rt-7b3m1c9d0e4f",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "done",
+      "needsUser": false,
+      "costUsd": 0.31,
+      "workMs": 412000,
+      "createdAt": 1763452800000,
+      "startedAt": 1763452802000,
+      "endedAt": 1763452986000
     }
   },
   {
@@ -198,7 +211,20 @@
     ],
     "runs7d": 0,
     "activeRuns": 0,
-    "triggerLine": "Every 30 minutes"
+    "triggerLine": "Every 30 minutes",
+    "lastRun": {
+      "id": "rn-9q4w2e000004",
+      "routineId": "rt-9q4w2e7r1t5y",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "done",
+      "needsUser": false,
+      "costUsd": 0.02,
+      "workMs": 38000,
+      "createdAt": 1763452800000,
+      "startedAt": 1763452802000,
+      "endedAt": 1763452986000
+    }
   },
   {
     "id": "rt-1a6s3d8f2g0h",

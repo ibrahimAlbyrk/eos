@@ -646,6 +646,8 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
    view; the routine's page has it. */
 /* Narrower still (the side panel beside it), Last result goes too. */
 @container (max-width: 680px) { .eos-rtable__mid { display: none; } }
+/* Beside the side panel, Next run goes too (Coming up above says it), so Run is never cut. */
+@container (max-width: 600px) { .eos-rtable__soft { display: none; } }
 @container (max-width: 1000px) {
   .eos-rtable__wide { display: none; }
   .eos-rtable th, .eos-rtable td { padding-left: 9px; padding-right: 9px; }
