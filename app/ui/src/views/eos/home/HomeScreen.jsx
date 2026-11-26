@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { markSeenSoon, openHomeVisit, refreshHome, useHome, visitSince } from "../../../state/eos/homeStore.js";
 import { setHomeDraft } from "../../../state/eos/homeDraftStore.js";
+import { useHomeRuns } from "../../../state/eos/homeRunsStore.js";
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
 import { ensureRoutinesLoaded, offeredRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
@@ -18,6 +19,7 @@ import { awayLines, comingUp, dayStart, handledLine, hello, needLine } from "./h
 import { ComingUp } from "./ComingUp.jsx";
 import { LearnedLine } from "./LearnedLine.jsx";
 import { MovedShortcuts } from "./MovedShortcuts.jsx";
+import { LINES_SHOWN } from "../input/LiveRunLines.jsx";
 import { NeedsYouCards } from "./NeedsYouCards.jsx";
 import { PinnedTiles } from "./PinnedTiles.jsx";
 import { StarterChips } from "./StarterChips.jsx";
@@ -82,6 +84,7 @@ export function HomeScreen({ clock = Date.now }) {
   const today = runs.filter((r) => (r.startedAt ?? r.createdAt) >= dayStart(now));
   const scheduled = home.next.filter((n) => n.nextAt != null).map((n) => ({ routineId: n.routineId, at: n.nextAt }));
   const waiting = (inbox.list?.items ?? []).filter((i) => i.state === "open");
+  const liveRuns = new Set(useHomeRuns().slice(0, LINES_SHOWN).map((l) => l.runId));
   const away = awayLines(runs, lastSeen ?? dayStart(now));
   const earlier = away.length === 0 ? awayLines(runs, dayStart(now)) : [];
   const needs = {};
@@ -101,7 +104,7 @@ export function HomeScreen({ clock = Date.now }) {
   } else if (home.runs === null) body = <div className="eos-home-part"><LoadingRows rows={3} /></div>;
   else body = (
     <>
-      {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} />}
+      {!firstRun && <NeedsYouCards items={waiting} names={names} icons={icons} shown={liveRuns} />}
       {!firstRun && <PinnedTiles />}
       {!firstRun && <ComingUp slots={comingUp(home.next, now)} names={names} now={now} />}
       {!firstRun && (away.length > 0 ? <AwayList runs={away} names={names} /> : <AwayList runs={earlier} names={names} title="Earlier today" />)}

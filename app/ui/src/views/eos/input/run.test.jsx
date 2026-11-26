@@ -106,7 +106,7 @@ describe("live lines", () => {
     expect(liveWords("PR Review", null, null)).toBe("PR Review is starting.");
     expect(liveWords("PR Review", working, "The reader is on nine files.")).toBe("PR Review on #462. The reader is on nine files.");
     const waiting = { ...runDetail, run: { ...runDetail.run, state: "waiting_for_user", needsUser: true } };
-    expect(liveWords("PR Review", waiting, null)).toBe("Done. A draft is in Needs you");
+    expect(liveWords("PR Review", waiting, null)).toBe("PR Review on #462. It waits for you in Needs you.");
     expect(lineEnded(waiting.run)).toBe(true);
     expect(liveWords("PR Review", { ...runDetail, run: { ...runDetail.run, state: "failed", reason: "timeout" } }, null)).toMatch(/^PR Review failed\./);
     expect([null, { state: "queued" }, { state: "running" }, waiting.run, { state: "done" }, { state: "failed" }, { state: "cancelled" }].map(lineTone))

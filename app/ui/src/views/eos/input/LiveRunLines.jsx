@@ -22,12 +22,12 @@ export const lineEnded = (run) => hasEnded(run) || run.state === "waiting_for_us
 export function liveWords(name, detail, activity) {
   if (!detail) return `${name} is starting.`;
   const { run, input } = detail;
-  if (run.state === "waiting_for_user") return run.needsUser ? "Done. A draft is in Needs you" : `${name} waits for you.`;
+  const item = input?.item ? ` on ${chipLabel(input.item)}` : "";
+  if (run.state === "waiting_for_user") return `${name}${item}. It waits for you in Needs you.`;
   if (run.state === "done") return `Done. ${run.headline ?? ""}`.trim();
   if (run.state === "failed") return `${name} failed. ${reasonLine(run) ?? ""}`.trim();
   if (run.state === "cancelled") return `${name} was stopped.`;
   if (run.state === "skipped") return `${name} was skipped.`;
-  const item = input?.item ? ` on ${chipLabel(input.item)}` : "";
   const doing = run.needsUser ? "It needs you." : activity ?? run.headline ?? (run.state === "queued" ? "Waiting its turn." : "At work.");
   return `${name}${item}. ${doing}`;
 }

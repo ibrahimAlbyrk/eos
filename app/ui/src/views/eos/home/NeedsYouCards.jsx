@@ -27,7 +27,10 @@ export function NeedsCard({ item, routineName, routineIcon }) {
 }
 
 // The first three open items in Needs you's order, then "All N in Needs you".
-export function NeedsYouCards({ items, names, icons = {} }) {
+// `shown` holds the runs whose cards already open under the input's live
+// lines: their cards are not drawn twice, though the count takes them in.
+export function NeedsYouCards({ items: all, names, icons = {}, shown = new Set() }) {
+  const items = all.filter((i) => !shown.has(i.runId));
   if (items.length === 0) return null;
   return (
     <section className="eos-home-part" aria-labelledby="eos-home-needs">
@@ -35,8 +38,8 @@ export function NeedsYouCards({ items, names, icons = {} }) {
       <div className="eos-home-cards">
         {items.slice(0, NEEDS_CARDS).map((item) => <NeedsCard key={item.id} item={item} routineName={names[item.routineId]} routineIcon={icons[item.routineId]} />)}
       </div>
-      {items.length > NEEDS_CARDS && (
-        <button type="button" className="eos-link eos-home-all" onClick={() => openLocation("eos:/needs")}>All {items.length} in Needs you</button>
+      {all.length > Math.min(items.length, NEEDS_CARDS) && (
+        <button type="button" className="eos-link eos-home-all" onClick={() => openLocation("eos:/needs")}>All {all.length} in Needs you</button>
       )}
     </section>
   );
