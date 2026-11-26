@@ -67,14 +67,12 @@ export function SendState({ detail }) {
             {undoable(d) && (
               <button type="button" className="eos-btn" disabled={offline} onClick={() => void undoDelivery(itemId, d.id)}>Undo</button>
             )}
-            <button
-              type="button"
-              className="eos-btn eos-btn--quiet"
-              disabled={offline || d.wrong || sendNotes[d.id] === "wrong"}
-              onClick={() => void flagDeliveryWrong(itemId, d.id)}
-            >
-              That was wrong
-            </button>
+            {/* Once noted, the fact says so; the button would only repeat it. */}
+            {!d.wrong && sendNotes[d.id] !== "wrong" && (
+              <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void flagDeliveryWrong(itemId, d.id)}>
+                That was wrong
+              </button>
+            )}
           </p>
         );
       })}

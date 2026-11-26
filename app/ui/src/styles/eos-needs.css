@@ -82,6 +82,9 @@
 .eos-needs-pager > span { margin-right: 8px; font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--fg-dim2); }
 .eos-needs-item__columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; }
 .eos-needs-item__main { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px; }
+/* Every item takes the wide measure, so the pager in the header keeps one place
+   as J and K step through; an item with no aside reads in the 760 column. */
+.eos-needs-item__main:only-child { max-width: 760px; }
 .eos-needs-item__head { padding-top: 16px; gap: 10px; }
 .eos-needs-item__head > .eos-label { margin-bottom: 6px; }
 .eos-needs-item__head > .eos-rlead__now { margin-top: -10px; }
@@ -336,31 +339,40 @@
 .eos-frame__content .gv-choice { gap: 16px; }
 .eos-frame__content .gv-choice__q:has(strong) { font-size: var(--text-sm); font-weight: 400; line-height: 1.5; color: var(--fg-dim); }
 .eos-frame__content .gv-choice__q strong { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 500; line-height: 1.4; color: var(--fg-strong); }
-.eos-frame__content .gv-choice__opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-.eos-frame__content .gv-choice__opt { align-items: flex-start; padding: 14px 16px; line-height: 1.5; transition: background-color calc(140ms * var(--k, 1)) var(--ease), box-shadow calc(140ms * var(--k, 1)) var(--ease); }
-.eos-frame__content .gv-choice__mark { margin-top: 2px; }
-.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { align-content: start; padding: 16px 18px 18px; row-gap: 14px; }
+.eos-frame__content .gv-choice__opts { display: flex; flex-direction: column; gap: 0; }
+/* An option is a row on a hairline, never a card in the sheet: the 9 px pick
+   mark, the name, its facts in one line under it; hover and the pick light the
+   row past the text's edges so the words keep the column's line. */
+.eos-frame__content .gv-choice__opt { align-items: flex-start; gap: 14px; padding: 14px 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--line); line-height: 1.5; transition: background-color calc(140ms * var(--k, 1)) var(--ease), box-shadow calc(140ms * var(--k, 1)) var(--ease); }
+.eos-frame__content .gv-choice__opt:hover:not([aria-disabled="true"], .is-picked) { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
+.eos-frame__content .gv-choice__opt:is(.is-picked, .is-right, .is-wrong) { background: none; box-shadow: none; }
+.eos-frame__content .gv-choice__mark { width: 9px; height: 9px; margin-top: 7px; font-size: 0; color: transparent; box-shadow: inset 0 0 0 1px var(--fg-dim2); transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease); }
+.eos-frame__content .gv-choice__opt:is(.is-picked, .is-right, .is-wrong) .gv-choice__mark { background: var(--gv-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gv-accent) 22%, transparent); }
+.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) { grid-template-columns: 9px minmax(0, 1fr); align-content: start; align-items: baseline; padding: 16px 0; column-gap: 14px; row-gap: 6px; }
+.eos-frame__content .gv-choice__opt:has(.gv-choice__facts) .gv-choice__mark { align-self: start; }
 .eos-frame__content .gv-choice__label { font-size: 15px; font-weight: 500; }
-/* An option's facts under a hairline, the names in the column's dim. */
-.eos-frame__content .gv-choice__facts { padding-top: 12px; border-top: 1px solid var(--line); grid-template-columns: 64px minmax(0, 1fr); row-gap: 6px; }
+/* An option's facts as one line of name and value pairs under its name. */
+.eos-frame__content .gv-choice__facts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 0; border: 0; font-size: var(--text-sm); }
+.eos-frame__content .gv-choice__fact { display: inline-flex; gap: 6px; }
 .eos-frame__content .gv-choice__fact-label { color: var(--fg-dim2); }
-.eos-frame__content .gv-choice__opt.is-picked .gv-choice__facts { border-top-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 
 /* Each part of a View after the first stands on a hairline with air above. */
 .eos-frame__content * + .gv-check, .eos-frame__content * + .gv-form { padding-top: 24px; border-top: 1px solid var(--line); }
 .eos-frame__content .gv-check { gap: 14px; }
 .eos-frame__content .gv-check__title { font-family: inherit; font-size: 17px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--fg-strong); }
 .eos-frame__content .gv-check__count { display: none; }
-.eos-frame__content .gv-check__list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
-.eos-frame__content .gv-check__list > li + li { border-top: 0; }
-.eos-frame__content .gv-check__item { gap: 8px; padding: 6px 12px; border-radius: var(--r-pill); background: none; box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-sm); }
-.eos-frame__content .gv-check__list .is-done .gv-check__item { color: var(--fg-strong); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.eos-frame__content .gv-check__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 28px; gap: 0 28px; }
+.eos-frame__content .gv-check__list > li { border-top: 1px solid var(--line); }
+.eos-frame__content .gv-check__item { gap: 12px; padding: 10px 0; border-radius: 0; background: none; box-shadow: none; font-size: var(--text-base); }
+.eos-frame__content .gv-check__list .is-done .gv-check__item { color: var(--fg-strong); background: none; box-shadow: none; }
 .eos-frame__content .gv-check__list .is-done .gv-check__item span { text-decoration: none; }
 
 .eos-frame__content .gv-form__fields { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 18px; }
 .eos-frame__content .gv-form__fields > * { flex: 1 1 100%; }
 .eos-frame__content .gv-form__fields > .gv-field:has(input[type="time"]) { flex: 0 0 auto; flex-direction: row; align-items: center; gap: 12px; font-size: var(--text-sm); color: var(--fg-dim); }
-.eos-frame__content .gv-field input[type="time"] { width: 112px; }
+.eos-frame__content .gv-field input[type="time"] { width: 84px; height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); font-family: var(--font-mono); font-size: var(--text-md); font-variant-numeric: tabular-nums; color: var(--fg-strong); }
+.eos-frame__content .gv-field input[type="time"]:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.eos-frame__content .gv-field input[type="time"]::-webkit-calendar-picker-indicator { display: none; }
 .eos-frame__content .gv-form__fields > .gv-stepper { justify-content: flex-start; }
 .eos-frame__content .gv-stepper__label { font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-frame__content .gv-stepper__ctl { margin-left: 0; }
@@ -370,8 +382,8 @@
 .eos-frame__content .gv-check__item input { width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--fg-dim2); transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease); }
 .eos-frame__content .gv-check__item input::after { content: none; }
 .eos-frame__content .gv-check__item input:checked { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.eos-frame__content .gv-check__item { padding: 6px 14px 6px 12px; cursor: pointer; transition: box-shadow 140ms var(--ease), background-color 140ms var(--ease); }
-.eos-frame__content .gv-check__item:hover { box-shadow: inset 0 0 0 1px var(--fg-faint); }
+.eos-frame__content .gv-check__item { cursor: pointer; transition: box-shadow 140ms var(--ease), background-color 140ms var(--ease); }
+.eos-frame__content .gv-check__item:hover { background: var(--row-on); box-shadow: -12px 0 0 var(--row-on), 12px 0 0 var(--row-on); }
 .eos-frame__content .gv-stepper__ctl { gap: 0; height: 36px; padding: 0 3px; box-sizing: border-box; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
 .eos-frame__content .gv-stepper__ctl:has(.gv-stepper__value:focus-visible) { box-shadow: inset 0 0 0 1px var(--accent); }
 .eos-frame__content .gv-stepper__btn { width: 30px; height: 30px; border-radius: 8px; background: none; color: var(--fg-mid); }

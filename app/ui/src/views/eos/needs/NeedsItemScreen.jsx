@@ -150,7 +150,7 @@ export function NeedsItemScreen({ id }) {
     </>
   );
   return (
-    <main className={hasAside ? "eos-screen eos-screen--wide" : "eos-screen eos-screen--read"}>
+    <main className="eos-screen eos-screen--wide">
       <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
         {at >= 0 && (
           <nav className="eos-needs-pager" aria-label="Items">
@@ -187,7 +187,7 @@ export function NeedsItemScreen({ id }) {
               {detail.item.view
                 ? <ItemView item={detail.item} routineName={routineName} onSubmitOffer={setViewSubmit} />
                 : <div className={`eos-needs-item__object eos-needs-item__object--${detail.item.kind}`}><Body detail={detail} values={values} setValue={setValue} routineName={routineName} /></div>}
-              {open && !inFlight && (
+              {open && !inFlight && viewSubmit?.phase !== "asking" && (
                 <AnswerBar
                   kind={detail.item.kind}
                   actions={actions}
@@ -213,6 +213,10 @@ export function NeedsItemScreen({ id }) {
               )}
               {open && at >= 0 && (
                 <ItemFoot after={order.slice(at + 1)} nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
+              )}
+              {/* Sent, answered or gone from the list: it still ends on what waits now. */}
+              {!open && at < 0 && list && (
+                <ItemFoot after={listed.filter((i) => i.state !== "later" && i.id !== id)} nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
               )}
             </div>
             {hasAside && (

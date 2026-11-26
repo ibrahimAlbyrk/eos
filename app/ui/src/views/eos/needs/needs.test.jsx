@@ -386,7 +386,7 @@ describe("a send in its hold, and after it went out", () => {
     expect(t.send.mock.calls).toEqual([["POST", ROUTES.inboxDeliveryWrong("dl-2"), {}]]);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet" disabled="">That was wrong</button>');
+    expect(html).not.toContain(">That was wrong</button>");
   });
 
   it("keeps That was wrong said after a reload, from the send's wrong field", async () => {
@@ -395,7 +395,7 @@ describe("a send in its hold, and after it went out", () => {
     await loadInboxItem(DRAFT);
     const html = at(`eos:/needs/${DRAFT}`);
     expect(html).toContain('<span role="status">Noted: that was wrong.</span>');
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--quiet" disabled="">That was wrong</button>');
+    expect(html).not.toContain(">That was wrong</button>");
   });
 
   it("lets That was wrong be pressed again when the core refused it", async () => {
