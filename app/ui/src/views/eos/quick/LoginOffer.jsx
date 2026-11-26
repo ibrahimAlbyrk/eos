@@ -12,7 +12,7 @@ export function OfferCard({ onChoose }) {
         <span>It opens hidden, so this panel and your schedules work from the moment you log in.</span>
       </div>
       <button type="button" className="eos-btn" onClick={() => onChoose(false)}>Not now</button>
-      <button type="button" className="eos-btn eos-btn--primary" onClick={() => onChoose(true)}>Start at login</button>
+      <button type="button" className="eos-btn" onClick={() => onChoose(true)}>Start at login</button>
     </div>
   );
 }

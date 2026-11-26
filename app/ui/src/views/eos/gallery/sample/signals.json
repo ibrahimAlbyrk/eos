@@ -3,16 +3,16 @@
     "id": 41,
     "sourceId": "sg-github-pulls",
     "kind": "opened",
-    "subject": "github:pr:acme/game#470",
+    "subject": "github:pr:acme/game#472",
     "version": "a41b2c3d",
     "occurredAt": 1763455255000,
     "receivedAt": 1763455259000,
     "state": "routed",
     "item": {
       "kind": "github.pull_request",
-      "key": "github:pr:acme/game#470@a41b2c3d",
-      "title": "Rework shop carousel paging",
-      "url": "https://github.com/acme/game/pull/470"
+      "key": "github:pr:acme/game#472@a41b2c3d",
+      "title": "Add a settings screen",
+      "url": "https://github.com/acme/game/pull/472"
     },
     "decisions": [
       {
