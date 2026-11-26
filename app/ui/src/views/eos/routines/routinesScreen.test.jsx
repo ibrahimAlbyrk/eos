@@ -90,7 +90,8 @@ describe("all routines", () => {
     const r = (name, waiting, nextAt) => ({ routine: { name }, waiting, nextAt });
     expect(routinesLead([r("A", 0)])).toBe("One routine.");
     expect(routinesLead([r("A", 2)])).toBe("One routine, waiting for you.");
-    expect(routinesLead([r("A", 1), r("B", 3)])).toBe("Two routines, all waiting for you.");
+    expect(routinesLead([r("A", 1), r("B", 3)])).toBe("Two routines, both waiting for you.");
+    expect(routinesLead([r("A", 1), r("B", 3), r("C", 2)])).toBe("Three routines, all waiting for you.");
     const now = new Date(2026, 10, 25, 9, 0).getTime();
     expect(soonestLine([r("A", 0, now + 7200_000), r("B", 0, now + 3600_000), r("C", 0)], now)).toBe("Next: B, today 10:00.");
     expect(soonestLine([r("C", 0)], now)).toBeNull();

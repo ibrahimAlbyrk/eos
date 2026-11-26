@@ -75,7 +75,7 @@ export function routinesLead(rows) {
   const waiting = rows.filter((r) => r.waiting > 0).length;
   const head = `${word(n)} ${n === 1 ? "routine" : "routines"}`;
   if (!waiting) return `${head}.`;
-  return `${head}, ${waiting === n ? (n === 1 ? "waiting" : "all waiting") : `${word(waiting).toLowerCase()} of them waiting`} for you.`;
+  return `${head}, ${waiting === n ? (n === 1 ? "waiting" : n === 2 ? "both waiting" : "all waiting") : `${word(waiting).toLowerCase()} of them waiting`} for you.`;
 }
 
 // The line under the lead: the soonest next run, or nothing.
