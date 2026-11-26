@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { loadRecalled, recalledKey, useNotes } from "../../../state/eos/notesStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
+import { word } from "../routines/tableWords.js";
 
 const SHOWN = 3;
 
-const count = (n) => (n === 1 ? "One note" : `${n} notes`);
+const count = (n) => (n === 1 ? "One note" : `${word(n)} notes`);
 
 // The memory a run's agents were given before they started: the first
 // notes, each opening in Memory, and how many there were in all.

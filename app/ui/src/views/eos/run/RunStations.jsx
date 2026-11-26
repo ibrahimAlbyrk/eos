@@ -20,13 +20,15 @@ const WORDS = {
   failed: "failed here",
   stopped: "stopped here",
   todo: "not yet",
+  arrived: "done",
 };
 
 // Each station's state: `done`, `current`, `paused`, `failed`, `stopped` or
-// `todo`. A queued or skipped run has not reached any, nor has one stopped
+// `todo`, and `arrived` for the last one a done run reached. A queued or skipped run has not reached any, nor has one stopped
 // before it started; a done one passed them all.
 export function stationStates(run) {
-  if (run.state === "done") return STATIONS.map((s) => ({ ...s, state: "done" }));
+  // A done run passed them all and ends lit at the last, where it reached you.
+  if (run.state === "done") return STATIONS.map((s, i) => ({ ...s, state: i === STATIONS.length - 1 ? "arrived" : "done" }));
   const notStarted = run.state === "cancelled" && !run.station;
   if (run.state === "queued" || run.state === "skipped" || notStarted) return STATIONS.map((s) => ({ ...s, state: "todo" }));
   const at = Math.max(0, STATIONS.findIndex((s) => s.key === run.station));
@@ -38,7 +40,7 @@ export function stationStates(run) {
 // the way ahead dashed, the station the run is at lit in its state's tone
 // and saying so under its name. The line runs on into the gutter and fades.
 const Mark = () => <span className="eos-station__mark" aria-hidden="true" />;
-const SAID = new Set(["current", "paused", "failed", "stopped"]);
+const SAID = new Set(["current", "paused", "failed", "stopped", "arrived"]);
 // What the station it is at says under its name, by the run's state.
 const NOW_WORDS = { waiting_for_user: "waits for you", delivering: "sending" };
 
@@ -48,7 +50,7 @@ export function RunStations({ run }) {
     <div className="eos-stations-wrap">
       <ol className={working ? "eos-stations eos-stations--working" : "eos-stations"} aria-label="Stations">
         {stationStates(run).map((s) => (
-          <li key={s.key} className={`eos-station eos-station--${s.state}`} aria-current={s.state === "todo" || s.state === "done" ? undefined : "step"}>
+          <li key={s.key} className={`eos-station eos-station--${s.state}`} aria-current={s.state === "todo" || s.state === "done" || s.state === "arrived" ? undefined : "step"}>
             <Mark />
             <span className="eos-station__name">{s.label}</span>
             {SAID.has(s.state)
