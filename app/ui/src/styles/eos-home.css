@@ -269,9 +269,10 @@
 
 .eos-things { margin: 0; padding: 0; list-style: none; display: contents; }
 .eos-thing {
-  height: 26px;
-  max-width: 260px;
-  padding: 0 4px 0 10px;
+  min-height: 26px;
+  box-sizing: border-box;
+  max-width: min(100%, 440px);
+  padding: 3px 4px 3px 10px;
   border-radius: 8px;
   background: #2a2a2a;
   display: flex;
@@ -282,7 +283,8 @@
 }
 .eos-thing--uploading { color: var(--fg-dim); }
 .eos-thing__glyph { flex: none; fill: none; stroke: var(--fg-dim2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.eos-thing__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A long name wraps to a second line before it is cut; its whole name is its title. */
+.eos-thing__label { min-width: 0; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .eos-thing__remove {
   width: 20px;
   height: 20px;
