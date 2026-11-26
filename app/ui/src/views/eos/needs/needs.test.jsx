@@ -506,6 +506,17 @@ describe("paging", () => {
     expect(eosLocation()).toBe(`eos:/needs/${DRAFT}`);
   });
 
+  it("names what waits after a short item with no aside, so the page goes on to the next", async () => {
+    await loaded();
+    await loadInboxItem("ib-5q1w9e3r7t2y");
+    const html = at("eos:/needs/ib-5q1w9e3r7t2y");
+    expect(html).toContain('<h2 id="eos-needs-then" class="eos-label">Then</h2>');
+    const next = [...html.matchAll(/<span class="eos-needs-foot__title">([^<]*)</g)].map((m) => m[1]);
+    expect(next.length).toBeGreaterThan(0);
+    expect(next).not.toContain("Mail Triage is paused");
+    expect(html).toContain("A guess about you");
+  });
+
   it("says an item that is gone is no longer here", async () => {
     await loaded();
     await loadInboxItem("ib-gone00000001");

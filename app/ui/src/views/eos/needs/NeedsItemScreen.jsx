@@ -23,6 +23,7 @@ import { plainKey, primaryKey } from "./keys.js";
 import { inListOrder, itemLocation } from "./NeedsYouList.jsx";
 import { AnswerBar, ItemGhost, ItemLead } from "./ItemParts.jsx";
 import { SendState } from "./SendState.jsx";
+import { ItemFoot } from "./ItemFoot.jsx";
 import { closedLine, isShownOnly, staleLine } from "./words.js";
 
 const WAITING = new Set(["open", "later"]);
@@ -209,6 +210,9 @@ export function NeedsItemScreen({ id }) {
                     onChange={(e) => setNextTime(e.target.value)}
                   />
                 </div>
+              )}
+              {!hasAside && open && at >= 0 && (
+                <ItemFoot after={order.slice(at + 1)} nameOf={nameOf} onOpen={(next) => openLocation(itemLocation(next))} />
               )}
             </div>
             {hasAside && (
