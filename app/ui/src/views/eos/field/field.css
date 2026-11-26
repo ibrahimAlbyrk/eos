@@ -206,11 +206,10 @@
 
 .eos-field__notice { position: absolute; left: 50%; bottom: 72px; width: 580px; max-width: calc(100% - 48px); transform: translateX(-50%); }
 .eos-field__legend { position: absolute; left: 24px; bottom: 24px; margin: 0; max-width: 300px; font-size: var(--text-xs); line-height: 1.5; color: var(--fg-dim2); }
+/* Field or List and Back to home share the bottom-right strip, so the
+   centre below the input stays the field's (HomeField.dc.html). */
+.eos-field__foot { position: absolute; right: 24px; bottom: 24px; display: flex; align-items: center; gap: 12px; }
 .eos-field__views {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
   display: flex;
   gap: 2px;
   padding: 3px;
@@ -230,9 +229,6 @@
 }
 .eos-field__views button[aria-pressed="true"] { background: var(--row-on); color: var(--fg-strong); }
 .eos-field__back {
-  position: absolute;
-  right: 24px;
-  bottom: 24px;
   height: 32px;
   padding: 0 12px;
   border: 0;
@@ -254,13 +250,22 @@
    is, on the base timings. */
 .eos-mode { --k: 1; --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.2, 1.25, .35, 1); }
 
-.eos-mode > .side { transition: transform calc(var(--k) * 460ms) var(--ease); }
-.eos-mode > .side > * { transition: opacity calc(var(--k) * 320ms) var(--ease); }
-.eos-mode--field > .side { transform: translateX(-100%); }
-.eos-mode--field > .side > * { opacity: 0; }
+/* The sidebar closes and opens as its width would (Transition.dc.html): a clip
+   from its right edge, so its words are never cut at the window's left. Coming
+   back, its rows fade in once the width has nearly settled. The clip is there
+   only while the field is open, so at rest nothing of the sidebar is clipped. */
+.eos-mode > .side { transition: clip-path calc(var(--k) * 460ms) var(--ease); }
+.eos-mode--open > .side { clip-path: inset(0 0 0 0); }
+.eos-mode > .side > * { transition: opacity calc(var(--k) * 260ms) var(--ease) calc(var(--k) * 300ms); }
+.eos-mode--field > .side { clip-path: inset(0 100% 0 0); }
+.eos-mode--field > .side > * { opacity: 0; transition: opacity calc(var(--k) * 200ms) var(--ease); }
 /* The app's dawn light behind the sidebar would hang alone in the field's corner. */
 .eos-mode::before { transition: opacity calc(var(--k) * 460ms) var(--ease); }
 .eos-mode--field::before { opacity: 0; }
+
+/* The field says how it works in its legend; the input's idle hint steps aside. */
+.eos-intent__line--hint { transition: opacity calc(var(--k) * 240ms) var(--ease); }
+.is-field .eos-intent__line--hint { opacity: 0; }
 
 .eos-home__glow { transition: transform calc(var(--k) * 900ms) var(--ease); }
 .is-field .eos-home__glow { transform: translateY(calc(50vh - 350px)); }

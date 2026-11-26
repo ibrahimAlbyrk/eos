@@ -95,3 +95,8 @@ export function _resetField() {
   clearTimeout(timer);
   state = { phase: "home", on: false, open: false, view: null };
 }
+
+// The mode head's classes: open while the field is drawn, field while it is on.
+export function modeClass(open, on) {
+  return `eos-mode${open ? " eos-mode--open" : ""}${on ? " eos-mode--field" : ""}`;
+}
