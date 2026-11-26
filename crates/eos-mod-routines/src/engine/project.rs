@@ -5,9 +5,9 @@
 //! the milestones done. Each milestone starts a new round of results, so
 //! its check has its own two rounds; a version kept meanwhile is taken up at
 //! the next milestone, and the team is told so (01 G5). A project has no
-//! cap per run, only the caps a milestone names (the Forge's research): once its routine or all routines spent the day's budget it
-//! pauses, and the next day it goes on. Its sessions idle for half an hour
-//! are suspended; a message brings them back.
+//! cap per run, only the time caps a milestone names (the Forge's research);
+//! spend has no cap, so a run still paused at a day's budget goes on. Its
+//! sessions idle for half an hour are suspended; a message brings them back.
 
 use std::sync::Arc;
 
@@ -15,7 +15,6 @@ use eos_contracts::WorkerState;
 use eos_contracts::{Blueprint, Milestone, RoutineKind};
 use eos_core::Error;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
-use eos_domain::routine::limits::cap;
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
@@ -170,63 +169,19 @@ pub(crate) fn brief_text(blueprint: &Blueprint) -> Option<String> {
     ))
 }
 
-/// What a project run's lead hears when a new day lets it work again.
-const NEW_DAY: &str = "A new day: the routine's budget lets this run work again. Carry on where you left off.";
+/// What a project run's lead hears when it may work again after a pause at a day's budget.
+const GO_ON: &str = "This run may work again. Carry on where you left off.";
 /// A project's sessions idle this long are suspended; any message revives them.
 pub(crate) const IDLE_SUSPEND_MS: i64 = 30 * 60 * 1000;
 
-fn per_day_usd(blueprint: &Blueprint) -> f64 {
-    cap(blueprint.limits.per_day_usd.map(|usd| usd.0))
-}
-
-/// Whether the routine of `run`, or every routine together, has spent
-/// what it may spend on `day`.
-fn day_spent_in(tx: &dyn Tx, blueprint: &Blueprint, run: &StoredRun, day: &str, cap_usd: f64) -> Result<bool, Error> {
-    let spent = super::budget::spent_in(tx, day)?;
-    Ok(spent.of_routine(&run.routine_id) >= per_day_usd(blueprint) || spent.total >= cap_usd)
-}
-
-/// A project run at work that has spent the day's budget is paused until
-/// the next day, with one notice (01 §4.10). True when it was paused; its
-/// sessions are the caller's to quiet once the job has committed.
-pub(crate) fn pause_at_day_cap_in(
-    engine: &Arc<Engine>,
-    tx: &dyn Tx,
-    out: &mut Outbox,
-    run: &StoredRun,
-    day: &str,
-    cap_usd: f64,
-) -> Result<bool, Error> {
-    let Some(blueprint) = blueprint_in(tx, run)? else { return Ok(false) };
-    if !day_spent_in(tx, &blueprint, run, day, cap_usd)? {
-        return Ok(false);
-    }
-    let now = engine.clock.now_ms();
-    let routine_spent = super::budget::spent_in(tx, day)?.of_routine(&run.routine_id) >= per_day_usd(&blueprint);
-    let paused = RunMove { state: RunState::Paused, station: run.station, reason: Some(Reason::DayCap), at: now };
-    move_run(tx, out, run, paused)?;
-    super::budget::day_cap_notice_in(tx, out, engine, routine_spent.then_some(run.routine_id.as_str()), now)?;
-    tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a project run spent the day's budget and paused");
-    Ok(true)
-}
-
-/// The project runs paused at the day's budget that the day now allows,
-/// back at work: answers each one's lead to revive and tell.
-pub(crate) fn resume_new_day_in(
-    tx: &dyn Tx,
-    out: &mut Outbox,
-    day: &super::budget::Day,
-    now: i64,
-) -> Result<Vec<(String, String)>, Error> {
+/// The project runs still paused at a day's budget, back at work: answers
+/// each one's lead to revive and tell.
+pub(crate) fn resume_day_capped_in(tx: &dyn Tx, out: &mut Outbox, now: i64) -> Result<Vec<(String, String)>, Error> {
     let mut resumed = Vec::new();
     for run in tx.runs().paused_for(Reason::DayCap)? {
-        let Some(blueprint) = blueprint_in(tx, &run)? else { continue };
-        if day_spent_in(tx, &blueprint, &run, &day.day, day.cap_usd)? {
-            continue;
-        }
         let work = RunMove { state: RunState::Running, station: Some(Station::Work), reason: None, at: now };
         move_run(tx, out, &run, work)?;
-        tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a project run went on in a new day");
+        tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a project run paused at a day's budget went on");
         if let Some(lead) = run.lead_id {
             resumed.push((run.id, lead));
         }
@@ -234,12 +189,12 @@ pub(crate) fn resume_new_day_in(
     Ok(resumed)
 }
 
-/// Revives and tells the leads [`resume_new_day_in`] answered.
+/// Revives and tells the leads [`resume_day_capped_in`] answered.
 pub(crate) async fn tell_resumed(engine: &Engine, resumed: Vec<(String, String)>) {
     for (run_id, lead) in resumed {
         let revived = if engine.sessions.is_live(&lead) { Ok(()) } else { engine.sessions.revive(&lead).await };
-        if let Err(error) = revived.and(note(engine, &lead, &run_id, NEW_DAY).await) {
-            tracing::warn!(run_id, %error, "a project run's lead could not be told of the new day");
+        if let Err(error) = revived.and(note(engine, &lead, &run_id, GO_ON).await) {
+            tracing::warn!(run_id, %error, "a project run's lead could not be told to go on");
         }
     }
 }

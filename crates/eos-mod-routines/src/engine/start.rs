@@ -15,7 +15,6 @@ use eos_domain::routine::item;
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
-use super::supervisor::by_the_user;
 use super::{Engine, Queued, queue_run};
 use crate::routes::{readable, showing_version};
 
@@ -48,7 +47,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
     // The request id is looked up and remembered on the writer thread, one
     // job after another, so a retry sent while the first request is still
     // being written answers its runs instead of queueing them again.
-    let (job, day) = (engine.clone(), super::budget::day(engine));
+    let job = engine.clone();
     let written = engine
         .store
         .write(move |tx, out| {
@@ -56,7 +55,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, new: NewRun) -> Result<Vec<RunCr
             if let Some(runs) = request.and_then(|id| remembered(&job, id, now)) {
                 return Ok(Ok((runs, true)));
             }
-            match queue(tx, out, &new, now, &day, job.ids.as_ref(), &job.device) {
+            match queue(tx, out, &new, now, job.ids.as_ref(), &job.device) {
                 Ok(made) => {
                     if new.origin == RunOrigin::Hand {
                         super::defaults::learn_in(&job, tx, out, &new.routine_id, now)?;
@@ -114,34 +113,28 @@ fn version_in(tx: &dyn Tx, new: &NewRun) -> Result<(StoredVersion, Blueprint), S
 }
 
 /// What the runs need that is not set up here refuses the start before the
-/// write, after what refuses any start now (halt, today's cap), so those are
-/// what it answers. A start the write refuses for another reason passes here.
+/// write, after what refuses any start now (halt), so that is what it
+/// answers. A start the write refuses for another reason passes here.
 async fn ready(engine: &Engine, new: &NewRun) -> Result<(), StartError> {
-    let (asked, day) = (new.clone(), super::budget::day(engine));
-    let read = engine.store.read(move |tx| Ok(taking_in(tx, &asked.origin, &day).map(|()| version_in(tx, &asked))));
+    let asked = new.clone();
+    let read = engine.store.read(move |tx| Ok(taking_in(tx).map(|()| version_in(tx, &asked))));
     let Ok((_, blueprint)) = read.await?? else { return Ok(()) };
     let Ok(inputs) = inputs(new, &blueprint) else { return Ok(()) };
     super::ready::check(engine, &blueprint, &inputs).await
 }
 
-/// Whether this Mac takes a start by `origin` now: not while everything is
-/// stopped, and the user's own start not once today's cap is spent (it asks
-/// to raise the cap rather than wait for tomorrow).
-fn taking_in(tx: &dyn Tx, origin: &RunOrigin, day: &super::budget::Day) -> Result<(), StartError> {
+/// Whether this Mac takes a start now: not while everything is stopped.
+fn taking_in(tx: &dyn Tx) -> Result<(), StartError> {
     if tx.inbox_halt().get()?.on {
         return Err(StartError::Halted);
-    }
-    if by_the_user(origin.word()) && super::budget::spent_in(tx, &day.day)?.total >= day.cap_usd {
-        return Err(StartError::DayCap);
     }
     Ok(())
 }
 
 /// [`taking_in`] on its own read, for a start that would spend before it
 /// queues (a one-off's plan).
-pub(crate) async fn taking(engine: &Engine, origin: RunOrigin) -> Result<(), StartError> {
-    let day = super::budget::day(engine);
-    engine.store.read(move |tx| Ok(taking_in(tx, &origin, &day))).await?
+pub(crate) async fn taking(engine: &Engine) -> Result<(), StartError> {
+    engine.store.read(move |tx| Ok(taking_in(tx))).await?
 }
 
 /// The runs of a routine written in the same job, `blueprint` its head (a
@@ -160,7 +153,7 @@ pub(crate) fn queue_with(
     new: &NewRun,
     now: i64,
 ) -> Result<Vec<RunCreated>, StartError> {
-    queue(tx, out, new, now, &super::budget::day(engine), engine.ids.as_ref(), &engine.device)
+    queue(tx, out, new, now, engine.ids.as_ref(), &engine.device)
 }
 
 /// The checks, then the writes. A refusal writes nothing.
@@ -169,13 +162,12 @@ fn queue(
     out: &mut Outbox,
     new: &NewRun,
     now: i64,
-    day: &super::budget::Day,
     ids: &dyn eos_core::Ids,
     device: &str,
 ) -> Result<Vec<RunCreated>, StartError> {
     let routine =
         tx.routines().find(&new.routine_id)?.ok_or_else(|| StartError::UnknownRoutine(new.routine_id.clone()))?;
-    taking_in(tx, &new.origin, day)?;
+    taking_in(tx)?;
     if !takes_origin(routine.state, &new.origin) {
         return Err(StartError::RoutineState(routine.state));
     }

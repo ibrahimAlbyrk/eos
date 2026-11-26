@@ -69,7 +69,7 @@ struct Planned {
 /// `POST /api/runs/once`. Nothing is planned, so nothing spent, while this
 /// Mac takes no start; a start refused after the plan leaves no routine.
 pub(crate) async fn start(engine: &Arc<Engine>, asked: OnceRequest) -> Result<OnceStarted, OnceRefused> {
-    engine::taking_starts(engine, RunOrigin::Hand).await.map_err(OnceRefused::Start)?;
+    engine::taking_starts(engine).await.map_err(OnceRefused::Start)?;
     let project = match &asked.project {
         Some(folder) => Some(project_key(engine, folder).await?),
         None => None,

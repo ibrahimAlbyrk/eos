@@ -37,7 +37,7 @@ fn blueprint(n: usize) -> Value {
         "makes": {"kind": "github.review", "description": "A pending review."},
         "goesTo": [{"id": "pr", "kind": "item_place", "channel": "github"}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     })
 }
 

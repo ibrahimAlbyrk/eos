@@ -5,13 +5,12 @@
 //! version the run runs from (01 G5), unless its start bound one (a trial
 //! runs the draft it was started for), and moves it to `running` at the brief;
 //! the brief station then starts its lead, one run after the other, before
-//! the next pass. A run from a trigger is skipped while its routine's or
-//! everything's day budget is spent, and waits while the plan has no
-//! headroom or the battery is low; one of a routine at the rung Ask waits
-//! for the user's yes (`handoffs`). Nothing leaves the queue while the user
-//! has stopped everything. Each turn of the loop also holds working runs to
-//! their time, suspends the architects and project sessions that went idle,
-//! and lets project runs paused at the day's budget go on in a new day.
+//! the next pass. A run from a trigger waits while the battery is low; one
+//! of a routine at the rung Ask waits for the user's yes (`handoffs`).
+//! Nothing leaves the queue while the user has stopped everything. Each turn
+//! of the loop also holds working runs to their time, suspends the
+//! architects and project sessions that went idle, and lets project runs
+//! paused at a day's budget go on.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,12 +19,11 @@ use eos_contracts::{RoutineState, Rung};
 use eos_core::Error;
 use eos_core::os::PowerStatus;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
-use eos_domain::routine::limits::cap;
 use eos_domain::routine::run::{Reason, RunState, Station};
 
 use super::control::confirmed_in;
 use super::{Engine, brief, budget, handoffs, move_run, project};
-use crate::routes::{readable, showing_version};
+use crate::routes::{current_settings, readable, showing_version};
 
 /// The longest the supervisor sleeps without being woken.
 const IDLE_WAIT_MS: i64 = 60_000;
@@ -60,8 +58,8 @@ async fn supervise(engine: Arc<Engine>) {
         let power = engine.power.clone();
         let low = tokio::task::spawn_blocking(move || low_battery(&power.status())).await.unwrap_or(false);
         let now = engine.clock.now_ms();
-        let (job, day) = (engine.clone(), budget::day(&engine));
-        let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, &day, low, now)).await {
+        let (job, slots) = (engine.clone(), current_settings(&engine).max_parallel_runs);
+        let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, slots, low, now)).await {
             Ok(Pass { next_due, left, resumed }) => {
                 for run_id in left {
                     brief::start_lead(&engine, &run_id).await;
@@ -90,8 +88,6 @@ async fn supervise(engine: Arc<Engine>) {
 struct Allowed {
     state: RoutineState,
     parallel: i64,
-    /// What its runs may spend a day.
-    per_day_usd: f64,
     version_id: Option<String>,
     /// The user confirmed the rung Ask: a run from a trigger waits for
     /// their yes before it starts (03 G13).
@@ -103,7 +99,7 @@ struct Allowed {
 struct Pass {
     next_due: Option<i64>,
     left: Vec<String>,
-    /// Project runs a new day let go on, with their leads.
+    /// Project runs paused at a day's budget let go on, with their leads.
     resumed: Vec<(String, String)>,
 }
 
@@ -112,16 +108,15 @@ fn pass(
     tx: &dyn Tx,
     out: &mut Outbox,
     engine: &Arc<Engine>,
-    day: &budget::Day,
+    slots: i64,
     low_battery: bool,
     now: i64,
 ) -> Result<Pass, Error> {
     if tx.inbox_halt().get()?.on {
         return Ok(Pass { next_due: None, left: Vec::new(), resumed: Vec::new() });
     }
-    let resumed = project::resume_new_day_in(tx, out, day, now)?;
+    let resumed = project::resume_day_capped_in(tx, out, now)?;
     let autostart = engine.autostart;
-    let spent = budget::spent_in(tx, &day.day)?;
     let mut busy: HashMap<String, i64> = tx.runs().working()?.into_iter().collect();
     let mut total: i64 = busy.values().sum();
     let mut routines: HashMap<String, Allowed> = HashMap::new();
@@ -138,7 +133,7 @@ fn pass(
             skip(tx, out, &run, now)?;
             continue;
         }
-        if total >= day.slots {
+        if total >= slots {
             continue;
         }
         if let Some(at) = run.not_before.filter(|at| *at > now) {
@@ -152,14 +147,7 @@ fn pass(
             continue;
         }
         if !user {
-            let routine_spent = spent.of_routine(&run.routine_id) >= routine.per_day_usd;
-            if routine_spent || spent.total >= day.cap_usd {
-                skip_for(tx, out, &run, Reason::DayCap, now)?;
-                let whose = routine_spent.then_some(run.routine_id.as_str());
-                budget::day_cap_notice_in(tx, out, engine, whose, now)?;
-                continue;
-            }
-            if day.plan_busy || low_battery {
+            if low_battery {
                 continue;
             }
             if routine.asks && !handoffs::may_start_in(engine, tx, out, &run, now)? {
@@ -246,9 +234,6 @@ fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
         asks,
         state,
         parallel: blueprint.as_ref().map_or(1, |blueprint| blueprint.limits.parallel.max(1)),
-        per_day_usd: blueprint
-            .as_ref()
-            .map_or(f64::INFINITY, |blueprint| cap(blueprint.limits.per_day_usd.map(|usd| usd.0))),
         // A version this app cannot run is no version to bind.
         version_id: version.filter(|_| blueprint.is_some()).map(|version| version.id),
     })

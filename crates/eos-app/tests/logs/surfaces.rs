@@ -37,7 +37,7 @@ fn blueprint(name: &str, makes: &str) -> Value {
         "how": {"checks": [], "format": makes, "checkAgent": false},
         "makes": {"kind": makes, "description": "It."},
         "goesTo": [], "freedom": {"rung": "ask"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     })
 }
 

@@ -38,7 +38,7 @@ fn paper_blueprint() -> Value {
         "makes": {"kind": "page", "description": "The paper."},
         "goesTo": [{"id": "me", "kind": "fixed", "channel": "mail", "address": "me@acme.dev"}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     })
 }
 

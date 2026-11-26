@@ -86,8 +86,6 @@ pub(crate) struct Context {
     pub(crate) work_hold: Arc<dyn eos_core::os::WorkHold>,
     /// The Dock icon's number: the window shell's, else none.
     pub(crate) dock_badge: Arc<dyn eos_core::os::DockBadge>,
-    /// The plan usage the accounts feature last fetched.
-    pub(crate) usage_cache: Arc<dyn eos_core::accounts::UsageSnapshotStore>,
     /// What visual answers fetch: images, the map, geocoding, place search.
     pub(crate) media: eos_genui_media::Services,
     /// The window shell's reading of this computer's position, when there is a shell.
@@ -269,11 +267,6 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         zones: Arc::new(crate::host::HostZoneRules),
         zone: Arc::new(crate::host::HostTimeZone),
         settings: cx.settings.clone(),
-        headroom: Arc::new(crate::headroom::CachedHeadroom {
-            cache: cx.usage_cache.clone(),
-            clock: cx.clock.clone(),
-            login: crate::headroom::session_login(cx.accounts.clone()),
-        }),
         one_shot: cx.one_shot.clone(),
         credentials: cx.credentials.clone(),
         power: power.clone(),

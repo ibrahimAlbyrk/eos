@@ -118,7 +118,7 @@ pub fn review_blueprint(brief: &str) -> Value {
         "makes": {"kind": "github.review", "description": "A pending review."},
         "goesTo": [{"id": "pr", "kind": "item_place", "channel": "github", "bound": {"fact": "repo", "in": [REPO]}}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     })
 }
 

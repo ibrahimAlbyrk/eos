@@ -104,9 +104,6 @@ pub enum StartError {
     NewerFormat,
     /// 400; the text names the field.
     Invalid(String),
-    /// 409: everything routines may spend today is spent; the user may
-    /// raise today's cap.
-    DayCap,
     /// 409: the user stopped everything on this Mac (03 G10).
     Halted,
     /// 409: something the runs need is not set up here; nothing was queued.
@@ -769,13 +766,6 @@ pub trait RunOutcomes: Send + Sync {
     /// The user wants the result changed: the lead gets `text` and works
     /// again.
     fn revise(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, text: &str) -> Result<(), Error>;
-}
-
-/// Whether the user's Claude plan is near its five-hour limit (01 G28):
-/// runs from triggers wait then, runs by hand still start.
-pub trait PlanHeadroom: Send + Sync {
-    /// The cached five-hour window is at or above `percent` of the limit.
-    fn busy(&self, percent: i64) -> bool;
 }
 
 #[cfg(test)]

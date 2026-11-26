@@ -112,8 +112,8 @@ use eos_core::net::sync::RecordSync;
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
 use eos_core::policy::KeptScripts;
 use eos_core::routine::{
-    ArchitectTools, BuiltinRoutines, ChatRoutines, PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools,
-    RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter, SystemSteps,
+    ArchitectTools, BuiltinRoutines, ChatRoutines, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate,
+    RunIntake, RunLookup, RunOutcomes, RunReplays, RunStarter, SystemSteps,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
@@ -174,10 +174,8 @@ pub struct RoutinesParts {
     pub zones: Arc<dyn ZoneRules>,
     /// The user's clock, for the local day spend is booked on.
     pub zone: Arc<dyn TimeZone>,
-    /// `settings.json`, which holds the budgets for all routines.
+    /// `settings.json`, which holds the settings for all routines.
     pub settings: Arc<dyn UserSettingsStore>,
-    /// Whether the user's plan has room for runs from triggers.
-    pub headroom: Arc<dyn PlanHeadroom>,
     /// The small model that reads what a sentence typed at Home asks for.
     pub one_shot: Arc<dyn OneShot>,
     /// The credential a new session would start on: a run without one fails
@@ -248,7 +246,6 @@ impl RoutinesModule {
             zones,
             zone,
             settings,
-            headroom,
             one_shot,
             credentials,
             power,
@@ -296,7 +293,6 @@ impl RoutinesModule {
             data_dir,
             zone,
             settings,
-            headroom,
             meters: Mutex::new(HashMap::new()),
             usage: Mutex::new(None),
             architects: Mutex::new(HashMap::new()),
@@ -453,7 +449,6 @@ impl Module for RoutinesModule {
             engine::watch_usage(&self.engine);
             // A halt switched on before Eos quit ends the runs it would pick up.
             engine::hear_halt(&self.engine).await?;
-            engine::uncap(&self.engine).await;
             engine::recover(&self.engine).await?;
             architect::rejoin(&self.engine).await?;
             engine::hear_answers(&self.engine).await;

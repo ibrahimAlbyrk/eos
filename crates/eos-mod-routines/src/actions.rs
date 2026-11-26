@@ -79,7 +79,6 @@ pub(crate) fn refusal(refused: StartError) -> (&'static str, String) {
     match refused {
         StartError::SameItem { .. } => ("same_item", "The routine handled this lately".to_owned()),
         StartError::RoutineState(_) => ("routine_state", "The routine does not take runs now".to_owned()),
-        StartError::DayCap => ("day_cap", "Routines spent today's budget".to_owned()),
         StartError::Halted => ("halted", "Eos is stopped".to_owned()),
         StartError::Unready(unready) => ("unready", unready.message()),
         StartError::UnknownRoutine(_) => ("not_found", "That routine is gone".to_owned()),

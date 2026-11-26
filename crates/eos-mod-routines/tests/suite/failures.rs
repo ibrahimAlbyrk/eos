@@ -1,10 +1,9 @@
 //! The failure policy: three failed runs in a row pause the routine with one
-//! alert, a run that ends well starts the count again, a run that spends far
-//! more than usual pauses it too, and most of today's budget spent is told
-//! once. A run with no credential fails at once, and three of them pause
-//! the routine for a sign-in.
+//! alert, a run that ends well starts the count again, and a run's cost
+//! never pauses it. A run with no credential fails at once, and three of
+//! them pause the routine for a sign-in.
 
-use eos_contracts::{Num, RoutineState, SettingValue};
+use eos_contracts::RoutineState;
 use eos_core::routine::{RunOrigin, SubmittedResult};
 use eos_core::store::{StoredItem, StoredRoutine};
 use eos_domain::inbox::ItemKind;
@@ -16,7 +15,7 @@ use crate::bench::{Bench, blueprint, new_run, pull_request};
 
 fn generous() -> Value {
     let mut generous = blueprint(1);
-    generous["limits"] = json!({"perRunUsd": 50.0, "perRunMinutes": 30, "perDayUsd": 100.0, "parallel": 1});
+    generous["limits"] = json!({"perRunMinutes": 30, "parallel": 1});
     generous
 }
 
@@ -52,19 +51,6 @@ impl Bench {
         let subject = subject.to_owned();
         let items = self.temp.store.read_blocking(move |tx| tx.inbox_items().waiting_with_subject(&subject));
         items.expect("reads").into_iter().filter(|item| item.kind == ItemKind::RoutineAlert).collect()
-    }
-
-    /// What a session's model cost, as the session service books and announces it.
-    fn spends(&self, worker_id: &str, usd: f64) {
-        let worker = worker_id.to_owned();
-        self.temp
-            .store
-            .write_blocking(move |tx, out| {
-                tx.workers().add_usage(&worker, &Usage { cost_usd: usd, ..Usage::default() })?;
-                out.push("usage:recorded", &json!({"workerId": worker, "deltaCost": usd}));
-                Ok(())
-            })
-            .expect("books");
     }
 
     /// What a session's model cost, written on its worker.
@@ -158,35 +144,4 @@ async fn a_run_that_spends_far_more_than_usual_leaves_its_routine_running() {
     bench.eventually(|| bench.state(&run) == RunState::Done).await;
     assert_eq!(bench.stored(&routine).state, RoutineState::Active, "a cost never pauses it");
     assert!(bench.alerts("spend").is_empty(), "nothing waits in Needs you for it");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn ninety_percent_of_today_s_budget_set_by_hand_is_told_once() {
-    let bench = Bench::new(true);
-    let routine = bench.routine(RoutineState::Active, generous());
-    bench.supervise().await;
-    let budget = SettingValue::Number(Num(20.0));
-    bench.settings.0.lock().expect("settings").insert("routines.dayBudgetUsd".into(), budget);
-    let (_, lead) = bench.at_work(&routine, 1).await;
-    let notices = || {
-        let items = bench.temp.store.read_blocking(|tx| tx.inbox_items().waiting_with_subject("day-budget"));
-        items.expect("reads").into_iter().filter(|item| item.kind == ItemKind::Notice).collect::<Vec<_>>()
-    };
-    let booked = || {
-        let rows = bench.temp.store.read_blocking(|tx| tx.routine_spend().of_day("2027-01-15")).expect("reads");
-        rows.iter().map(|row| row.cost_usd).sum::<f64>()
-    };
-    for usd in [10.0, 7.0] {
-        bench.spends(&lead, usd);
-    }
-    bench.eventually(|| booked() > 16.99).await;
-    assert!(notices().is_empty(), "under 90 %");
-    bench.spends(&lead, 1.5);
-    bench.eventually(|| !notices().is_empty()).await;
-    bench.spends(&lead, 0.5);
-    bench.eventually(|| booked() > 18.99).await;
-    let told = notices();
-    assert_eq!(told.len(), 1, "once");
-    assert!(told[0].title.starts_with("Routines have spent $18"), "{}", told[0].title);
-    assert!(told[0].title.ends_with("of today's $20"), "{}", told[0].title);
 }

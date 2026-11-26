@@ -534,7 +534,6 @@ bundle![
     QuestionRegisterResponse,
     QuestionRequest,
     QueuedMessage,
-    RaisedToday,
     Reaction,
     ReactionActor,
     ReactionChange,

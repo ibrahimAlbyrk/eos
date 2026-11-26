@@ -1,18 +1,14 @@
-//! A run that fails, a budget hit, a spent day and a missing
-//! sign-in, each where the user reads it: the run view, the routine page, Home's runs and
-//! Needs you.
+//! A run that fails and a missing sign-in, each where the user reads it:
+//! the run view, the routine page, Home's runs and Needs you.
 
 use std::time::Duration;
 
 use eos_app::App;
-use eos_domain::worker::Usage;
 use eos_testkit::TempHome;
 use serde_json::{Value, json};
 
 use super::{by_hand, items, read};
-use crate::routines_rig::{
-    Fakes, call_tool, eventually, lead, make, page, pull, review_blueprint, run, runs, working_agents,
-};
+use crate::routines_rig::{Fakes, call_tool, eventually, lead, make, review_blueprint, run, working_agents};
 
 /// The run view's run.
 async fn shown(app: &App, run_id: &str) -> Value {
@@ -28,18 +24,6 @@ async fn routine_row(app: &App, routine: &str) -> Value {
 async fn failed(app: &App, run_id: &str) -> Value {
     eventually("the run fails", || async { run(app, run_id).await.state.as_str() == "failed" }).await;
     shown(app, run_id).await
-}
-
-/// What a session's model cost, as the session service books and announces it.
-async fn spends(app: &App, worker_id: &str, usd: f64) {
-    let worker = worker_id.to_owned();
-    let store = app.store();
-    let booked = store.write(move |tx, out| {
-        tx.workers().add_usage(&worker, &Usage { cost_usd: usd, ..Usage::default() })?;
-        out.push("usage:recorded", &json!({"workerId": worker, "deltaCost": usd}));
-        Ok(())
-    });
-    booked.await.expect("books");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -77,49 +61,6 @@ async fn a_failed_run_shows_in_the_run_view_the_routine_page_and_home_and_three_
     assert_eq!(alerts[0]["item"]["routineId"], routine.as_str());
     assert_eq!(alerts[0]["payload"]["reason"], "failures");
     app.shutdown(Duration::from_secs(5)).await;
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_spent_budget_names_its_reason_in_the_run_view() {
-    let (home, agents, fakes) = (TempHome::new(), working_agents(), Fakes::new());
-    let app = fakes.app(home.path(), &agents, true);
-    app.start().await.expect("starts");
-    let routine = make(&app, review_blueprint("Review the pull request.")).await;
-
-    let spent = by_hand(&app, &routine, 1).await;
-    let lead_id = lead(&app, &agents, &spent).await;
-    spends(&app, &lead_id, 3.0).await;
-    assert_eq!(failed(&app, &spent).await["reason"], "budget_run");
-    app.shutdown(Duration::from_secs(5)).await;
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_run_from_a_trigger_on_a_spent_day_is_skipped_with_one_notice() {
-    let (home, agents, fakes) = (TempHome::new(), working_agents(), Fakes::new());
-    let app = fakes.app(home.path(), &agents, true);
-    app.start().await.expect("starts");
-    let routine = make(&app, review_blueprint("Review the pull request.")).await;
-    let spent = by_hand(&app, &routine, 1).await;
-    let lead_id = lead(&app, &agents, &spent).await;
-    spends(&app, &lead_id, 21.0).await;
-    failed(&app, &spent).await;
-
-    fakes.source.page(page(vec![pull(7, "a1", "opened", "Fix the login")], false));
-    fakes.poll_again(&app);
-    eventually("the trigger's run is skipped", || async {
-        runs(&app, &routine).await.iter().any(|r| r.state.as_str() == "skipped")
-    })
-    .await;
-    let skipped = runs(&app, &routine).await.into_iter().find(|r| r.state.as_str() == "skipped").expect("a run");
-    assert_eq!(shown(&app, &skipped.id).await["reason"], "day_cap");
-    eventually("a notice says the day is spent", || async { !day_cap(&app).await.is_empty() }).await;
-    assert_eq!(day_cap(&app).await.len(), 1);
-    app.shutdown(Duration::from_secs(5)).await;
-}
-
-async fn day_cap(app: &App) -> Vec<Value> {
-    let notices = items(app, "notice").await;
-    notices.into_iter().filter(|n| n["item"]["title"].as_str().is_some_and(|t| t.contains("budget"))).collect()
 }
 
 #[tokio::test(flavor = "multi_thread")]

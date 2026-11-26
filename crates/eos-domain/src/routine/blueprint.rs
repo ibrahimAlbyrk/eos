@@ -8,7 +8,7 @@ use std::fmt;
 use std::path::Path;
 
 use eos_contracts::{
-    BLUEPRINT_FORMAT, Blueprint, Freedom, Issues, Num, OptionType, Recipient, RecipientKind, RoutineAgent, RoutineKind,
+    BLUEPRINT_FORMAT, Blueprint, Freedom, Issues, OptionType, Recipient, RecipientKind, RoutineAgent, RoutineKind,
     RoutineLimits, RoutineOption, Trigger, ValidationError, Who, WhoDepth,
 };
 use serde_json::Value;
@@ -261,22 +261,11 @@ fn freedom(freedom: &Freedom, cx: &mut Issues) {
 }
 
 fn limits(limits: &RoutineLimits, kind: RoutineKind, cx: &mut Issues) {
-    // A project is one long run: only its day budget bounds it.
+    // A project is one long run: nothing bounds it.
     if kind != RoutineKind::Project {
-        if let Some(usd) = limits.per_run_usd {
-            cx.at("perRunUsd", |cx| within_usd(cx, usd, 0.05, 100.0));
-        }
         cx.at("perRunMinutes", |cx| within(cx, limits.per_run_minutes, 1, 240));
     }
-    if let Some(usd) = limits.per_day_usd {
-        cx.at("perDayUsd", |cx| within_usd(cx, usd, 0.5, 500.0));
-    }
     cx.at("parallel", |cx| within(cx, limits.parallel, 1, 3));
-}
-
-fn within_usd(cx: &mut Issues, value: Num, min: f64, max: f64) {
-    cx.num_min(value, min, true);
-    cx.num_max(value, max, true);
 }
 
 fn within(cx: &mut Issues, value: i64, min: i64, max: i64) {

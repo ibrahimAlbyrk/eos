@@ -98,7 +98,6 @@ fn start_refusal(error: StartError) -> ApiError {
         StartError::Store(error) => error.into(),
         StartError::UnknownRoutine(_) => ApiError::NotFound("routine not found".into()),
         StartError::Unready(unready) => ApiError::Conflict(unready.message()),
-        StartError::DayCap => ApiError::Conflict("Routines spent today's budget".into()),
         StartError::Halted => ApiError::Conflict("Everything is stopped on this Mac".into()),
         _ => ApiError::Conflict("The routine does not take a design run now".into()),
     }

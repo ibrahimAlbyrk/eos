@@ -79,7 +79,7 @@ words! {
         Crashed = "crashed",
         /// Eos stopped twice while it ran.
         Interrupted = "interrupted",
-        /// It spent its cost budget.
+        /// It spent its cost budget: only read on stored runs, never given.
         BudgetRun = "budget_run",
         /// It spent its working time.
         BudgetTime = "budget_time",
@@ -91,7 +91,7 @@ words! {
         Delivery = "delivery",
         /// A newer run for the same item took its place.
         Superseded = "superseded",
-        /// The day's budget is spent.
+        /// The day's budget is spent: only read on stored runs, never given.
         DayCap = "day_cap",
         TooLate = "too_late",
         QueueFull = "queue_full",

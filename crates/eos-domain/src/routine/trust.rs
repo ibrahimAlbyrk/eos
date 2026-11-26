@@ -120,7 +120,7 @@ mod tests {
             "format": 1, "name": "n", "summary": "s", "icon": "i", "kind": "standing", "takes": takes,
             "when": when, "which": {}, "who": {"depth": "solo", "agents": [agent], "checker": {"model": "sonnet", "effort": "low"}},
             "how": {"checks": [], "format": "f", "checkAgent": false}, "makes": {"kind": "k", "description": "d"},
-            "freedom": {"rung": "draft"}, "limits": {"perRunUsd": 1, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+            "freedom": {"rung": "draft"}, "limits": {"perRunMinutes": 30, "parallel": 1},
             "needs": needs,
         }))
         .expect("a blueprint")

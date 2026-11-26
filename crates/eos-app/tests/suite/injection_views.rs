@@ -25,7 +25,7 @@ fn view_blueprint() -> Value {
         "makes": {"kind": "view", "description": "How to reach you."},
         "goesTo": [],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     })
 }
 

@@ -26,7 +26,6 @@ pub use runs::*;
 pub use writes::*;
 
 use crate::freedom::{Freedom, Recipient};
-use crate::primitives::Num;
 use crate::shared::Effort;
 use crate::signals::{When, Which};
 use crate::validate::Validate;
@@ -351,16 +350,11 @@ pub struct Makes {
 
 impl Validate for Makes {}
 
-/// What one run, and the routine in a day, may spend, and how many of its
-/// runs go at once. A spend left out has no cap.
+/// How long one run may work, and how many of its runs go at once.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineLimits {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub per_run_usd: Option<Num>,
     pub per_run_minutes: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub per_day_usd: Option<Num>,
     pub parallel: i64,
     /// Keys this version does not know; kept so a round trip loses nothing.
     #[serde(flatten)]
@@ -395,8 +389,9 @@ pub struct Milestone {
     /// (`forge.test`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
-    /// What the milestone may spend, counted from when it began: a project
-    /// has no cap per run, so a stretch that must stay small names its own.
+    /// How long the milestone may work, counted from when it began: a
+    /// project has no cap per run, so a stretch that must stay short names
+    /// its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<MilestoneLimits>,
     /// Keys this version does not know; kept so a round trip loses nothing.
@@ -406,11 +401,10 @@ pub struct Milestone {
 
 impl Validate for Milestone {}
 
-/// A milestone's own caps.
+/// A milestone's own time cap.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MilestoneLimits {
-    pub usd: f64,
     pub minutes: i64,
 }
 

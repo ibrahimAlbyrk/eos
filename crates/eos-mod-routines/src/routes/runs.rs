@@ -205,7 +205,6 @@ pub(crate) fn start_refused(refused: StartError) -> Result<Response, ApiError> {
             &json!({"error": format!("a routine that is {} does not take this run", word(state))}),
         )),
         StartError::NewerFormat => Err(newer_format()),
-        StartError::DayCap => Err(ApiError::coded(409, "routines spent today's budget", "day_cap")),
         StartError::Halted => Err(ApiError::coded(409, "Eos is stopped", "halted")),
         StartError::Unready(unready) => Ok(Response::json(409, &unready_body(&unready))),
         StartError::UnknownRoutine(id) => Err(Error::not_found("routine", id).into()),

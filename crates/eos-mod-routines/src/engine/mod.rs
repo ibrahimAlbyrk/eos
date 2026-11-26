@@ -40,7 +40,6 @@ mod supervisor;
 pub(crate) mod surfaces;
 mod system;
 mod team;
-mod uncap;
 mod versions;
 mod workspace;
 
@@ -68,7 +67,6 @@ pub(crate) use steer::{message, pause, resume};
 pub(crate) use surfaces::{Move as SurfaceMove, moved as surface_moved};
 pub(crate) use system::Builtins;
 pub(crate) use team::shape_report;
-pub(crate) use uncap::uncap;
 pub(crate) use versions::{
     Edit, NEWER_FORMAT, NewVersion, Prepared, Saved, blocks, check_in, copy, create, free_slug, insert_version,
     prepare, restore, save,
@@ -85,7 +83,7 @@ use eos_core::capability::CapabilityReads;
 use eos_core::experience::{ExperienceFeedback, ExperiencePacks};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{FileSystem, Power, TimeZone, ZoneRules};
-use eos_core::routine::{PlanHeadroom, RunCreated, RunFolders, RunGate, SystemSteps};
+use eos_core::routine::{RunCreated, RunFolders, RunGate, SystemSteps};
 use eos_core::store::{ConfigSource, Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx, UserSettingsStore};
 use eos_core::surface::SurfaceAuthoring;
 use eos_core::{Clock, Error, Ids, Sleeper};
@@ -169,11 +167,9 @@ pub(crate) struct Engine {
     pub(crate) data_dir: PathBuf,
     /// The user's clock, for the day spend is booked on.
     pub(crate) zone: Arc<dyn TimeZone>,
-    /// `settings.json`, where the budgets for all routines are.
+    /// `settings.json`, where the settings for all routines are.
     pub(crate) settings: Arc<dyn UserSettingsStore>,
-    /// Whether the plan has room for runs from triggers.
-    pub(crate) headroom: Arc<dyn PlanHeadroom>,
-    /// What each working run was told of its budget.
+    /// What each working run was told of its working time.
     pub(crate) meters: Mutex<HashMap<String, budget::Meter>>,
     /// Books what routine sessions spend.
     pub(crate) usage: Mutex<Option<Subscription>>,

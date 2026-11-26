@@ -1,8 +1,6 @@
-//! The limits a routine's runs keep: how near spend or working time is to
-//! its cap, the failures that pause a routine, the day spend is
-//! booked on, and what counts as working time. The caps are arguments: the
-//! blueprint and the settings hold them, and a spend cap they leave out is
-//! no cap.
+//! The limits a routine's runs keep: how near working time is to its cap,
+//! the failures that pause a routine, the day spend is booked on, and what
+//! counts as working time. Spend has no cap.
 
 use serde_json::{Value, json};
 
@@ -11,19 +9,18 @@ use crate::time::civil_from_days;
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
-/// How near spend or working time is to its cap.
+/// How near working time is to its cap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Budget {
     /// Below 90 %.
     Within,
-    /// From 90 %: a run is told to wrap up; the overall day sends a notice.
+    /// From 90 %: a run is told to wrap up.
     WrapUp,
-    /// At 100 %: a run stops; a day takes no new runs.
+    /// At 100 %: a run stops.
     Reached,
 }
 
-/// Where `used` stands against `cap`: a run's cost or working time, a
-/// routine's or everything's spend today.
+/// Where a run's working time `used` stands against its `cap`.
 pub fn budget(used: f64, cap: f64) -> Budget {
     if used >= cap {
         Budget::Reached
@@ -34,13 +31,8 @@ pub fn budget(used: f64, cap: f64) -> Budget {
     }
 }
 
-/// A spend cap as [`budget`] holds to it: one left out never runs out.
-pub fn cap(usd: Option<f64>) -> f64 {
-    usd.unwrap_or(f64::INFINITY)
-}
-
 /// How long a run of a routine made without them may work, and how many
-/// of its runs go at once (D6). Spend has no default: a cap left out is no cap.
+/// of its runs go at once (D6).
 pub const PER_RUN_MINUTES: i64 = 30;
 pub const PARALLEL: i64 = 1;
 
@@ -92,8 +84,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn spend_and_time_wrap_up_at_ninety_percent_and_stop_at_the_cap() {
-        for cap in [5.0, 20.0, 1_800_000.0] {
+    fn time_wraps_up_at_ninety_percent_and_stops_at_the_cap() {
+        for cap in [60_000.0, 600_000.0, 1_800_000.0] {
             assert_eq!(budget(cap * 0.89, cap), Budget::Within, "{cap}");
             assert_eq!(budget(cap * 0.9, cap), Budget::WrapUp, "{cap}");
             assert_eq!(budget(cap * 0.99, cap), Budget::WrapUp, "{cap}");
@@ -105,13 +97,13 @@ mod tests {
     }
 
     #[test]
-    fn a_blueprint_without_limits_gets_time_and_parallel_defaults_and_no_spend_cap() {
+    fn a_blueprint_without_limits_gets_time_and_parallel_defaults() {
         let mut none = json!({"format": 1});
         fill_defaults(&mut none);
         assert_eq!(none["limits"], json!({"perRunMinutes": 30, "parallel": 1}));
-        let mut some = json!({"limits": {"perRunUsd": 2, "perDayUsd": 7, "parallel": 3}});
+        let mut some = json!({"limits": {"parallel": 3}});
         fill_defaults(&mut some);
-        assert_eq!(some["limits"], json!({"perRunUsd": 2, "perDayUsd": 7, "parallel": 3, "perRunMinutes": 30}));
+        assert_eq!(some["limits"], json!({"parallel": 3, "perRunMinutes": 30}));
         let mut text = json!("not a blueprint");
         fill_defaults(&mut text);
         assert_eq!(text, json!("not a blueprint"));

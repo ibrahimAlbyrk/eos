@@ -61,8 +61,6 @@ pub(crate) struct Bench {
     pub(crate) bus: Bus,
     /// `settings.json`.
     pub(crate) settings: Arc<FakeSettings>,
-    /// Whether the plan is near its five-hour limit.
-    pub(crate) plan: Arc<FakePlan>,
     /// The credential new sessions start on: an API key unless a test signs out.
     pub(crate) credentials: Arc<FakeCredentials>,
     /// The small model the Home input's model read asks.
@@ -121,22 +119,6 @@ impl eos_core::routine::SystemSteps for FakeSteps {
     ) -> eos_core::BoxFuture<'a, Result<Option<String>, eos_core::Error>> {
         let folder = self.folder.lock().expect("folder").clone();
         Box::pin(std::future::ready(Ok(folder)))
-    }
-}
-
-/// A plan whose five-hour window a test fills.
-#[derive(Default)]
-pub(crate) struct FakePlan(AtomicBool);
-
-impl FakePlan {
-    pub(crate) fn set_busy(&self, busy: bool) {
-        self.0.store(busy, Ordering::SeqCst);
-    }
-}
-
-impl eos_core::routine::PlanHeadroom for FakePlan {
-    fn busy(&self, _percent: i64) -> bool {
-        self.0.load(Ordering::SeqCst)
     }
 }
 
@@ -255,8 +237,7 @@ impl Bench {
         });
         let reads = Arc::new(reads);
         let keys = Arc::new(FakeKeys::default());
-        let (settings, ids, plan) =
-            (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
+        let (settings, ids) = (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()));
         let (model, power) = (Arc::new(ScriptedOneShot::default()), Arc::new(FakePower::default()));
         let trash = Arc::new(FakeTrash::new(temp.home.path().join("trash")));
         let steps = Arc::new(FakeSteps::default());
@@ -272,7 +253,6 @@ impl Bench {
             bus: &bus,
             settings: &settings,
             ids: &ids,
-            plan: &plan,
             model: &model,
             power: &power,
             trash: &trash,
@@ -304,7 +284,6 @@ impl Bench {
             worktrees,
             bus,
             settings,
-            plan,
             model,
             power,
             trash,
@@ -327,7 +306,6 @@ impl Bench {
             bus: &self.bus,
             settings: &self.settings,
             ids: &self.ids,
-            plan: &self.plan,
             model: &self.model,
             power: &self.power,
             trash: &self.trash,
@@ -455,7 +433,6 @@ struct Shared<'a> {
     bus: &'a Bus,
     settings: &'a Arc<FakeSettings>,
     ids: &'a Arc<SeqIds>,
-    plan: &'a Arc<FakePlan>,
     model: &'a Arc<ScriptedOneShot>,
     power: &'a Arc<FakePower>,
     trash: &'a Arc<FakeTrash>,
@@ -476,22 +453,8 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared {
-        gate,
-        keys,
-        bus,
-        settings,
-        ids,
-        plan,
-        model,
-        power,
-        trash,
-        packs,
-        feedback,
-        surfaces,
-        steps,
-        credentials,
-    } = shared;
+    let Shared { gate, keys, bus, settings, ids, model, power, trash, packs, feedback, surfaces, steps, credentials } =
+        shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -520,7 +483,6 @@ fn module(
         zones: Arc::new(FakeZoneRules::new().fixed("Europe/Istanbul", 180)),
         zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
         settings: settings.clone(),
-        headroom: plan.clone(),
         one_shot: model.clone(),
         credentials: credentials.clone(),
         power: power.clone(),
@@ -594,6 +556,6 @@ pub(crate) fn blueprint(parallel: i64) -> Value {
         "makes": {"kind": "github.review", "description": "A pending review."},
         "goesTo": [],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": parallel},
+        "limits": {"perRunMinutes": 30, "parallel": parallel},
     })
 }

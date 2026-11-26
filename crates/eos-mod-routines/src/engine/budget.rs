@@ -2,46 +2,32 @@
 //! its working time the stretches its timeline spends running or checking
 //! (G30: not while a question of it waits for the user). Each
 //! `usage:recorded` of a routine session books its cost on the local day of
-//! the spend (G31) and holds the run to its cost cap: at 90 % the lead is
-//! told to wrap up, at 100 % the run fails `budget_run`. The supervisor's
-//! loop holds runs to their time cap the same way, failing them
-//! `budget_time` two minutes after the cap, and writes each working run's
-//! spend every 30 s; every move of a run writes it too. Runs from triggers
-//! are skipped while the routine's or everything's day budget is spent,
-//! with one notice, and wait while the plan has no headroom (G28).
+//! the spend (G31); spend has no cap. The supervisor's loop holds runs to
+//! their time cap: at 90 % the lead is told to wrap up, two minutes after
+//! the cap the run fails `budget_time`. It writes each working run's spend
+//! every 30 s; every move of a run writes it too.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use eos_contracts::RoutineKind;
 use eos_contracts::stream::topics::USAGE_RECORDED;
 use eos_core::Error;
-use eos_core::store::{Outbox, RUN_STATE_EVENT, StoredRun, StoredRunEvent, Tx};
+use eos_core::store::{RUN_STATE_EVENT, StoredRun, StoredRunEvent, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::routine::limits::{Budget, budget, cap};
-use eos_domain::routine::run::{Reason, RunState};
-use eos_inbox::{NewItem, Opening, notice_in, open_in};
+use eos_domain::routine::limits::{Budget, budget};
+use eos_domain::routine::run::Reason;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::control::Control;
 use super::{Engine, fail, note};
-use crate::routes::{current_settings, readable, today};
+use crate::routes::{readable, today};
 
 /// How often a working run's spend is written while nothing moves it.
 const WRITE_EVERY_MS: i64 = 30_000;
 /// How long a run may still work once its time is up.
 const GRACE_MS: i64 = 2 * 60_000;
 const MINUTE_MS: i64 = 60_000;
-/// The subject of the notice that a day budget is spent.
-const DAY_CAP: &str = "day_cap";
-/// The subject of the notice that most of today's budget is spent.
-const DAY_BUDGET: &str = "day-budget";
-/// The share of today's budget whose spending is told (01 §4.10).
-const DAY_NOTICE_SHARE: f64 = 0.9;
 
-const WRAP_UP_COST: &str = "This run has used 90% of what it may spend. Wrap up now: hand in your result with \
-                            what you have, and say what is left undone.";
 const WRAP_UP_TIME: &str = "This run has used 90% of its working time. Wrap up now: hand in your result with \
                             what you have, and say what is left undone.";
 
@@ -49,7 +35,6 @@ const WRAP_UP_TIME: &str = "This run has used 90% of its working time. Wrap up n
 /// memory only: after a restart a run may be told once more.
 #[derive(Debug, Default)]
 pub(crate) struct Meter {
-    wrapped_cost: bool,
     wrapped_time: bool,
     time_up_at: Option<i64>,
     written_at: i64,
@@ -62,14 +47,11 @@ pub(crate) const ASKED: &str = "asked";
 /// On a run's timeline: the first turn that found its questions answered.
 pub(crate) const ANSWERED: &str = "answered";
 
-/// A run's caps, from the version it runs; a spend cap left out is endless.
-/// A project has none of its own:
-/// the milestone it works on may name some, counted from the spend and the
-/// working time the run had when that milestone began.
+/// A run's time cap, from the version it runs. A project has none of its
+/// own: the milestone it works on may name one, counted from the working
+/// time the run had when that milestone began.
 struct Caps {
-    usd: f64,
     ms: i64,
-    base_usd: f64,
     base_ms: i64,
 }
 
@@ -78,24 +60,15 @@ fn caps_of(tx: &dyn Tx, run: &StoredRun) -> Result<Option<Caps>, Error> {
     let Some(version) = tx.routine_versions().find(&run.routine_id, version_id)? else { return Ok(None) };
     let Some(blueprint) = readable(&version)? else { return Ok(None) };
     if blueprint.kind != RoutineKind::Project {
-        let usd = cap(blueprint.limits.per_run_usd.map(|usd| usd.0));
-        let ms = blueprint.limits.per_run_minutes * MINUTE_MS;
-        return Ok(Some(Caps { usd, ms, base_usd: 0.0, base_ms: 0 }));
+        return Ok(Some(Caps { ms: blueprint.limits.per_run_minutes * MINUTE_MS, base_ms: 0 }));
     }
     let Some(limits) = super::project::current(&blueprint, run).and_then(|milestone| milestone.limits) else {
         return Ok(None);
     };
     let events = tx.runs().events(&run.id)?;
     let began = events.iter().rposition(|event| event.kind == super::project::MILESTONE_BEGAN);
-    let (base_usd, base_ms) = match began {
-        Some(at) => {
-            let data = events[at].data.as_deref().and_then(|data| serde_json::from_str::<serde_json::Value>(data).ok());
-            let cost = data.and_then(|data| data["costUsd"].as_f64()).unwrap_or(0.0);
-            (cost, work_ms(&events[..at], Some(events[at].at)))
-        }
-        None => (0.0, 0),
-    };
-    Ok(Some(Caps { usd: limits.usd, ms: limits.minutes * MINUTE_MS, base_usd, base_ms }))
+    let base_ms = began.map_or(0, |at| work_ms(&events[..at], Some(events[at].at)));
+    Ok(Some(Caps { ms: limits.minutes * MINUTE_MS, base_ms }))
 }
 
 /// What a run's sessions cost.
@@ -170,8 +143,7 @@ struct UsageRecorded {
     delta_cost: f64,
 }
 
-/// From now on, what each routine session spends is booked and held to its
-/// run's cost cap.
+/// From now on, what each routine session spends is booked.
 pub(crate) fn watch_usage(engine: &Arc<Engine>) {
     let weak = Arc::downgrade(engine);
     let subscription = engine.bus.on(USAGE_RECORDED, move |event| {
@@ -187,76 +159,22 @@ pub(crate) fn watch_usage(engine: &Arc<Engine>) {
     *Engine::locked(&engine.usage) = Some(subscription);
 }
 
-/// What booking a run's spend came to.
-enum Booked {
-    Working(Box<Spending>),
-    /// A project run that spent the day's budget, paused till tomorrow.
-    Paused(String),
-}
-
-/// A working run that just spent, with what it has spent in all.
-struct Spending {
-    run: StoredRun,
-    cost: f64,
-    caps: Option<Caps>,
-}
-
 async fn spent(engine: &Arc<Engine>, worker_id: String, delta: f64) -> Result<(), Error> {
     if delta <= 0.0 {
         return Ok(());
     }
-    let Day { day, cap_usd, .. } = self::day(engine);
-    let job = engine.clone();
-    let spending = engine
+    let day = today(engine);
+    engine
         .store
-        .write(move |tx, out| {
-            let before = spent_in(tx, &day)?.total;
-            let Some(session) = tx.routine_sessions().find(&worker_id)? else { return Ok(None) };
-            if before < DAY_NOTICE_SHARE * cap_usd && before + delta >= DAY_NOTICE_SHARE * cap_usd {
-                day_share_notice_in(tx, out, &job, before + delta, cap_usd)?;
-            }
+        .write(move |tx, _| {
+            let Some(session) = tx.routine_sessions().find(&worker_id)? else { return Ok(()) };
             let Some(run) = session.run_id.as_ref().map(|id| tx.runs().find(id)).transpose()?.flatten() else {
                 // The architect's setup spend (G32).
-                tx.routine_spend().add(&day, &session.routine_id, "architect", delta)?;
-                return Ok(None);
+                return tx.routine_spend().add(&day, &session.routine_id, "architect", delta);
             };
-            tx.routine_spend().add(&day, &run.routine_id, spend_kind(&run.kind), delta)?;
-            if !matches!(run.state, RunState::Running | RunState::Checking) {
-                return Ok(None);
-            }
-            if super::project::pause_at_day_cap_in(&job, tx, out, &run, &day, cap_usd)? {
-                return Ok(Some(Booked::Paused(run.id)));
-            }
-            let (cost, caps) = (cost_in(tx, &run.id)?, caps_of(tx, &run)?);
-            Ok(Some(Booked::Working(Box::new(Spending { run, cost, caps }))))
+            tx.routine_spend().add(&day, &run.routine_id, spend_kind(&run.kind), delta)
         })
-        .await?;
-    let spending = match spending {
-        Some(Booked::Paused(run_id)) => {
-            super::steer::quiet(engine, &run_id).await;
-            return Ok(());
-        }
-        Some(Booked::Working(spending)) => *spending,
-        None => return Ok(()),
-    };
-    let Spending { run, cost, caps: Some(caps) } = spending else { return Ok(()) };
-    match budget(cost - caps.base_usd, caps.usd) {
-        Budget::Within => Ok(()),
-        Budget::WrapUp => {
-            let first = !std::mem::replace(
-                &mut Engine::locked(&engine.meters).entry(run.id.clone()).or_default().wrapped_cost,
-                true,
-            );
-            match run.lead_id.filter(|_| first) {
-                Some(lead) => note(engine, &lead, &run.id, WRAP_UP_COST).await,
-                None => Ok(()),
-            }
-        }
-        Budget::Reached => {
-            tracing::info!(run_id = %run.id, cost_usd = cost, cap_usd = caps.usd, "a run spent its budget");
-            fail(engine, &run.id, Reason::BudgetRun, None).await
-        }
-    }
+        .await
 }
 
 /// A working run as the time check reads it.
@@ -366,110 +284,4 @@ async fn hold_to_time(engine: &Arc<Engine>, at: &AtWork, now: i64) -> Result<(),
             .await?;
     }
     Ok(())
-}
-
-/// What the day allows, read before a job that starts runs.
-#[derive(Debug, Clone)]
-pub(crate) struct Day {
-    /// The user's local day.
-    pub(crate) day: String,
-    /// What all routines together may spend today, today's raise included;
-    /// endless without a day budget.
-    pub(crate) cap_usd: f64,
-    /// Runs whose agents work at once, over every routine.
-    pub(crate) slots: i64,
-    /// The plan has no headroom: runs from triggers wait.
-    pub(crate) plan_busy: bool,
-}
-
-pub(crate) fn day(engine: &Engine) -> Day {
-    let settings = current_settings(engine);
-    // A raise lifts a day budget; with none there is nothing to raise.
-    let budget = settings.day_budget_usd.map(|usd| settings.raised_today.map_or(usd.0, |raised| raised.usd.0));
-    Day {
-        day: today(engine),
-        cap_usd: cap(budget),
-        slots: settings.max_parallel_runs,
-        plan_busy: engine.headroom.busy(settings.plan_headroom_pct),
-    }
-}
-
-/// What has been spent today: in all, and by each routine on its runs (the
-/// architect's setup counts only in all, G32).
-#[derive(Debug, Default)]
-pub(crate) struct Spent {
-    pub(crate) total: f64,
-    by_routine: HashMap<String, f64>,
-}
-
-impl Spent {
-    pub(crate) fn of_routine(&self, routine_id: &str) -> f64 {
-        self.by_routine.get(routine_id).copied().unwrap_or_default()
-    }
-}
-
-pub(crate) fn spent_in(tx: &dyn Tx, day: &str) -> Result<Spent, Error> {
-    let mut spent = Spent::default();
-    for row in tx.routine_spend().of_day(day)? {
-        spent.total += row.cost_usd;
-        if row.kind != "architect" {
-            *spent.by_routine.entry(row.routine_id).or_default() += row.cost_usd;
-        }
-    }
-    Ok(spent)
-}
-
-/// A notice, once a local day, that routines spent [`DAY_NOTICE_SHARE`] of
-/// what they may spend today.
-fn day_share_notice_in(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, spent: f64, cap: f64) -> Result<(), Error> {
-    let now = engine.clock.now_ms();
-    let control = Control(engine.clone());
-    let at = Opening { now, ids: engine.ids.as_ref(), zone: engine.zone.as_ref(), control: &control };
-    let item = NewItem {
-        kind: ItemKind::Notice,
-        producer: "routines".into(),
-        routine_id: None,
-        run_id: None,
-        subject_key: Some(DAY_BUDGET.into()),
-        // Whole dollars, never more than was spent.
-        title: format!("Routines have spent ${:.0} of today's ${cap:.0}", spent.floor()),
-        summary: "Runs from triggers stop once today's budget is spent.".into(),
-        payload: json!({"actionLabel": "Raise today's cap"}),
-        by_hand: false,
-    };
-    tracing::info!(spent_usd = spent, cap_usd = cap, "routines spent most of today's budget");
-    notice_in(tx, out, &at, item).map(drop)
-}
-
-/// One notice that a day budget is spent: the routine's, or with no
-/// routine, everything's. None while one waits.
-pub(crate) fn day_cap_notice_in(
-    tx: &dyn Tx,
-    out: &mut Outbox,
-    engine: &Arc<Engine>,
-    routine_id: Option<&str>,
-    now: i64,
-) -> Result<(), Error> {
-    let waiting = tx.inbox_items().waiting_with_subject(DAY_CAP)?;
-    if waiting.iter().any(|item| item.producer == "routines" && item.routine_id.as_deref() == routine_id) {
-        return Ok(());
-    }
-    let (title, action) = match routine_id {
-        Some(_) => ("This routine spent today's budget", "Change its limits"),
-        None => ("Routines spent today's budget", "Raise today's cap"),
-    };
-    let control = Control(engine.clone());
-    let at = Opening { now, ids: engine.ids.as_ref(), zone: engine.zone.as_ref(), control: &control };
-    let item = NewItem {
-        kind: ItemKind::Notice,
-        producer: "routines".into(),
-        routine_id: routine_id.map(str::to_owned),
-        run_id: None,
-        subject_key: Some(DAY_CAP.into()),
-        title: title.into(),
-        summary: "Runs from triggers are skipped until tomorrow; runs you start still ask first.".into(),
-        payload: json!({"actionLabel": action}),
-        by_hand: false,
-    };
-    open_in(tx, out, &at, item).map(drop)
 }

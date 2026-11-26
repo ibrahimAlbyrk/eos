@@ -1,10 +1,10 @@
 //! A routine's blueprint written by hand: made from a blueprint, a new
 //! version kept from the head (409 on a stale base), its rules' errors and
 //! warnings, its trust, an old version restored, a copy; what a new head
-//! does to the routine's offers; the budgets for all routines and who may
+//! does to the routine's offers; the settings for all routines and who may
 //! call what.
 
-use eos_contracts::{RoutineState, SettingValue};
+use eos_contracts::{Num, RoutineState, SettingValue};
 use eos_core::capability::Capability;
 use eos_core::store::StoredVersion;
 use eos_domain::capability::health::Health;
@@ -119,7 +119,7 @@ async fn a_routine_made_by_hand_is_a_draft_with_the_default_limits_no_spend_cap_
         (eos_contracts::VersionStatus::Draft, eos_contracts::VersionAuthor::User, Trust::Trusted)
     );
     let kept: Value = serde_json::from_str(&version.blueprint).expect("json");
-    assert_eq!(kept["limits"], json!({"perRunMinutes": 30, "parallel": 1}), "no dollar cap unless one is set");
+    assert_eq!(kept["limits"], json!({"perRunMinutes": 30, "parallel": 1}));
     let changes = routes.routine_changes();
     assert_eq!((changes.len(), changes[0]["reason"].as_str()), (1, Some("created")));
     assert_eq!(changes[0]["row"]["id"].as_str(), Some(routine.as_str()));
@@ -271,42 +271,40 @@ async fn an_old_version_comes_back_as_a_new_head_and_a_copy_is_a_draft_of_its_ow
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_budgets_read_their_defaults_change_through_their_own_route_and_today_s_raise_ends_at_midnight_and_null_takes_the_day_budget_away()
- {
+async fn the_routine_settings_read_their_default_change_through_their_own_route_and_name_no_budget() {
     let routes = Routes::new();
+    // A day budget and a plan share an older Eos kept are read as nothing.
+    let older = [("routines.dayBudgetUsd", 5.0), ("routines.planHeadroomPct", 50.0)];
+    for (key, value) in older {
+        routes.bench.settings.0.lock().expect("settings").insert(key.into(), SettingValue::Number(Num(value)));
+    }
     let (status, settings) = routes.get("/api/routines/settings").await;
     assert_eq!(status, 200);
-    assert_eq!(settings, json!({"maxParallelRuns": 3, "planHeadroomPct": 80}), "no day budget by default");
+    assert_eq!(settings, json!({"maxParallelRuns": 3}));
 
-    // The fake clock stands at 2027-01-15 11:00 in Istanbul.
-    let patch = json!({"dayBudgetUsd": 12.5, "maxParallelRuns": 2, "raisedToday": {"day": "2027-01-15", "usd": 30}});
     let put = |body: Value| routes.call(Method::Put, Caller::DASHBOARD, "/api/routines/settings", Some(body));
-    let (status, settings) = put(patch).await;
+    let (status, settings) = put(json!({"maxParallelRuns": 2, "dayBudgetUsd": 12.5})).await;
     assert_eq!(status, 200, "{settings}");
-    let expected = json!({"dayBudgetUsd": 12.5, "maxParallelRuns": 2, "planHeadroomPct": 80,
-                          "raisedToday": {"day": "2027-01-15", "usd": 30}});
-    assert_eq!(settings, expected);
-    assert_eq!(routes.get("/api/routines/settings").await.1, expected);
+    assert_eq!(settings, json!({"maxParallelRuns": 2}));
+    assert_eq!(routes.get("/api/routines/settings").await.1, json!({"maxParallelRuns": 2}));
     let stored = routes.bench.settings.0.lock().expect("settings").clone();
     assert!(matches!(stored.get("routines.maxParallelRuns"), Some(SettingValue::Number(_))));
+    assert_eq!(
+        stored.get("routines.dayBudgetUsd"),
+        Some(&SettingValue::Number(Num(5.0))),
+        "an unknown key is not written"
+    );
     assert_eq!(put(json!({"maxParallelRuns": 4})).await.0, 400);
 
-    routes.bench.clock.advance(24 * crate::bench::HOUR);
-    let (_, settings) = routes.get("/api/routines/settings").await;
-    assert_eq!(settings.get("raisedToday"), None, "a raise ends at local midnight");
-    let (status, settings) = put(json!({"dayBudgetUsd": null})).await;
-    assert_eq!(status, 200, "{settings}");
-    assert_eq!(settings, json!({"maxParallelRuns": 2, "planHeadroomPct": 80}), "null takes the day budget away");
-
-    // The flat settings route refuses the keys and names this one.
+    // The flat settings route refuses the key and names this one.
     let protected = routes.bench.module.protected_settings().expect("protected keys");
-    let refusal = protected.refusal(["routines.dayBudgetUsd", "theme"]).expect("refused");
-    assert_eq!(refusal, "routines.dayBudgetUsd is set only through PUT /api/routines/settings");
-    assert_eq!(protected.keys.len(), 4);
+    let refusal = protected.refusal(["routines.maxParallelRuns", "theme"]).expect("refused");
+    assert_eq!(refusal, "routines.maxParallelRuns is set only through PUT /api/routines/settings");
+    assert_eq!(protected.keys.len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn only_the_users_dashboard_writes_a_blueprint_or_the_budgets_and_anyone_reads_the_budgets() {
+async fn only_the_users_dashboard_writes_a_blueprint_or_the_routine_settings_and_anyone_reads_them() {
     let routes = Routes::new();
     let routine = routes.bench.routine(RoutineState::Active, blueprint(1));
     let head = routes.versions(&routine)[0].id.clone();

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::RoutineSummary;
-use crate::primitives::{Num, de};
 use crate::validate::{Issues, Validate};
 
 /// The states a routine is set to by hand; a draft starts from its draft,
@@ -112,35 +111,11 @@ pub struct RoutineSaved {
 
 impl Validate for RoutineSaved {}
 
-/// Today's raise of the overall day budget; it ends at local midnight.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RaisedToday {
-    /// `YYYY-MM-DD`, the user's local day it holds for.
-    pub day: String,
-    /// What everything may spend that day.
-    pub usd: Num,
-}
-
-impl Validate for RaisedToday {
-    fn validate(&self, cx: &mut Issues) {
-        cx.at("usd", |cx| cx.num_min(self.usd, 0.0, true));
-    }
-}
-
-/// `GET /api/routines/settings`: the budgets for all routines.
+/// `GET /api/routines/settings`: the settings for all routines.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineSettings {
-    /// What every routine together may spend a day; absent, no cap.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub day_budget_usd: Option<Num>,
     pub max_parallel_runs: i64,
-    /// The share of the plan's five-hour window from which runs by triggers wait.
-    pub plan_headroom_pct: i64,
-    /// Absent unless raised for today.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raised_today: Option<RaisedToday>,
 }
 
 impl Validate for RoutineSettings {}
@@ -149,39 +124,17 @@ impl Validate for RoutineSettings {}
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineSettingsPatch {
-    /// `null` takes the cap away.
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "de::nullable")]
-    pub day_budget_usd: Option<Option<Num>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_parallel_runs: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plan_headroom_pct: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raised_today: Option<RaisedToday>,
 }
 
 impl Validate for RoutineSettingsPatch {
     fn validate(&self, cx: &mut Issues) {
-        if let Some(Some(usd)) = self.day_budget_usd {
-            cx.at("dayBudgetUsd", |cx| {
-                cx.num_min(usd, 0.5, true);
-                cx.num_max(usd, 5000.0, true);
-            });
-        }
         if let Some(runs) = self.max_parallel_runs {
             cx.at("maxParallelRuns", |cx| {
                 cx.int_min(runs, 1, true);
                 cx.int_max(runs, 3, true);
             });
-        }
-        if let Some(pct) = self.plan_headroom_pct {
-            cx.at("planHeadroomPct", |cx| {
-                cx.int_min(pct, 1, true);
-                cx.int_max(pct, 100, true);
-            });
-        }
-        if let Some(raised) = &self.raised_today {
-            cx.at("raisedToday", |cx| raised.validate(cx));
         }
     }
 }

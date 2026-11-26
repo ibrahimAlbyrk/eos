@@ -119,7 +119,6 @@ async fn start_trial(engine: &Arc<Engine>, worker_id: &str) -> Result<Vec<String
         Ok(runs) => Ok(runs.into_iter().map(|run| run.id).collect()),
         Err(StartError::Store(error)) => Err(error),
         Err(StartError::UnknownRoutine(id)) => Err(Error::not_found("routine", id)),
-        Err(StartError::DayCap) => Err(Error::Conflict("routines spent today's budget".into())),
         Err(StartError::Halted) => Err(Error::Conflict("Eos is stopped".into())),
         Err(StartError::NewerFormat) => Err(Error::Conflict(NEWER_FORMAT.into())),
         Err(StartError::RoutineState(_)) => Err(Error::Conflict("the routine does not take a trial now".into())),

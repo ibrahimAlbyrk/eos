@@ -39,7 +39,7 @@ fn mail_blueprint() -> Value {
         "makes": {"kind": "mail", "description": "A reply."},
         "goesTo": [{"id": "boss", "kind": "fixed", "channel": "mail", "address": BOSS}],
         "freedom": {"rung": "on_its_own"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 2},
+        "limits": {"perRunMinutes": 30, "parallel": 2},
     })
 }
 

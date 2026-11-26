@@ -45,7 +45,7 @@ async fn routine(app: &App) {
         "makes": {"kind": "mail", "description": "A mail."},
         "goesTo": [{"id": "boss", "kind": "fixed", "channel": "mail", "address": RECIPIENT}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
     });
     let version = StoredVersion {
         id: "rv-log".into(),

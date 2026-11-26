@@ -173,7 +173,6 @@ impl ActionHandler for Ask {
 fn start_refusal(error: &StartError) -> String {
     match error {
         StartError::RoutineState(_) => "The routine is not taking runs now".into(),
-        StartError::DayCap => "Today's spending is used up".into(),
         StartError::Halted => "Everything is stopped on this Mac".into(),
         StartError::Unready(unready) => unready.message(),
         _ => "The routine could not start that".into(),

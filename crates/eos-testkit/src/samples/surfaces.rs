@@ -32,7 +32,7 @@ pub(super) fn morning_mail() -> Value {
         "makes": {"kind": "view", "description": "A digest of the night's mail."},
         "goesTo": [{"id": "me", "kind": "me", "channel": "notify"}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 1, "perRunMinutes": 15, "perDayUsd": 2, "parallel": 1},
+        "limits": {"perRunMinutes": 15, "parallel": 1},
         "needs": ["mail"],
     })
 }

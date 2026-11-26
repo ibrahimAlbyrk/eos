@@ -29,7 +29,7 @@ fn pr_review() -> Value {
         "makes": {"kind": "github.review", "description": "A pending review."},
         "goesTo": [{"id": "pr", "kind": "item_place", "channel": "github"}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 0.05, "perRunMinutes": 240, "perDayUsd": 500, "parallel": 3},
+        "limits": {"perRunMinutes": 240, "parallel": 3},
     })
 }
 
@@ -295,12 +295,8 @@ fn agent_check_and_recipient_keys_are_unique() {
 #[test]
 fn limits_stay_within_their_ranges() {
     let cases = [
-        ("perRunUsd", json!(0.04), "Number must be greater than or equal to 0.05"),
-        ("perRunUsd", json!(100.01), "Number must be less than or equal to 100"),
         ("perRunMinutes", json!(0), "Number must be greater than or equal to 1"),
         ("perRunMinutes", json!(241), "Number must be less than or equal to 240"),
-        ("perDayUsd", json!(0.49), "Number must be greater than or equal to 0.5"),
-        ("perDayUsd", json!(500.5), "Number must be less than or equal to 500"),
         ("parallel", json!(0), "Number must be greater than or equal to 1"),
         ("parallel", json!(4), "Number must be less than or equal to 3"),
     ];
@@ -310,20 +306,22 @@ fn limits_stay_within_their_ranges() {
 }
 
 #[test]
-fn a_blueprint_without_spend_caps_is_valid_and_writes_none_back() {
+fn a_stored_blueprint_that_names_spend_caps_passes_and_keeps_them_as_unknown_keys() {
     let mut value = pr_review();
-    value["limits"] = json!({"perRunMinutes": 30, "parallel": 1});
+    value["limits"] = json!({"perRunUsd": 0.01, "perRunMinutes": 30, "perDayUsd": 9000, "parallel": 1});
     assert_eq!(issues(&value), Vec::new());
     let Readable::Current(blueprint) = read(&value).expect("reads") else { panic!("a current format") };
-    assert_eq!((blueprint.limits.per_run_usd, blueprint.limits.per_day_usd), (None, None));
-    assert_eq!(serde_json::to_value(&blueprint.limits).expect("writes"), value["limits"]);
+    assert_eq!(
+        serde_json::to_value(&blueprint.limits).expect("writes"),
+        json!({"perRunMinutes": 30, "parallel": 1, "perRunUsd": 0.01, "perDayUsd": 9000})
+    );
 }
 
 #[test]
 fn a_project_has_its_slot_and_no_per_run_cap() {
     let mut project = pr_review();
     project["kind"] = json!("project");
-    project["limits"] = json!({"perRunUsd": 1000, "perRunMinutes": 10_000, "perDayUsd": 20, "parallel": 1});
+    project["limits"] = json!({"perRunMinutes": 10_000, "parallel": 1});
     assert_eq!(issues(&project), vec![issue("project", "A project routine needs its project")]);
 
     project["project"] = json!({"repo": "/Users/me/game", "baseBranch": "main", "brief": "Build it.",

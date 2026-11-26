@@ -2,6 +2,7 @@ use serde_json::{Value, json};
 
 use super::*;
 use crate::freedom::Rung;
+use crate::primitives::Num;
 
 /// PR Review, every field in the declared order.
 fn pr_review() -> Value {
@@ -34,7 +35,7 @@ fn pr_review() -> Value {
         "makes": {"kind": "github.review", "description": "A pending review."},
         "goesTo": [{"id": "pr", "kind": "item_place", "channel": "github"}],
         "freedom": {"rung": "draft", "grants": []},
-        "limits": {"perRunUsd": 2.5, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
         "needs": ["github"],
     })
 }

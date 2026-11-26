@@ -72,7 +72,7 @@ fn pr_review(team: bool) -> Value {
         "goesTo": [{"id": "pr", "kind": "item_place", "channel": "github",
                     "bound": {"fact": "repo", "in": ["acme/game"]}}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 2, "perRunMinutes": 30, "perDayUsd": 5, "parallel": 1},
+        "limits": {"perRunMinutes": 30, "parallel": 1},
         "needs": ["github"],
     })
 }
@@ -90,7 +90,7 @@ fn morning_paper() -> Value {
         "makes": {"kind": "page", "description": "One page."},
         "goesTo": [{"id": "me", "kind": "me", "channel": "notify"}],
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 1, "perRunMinutes": 15, "perDayUsd": 2, "parallel": 1},
+        "limits": {"perRunMinutes": 15, "parallel": 1},
     })
 }
 
@@ -106,7 +106,7 @@ fn release_notes() -> Value {
         "how": {"checks": [], "format": "notes", "checkAgent": false},
         "makes": {"kind": "text", "description": "Release notes."},
         "freedom": {"rung": "draft"},
-        "limits": {"perRunUsd": 1, "perRunMinutes": 20, "perDayUsd": 3, "parallel": 1},
+        "limits": {"perRunMinutes": 20, "parallel": 1},
     })
 }
 

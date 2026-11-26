@@ -195,7 +195,6 @@ fn refused(refused: StartError) -> Error {
         StartError::Store(error) => error,
         StartError::UnknownRoutine(id) => Error::not_found("routine", id),
         StartError::Invalid(text) => Error::Validation(text),
-        StartError::DayCap => Error::Conflict("Routines spent today's budget".into()),
         StartError::Halted => Error::Conflict("Everything is stopped on this Mac".into()),
         StartError::Unready(unready) => Error::Conflict(unready.message()),
         StartError::SameItem { .. } | StartError::RoutineState(_) | StartError::NewerFormat => {
