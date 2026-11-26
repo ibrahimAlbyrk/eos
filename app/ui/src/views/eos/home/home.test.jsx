@@ -45,7 +45,7 @@ describe("Eos › Home", () => {
     expect(html).toContain('<h2 id="eos-home-pins" class="eos-label">Pinned</h2><span class="eos-pins__count">2 of 3</span>');
     expect(html).toContain('<p class="eos-tile__headline">Nothing broke overnight</p>');
     expect(html).toContain('aria-label="Unpin Morning Paper"');
-    expect(html).toContain('class="eos-tile__open">Read today&#x27;s issue<svg');
+    expect(html).toContain('class="eos-tile__open">Read issue 3<svg');
     expect(html).toContain("One more place</p>");
     expect(html.indexOf("eos-home-needs")).toBeLessThan(html.indexOf("eos-home-pins"));
     const now = new Date(2026, 10, 18, 12, 0).getTime();
