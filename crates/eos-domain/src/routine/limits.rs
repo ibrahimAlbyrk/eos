@@ -1,12 +1,11 @@
 //! The limits a routine's runs keep: how near spend or working time is to
-//! its cap, the failures and the spend that pause a routine, the day spend is
+//! its cap, the failures that pause a routine, the day spend is
 //! booked on, and what counts as working time. The caps are arguments: the
 //! blueprint and the settings hold them, and a spend cap they leave out is
 //! no cap.
 
 use serde_json::{Value, json};
 
-use super::numbers::median;
 use super::run::RunState;
 use crate::time::civil_from_days;
 
@@ -72,18 +71,6 @@ pub fn pauses_for_failures(streak: i64) -> bool {
     streak >= FAILURES_TO_PAUSE
 }
 
-/// How many earlier runs abnormal spend is measured against.
-const SPEND_RUNS: usize = 10;
-
-/// Whether a run's cost pauses its routine with reason `spend`: above three
-/// times the median of the routine's last ten runs before it (`earlier_usd`,
-/// newest first) and above $1. A routine without earlier runs has nothing to
-/// measure against.
-pub fn abnormal_spend(cost_usd: f64, earlier_usd: &[f64]) -> bool {
-    let usual = median(earlier_usd.iter().take(SPEND_RUNS).copied());
-    usual.is_some_and(|usual| cost_usd > 3.0 * usual && cost_usd > 1.0)
-}
-
 /// The day spend at `at` is booked on, `YYYY-MM-DD`: the day the user's
 /// clock shows then, `offset_minutes` east of UTC at that moment. A zone
 /// change counts from the next spend.
@@ -145,22 +132,6 @@ mod tests {
         }
         let third = failure_streak(streak, RunState::Failed);
         assert_eq!((third, pauses_for_failures(third)), (3, true));
-    }
-
-    #[test]
-    fn spend_is_abnormal_above_three_times_the_median_and_above_a_dollar() {
-        let usual = [0.5, 0.4, 0.6, 0.5, 0.5, 0.45, 0.55, 0.5, 0.5, 0.5];
-        assert!(abnormal_spend(1.51, &usual));
-        assert!(!abnormal_spend(1.5, &usual), "three times the median is not above it");
-        let cheap = [0.1; 10];
-        assert!(!abnormal_spend(0.9, &cheap), "nine times the median, but under a dollar");
-        assert!(abnormal_spend(1.01, &cheap));
-        assert!(!abnormal_spend(50.0, &[]), "a first run has nothing to compare with");
-        // Only the last ten count: the expensive eleventh-newest run does not lift the median.
-        let mut older = vec![0.5; 10];
-        older.extend([100.0; 5]);
-        assert!(abnormal_spend(2.0, &older));
-        assert!(!abnormal_spend(2.0, &[0.5, 0.5, 1.0, 1.0]), "the median of an even count is the middle two's mean");
     }
 
     #[test]

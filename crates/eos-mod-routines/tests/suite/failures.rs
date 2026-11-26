@@ -142,7 +142,7 @@ async fn runs_without_a_credential_fail_at_once_and_three_pause_the_routine_for_
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_run_that_spends_far_more_than_usual_pauses_its_routine() {
+async fn a_run_that_spends_far_more_than_usual_leaves_its_routine_running() {
     let bench = Bench::new(true);
     let routine = bench.routine(RoutineState::Active, generous());
     bench.supervise().await;
@@ -156,9 +156,8 @@ async fn a_run_that_spends_far_more_than_usual_pauses_its_routine() {
     let nothing = SubmittedResult { kind: "nothing".into(), headline: "Quiet".into(), body: json!("-"), files: vec![] };
     bench.module.tools().submit_result(&lead, nothing).await.expect("handed in");
     bench.eventually(|| bench.state(&run) == RunState::Done).await;
-    let paused = bench.stored(&routine);
-    assert_eq!((paused.state, paused.paused_reason.as_deref()), (RoutineState::Paused, Some("spend")));
-    assert_eq!(bench.alerts("spend").len(), 1);
+    assert_eq!(bench.stored(&routine).state, RoutineState::Active, "a cost never pauses it");
+    assert!(bench.alerts("spend").is_empty(), "nothing waits in Needs you for it");
 }
 
 #[tokio::test(flavor = "multi_thread")]
