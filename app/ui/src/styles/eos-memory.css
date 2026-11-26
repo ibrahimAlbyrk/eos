@@ -36,13 +36,15 @@
 .eos-mem-columns { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 56px; margin-top: 8px; }
 .eos-mem-learned { flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 32px; container: eos-mem / inline-size; }
 
-.eos-mem-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.eos-mem-filters { display: flex; flex-direction: column; gap: 8px; }
+.eos-mem-filters__line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.eos-mem-filters__line > .eos-label { flex: none; width: 56px; }
 .eos-mem-filter { height: 28px; padding: 0 12px; border: 0; font: inherit; font-size: var(--text-sm); color: var(--fg-mid); cursor: pointer; transition: color calc(120ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1); }
 .eos-mem-filter:hover { color: var(--fg-strong); }
 .eos-mem-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eos-mem-filters .eos-mem-filter[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
-.eos-mem-filters .eos-mem-filter--kind { padding: 0 10px; background: none; color: var(--fg-dim); }
-.eos-mem-filters__sep { width: 1px; height: 16px; margin: 0 6px; background: var(--line); }
+.eos-mem-filters .eos-mem-filter--kind:not([aria-pressed="true"]) { background: none; color: var(--fg-dim); }
+.eos-mem-filters .eos-mem-filter--kind:not([aria-pressed="true"]):hover { color: var(--fg-strong); }
 
 /* A group is a section on hairlines: its place as a label with the count at
    its right, then its notes, a rule above each. */

@@ -69,23 +69,31 @@ function groupsOf(notes, scopes, routines, narrowed) {
   return [...all.filter((g) => g.level !== "everywhere"), ...all.filter((g) => g.level === "everywhere")];
 }
 
-// The chips: everything, each project and routine with notes, then the kinds.
+// The filters, each on its own labelled line so the two questions do not
+// read as one: where a note holds (anywhere, each project and routine with
+// notes) and what kind it is. On a place's own page only the kind is asked.
 function Filters({ scopes, routines, scope, kind, onScope, onKind, placed }) {
   const places = placed ? [] : (scopes ?? []).filter((s) => s.level === "project" || s.level === "routine");
-  // A place is a chip; a kind is its word alone.
   const chip = (on, label, onClick, key, kindOf = false) => (
     <button key={key} type="button" className={kindOf ? "eos-chip eos-mem-filter eos-mem-filter--kind" : "eos-chip eos-mem-filter"} aria-pressed={on} onClick={onClick}>{label}</button>
   );
   return (
     <nav className="eos-mem-filters" aria-label="Filter notes">
-      {!placed && chip(!scope, "Everything", () => onScope(undefined), "all")}
-      {placed && chip(!kind, "All", () => onKind(undefined), "all", true)}
-      {places.map((s) => {
-        const value = `${s.level}:${s.key}`;
-        return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
-      })}
-      {!placed && <span className="eos-mem-filters__sep" aria-hidden="true" />}
-      {KIND_FILTERS.map((k) => chip(kind === k.kind, k.label, () => onKind(kind === k.kind ? undefined : k.kind), k.kind, true))}
+      {!placed && places.length > 0 && (
+        <div className="eos-mem-filters__line" role="group" aria-labelledby="eos-mem-where">
+          <span id="eos-mem-where" className="eos-label">Where</span>
+          {chip(!scope, "Everything", () => onScope(undefined), "all")}
+          {places.map((s) => {
+            const value = `${s.level}:${s.key}`;
+            return chip(scope === value, scopeName(s, routines), () => onScope(scope === value ? undefined : value), value);
+          })}
+        </div>
+      )}
+      <div className="eos-mem-filters__line" role="group" aria-labelledby="eos-mem-kind">
+        <span id="eos-mem-kind" className="eos-label">Kind</span>
+        {chip(!kind, "All", () => onKind(undefined), "all-kinds", true)}
+        {KIND_FILTERS.map((k) => chip(kind === k.kind, k.label, () => onKind(kind === k.kind ? undefined : k.kind), k.kind, true))}
+      </div>
     </nav>
   );
 }
