@@ -397,6 +397,7 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
         "run-lead" => run_session("eos-run-solo"),
         "run-team-lead" => run_session("eos-run-lead"),
         "run-checker" => run_session("eos-run-checker"),
+        "run-designer" => run_session("eos-run-designer"),
         "app-reviewer" => run_session("app-reviewer"),
         "architect" => run_session("eos-architect"),
         "run-forge" => LaunchSpec { worker_definition: Some("forge-builder".into()), ..session_of("worker") },
@@ -491,12 +492,21 @@ fn each_tool_is_described_to_the_model_as_today() {
 fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
     use eos_contracts::tool_scope::{CALL_CAPABILITY_TOOL, EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
     let bench = bench(FakeFeatures::new([]));
-    let mut names: Vec<String> =
-        ["orchestrator", "focused-peer", "run-team-lead", "run-checker", "architect", "run-forge", "app-reviewer"]
-            .iter()
-            .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
-            .map(|tool| tool.definition().name.clone())
-            .collect();
+    let kinds = [
+        "orchestrator",
+        "focused-peer",
+        "run-team-lead",
+        "run-checker",
+        "run-designer",
+        "architect",
+        "run-forge",
+        "app-reviewer",
+    ];
+    let mut names: Vec<String> = kinds
+        .iter()
+        .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
+        .map(|tool| tool.definition().name.clone())
+        .collect();
     names.sort();
     names.dedup();
     assert!(names.iter().any(|name| name == CALL_CAPABILITY_TOOL) && !is_eos_control_tool(CALL_CAPABILITY_TOOL));

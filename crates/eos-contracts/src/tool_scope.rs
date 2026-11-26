@@ -57,6 +57,8 @@ pub const EOS_CONTROL_TOOLS: &[&str] = &[
     "start_trial",
     "return_view",
     "fill_page",
+    "page_design_read",
+    "page_design_propose",
     "app_propose",
     "app_review",
     "run_routine",
