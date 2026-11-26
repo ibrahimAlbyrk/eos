@@ -53,7 +53,7 @@ describe("what a door holds for the quick panel", () => {
     expect(html).toContain(`class="eos-quick" style="width:${WIDTH}px"`);
     expect(html).toContain("What should Eos take care of?");
     expect(html).toMatch(/<span class="eos-quick__name"><svg[^>]*>.*?<\/svg>Eos<\/span>/);
-    expect(html).toContain("Say what Eos should take care of, or type / for your routines.");
+    expect(html).toContain("Type / to pick one of your routines; Enter sends.");
   });
 
   it("says at its top where what it holds came from, and nothing when it opened empty", () => {

@@ -5,7 +5,8 @@ export const IDLE_HINT = "Pick a routine, drop a file on one, or just type.";
 // Before the first routine there is nothing around the input to click.
 export const FIRST_HINT = "Say what Eos should take care of, or drop a file here.";
 // Over another app there is nothing around the input: `/` lists the routines.
-export const PANEL_HINT = "Say what Eos should take care of, or type / for your routines.";
+// The question already sits in the field, so the line under it says only the moves.
+export const PANEL_HINT = "Type / to pick one of your routines; Enter sends.";
 export const MENU_LINE = "Pick a routine";
 export const MAKE_LINE = "Make a new routine. You see its blueprint and a trial first";
 export const ONCE_LINE = "Do it once, here. Nothing is sent. You can keep it as a routine afterwards";
