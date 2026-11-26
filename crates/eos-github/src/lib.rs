@@ -11,7 +11,9 @@
 //! pull requests to the relay's hook inbox. Its health check
 //! is `GET /user` with the `repo` scope. It signs in by GitHub's device flow
 //! (`DeviceSignIn`) with the client id from `github.clientId`, and keeps the
-//! token with the capability's secrets as `token`. Writes stay under its
+//! token with the capability's secrets as `token`; a GitHub App's token,
+//! which lasts 8 hours, is renewed with its refresh token when GitHub
+//! refuses it. Writes stay under its
 //! rate bucket, and every action is bounded by its timeout.
 //!
 //! Every exchange goes through a [`Transport`]: [`HttpTransport`] in the
@@ -25,6 +27,7 @@ mod device;
 mod diff;
 mod manifest;
 mod rate;
+mod renew;
 mod reviews;
 mod source;
 mod webhooks;
@@ -42,7 +45,7 @@ use serde_json::Value;
 use crate::webhooks::webhook_secret;
 
 pub use client::{API, HttpRequest, HttpResponse, HttpTransport, Method, Transport, WEB};
-pub use manifest::{ID, PULL_REQUEST, TOKEN};
+pub use manifest::{ID, PULL_REQUEST, REFRESH_TOKEN, TOKEN};
 pub use rate::{WRITES_PER_HOUR, WRITES_PER_MINUTE};
 
 #[derive(Debug, thiserror::Error)]
@@ -71,6 +74,8 @@ pub struct GitHub {
     sleeper: Arc<dyn Sleeper>,
     client_id: String,
     rate: rate::RateBucket,
+    /// Held while a refused token is renewed: a refresh token works once.
+    renewing: tokio::sync::Mutex<()>,
 }
 
 impl std::fmt::Debug for GitHub {
@@ -95,6 +100,7 @@ impl GitHub {
             sleeper: parts.sleeper,
             client_id: parts.client_id.trim().to_owned(),
             rate: rate::RateBucket::default(),
+            renewing: tokio::sync::Mutex::new(()),
         }
     }
 

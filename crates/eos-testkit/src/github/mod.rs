@@ -17,6 +17,8 @@ use serde_json::{Value, json};
 
 /// The token GitHub hands out and accepts.
 pub const GITHUB_TOKEN: &str = "gho_fake_github_token_1";
+/// The refresh token a GitHub App's sign-in hands out with its expiring token.
+pub const GITHUB_REFRESH_TOKEN: &str = "ghr_fake_github_refresh_1";
 /// What the device flow shows the user.
 pub const GITHUB_USER_CODE: &str = "WDJB-MJHT";
 /// What the device flow polls with.
@@ -60,6 +62,11 @@ struct State {
     login: String,
     scopes: String,
     token_valid: bool,
+    /// The token GitHub accepts: [`GITHUB_TOKEN`] until a refresh replaces it.
+    token: String,
+    /// The refresh token GitHub takes, once; each refresh hands out the next.
+    refresh: Option<String>,
+    refreshes: u32,
     device: VecDeque<Value>,
     device_interval_s: u64,
     pulls: BTreeMap<(String, u64), Pull>,
@@ -120,6 +127,9 @@ impl FakeGitHub {
             login: "monalisa-octo".to_owned(),
             scopes: "repo, read:org".to_owned(),
             token_valid: true,
+            token: GITHUB_TOKEN.to_owned(),
+            refresh: Some(GITHUB_REFRESH_TOKEN.to_owned()),
+            refreshes: 0,
             device: VecDeque::new(),
             device_interval_s: 5,
             pulls: BTreeMap::new(),
@@ -145,9 +155,28 @@ impl FakeGitHub {
         locked(&self.0).scopes = scopes.to_owned();
     }
 
-    /// The token stops working: every API call answers 401.
+    /// The user takes the sign-in back: every API call answers 401 and the
+    /// refresh token is refused.
     pub fn revoke(&self) {
+        let mut state = locked(&self.0);
+        state.token_valid = false;
+        state.refresh = None;
+    }
+
+    /// The token's 8 hours are over: every API call answers 401 until the
+    /// refresh token is traded for a new one.
+    pub fn expire(&self) {
         locked(&self.0).token_valid = false;
+    }
+
+    /// The token GitHub accepts now.
+    pub fn token(&self) -> String {
+        locked(&self.0).token.clone()
+    }
+
+    /// How many times a refresh token was traded for a new token.
+    pub fn refreshes(&self) -> u32 {
+        locked(&self.0).refreshes
     }
 
     /// What the next token polls answer, in order (`{"error":
@@ -165,6 +194,19 @@ impl FakeGitHub {
     /// The answer a token poll gives once the user entered the code.
     pub fn granted() -> Value {
         json!({ "access_token": GITHUB_TOKEN, "token_type": "bearer", "scope": "repo" })
+    }
+
+    /// The answer a GitHub App's token poll gives: its token expires in
+    /// 8 hours and comes with a refresh token.
+    pub fn granted_expiring() -> Value {
+        json!({
+            "access_token": GITHUB_TOKEN,
+            "expires_in": 28800,
+            "refresh_token": GITHUB_REFRESH_TOKEN,
+            "refresh_token_expires_in": 15897600,
+            "token_type": "bearer",
+            "scope": "",
+        })
     }
 
     /// The next request is answered with this rate-limit refusal.
@@ -265,10 +307,10 @@ impl FakeGitHub {
         }
         let url = request.url.as_str();
         if let Some(path) = url.strip_prefix("https://github.com") {
-            return Some(state.device_flow(path));
+            return Some(state.device_flow(path, body));
         }
         let path = url.strip_prefix("https://api.github.com")?;
-        if request.header("authorization") != Some(&format!("Bearer {GITHUB_TOKEN}")) || !state.token_valid {
+        if request.header("authorization") != Some(&format!("Bearer {}", state.token)) || !state.token_valid {
             let body = json!({ "message": "Bad credentials", "documentation_url": "https://docs.github.com/rest", "status": "401" });
             return Some(answer(401, &body));
         }
@@ -327,7 +369,7 @@ impl FakeGitHub {
 }
 
 impl State {
-    fn device_flow(&mut self, path: &str) -> HttpResponse {
+    fn device_flow(&mut self, path: &str, body: &Value) -> HttpResponse {
         match path {
             "/login/device/code" => answer(
                 200,
@@ -339,12 +381,37 @@ impl State {
                     "interval": self.device_interval_s,
                 }),
             ),
+            "/login/oauth/access_token" if body["grant_type"] == "refresh_token" => self.refreshed(body),
             "/login/oauth/access_token" => {
                 let next = self.device.pop_front().unwrap_or_else(|| json!({ "error": "authorization_pending" }));
                 answer(200, &next)
             }
             _ => not_found(),
         }
+    }
+
+    /// A refresh token traded once for a new token and the next refresh
+    /// token; the old token stops working, as GitHub's does.
+    fn refreshed(&mut self, body: &Value) -> HttpResponse {
+        if self.refresh.is_none() || body["refresh_token"].as_str() != self.refresh.as_deref() {
+            return answer(200, &json!({ "error": "bad_refresh_token" }));
+        }
+        self.refreshes += 1;
+        self.token = format!("ghu_fake_github_token_{}", self.refreshes + 1);
+        self.token_valid = true;
+        let refresh = format!("ghr_fake_github_refresh_{}", self.refreshes + 1);
+        self.refresh = Some(refresh.clone());
+        answer(
+            200,
+            &json!({
+                "access_token": self.token,
+                "expires_in": 28800,
+                "refresh_token": refresh,
+                "refresh_token_expires_in": 15897600,
+                "token_type": "bearer",
+                "scope": "",
+            }),
+        )
     }
 
     /// The repository's pull requests, most recently updated first, with
@@ -397,9 +464,9 @@ impl Transport for FakeGitHub {
             json!(form)
         });
         let path = request.url.split_once(".com").map_or(request.url.as_str(), |(_, path)| path).to_owned();
-        let signed_in = request.header("authorization") == Some(&format!("Bearer {GITHUB_TOKEN}"));
         let hung = {
             let mut state = locked(&self.0);
+            let signed_in = request.header("authorization") == Some(&format!("Bearer {}", state.token));
             state.calls.push(GitHubCall { method: request.method, path, body: body.clone(), signed_in });
             state.hung
         };

@@ -9,6 +9,9 @@ use serde_json::{Value, json};
 pub const ID: &str = "github";
 /// The secret its token is kept as (`eos-cap.github.token`).
 pub const TOKEN: &str = "token";
+/// The secret a GitHub App's refresh token is kept as
+/// (`eos-cap.github.refresh_token`). Not declared: an OAuth App's sign-in has none.
+pub const REFRESH_TOKEN: &str = "refresh_token";
 /// The kind of item it offers.
 pub const PULL_REQUEST: &str = "github.pull_request";
 

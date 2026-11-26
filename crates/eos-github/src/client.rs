@@ -131,10 +131,30 @@ fn rate_limited(response: &HttpResponse) -> bool {
 }
 
 impl GitHub {
-    /// One REST call with `token`. Writes take a slot of the rate bucket
-    /// first; while GitHub asked to wait, nothing is sent. A 304 is an
-    /// answer like a 2xx.
+    /// One REST call with `token`. A token GitHub refused is renewed once
+    /// and the call sent again: a GitHub App's token lasts 8 hours, and a
+    /// refused call changed nothing.
     pub(crate) async fn request(
+        &self,
+        token: &str,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+        extra: &[(&str, &str)],
+    ) -> Result<HttpResponse, ActionError> {
+        match self.request_once(token, method, path, body.clone(), extra).await {
+            Err(ActionError::Failed { kind: FailureKind::Unauthorized }) => match self.renewed(token).await {
+                Some(fresh) => self.request_once(&fresh, method, path, body, extra).await,
+                None => Err(ActionError::Failed { kind: FailureKind::Unauthorized }),
+            },
+            answered => answered,
+        }
+    }
+
+    /// One REST call with `token`, never renewed. Writes take a slot of the
+    /// rate bucket first; while GitHub asked to wait, nothing is sent. A 304
+    /// is an answer like a 2xx.
+    pub(crate) async fn request_once(
         &self,
         token: &str,
         method: Method,

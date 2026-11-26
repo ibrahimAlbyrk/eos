@@ -4,7 +4,8 @@
 //! interval and add 5 s each time it says `slow_down` or limits the rate; a
 //! poll that got no answer in 30 s is tried again until the code runs out. The
 //! token is kept with the capability's secrets; the account's login is its
-//! label. None of the codes, the token or the login reaches a log.
+//! label. A GitHub App's token lasts 8 hours and comes with a refresh token,
+//! kept beside it and traded for a new token when GitHub refuses the old one. None of the codes, the token or the login reaches a log.
 
 use eos_core::BoxFuture;
 use eos_core::capability::{ActionError, DeviceCode, DeviceSignIn, SignInError};
@@ -27,7 +28,7 @@ const INTERVAL_S: u64 = 5;
 
 impl GitHub {
     /// A form POST to github.com, answered as JSON.
-    async fn form(&self, path: &str, fields: &[(&str, &str)]) -> Result<Value, SignInError> {
+    pub(crate) async fn form(&self, path: &str, fields: &[(&str, &str)]) -> Result<Value, SignInError> {
         let body = url::form_urlencoded::Serializer::new(String::new()).extend_pairs(fields).finish();
         let request = HttpRequest {
             method: Method::Post,
@@ -100,7 +101,8 @@ impl GitHub {
                 Err(_) => continue,
             };
             if let Some(token) = answer["access_token"].as_str() {
-                return self.keep(Zeroizing::new(token.to_owned())).await;
+                let refresh = answer["refresh_token"].as_str().map(|refresh| Zeroizing::new(refresh.to_owned()));
+                return self.keep(Zeroizing::new(token.to_owned()), refresh).await;
             }
             match text(&answer, "error") {
                 "authorization_pending" => {}
@@ -115,10 +117,12 @@ impl GitHub {
         }
     }
 
-    /// Reads the account's login with the new token, then keeps the token.
-    async fn keep(&self, token: Zeroizing<String>) -> Result<String, SignInError> {
+    /// Reads the account's login with the new token, then keeps the token
+    /// and its refresh token. A token without one (an OAuth App's) does not
+    /// expire, and an earlier sign-in's refresh token goes.
+    async fn keep(&self, token: Zeroizing<String>, refresh: Option<Zeroizing<String>>) -> Result<String, SignInError> {
         let user = tokio::select! {
-            user = self.get(&token, "/user") => user,
+            user = self.request_once(&token, Method::Get, "/user", None, &[]) => user.and_then(|user| user.json()),
             () = self.sleeper.sleep(i64::from(DEFAULT_TIMEOUT_S) * 1000) => Err(ActionError::Timeout),
         };
         let user = user.map_err(|e| match e {
@@ -126,6 +130,10 @@ impl GitHub {
             _ => SignInError::Failed,
         })?;
         let login = text(&user, "login").to_owned();
+        if let Err(e) = self.keep_refresh(refresh).await {
+            tracing::warn!(capability = ID, error = %e, "GitHub's refresh token could not be kept");
+            return Err(SignInError::Failed);
+        }
         if let Err(e) = self.secrets.write(ID, TOKEN, token).await {
             tracing::warn!(capability = ID, error = %e, "GitHub's token could not be kept");
             return Err(SignInError::Failed);
