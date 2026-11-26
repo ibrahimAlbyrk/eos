@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { openLocation } from "./nav/eosNav.js";
 
@@ -67,6 +67,10 @@ export function askKey(key, shiftKey, all, active) {
 export function Dialog({ id, from, icon, title, line, role = "dialog", onClose, actions, children, wide }) {
   const panel = useRef(null);
   const inWindow = useInWindow();
+  // The shade covers the window; the dialog sits in the middle of the main
+  // column, where the screen that asked is, not of the window.
+  const [left, setLeft] = useState(0);
+  useLayoutEffect(() => setLeft(document.querySelector("main.eos-screen")?.getBoundingClientRect().left ?? 0), []);
   useEffect(() => {
     const opener = document.activeElement;
     if (!panel.current?.contains(document.activeElement)) panel.current?.querySelector(FOCUSABLE)?.focus();
@@ -84,7 +88,7 @@ export function Dialog({ id, from, icon, title, line, role = "dialog", onClose, 
     }
   };
   const drawn = (
-    <div className="eos-ask-shade" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="eos-ask-shade" style={left > 0 ? { paddingLeft: left + 24 } : undefined} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={panel} className={wide ? "eos-ask eos-ask--wide" : "eos-ask"} role={role} aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={keys}>
         {from && (
           <p className="eos-ask__from">

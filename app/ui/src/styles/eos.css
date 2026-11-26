@@ -279,7 +279,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
 }
 .eos-sheet {
   width: min(420px, calc(100vw - 32px));
@@ -299,7 +299,8 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
 .eos-ask-shade {
   position: fixed; inset: 0; z-index: 480;
   display: flex; align-items: center; justify-content: center; padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
+  /* Deep enough that a light page or Home's cards recede behind the question. */
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
   animation: eos-ask-shade 180ms cubic-bezier(.2, .8, .2, 1) both;
 }
 .eos-ask {
@@ -332,7 +333,10 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 36px
    light it past the words while its hairline keeps the text's edges. */
 .eos-ask__pick-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 10px 12px; box-sizing: border-box; border: 0; border-radius: 8px; background: linear-gradient(var(--line), var(--line)) 12px 0 / calc(100% - 24px) 1px no-repeat; font: inherit; text-align: left; color: var(--fg); cursor: pointer; transition: background-color 140ms var(--ease); }
 .eos-ask__pick-row:last-child { background-image: linear-gradient(var(--line), var(--line)), linear-gradient(var(--line), var(--line)); background-position: 12px 0, 12px 100%; background-size: calc(100% - 24px) 1px, calc(100% - 24px) 1px; }
-.eos-ask__pick-row:hover { background-color: var(--row-on); }
+.eos-ask__pick-row:hover, .eos-ask__pick-row[aria-checked="true"] { background-color: var(--row-on); }
+/* Focus rings the mark, so the lit row stays the one picked. */
+.eos-ask__pick-row:focus-visible { outline: none; }
+.eos-ask__pick-row:focus-visible .eos-ask__pick-mark { outline: 2px solid var(--accent); outline-offset: 3px; }
 .eos-ask__pick-mark { flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); transition: background-color 140ms var(--ease), border-color 140ms var(--ease), box-shadow 140ms var(--ease); }
 .eos-ask__pick-row[aria-checked="true"] .eos-ask__pick-mark { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eos-ask__pick-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
