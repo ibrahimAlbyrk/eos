@@ -219,10 +219,20 @@
 .eos-mem-about .mem-rail { flex: 1 1 280px; max-width: 360px; gap: 40px; }
 .eos-mem-about .mem-card { gap: 12px; padding: 0; border-radius: 0; background: none; }
 .eos-mem-about .mem-card__title { padding-bottom: 12px; border-bottom: 1px solid var(--line); font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-dim2); }
-.eos-mem-about .mem-inbox { padding: 18px 20px; border-radius: 14px; background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
+/* What an agent noticed is a part like any other: its title as the label's
+   words, why on a dim line, then each suggestion on hairlines with a hollow
+   accent mark in the margin, its tags as plain mono chips, Keep then Dismiss. */
+.eos-mem-about .mem-inbox { padding: 0; border-radius: 0; background: none; box-shadow: none; gap: 12px; }
 .eos-mem-about .mem-inbox__icon { display: none; }
-.eos-mem-about .mem-inbox__grid { gap: 0; border-top: 1px solid var(--chip); }
-.eos-mem-about .mem-suggestion { padding: 14px 0; border-radius: 0; background: none; box-shadow: none; border-bottom: 1px solid var(--chip); }
+.eos-mem-about .mem-inbox__title b { font-size: var(--text-base); font-weight: 500; }
+.eos-mem-about .mem-inbox__grid { gap: 0; border-top: 1px solid var(--line); }
+.eos-mem-about .mem-suggestion { position: relative; padding: 14px 0; border-radius: 0; background: none; box-shadow: none; border-bottom: 1px solid var(--line); }
+.eos-mem-about .mem-suggestion::before { content: ""; position: absolute; left: -22px; top: 21px; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--accent); }
+.eos-mem-about .mem-suggestion__text { color: var(--fg-strong); }
+.eos-mem-about .mem-tag, .eos-mem-about .mem-tag--agent { padding: 1px 8px; border-radius: 6px; background: none; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-dim2); }
+.eos-mem-about .mem-suggestion__actions .mem-btn--ghost { margin-left: 0; }
+.eos-mem-about .mem-tier.is-always { color: var(--fg-dim2); }
+.eos-mem-about .mem-group__scope { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--fg-dim2); }
 .eos-mem-about .mem-suggestion__why { font-style: normal; }
 .eos-mem-about .dr-journal { border-radius: 14px; background: #1b1b1b; box-shadow: none; }
 .eos-mem-about .dr-stars { display: none; }
