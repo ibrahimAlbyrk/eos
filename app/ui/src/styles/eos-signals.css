@@ -93,12 +93,27 @@
 .eos-stg__means { margin: 6px 0 0; max-width: 56ch; font-size: var(--text-md); line-height: 1.5; color: var(--fg-dim2); text-wrap: pretty; }
 .eos-stg__acts { display: flex; gap: 8px; margin-top: 16px; }
 .eos-stg__acts .eos-btn { height: 32px; padding: 0 16px; }
-/* Its list scrolls inside the modal: the foot fades over 32 px, so a cut
-   row reads as more below rather than as the end. */
-.stg-body:has(> .eos-stg) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+/* Its list scrolls inside the modal: while more lies below, the cue stands at
+   the foot on the modal's ground over a 48 px fade, so no row reads as cut. */
+.eos-stg__more {
+  position: sticky; bottom: -22px; z-index: 1; display: flex; justify-content: center;
+  margin: -48px 0 0; padding: 48px 0 22px;
+  background: linear-gradient(to bottom, transparent, var(--pop, #1c1c1c) 70%);
+  pointer-events: none;
 }
+.eos-stg__more .eos-btn { pointer-events: auto; gap: 6px; height: 28px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-stg__more svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.eos-stg__end { display: block; height: 1px; }
+/* Where Eos stands, not read yet: two bars where the fact and its meaning go. */
+.eos-stg__ghost-fact, .eos-stg__ghost-means { display: block; height: 14px; border-radius: 7px; background: var(--raised); }
+.eos-stg__ghost-fact { width: 300px; height: 20px; margin: 6px 0 14px; }
+.eos-stg__ghost-means { width: 420px; max-width: 100%; }
+/* A switch in Eos's hand: a small hairline track, on in the ok tone. */
+.eos-stg .stg-toggle { width: 30px; height: 18px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease); }
+.eos-stg .stg-toggle__knob { top: 3px; left: 3px; width: 12px; height: 12px; background: var(--fg-dim); transition: transform 160ms var(--ease), background-color 140ms var(--ease); }
+.eos-stg .stg-toggle.is-on { background: color-mix(in srgb, var(--ok) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
+.eos-stg .stg-toggle.is-on .stg-toggle__knob { background: var(--ok); transform: translateX(12px); }
+.eos-stg .stg-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eos-stg__group { margin-top: 36px; }
 .eos-stg .stg-group + .stg-group { margin-top: 36px; }
 .eos-stg__label { margin: 0 0 4px; }

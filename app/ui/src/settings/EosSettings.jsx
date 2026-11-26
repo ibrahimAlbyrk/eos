@@ -9,7 +9,7 @@
 // notification, and what leaves the Mac with forgetting (asked in Eos's
 // dialog, with its way back) and exporting what was learned.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   changeEosSetting, exportLearned, forgetAllLearned, loadEosSettings, sendTestPush, tidyMemoryNow, undoForgetAll, useEosSettings,
 } from "../state/eos/eosSettingsStore.js";
@@ -197,6 +197,15 @@ function Privacy({ forgotten }) {
 function Standing({ routines }) {
   const { halt } = useHalt();
   const on = halt?.on === true;
+  // Until Eos says whether it is stopped, the lead is a ghost and offers nothing.
+  if (!halt) {
+    return (
+      <div className="eos-stg__standing eos-skeleton" role="status" aria-label="Reading where Eos stands">
+        <span className="eos-stg__ghost-fact" />
+        <span className="eos-stg__ghost-means" />
+      </div>
+    );
+  }
   let words = ["Stop everything", "No routine runs and nothing is sent until you resume."];
   if (on) words = [`Eos is stopped${halt.since != null ? ` since ${sinceAt(halt.since)}` : ""}.`, words[1]];
   else if (halt) words = ["Eos is running on this Mac.", `${routines ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
@@ -267,6 +276,7 @@ export function EosSettings() {
       <Group title="What leaves the Mac">
         <Privacy forgotten={forgotten} />
       </Group>
+      <MoreBelow />
     </div>
   );
 }
@@ -277,5 +287,36 @@ function Ghost() {
     <div className="eos-skeleton eos-skeleton--rows eos-stg__ghost" aria-hidden="true">
       <div className="eos-skeleton__row"><span /><span /></div>
     </div>
+  );
+}
+
+// The pane scrolls inside the modal: while more lies below, a quiet cue at the
+// foot says so and steps down a screen; it leaves once the end is in view.
+function MoreBelow() {
+  const end = useRef(null);
+  const [atEnd, setAtEnd] = useState(true);
+  useEffect(() => {
+    const el = end.current;
+    if (!el || typeof IntersectionObserver === "undefined") return undefined;
+    const seen = new IntersectionObserver(([e]) => setAtEnd(e.isIntersecting));
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, []);
+  const down = () => {
+    const body = end.current?.closest(".stg-body");
+    body?.scrollBy({ top: body.clientHeight * 0.8, behavior: "smooth" });
+  };
+  return (
+    <>
+      {!atEnd && (
+        <div className="eos-stg__more">
+          <button type="button" className="eos-btn eos-btn--quiet" onClick={down}>
+            More below
+            <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" /></svg>
+          </button>
+        </div>
+      )}
+      <span ref={end} className="eos-stg__end" aria-hidden="true" />
+    </>
   );
 }
