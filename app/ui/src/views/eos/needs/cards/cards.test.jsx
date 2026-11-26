@@ -287,7 +287,7 @@ describe("the other cards", () => {
     const { PlainCard } = await import("./PlainCard.jsx");
     const html = renderToStaticMarkup(<PlainCard detail={problem} values={values} setValue={setValue} />);
     expect(html).toContain("<textarea");
-    expect(html).toContain("The login fix works");
+    expect(html).toContain("The loader starts sooner");
 
     const edited = { ...original, parts: original.parts.filter((p) => p.key !== "c:2") };
     await act("delivery_problem", "Try again", { edit: edited });

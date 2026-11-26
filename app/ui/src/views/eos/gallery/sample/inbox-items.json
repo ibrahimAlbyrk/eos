@@ -344,14 +344,14 @@
           {
             "key": "summary",
             "role": "summary",
-            "text": "The login fix works, but **one change blocks**: the token is logged."
+            "text": "The loader starts sooner, but **one change blocks**: the shop still loads before the first frame."
           },
           {
             "key": "c:1",
             "role": "comment",
-            "text": "This logs the session token. Drop the `debug!` line.",
+            "text": "The shop scene still loads here. Defer it until the menu opens.",
             "meta": {
-              "path": "src/auth/login.rs",
+              "path": "Assets/Scripts/Boot/Loader.cs",
               "line": 42,
               "side": "RIGHT"
             }
@@ -359,9 +359,9 @@
           {
             "key": "c:2",
             "role": "comment",
-            "text": "Nit: `retries` reads better as a constant.",
+            "text": "Nit: `preloadCount` reads better as a constant.",
             "meta": {
-              "path": "src/auth/login.rs",
+              "path": "Assets/Scripts/Boot/Loader.cs",
               "line": 88,
               "side": "RIGHT"
             }
