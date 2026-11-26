@@ -96,7 +96,8 @@ fn polled(items: Vec<Value>, cursor: Value, after_s: u64, baseline: bool) -> Val
 
 impl Slack {
     pub(crate) async fn poll_messages(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
-        let conversation = text(input, "conversation");
+        let conversation = self.conversation(ctx, text(input, "conversation")).await?;
+        let conversation = conversation.as_str();
         let cursor = &input["cursor"];
         let since = text(cursor, "ts");
         let held = self.rate.held("conversations.history", self.clock.now_ms()).filter(|s| *s >= TURN_AFTER_S);

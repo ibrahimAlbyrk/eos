@@ -1,6 +1,7 @@
 //! Posting as the user (06 §4.7): to a conversation, to a person (their
 //! direct message is opened first), in a thread, or to the user's own
-//! direct message. Every post turns off Slack's parsing, name linking and
+//! direct message, which every action also takes as the conversation
+//! `self` or `@me`. Every post turns off Slack's parsing, name linking and
 //! link previews, so Slack never fetches a link of a result, and escapes
 //! every broadcast, so a result never pings a crowd. Each post carries its
 //! delivery's key in its metadata, which `find_delivery` looks for after an
@@ -42,6 +43,22 @@ impl Slack {
     async fn direct(&self, ctx: &ActionContext, user: &str) -> Result<String, ActionError> {
         let answer = self.as_user(ctx, "conversations.open", None, &[("users", user)]).await?;
         Ok(text(&answer["channel"], "id").to_owned())
+    }
+
+    /// The conversation `named`: the user's own direct message for `self`
+    /// or `@me`, else `named` itself.
+    pub(crate) async fn conversation(&self, ctx: &ActionContext, named: &str) -> Result<String, ActionError> {
+        if !matches!(named, "self" | "@me") {
+            return Ok(named.to_owned());
+        }
+        let me = self.pair(ctx).await?.user_id;
+        self.direct(ctx, &me).await
+    }
+
+    /// Where a post to `to` goes: a person's direct message, else the
+    /// conversation `to` names.
+    async fn destination(&self, ctx: &ActionContext, to: &str) -> Result<String, ActionError> {
+        if person(to) { self.direct(ctx, to).await } else { self.conversation(ctx, to).await }
     }
 
     async fn post(
@@ -87,13 +104,13 @@ impl Slack {
     }
 
     pub(crate) async fn post_message(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
-        let to = text(input, "to");
-        let conversation = if person(to) { self.direct(ctx, to).await? } else { to.to_owned() };
+        let conversation = self.destination(ctx, text(input, "to")).await?;
         self.post(ctx, &conversation, None, text(input, "text")).await
     }
 
     pub(crate) async fn reply_in_thread(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
-        self.post(ctx, text(input, "conversation"), Some(text(input, "threadTs")), text(input, "text")).await
+        let conversation = self.conversation(ctx, text(input, "conversation")).await?;
+        self.post(ctx, &conversation, Some(text(input, "threadTs")), text(input, "text")).await
     }
 
     pub(crate) async fn tell_me(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
@@ -103,7 +120,8 @@ impl Slack {
     }
 
     pub(crate) async fn delete_message(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
-        let conversation = text(input, "conversation");
+        let conversation = self.conversation(ctx, text(input, "conversation")).await?;
+        let conversation = conversation.as_str();
         let fields = [("channel", conversation), ("ts", text(input, "ts"))];
         self.as_user(ctx, "chat.delete", Some(conversation), &fields).await?;
         tracing::info!(capability = crate::ID, conversation, "deleted a Slack post");
@@ -113,12 +131,8 @@ impl Slack {
     /// The post of the user's that carries `key` in its metadata, since `since` (ms).
     pub(crate) async fn find_delivery(&self, input: &Value, ctx: &ActionContext) -> Result<Value, ActionError> {
         let me = self.pair(ctx).await?.user_id;
-        // A person's or the user's own (`@me`) post is in their direct message.
-        let conversation = match text(input, "conversation") {
-            "@me" => self.direct(ctx, &me).await?,
-            to if person(to) => self.direct(ctx, to).await?,
-            to => to.to_owned(),
-        };
+        // A person's or the user's own post is in their direct message.
+        let conversation = self.destination(ctx, text(input, "conversation")).await?;
         let conversation = conversation.as_str();
         let since = format!("{}", input["since"].as_i64().unwrap_or_default() / 1000);
         let mut fields = vec![

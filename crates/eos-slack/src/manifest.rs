@@ -130,7 +130,7 @@ fn actions() -> Value {
           "output": object(json!({ "people": list(object(json!({
               "id": text(), "name": outside(), "realName": outside(),
           }), &["id"])), "items": list(candidate()) }), &["people"]) },
-        { "name": "read_conversation", "summary": "Read a conversation's messages, newest first.", "class": "read",
+        { "name": "read_conversation", "summary": "Read a conversation's messages, newest first. `self` is your own direct message.", "class": "read",
           "input": object(json!({ "conversation": id(), "since": text(), "cursor": text(), "limit": limit(100) }),
                           &["conversation"]),
           "output": messages() },
@@ -148,7 +148,7 @@ fn actions() -> Value {
           "class": "read",
           "input": object(json!({ "q": text(), "limit": limit(50) }), &["limit"]),
           "output": object(json!({ "items": list(candidate()) }), &["items"]) },
-        { "name": "poll_messages", "summary": "The messages of a conversation since the cursor.", "class": "read",
+        { "name": "poll_messages", "summary": "The messages of a conversation since the cursor. `self` is your own direct message.", "class": "read",
           "input": object(json!({ "conversation": id(), "cursor": cursor() }), &["conversation"]),
           "output": polled() },
         { "name": "poll_mentions", "summary": "The messages that mention you since the cursor.", "class": "read",

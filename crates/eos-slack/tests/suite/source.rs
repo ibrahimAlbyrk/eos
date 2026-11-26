@@ -44,6 +44,20 @@ async fn messages_start_from_a_baseline_and_then_bring_what_came_after_the_curso
 }
 
 #[tokio::test]
+async fn the_conversation_self_is_the_users_own_direct_message() {
+    let rig = rig();
+    rig.fake.conversation("DU0ME00001", "me");
+    let first = rig.call("poll_messages", json!({"conversation": "self"})).await.expect("polled");
+    let ts = rig.fake.message("DU0ME00001", "U0BOB0001", "a note");
+    let next =
+        rig.call("poll_messages", json!({"conversation": "self", "cursor": first["cursor"]})).await.expect("polled");
+    assert_eq!(keys(&next), [format!("slack:T0ACME001:DU0ME00001:{ts}")]);
+    assert_eq!(next["items"][0]["facts"]["isDm"], true);
+    let read = rig.call("read_conversation", json!({"conversation": "@me"})).await.expect("read");
+    assert_eq!(read["messages"].as_array().map(Vec::len), Some(1));
+}
+
+#[tokio::test]
 async fn a_mention_is_counted_once_and_ones_own_never() {
     let rig = rig();
     let first = rig.call("poll_mentions", json!({})).await.expect("polled");

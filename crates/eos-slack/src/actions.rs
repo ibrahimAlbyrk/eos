@@ -206,7 +206,8 @@ impl Slack {
         ctx: &ActionContext,
         thread: bool,
     ) -> Result<Value, ActionError> {
-        let conversation = text(input, "conversation");
+        let conversation = self.conversation(ctx, text(input, "conversation")).await?;
+        let conversation = conversation.as_str();
         let count = limit(input, 50);
         let mut fields = vec![("channel", conversation), ("limit", count.as_str())];
         let (method, thread_ts) =
