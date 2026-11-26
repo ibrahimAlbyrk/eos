@@ -166,17 +166,17 @@ describe("a routine being made", () => {
     setEosTransport(fixtureTransport(paths));
     await loadRuns(DOCS);
     const html = await editor(DOCS, fixtureTransport(paths));
-    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run the trial again"]);
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Run the trial again"]);
     expect(html).toContain('<span class="eos-bp-trial__item">Fix the docs links</span><span class="eos-bp-trial__line">One review drafted</span>');
     expect(html).not.toContain("Not a trial");
   });
 
-  it("made by hand, says which version its last trial ran on when an edit came after it", async () => {
+  it("made by hand, offers Start with no word on which version was tried when an edit came after the trial", async () => {
     const { [ROUTES.routineDraft(DOCS)]: _draft, ...withoutDraft } = reads;
     const [first] = SAMPLE_READS[ROUTES.routineVersions(DOCS)];
     const edited = { ...first, id: "rv-edited000001", number: 2, author: "user" };
     const trial = {
-      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline: "One review drafted",
+      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "failed", headline: "One review drafted",
       itemTitle: "Fix the docs links", needsUser: false, costUsd: 0.2, workMs: 60000, createdAt: 1763452800000, versionId: first.id,
     };
     const paths = {
@@ -189,15 +189,11 @@ describe("a routine being made", () => {
     await loadRuns(DOCS);
     await editor(DOCS, fixtureTransport(paths));
     await loadVersion(DOCS, edited.id);
-    let html = draw();
-    expect(html).toContain('<p class="eos-bp-end__line" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
-    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
-
-    const again = { ...trial, id: "rn-trial0000002", state: "failed", versionId: edited.id };
-    setEosTransport(fixtureTransport({ ...paths, [`${ROUTES.runs}?routineId=${DOCS}&limit=50`]: { runs: [again, trial] } }));
-    await loadRuns(DOCS);
-    html = draw();
-    expect(html).toContain('<p class="eos-bp-end__line" role="status">No trial of version 2 went well yet.</p>');
+    const html = draw();
+    expect(html).not.toContain("not been tried");
+    expect(html).not.toContain("went well yet");
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Run the trial again"]);
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Start it</button>');
   });
 
   it("shows the architect asking: the user's words, its question with its choices, and the card to start", async () => {
@@ -208,7 +204,7 @@ describe("a routine being made", () => {
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Only when ready</button><button type="button" class="eos-btn">Drafts too</button>');
     expect(html).toContain('placeholder="Change anything by saying it"');
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
-    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);
+    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Run a trial"]);
     expect(html).toContain('<p class="eos-bp-end__cost">Uses github.</p>');
     expect(html).toContain('<button type="button" class="eos-bp-agent" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">Sonnet 5.5</span></button>');
     expect(html).toContain('<dd class="eos-bp-row__value">A pull request is <button type="button" class="eos-bp-value"');
@@ -251,46 +247,22 @@ describe("a routine being made", () => {
     expect(html).toContain('<p class="eos-bp-working" role="status">Working on the blueprint…</p>');
   });
 
-  it("starts, starts without a trial, and runs the trial again", async () => {
+  it("starts with no trial asked for, and runs a trial when the user wants one", async () => {
+    const started = { ...routineDraft.routine, state: "active" };
     const t = recording(async (method, path) => (path === ROUTES.routineTrial(DOCS)
       ? { ok: true, status: 201, body: { runs: [] } }
-      : { ok: false, status: 409, body: { error: "Version 1 has not been tried. Try it first, or start it without a trial.", code: "trial_needed", version: 1 } }));
+      : { ok: true, status: 200, body: started }));
     await editor(DOCS, t);
-    expect(await startRoutine(DOCS)).toBe(false);
-    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineStart(DOCS), { withoutTrial: false });
-    expect(draw()).toContain('<span class="eos-band__text">Version 1 has not been tried. Try it first, or start it without a trial.</span>');
-
     expect(await runTrial(DOCS)).toBe(true);
     expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineTrial(DOCS), {});
-
-    const started = { ...routineDraft.routine, state: "active" };
-    t.send.mockImplementation(async () => ({ ok: true, status: 200, body: started }));
-    expect(await startRoutine(DOCS, true)).toBe(true);
-    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineStart(DOCS), { withoutTrial: true });
-    expect(draw()).not.toContain("Try it first");
+    expect(await startRoutine(DOCS)).toBe(true);
+    expect(t.send).toHaveBeenLastCalledWith("POST", ROUTES.routineStart(DOCS), {});
+    expect(draw()).not.toContain("trial first");
   });
 
-  it("says which version was tried and puts trying the shown one again first when an edit came after the trial", async () => {
-    const [first] = SAMPLE_READS[ROUTES.routineVersions(DOCS)];
-    const edited = { ...first, id: "rv-edited000001", number: 2, author: "user" };
-    const trial = {
-      id: "rn-trial0000001", routineId: DOCS, kind: "trial", origin: "trial", state: "done", headline: "One review drafted",
-      itemTitle: "Fix the docs links", needsUser: false, costUsd: 0.2, workMs: 60000, createdAt: 1763452800000,
-    };
-    const paths = {
-      ...reads,
-      [ROUTES.routineVersions(DOCS)]: [first, edited],
-      [ROUTES.routineVersion(DOCS, edited.id)]: { ...reads[ROUTES.routineVersion(DOCS, first.id)], ...edited },
-      [ROUTES.routineDraft(DOCS)]: { ...drafts[DOCS], trialRuns: [trial] },
-    };
-    const t = recording(async () => ({ ok: false, status: 409, body: { error: "acme/docs is not a project in Eos. Add your local clone of it as a project, then start again.", code: "no_local_clone", repo: "acme/docs" } }), paths);
+  it("refuses a trial with what is missing, under the card", async () => {
+    const t = recording(async () => ({ ok: false, status: 409, body: { error: "acme/docs is not a project in Eos. Add your local clone of it as a project, then start again.", code: "no_local_clone", repo: "acme/docs" } }));
     await editor(DOCS, t);
-    await loadVersion(DOCS, edited.id);
-    const html = draw();
-    expect(html).toContain('<p class="eos-bp-end__line" role="status">Version 2 has not been tried. The trial ran on version 1.</p>');
-    expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Run the trial again", "Start without a trial"]);
-    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Run the trial again</button>');
-
     expect(await runTrial(DOCS)).toBe(false);
     expect(draw()).toContain('<span class="eos-band__text">acme/docs is not a project in Eos. Add your local clone of it as a project, then start again.</span>');
   });
@@ -350,7 +322,7 @@ describe("an architect's change of a running routine", () => {
     const t = recording(async (method) => ({ ok: true, status: 200, body: method === "DELETE" ? { ...drafts[MAIL], status: "abandoned" } : routinePaused.routine }));
     await editor(MAIL, t);
     await startRoutine(MAIL);
-    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.routineStart(MAIL), { withoutTrial: false });
+    expect(t.send).toHaveBeenCalledWith("POST", ROUTES.routineStart(MAIL), {});
     await discardDraft(MAIL);
     expect(t.send).toHaveBeenLastCalledWith("DELETE", ROUTES.routineDraft(MAIL), undefined);
     expect(draw()).toContain("You left this draft.");
@@ -449,10 +421,10 @@ describe("the blueprint's spine", () => {
   });
 
   it("leads a routine being made with where it stands, and shows it without tabs", async () => {
-    expect(makingLead({ status: "working" }, [])).toBe("Eos is writing the blueprint.");
-    expect(makingLead({ status: "asking" }, [])).toBe("One question, then it is ready.");
-    expect(makingLead({ status: "ready" }, [{ state: "done" }])).toBe("Ready to start.");
-    expect(makingLead(null, [])).toBe("Set each part, then start it.");
+    expect(makingLead({ status: "working" })).toBe("Eos is writing the blueprint.");
+    expect(makingLead({ status: "asking" })).toBe("One question, then it is ready.");
+    expect(makingLead({ status: "ready" })).toBe("Ready to start.");
+    expect(makingLead(null)).toBe("Set each part, then start it.");
     setEosTransport(fixtureTransport(reads));
     await refreshRoutines();
     await loadRoutine(DOCS);

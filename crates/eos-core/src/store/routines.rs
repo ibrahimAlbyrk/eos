@@ -68,7 +68,7 @@ pub struct StoredVersion {
     /// The blueprint's canonical JSON.
     pub blueprint: String,
     pub hash: String,
-    /// Kept without a trial, as the user chose.
+    /// Kept while no trial of it had gone well.
     pub no_trial: bool,
     pub trust: Trust,
     pub device: Option<String>,

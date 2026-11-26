@@ -67,7 +67,7 @@ export function NewRoutine({ say }) {
               {note?.kind === "refused" && <Note note={note} />}
               <BlueprintCard blueprint={blueprint} onEdit={setBlueprint} routines={list} issues={note?.kind === "refused" ? note.issues : []}>
                 <div className="eos-bp-end">
-                  <p className="eos-bp-end__line">It is kept as a draft. A trial and Start come next, and nothing runs before them.</p>
+                  <p className="eos-bp-end__line">It is kept as a draft. Nothing runs until you start it.</p>
                   <div className="eos-bp-actions">
                     <button type="button" className="eos-btn eos-btn--primary" onClick={() => void make()}>Make it</button>
                     <button type="button" className="eos-btn eos-btn--ghost" onClick={() => setBlueprint(null)}>Describe it instead</button>

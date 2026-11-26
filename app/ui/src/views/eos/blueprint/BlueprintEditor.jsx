@@ -60,70 +60,33 @@ function trialRunsOf(draft, page) {
   return page?.runs?.filter((run) => run.kind === "trial") ?? [];
 }
 
-// A routine being made whose shown version no trial went well on, while a
-// trial ran (on it, or on a version an edit came after): what the start
-// would answer, so trying again comes first. A draft's trials ran on the
-// architect's version; a routine made by hand names each trial's version.
-function untriedLine(draft, rows, versionId, trials) {
-  if (trials.length === 0) return null;
-  const shown = rows?.find((r) => r.id === versionId)?.number;
-  if (shown === undefined) return null;
-  if (!draft) return untriedByRuns(rows, versionId, shown, trials);
-  const passed = trials.some((run) => run.state === "done");
-  if (draft.draftVersionId === versionId && passed) return null;
-  if (draft.draftVersionId === versionId) return `No trial of version ${shown} went well yet.`;
-  const tried = passed ? rows.find((r) => r.id === draft.draftVersionId)?.number : undefined;
-  return tried === undefined ? `Version ${shown} has not been tried.` : `Version ${shown} has not been tried. The trial ran on version ${tried}.`;
-}
-
-// Trials read from the runs, newest first: a run that has not started on a
-// version yet says nothing either way.
-function untriedByRuns(rows, versionId, shown, trials) {
-  const known = trials.filter((run) => run.versionId);
-  if (known.length === 0) return null;
-  const onShown = known.filter((run) => run.versionId === versionId);
-  if (onShown.some((run) => run.state === "done")) return null;
-  if (onShown.length > 0) return `No trial of version ${shown} went well yet.`;
-  const tried = rows.find((r) => r.id === known[0].versionId)?.number;
-  return tried === undefined ? `Version ${shown} has not been tried.` : `Version ${shown} has not been tried. The trial ran on version ${tried}.`;
-}
-
 const COUNT = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 const pastItems = (n) => `${COUNT[n] ?? n} past item${n === 1 ? "" : "s"}`;
 
 // What the ending says before its buttons: why the first one is first.
-function endLine({ kind, draft, trials, untried }) {
-  if (untried) return untried;
+function endLine({ kind, draft, trials }) {
   if (kind === "draft") return "Nothing changes until you use it. The version in use keeps running until then.";
   if (draft?.status === "working" || draft?.status === "trying") return "The architect is still at work. Nothing runs until you start it.";
   if (draft?.status === "asking") return "The architect has one question. Answer it, or start it as it is.";
   const passed = trials.filter((run) => run.state === "done").length;
   if (passed) return `It went well on ${pastItems(passed)}, and nothing was sent. Nothing runs until you start it.`;
-  return "Nothing runs until you start it. A trial tries it on real past items first and sends nothing.";
+  return "Nothing runs until you start it. A trial, if you want one, tries it on real past items and sends nothing.";
 }
 
 // The card's ending: one line of where it stands, the one primary step and
 // the quiet others, and what it costs under them.
-function Actions({ id, kind, trials, routine, blueprint, draft, untried, startsAbove = false }) {
+function Actions({ id, kind, trials, routine, blueprint, draft, startsAbove = false }) {
   const tried = trials.length > 0;
   const cost = costLine(routine, blueprint, useCapabilities().list ?? []);
-  const trialClass = untried ? "eos-btn eos-btn--primary" : "eos-btn eos-btn--ghost";
-  const trial = <button type="button" className={trialClass} onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
+  const trial = <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void runTrial(id)}>{tried ? "Run the trial again" : "Run a trial"}</button>;
   return (
     <div className="eos-bp-end">
-      <p className="eos-bp-end__line" role="status">{endLine({ kind, draft, trials, untried })}</p>
+      <p className="eos-bp-end__line" role="status">{endLine({ kind, draft, trials })}</p>
       <div className="eos-bp-actions">
-        {kind === "newest" && untried && (
-          <>
-            {trial}
-            <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
-          </>
-        )}
-        {kind === "newest" && !untried && (
+        {kind === "newest" && (
           <>
             {/* Started from the lead when the lead offers it: one place per action. */}
             {!startsAbove && <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>}
-            <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
             {trial}
           </>
         )}
@@ -168,13 +131,13 @@ function OldActions({ id, versionId, row, inUseRow, restorable, comparing, setCo
 
 // A routine being made says where it stands above its two columns, as a
 // screen's lead: what the architect is doing, or what is left to the user.
-export function makingLead(draft, trials) {
+export function makingLead(draft) {
   if (!draft) return "Set each part, then start it.";
   if (draft.status === "working") return draft.draftVersionId ? "Eos is changing the blueprint." : "Eos is writing the blueprint.";
   if (draft.status === "trying") return "Eos is trying it on real past items.";
   if (draft.status === "asking") return "One question, then it is ready.";
   if (draft.status === "abandoned") return "You left this draft.";
-  return trials.some((run) => run.state === "done") ? "Ready to start." : "The blueprint is ready to look at.";
+  return "Ready to start.";
 }
 
 
@@ -220,13 +183,13 @@ export function BlueprintEditor({ detail, versionNumber }) {
     ? <VersionMenu routineId={id} rows={rows} shown={row} inUseId={inUseId} suffix={suffix} />
     : <span className="eos-bp-card__version">Version {row.number}{suffix}</span>);
   const { name, summary, icon } = detail.routine;
-  const ready = making && view.kind === "newest" && makingLead(draft, trials) === "Ready to start.";
+  const ready = making && view.kind === "newest" && makingLead(draft) === "Ready to start.";
 
   return (
     <div className={making ? "eos-bp eos-bp--making" : "eos-bp"}>
       {making && (
         <header className="eos-bp__lead">
-          <h2 className="eos-lead">{makingLead(draft, trials)}</h2>
+          <h2 className="eos-lead">{makingLead(draft)}</h2>
           {/* Ready, the one step left stands under the lead, above the fold. */}
           {ready && (
             <div className="eos-rlead__acts">
@@ -264,7 +227,6 @@ export function BlueprintEditor({ detail, versionNumber }) {
                   routine={detail.routine}
                   blueprint={version.blueprint}
                   draft={draft}
-                  untried={view.kind === "newest" ? untriedLine(draft, rows, view.versionId, trials) : null}
                   startsAbove={ready}
                 />
               )}

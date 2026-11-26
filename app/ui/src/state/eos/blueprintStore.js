@@ -198,8 +198,8 @@ export async function sayToArchitect(id, said) {
 }
 
 // Start it, Use this version: the draft becomes the routine's head.
-export async function startRoutine(id, withoutTrial = false) {
-  const r = await write("POST", ROUTES.routineStart(id), { withoutTrial }, [400, 409]);
+export async function startRoutine(id) {
+  const r = await write("POST", ROUTES.routineStart(id), {}, [400, 409]);
   if (!r) return false;
   if (r.status === 400) return note(id, refused(r.body)), false;
   if (r.status === 409) {

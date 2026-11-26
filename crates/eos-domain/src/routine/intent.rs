@@ -73,7 +73,7 @@ pub struct Reading {
 /// The most choices an unsure reading gives.
 pub const CHOICES_MAX: usize = 3;
 
-pub const MAKE_LINE: &str = "Make a new routine. You see its blueprint and a trial first";
+pub const MAKE_LINE: &str = "Make a new routine. You see its blueprint first";
 pub const ONCE_LINE: &str = "Do it once, here";
 pub const UNSURE_LINE: &str = "Which one?";
 

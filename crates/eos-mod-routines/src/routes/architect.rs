@@ -50,17 +50,9 @@ pub(crate) fn all(engine: &Arc<Engine>) -> Vec<RouteDef> {
     let start = RouteDef::post("/api/routines/{id}/start", move |req: Request| {
         let engine = starting.clone();
         async move {
-            let body: StartRoutineRequest = req.parse()?;
-            match architect::start(&engine, &param(&req, "id"), body.without_trial).await.map_err(refusal)? {
+            let _: StartRoutineRequest = req.parse()?;
+            match architect::start(&engine, &param(&req, "id")).await.map_err(refusal)? {
                 Started::Kept(row) => Ok(Response::json(200, &*row)),
-                Started::NeedsTrial(untried) => {
-                    let mut body = json!({"error": untried.message(), "code": "trial_needed",
-                                          "version": untried.version});
-                    if let Some(tried) = untried.tried {
-                        body["triedVersion"] = json!(tried);
-                    }
-                    Ok(Response::json(409, &body))
-                }
                 Started::Refused(issues) => Ok(Response::json(
                     400,
                     &BlueprintRefused { error: "the blueprint does not meet its rules".into(), issues },

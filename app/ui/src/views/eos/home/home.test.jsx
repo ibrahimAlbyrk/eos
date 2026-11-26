@@ -123,7 +123,7 @@ describe("Eos › Home", () => {
   it("first run: no routine yet, so the first-run line and the chips, nothing else", async () => {
     await loaded(fixtureTransport(reads({ [ROUTES.routines]: [], [RUNS_PATH]: { runs: [] } })));
     const html = draw();
-    expect(html).toContain("Tell Eos what to take care of. It shows you a trial before anything runs.");
+    expect(html).toContain("Tell Eos what to take care of. It shows you the blueprint before anything runs.");
     expect(html).toContain("Set up a new project");
     expect(html).not.toContain("eos-home-card");
     expect(html).not.toContain("While you were away");

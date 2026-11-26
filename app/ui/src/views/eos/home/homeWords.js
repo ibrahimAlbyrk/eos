@@ -44,7 +44,7 @@ export function needLine(count) {
   return `${capital(numberWord(count))} ${count === 1 ? "needs" : "need"} you.`;
 }
 
-export const FIRST_RUN_LINE = "Tell Eos what to take care of. It shows you a trial before anything runs.";
+export const FIRST_RUN_LINE = "Tell Eos what to take care of. It shows you the blueprint before anything runs.";
 
 // ── Horizon (G8) ──────────────────────────────────────────────────────────
 export const BUCKET_MS = 15 * 60 * 1000;

@@ -78,7 +78,7 @@ impl Validate for ArchitectRequest {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StartRoutineRequest {
-    /// The user pressed "Start without a trial".
+    /// Read and ignored: a start never waits for a trial.
     #[serde(default)]
     pub without_trial: bool,
 }
