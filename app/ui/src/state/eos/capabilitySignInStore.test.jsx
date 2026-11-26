@@ -66,6 +66,17 @@ describe("signing in to GitHub", () => {
     expect(t.get).toHaveBeenCalledWith(PATH);
   });
 
+  it("waits without a code or a page when the GitHub CLI was signed in already", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    core(ok({ verificationUri: "", expiresAt: 1 }), [ok({ state: "signed_in", accountLabel: "octocat" })]);
+    await startSignIn("github");
+    expect(current()).toEqual({ id: "github", phase: "starting" });
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(current()).toMatchObject({ phase: "ready", accountLabel: "octocat" });
+    expect(open).not.toHaveBeenCalled();
+    open.mockRestore();
+  });
+
   it("ends when the code ran out or GitHub was told no", async () => {
     core(ok(CODE), [ok({ state: "expired" })]);
     await startSignIn("github");

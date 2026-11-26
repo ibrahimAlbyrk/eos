@@ -13,7 +13,7 @@ use crate::{Error, GitHub};
 
 /// GitHub's REST API.
 pub const API: &str = "https://api.github.com";
-/// GitHub's own site, where the device flow runs.
+/// GitHub's own site, where the GitHub CLI's releases are.
 pub const WEB: &str = "https://github.com";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -132,8 +132,8 @@ fn rate_limited(response: &HttpResponse) -> bool {
 
 impl GitHub {
     /// One REST call with `token`. A token GitHub refused is renewed once
-    /// and the call sent again: a GitHub App's token lasts 8 hours, and a
-    /// refused call changed nothing.
+    /// and the call sent again: the user may have signed in again in a
+    /// terminal, and a refused call changed nothing.
     pub(crate) async fn request(
         &self,
         token: &str,

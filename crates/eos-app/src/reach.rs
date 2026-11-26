@@ -139,6 +139,16 @@ impl Reach {
         }
     }
 
+    /// The GitHub CLI the GitHub capability signs in with: the one only the
+    /// host hands in, so a run without it or off the network never runs
+    /// `gh`, which holds the user's own sign-in.
+    pub(crate) fn github_cli(self, cli: Option<Arc<dyn eos_github::Cli>>) -> Arc<dyn eos_github::Cli> {
+        match cli.filter(|_| self.network) {
+            Some(cli) => cli,
+            None => Arc::new(NoGitHubCli),
+        }
+    }
+
     /// How the Slack capability reaches Slack: through the transport only
     /// the host hands in, so a run without it or off the network sends nothing.
     pub(crate) fn slack(self, transport: Option<Arc<dyn eos_slack::Transport>>) -> Arc<dyn eos_slack::Transport> {
@@ -242,6 +252,26 @@ struct NoGitHub;
 impl Transport for NoGitHub {
     fn send(&self, _request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, eos_github::Error>> {
         Box::pin(std::future::ready(Err(eos_github::Error::Transport(GITHUB_OFF.into()))))
+    }
+}
+
+/// A GitHub CLI that is never run: it is not there, and nothing installs it.
+struct NoGitHubCli;
+
+impl eos_github::Cli for NoGitHubCli {
+    fn ensure(&self) -> BoxFuture<'_, Result<(), eos_github::CliError>> {
+        Box::pin(std::future::ready(Err(eos_github::CliError::Missing)))
+    }
+
+    fn token<'a>(
+        &'a self,
+        _account: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<zeroize::Zeroizing<String>, eos_github::CliError>> {
+        Box::pin(std::future::ready(Err(eos_github::CliError::Missing)))
+    }
+
+    fn login(&self) -> BoxFuture<'_, Result<eos_github::Login, eos_github::CliError>> {
+        Box::pin(std::future::ready(Err(eos_github::CliError::Missing)))
     }
 }
 
@@ -470,12 +500,13 @@ mod tests {
     #[tokio::test]
     async fn off_the_network_github_is_never_sent_a_call_or_a_sign_in() {
         let github = Arc::new(FakeGitHub::new());
+        let cli = eos_testkit::FakeGhCli::new().missing(true);
         let capability = GitHub::new(eos_github::Parts {
             transport: Reach::new(false).github(Some(github.clone())),
             secrets: Arc::new(FakeCapabilitySecrets::new()),
             clock: Arc::new(FakeClock::at(1_763_460_000_000)),
             sleeper: Arc::new(FakeSleeper::default()),
-            client_id: "Iv1.fake".into(),
+            cli: Reach::new(false).github_cli(Some(Arc::new(cli.clone()))),
         });
         let ctx = ActionContext {
             secrets: [("token".to_owned(), "gho_planted_secret_1".to_owned().into())].into(),
@@ -489,6 +520,7 @@ mod tests {
         assert!(read.is_err(), "the call fails as one with no answer");
         assert!(sign_in.is_err(), "and so does the sign-in");
         assert!(github.calls().is_empty(), "nothing reached GitHub");
+        assert_eq!((cli.installs(), cli.logins()), (0, 0), "and gh was never run");
         assert!(Reach::new(true).github(Some(github.clone())).send(probe()).await.is_ok());
         assert_eq!(github.calls().len(), 1, "on the network it does");
     }

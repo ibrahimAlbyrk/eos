@@ -148,6 +148,10 @@ pub struct Options {
     /// when the run [`reaches_network`](Self::reaches_network). Without it
     /// GitHub is sent nothing: a request would act as the user.
     pub github: Option<Arc<dyn eos_github::Transport>>,
+    /// The GitHub CLI ([`crate::github_cli`] in the real app), used only
+    /// when the run [`reaches_network`](Self::reaches_network). Without it
+    /// `gh` is never run: it holds the user's own sign-in.
+    pub github_cli: Option<Arc<dyn eos_github::Cli>>,
     /// How Slack is reached ([`crate::slack`] in the real app), used only
     /// when the run [`reaches_network`](Self::reaches_network). Without it
     /// Slack is sent nothing: a request would act as the user.
@@ -225,6 +229,7 @@ impl Options {
             hook_client: None,
             keychain: None,
             github: None,
+            github_cli: None,
             slack: None,
             mail: None,
             memory_hook: None,
@@ -327,6 +332,7 @@ impl App {
             hook_client,
             keychain,
             github,
+            github_cli,
             slack,
             mail,
             memory_hook,
@@ -438,10 +444,10 @@ impl App {
             clock: clock.clone(),
             ids: ids.clone(),
             sleeper: sleeper.clone(),
-            github_client_id: current.github.client_id.clone(),
             slack_client_id: current.slack.client_id.clone(),
             keychain,
             github,
+            github_cli,
             slack,
             mail,
             grants: grants.clone(),

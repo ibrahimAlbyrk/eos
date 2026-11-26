@@ -73,6 +73,17 @@ pub fn github() -> Result<std::sync::Arc<dyn eos_github::Transport>, Error> {
     Ok(std::sync::Arc::new(eos_github::HttpTransport::new()?))
 }
 
+/// The installed app's GitHub CLI: the `gh` on this computer, or the one it
+/// installs under `tools` (`<data folder>/tools`). Hand it to
+/// [`Options::github_cli`]; an app built without it, or one that does not
+/// [reach the network](Options::reaches_network), never runs `gh`.
+pub fn github_cli(tools: std::path::PathBuf) -> Result<std::sync::Arc<dyn eos_github::Cli>, Error> {
+    let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+        eos_platform::kill_process_tree(pid).is_ok()
+    });
+    Ok(std::sync::Arc::new(eos_github::Gh::new(eos_kit_proc::Runner::new(trees), tools)?))
+}
+
 /// How the installed app reaches Slack: an HTTP client of its own. Hand it
 /// to [`Options::slack`]; an app built without it, or one that does not
 /// [reach the network](Options::reaches_network), sends Slack nothing.

@@ -1,5 +1,6 @@
-// capabilitySignInStore — the sign-in sheet's one attempt: GitHub's device
-// flow, where the user types a code on GitHub's page, or Slack's browser
+// capabilitySignInStore — the sign-in sheet's one attempt: GitHub's sign-in
+// through the GitHub CLI, where the user types a code on GitHub's page (or
+// nothing, when the CLI was signed in already), or Slack's browser
 // sign-in, where the user only allows Eos on Slack's page and Slack sends the
 // app back. Starting asks the core and opens the service's page in the system
 // browser; the store then asks the core how the attempt stands until it ends.
@@ -84,6 +85,9 @@ export async function startSignIn(id) {
     const { userCode, verificationUri } = r.body;
     set({ id, phase: "code", userCode, verificationUri });
     openSignInPage();
+    follow(n);
+  } else if (r?.ok && r.body?.verificationUri === "") {
+    // Signed in already where the capability signs in: no page to open, the core finishes by itself.
     follow(n);
   } else if (r?.ok && typeof r.body?.verificationUri === "string") {
     set({ id, phase: "browser", verificationUri: r.body.verificationUri });

@@ -204,8 +204,8 @@ pub struct Browser {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHub {
-    /// The OAuth App GitHub's sign-in asks for; empty, the sign-in cannot
-    /// start (`client_id_missing`).
+    /// Read by nothing: GitHub signs in through the GitHub CLI. The config
+    /// keeps the field its readers know.
     pub client_id: String,
 }
 

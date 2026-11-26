@@ -1,6 +1,6 @@
 //! Signing in to a capability: by a code the user enters on the service's
-//! page (GitHub's device flow), or in the browser with a link back
-//! (Slack's PKCE). `POST /api/capabilities/:id/sign-in` starts an attempt,
+//! page (GitHub, through the GitHub CLI's sign-in; no code when the CLI was
+//! signed in already), or in the browser with a link back (Slack's PKCE). `POST /api/capabilities/:id/sign-in` starts an attempt,
 //! `GET` answers how it stands, `DELETE` ends it. One attempt per
 //! capability; a new one ends the one before. A device attempt polls for
 //! the user's answer; a browser attempt waits for its `eos://sign-in/<id>`
@@ -202,7 +202,8 @@ impl SignIns {
             Err(error) => return Err(refused(service, id, error).await),
         };
         let answer = CapabilitySignIn {
-            user_code: Some(code.user_code.to_string()),
+            // A capability that was signed in already has no code to enter.
+            user_code: Some(code.user_code.to_string()).filter(|code| !code.is_empty()),
             verification_uri: code.verification_uri.clone(),
             expires_at: code.expires_at,
         };

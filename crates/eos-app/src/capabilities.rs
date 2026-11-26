@@ -15,7 +15,7 @@ use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome};
 use eos_core::signals::SignalSources;
 use eos_core::store::Store;
 use eos_core::{Clock, Ids, Sleeper};
-use eos_github::{GitHub, Transport};
+use eos_github::{Cli, GitHub, Transport};
 use eos_mail_app::{MailApp, Script};
 use eos_platform::DataPaths;
 use eos_store_files::capabilities::FsCapabilityFiles;
@@ -36,6 +36,11 @@ pub struct CapabilityOptions {
     /// the host's [`Options::github`](crate::Options::github), and nothing
     /// off the network.
     pub github: Option<Arc<dyn Transport>>,
+    /// The GitHub CLI the GitHub capability signs in with: a test's own
+    /// fake. `None`: the host's
+    /// [`Options::github_cli`](crate::Options::github_cli), and none off the
+    /// network.
+    pub github_cli: Option<Arc<dyn Cli>>,
     /// How the Slack capability reaches Slack: a test's own fake. `None`:
     /// the host's [`Options::slack`](crate::Options::slack), and nothing off
     /// the network.
@@ -147,14 +152,14 @@ pub(crate) struct Parts<'a> {
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) sleeper: Arc<dyn Sleeper>,
-    /// `github.clientId`, read at start.
-    pub(crate) github_client_id: String,
     /// `slack.clientId`, read at start.
     pub(crate) slack_client_id: String,
     /// The app's own Keychain items, as the host hands them in.
     pub(crate) keychain: Option<Arc<dyn CapabilitySecrets>>,
     /// How the app reaches GitHub, as the host hands it in.
     pub(crate) github: Option<Arc<dyn Transport>>,
+    /// The GitHub CLI, as the host hands it in.
+    pub(crate) github_cli: Option<Arc<dyn Cli>>,
     /// How the app reaches Slack, as the host hands it in.
     pub(crate) slack: Option<Arc<dyn eos_slack::Transport>>,
     /// How the app drives Mail, as the host hands it in.
@@ -181,10 +186,10 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         clock,
         ids,
         sleeper,
-        github_client_id,
         slack_client_id,
         keychain,
         github,
+        github_cli,
         slack,
         mail,
         grants,
@@ -199,13 +204,17 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         Some(transport) => transport,
         None => reach.github(github),
     };
-    // Off the network its secrets are empty and its requests go nowhere.
+    let cli = match options.github_cli {
+        Some(cli) => cli,
+        None => reach.github_cli(github_cli),
+    };
+    // Off the network its secrets are empty, its requests go nowhere and `gh` is never run.
     let github: Arc<dyn BuiltinCapability> = Arc::new(GitHub::new(eos_github::Parts {
         transport,
         secrets: secrets.clone(),
         clock: clock.clone(),
         sleeper: sleeper.clone(),
-        client_id: github_client_id,
+        cli,
     }));
     let slack: Arc<dyn BuiltinCapability> = Arc::new(eos_slack::Slack::new(eos_slack::Parts {
         transport: options.slack.unwrap_or_else(|| reach.slack(slack)),

@@ -20,7 +20,7 @@ fn setup(capability: &Capability) -> Option<String> {
             format!("The user enters {label} {place}.")
         }
         (HealthState::NeedsSetup, Some(StateCode::ClientIdMissing)) => {
-            "The user sets the GitHub client id (github.clientId in config.json).".to_owned()
+            format!("The user sets its client id ({}.clientId in config.json).", capability.id)
         }
         (HealthState::NeedsSetup, Some(StateCode::AutomationDenied)) => {
             "The user allows Eos to control the app in System Settings › Privacy & Security › Automation.".to_owned()

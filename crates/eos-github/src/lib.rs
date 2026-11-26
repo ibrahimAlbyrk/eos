@@ -9,26 +9,29 @@
 //! requests for the user to pick (a repository's, done ones too, for a
 //! routine's past items), and registers a webhook that pushes a repository's
 //! pull requests to the relay's hook inbox. Its health check
-//! is `GET /user` with the `repo` scope. It signs in by GitHub's device flow
-//! (`DeviceSignIn`) with the client id from `github.clientId`, and keeps the
-//! token with the capability's secrets as `token`; a GitHub App's token,
-//! which lasts 8 hours, is renewed with its refresh token when GitHub
-//! refuses it. Writes stay under its
+//! is `GET /user` with the `repo` scope. It signs in with the GitHub CLI's
+//! sign-in ([`Cli`]; `gh` is installed when missing and runs its own
+//! sign-in when it has none) and keeps a copy of that token with the
+//! capability's secrets as `token`; when GitHub refuses it, the token `gh`
+//! has for the same account is read again. Writes stay under its
 //! rate bucket, and every action is bounded by its timeout.
 //!
 //! Every exchange goes through a [`Transport`]: [`HttpTransport`] in the
-//! app, `FakeGitHub` in tests. Logs carry hosts, status codes and kinds;
+//! app, `FakeGitHub` in tests; `gh` is reached through [`Cli`]: [`Gh`] in
+//! the app. Logs carry hosts, status codes and kinds;
 //! never the token, the codes of a sign-in, the account's name or anything
 //! a pull request says.
 
 mod actions;
+mod cli;
 mod client;
-mod device;
 mod diff;
+mod gh;
 mod manifest;
 mod rate;
 mod renew;
 mod reviews;
+mod sign_in;
 mod source;
 mod webhooks;
 
@@ -44,8 +47,10 @@ use serde_json::Value;
 
 use crate::webhooks::webhook_secret;
 
+pub use cli::{Cli, CliError, Login};
 pub use client::{API, HttpRequest, HttpResponse, HttpTransport, Method, Transport, WEB};
-pub use manifest::{ID, PULL_REQUEST, REFRESH_TOKEN, TOKEN};
+pub use gh::Gh;
+pub use manifest::{ACCOUNT, ID, PULL_REQUEST, TOKEN};
 pub use rate::{WRITES_PER_HOUR, WRITES_PER_MINUTE};
 
 #[derive(Debug, thiserror::Error)]
@@ -62,8 +67,8 @@ pub struct Parts {
     pub secrets: Arc<dyn CapabilitySecrets>,
     pub clock: Arc<dyn Clock>,
     pub sleeper: Arc<dyn Sleeper>,
-    /// The OAuth App's client id; empty, the sign-in cannot start.
-    pub client_id: String,
+    /// The GitHub CLI, whose sign-in the capability uses.
+    pub cli: Arc<dyn Cli>,
 }
 
 pub struct GitHub {
@@ -72,21 +77,23 @@ pub struct GitHub {
     secrets: Arc<dyn CapabilitySecrets>,
     clock: Arc<dyn Clock>,
     sleeper: Arc<dyn Sleeper>,
-    client_id: String,
+    cli: Arc<dyn Cli>,
     rate: rate::RateBucket,
-    /// Held while a refused token is renewed: a refresh token works once.
+    /// Held while a refused token is renewed, so `gh` is asked once.
     renewing: tokio::sync::Mutex<()>,
+    /// What the sign-in under way waits on, from its start to its finish.
+    signing: std::sync::Mutex<Option<sign_in::Waiting>>,
 }
 
 impl std::fmt::Debug for GitHub {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GitHub").field("client_id_set", &!self.client_id.is_empty()).finish_non_exhaustive()
+        f.debug_struct("GitHub").finish_non_exhaustive()
     }
 }
 
 impl std::fmt::Debug for Parts {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Parts").field("client_id_set", &!self.client_id.is_empty()).finish_non_exhaustive()
+        f.debug_struct("Parts").finish_non_exhaustive()
     }
 }
 
@@ -98,9 +105,10 @@ impl GitHub {
             secrets: parts.secrets,
             clock: parts.clock,
             sleeper: parts.sleeper,
-            client_id: parts.client_id.trim().to_owned(),
+            cli: parts.cli,
             rate: rate::RateBucket::default(),
             renewing: tokio::sync::Mutex::new(()),
+            signing: std::sync::Mutex::new(None),
         }
     }
 
@@ -127,9 +135,6 @@ impl GitHub {
 
     /// What `GET /user` says of the sign-in.
     async fn probe(&self, ctx: &ActionContext) -> Event {
-        if self.client_id.is_empty() {
-            return Event::Missing(StateCode::ClientIdMissing);
-        }
         let Ok(token) = Self::token(ctx) else { return Event::Missing(StateCode::SecretMissing(TOKEN.to_owned())) };
         let checked = tokio::select! {
             checked = self.check(token) => checked,
@@ -167,6 +172,6 @@ impl BuiltinCapability for GitHub {
     }
 
     fn undeclared_secrets(&self) -> &[&'static str] {
-        &[REFRESH_TOKEN]
+        &[ACCOUNT]
     }
 }

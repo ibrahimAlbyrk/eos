@@ -11,7 +11,7 @@ use eos_testkit::{FakeCapabilitySecrets, FakeGitHub, ScriptedRuntime, TempHome};
 use serde_json::{Value, json};
 
 use super::{items, read};
-use crate::planted::sign_in_to_github;
+use crate::planted::{sign_in_to_github, signing_in};
 use crate::routines_rig::{Fakes, eventually, make, page, pull, review_blueprint, runs, working_agents};
 
 /// The routine page's trigger lines.
@@ -22,9 +22,8 @@ async fn triggers(app: &App, routine: &str) -> Value {
 /// The app signed in to GitHub, and a review of pull requests that needs it.
 async fn signed_in(fakes: &Fakes, home: &TempHome, agents: &ScriptedRuntime) -> (App, String) {
     let github = Arc::new(FakeGitHub::new());
-    github.set_device_interval(1);
-    github.device_answers(vec![FakeGitHub::granted()]);
     let mut options = fakes.options(home.path(), agents, true);
+    options.capabilities.github_cli = Some(Arc::new(signing_in(&github)));
     options.capabilities.github = Some(github);
     options.capabilities.secrets = Some(Arc::new(FakeCapabilitySecrets::new()));
     let app = App::build(options).expect("builds");

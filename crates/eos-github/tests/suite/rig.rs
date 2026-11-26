@@ -6,7 +6,7 @@ use std::sync::Arc;
 use eos_core::capability::{ActionContext, ActionError, BuiltinCapability};
 use eos_domain::capability::schema::compile;
 use eos_github::{GitHub, Parts};
-use eos_testkit::{FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, GITHUB_TOKEN};
+use eos_testkit::{FakeCapabilitySecrets, FakeClock, FakeGhCli, FakeGitHub, FakeSleeper, GITHUB_TOKEN};
 use serde_json::Value;
 use zeroize::Zeroizing;
 
@@ -19,12 +19,13 @@ pub(crate) const PATCH: &str = "@@ -27,6 +27,6 @@ fn main()\n a\n b\n c\n-old\n+
 pub(crate) struct Rig {
     pub(crate) github: Arc<GitHub>,
     pub(crate) fake: Arc<FakeGitHub>,
+    pub(crate) cli: FakeGhCli,
     pub(crate) secrets: Arc<FakeCapabilitySecrets>,
     pub(crate) clock: Arc<FakeClock>,
     pub(crate) sleeper: Arc<FakeSleeper>,
 }
 
-pub(crate) fn rig_with(client_id: &str) -> Rig {
+pub(crate) fn rig_with(cli: FakeGhCli) -> Rig {
     let fake = Arc::new(FakeGitHub::new());
     let secrets = Arc::new(FakeCapabilitySecrets::new());
     let clock = Arc::new(FakeClock::at(1_763_460_000_000));
@@ -34,15 +35,15 @@ pub(crate) fn rig_with(client_id: &str) -> Rig {
         secrets: secrets.clone(),
         clock: clock.clone(),
         sleeper: sleeper.clone(),
-        client_id: client_id.into(),
+        cli: Arc::new(cli.clone()),
     }));
-    Rig { github, fake, secrets, clock, sleeper }
+    Rig { github, fake, cli, secrets, clock, sleeper }
 }
 
-/// Signed in, with one pull request by `alice` at [`HEAD`] changing
-/// `src/main.rs` ([`PATCH`]).
+/// `gh` installed and signed out, with one pull request by `alice` at
+/// [`HEAD`] changing `src/main.rs` ([`PATCH`]).
 pub(crate) fn rig() -> Rig {
-    let rig = rig_with("Iv1.fake");
+    let rig = rig_with(FakeGhCli::new());
     rig.fake.add_pull(REPO, 7, "alice", HEAD, 1_763_400_000_000, &[("src/main.rs", PATCH)]);
     rig
 }

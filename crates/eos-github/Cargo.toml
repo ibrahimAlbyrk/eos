@@ -1,6 +1,6 @@
 [package]
 name = "eos-github"
-description = "The github built-in capability: GitHub's REST API, its device-flow sign-in, pull request reads and reviews."
+description = "The github built-in capability: GitHub's REST API, its sign-in through the GitHub CLI, pull request reads and reviews."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,10 +12,12 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-net.workspace = true
+eos-kit-proc.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["macros", "sync"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 tracing.workspace = true
 url.workspace = true
 zeroize.workspace = true

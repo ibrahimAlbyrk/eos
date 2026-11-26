@@ -1,7 +1,8 @@
-//! Signing in to GitHub by a code, with the GitHub capability itself on
-//! `FakeGitHub`: start, pending, signed in and ready, ended by the user,
-//! forgotten with its refresh token, out of time, ended while its token is
-//! being kept, no client id, and who may ask.
+//! Signing in to GitHub through the GitHub CLI, with the GitHub capability
+//! itself on `FakeGitHub` and `FakeGhCli`: a code shown, pending, signed in
+//! and ready; a CLI signed in already; ended by the user; forgotten with its
+//! account; out of time; ended while its token is being kept; a CLI that
+//! cannot be installed; and who may ask.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -10,12 +11,11 @@ use eos_core::BoxFuture;
 use eos_core::capability::{ActionContext, ActionError, BuiltinCapability, CapabilitySecrets, DeviceSignIn};
 use eos_domain::capability::health::Event;
 use eos_domain::capability::manifest::Manifest;
-use eos_github::{GitHub, Parts, REFRESH_TOKEN};
+use eos_github::{ACCOUNT, GitHub, Parts};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::Method;
 use eos_testkit::{
-    FakeBuiltin, FakeCapabilitySecrets, FakeClock, FakeGitHub, FakeSleeper, GITHUB_REFRESH_TOKEN, GITHUB_TOKEN,
-    GITHUB_USER_CODE,
+    FakeBuiltin, FakeCapabilitySecrets, FakeClock, FakeGhCli, FakeGitHub, FakeSleeper, GITHUB_TOKEN, GITHUB_USER_CODE,
 };
 use serde_json::{Value, json};
 use tokio::sync::{Notify, Semaphore};
@@ -23,44 +23,52 @@ use tokio::sync::{Notify, Semaphore};
 use crate::rig::{MAIL, Rig, rig_with};
 
 const PATH: &str = "/api/capabilities/github/sign-in";
-/// GitHub's interval between polls, as `FakeGitHub` names it.
-const POLL_MS: i64 = 5_000;
+/// How long the sign-in's code lives.
+const CODE_MS: i64 = 900_000;
 
 struct SignIn {
     rig: Rig,
     fake: Arc<FakeGitHub>,
+    cli: FakeGhCli,
     secrets: Arc<FakeCapabilitySecrets>,
-    /// The waits between GitHub's polls.
-    polls: Arc<FakeSleeper>,
+    /// The waits of the sign-in.
+    waits: Arc<FakeSleeper>,
 }
 
-async fn sign_in(client_id: &str) -> SignIn {
-    let fake = Arc::new(FakeGitHub::new());
-    let secrets = Arc::new(FakeCapabilitySecrets::new());
-    let polls = Arc::new(FakeSleeper::default());
-    let github: Arc<dyn BuiltinCapability> = Arc::new(GitHub::new(Parts {
+fn github(
+    fake: &Arc<FakeGitHub>,
+    cli: &FakeGhCli,
+    secrets: &Arc<FakeCapabilitySecrets>,
+    waits: &Arc<FakeSleeper>,
+) -> GitHub {
+    GitHub::new(Parts {
         transport: fake.clone(),
         secrets: secrets.clone(),
         clock: Arc::new(FakeClock::at(1_763_460_000_000)),
-        sleeper: polls.clone(),
-        client_id: client_id.into(),
-    }));
-    let rig = rig_with(vec![github, Arc::new(FakeBuiltin::new(MAIL))], secrets.clone()).await;
-    SignIn { rig, fake, secrets, polls }
+        sleeper: waits.clone(),
+        cli: Arc::new(cli.clone()),
+    })
+}
+
+async fn sign_in(cli: FakeGhCli) -> SignIn {
+    let fake = Arc::new(FakeGitHub::new());
+    let secrets = Arc::new(FakeCapabilitySecrets::new());
+    let waits = Arc::new(FakeSleeper::default());
+    let builtin: Arc<dyn BuiltinCapability> = Arc::new(github(&fake, &cli, &secrets, &waits));
+    let rig = rig_with(vec![builtin, Arc::new(FakeBuiltin::new(MAIL))], secrets.clone()).await;
+    SignIn { rig, fake, cli, secrets, waits }
 }
 
 impl SignIn {
-    /// Ends the next wait between polls, once it is the only one: each
-    /// request to GitHub waits too, on its 30 s bound, until GitHub answers,
-    /// and such a wait is never ended here.
-    async fn poll(&self) {
+    /// Waits until the sign-in waits for its code to be entered.
+    async fn waiting(&self) {
         for _ in 0..10_000 {
-            if self.polls.pending() == [POLL_MS] && self.polls.wake() {
+            if self.waits.pending() == [CODE_MS] {
                 return;
             }
             tokio::task::yield_now().await;
         }
-        panic!("no poll waited");
+        panic!("the sign-in never waited for its code");
     }
 
     /// The attempt's status once it is no longer pending.
@@ -75,87 +83,99 @@ impl SignIn {
         }
         panic!("the sign-in never ended");
     }
+
+    async fn kept(&self, name: &str) -> Option<String> {
+        self.secrets.read("github", name).await.expect("reads").map(|kept| kept.to_string())
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_sign_in_shows_the_code_waits_and_leaves_github_signed_in_and_ready() {
-    let s = sign_in("Iv1.fake").await;
+    let s = sign_in(FakeGhCli::new()).await;
     let (status, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
     assert_eq!(
         (status, row["state"].clone(), row["stateCode"].clone()),
         (200, json!("needs_setup"), json!("secret_missing:token"))
     );
 
-    s.fake.device_answers(vec![json!({ "error": "authorization_pending" }), FakeGitHub::granted()]);
+    s.cli.next_login(&s.fake.login(), GITHUB_TOKEN);
     let (status, started) = s.rig.ask(Method::Post, PATH, None).await;
     assert_eq!(status, 200);
     assert_eq!(started["userCode"], GITHUB_USER_CODE);
     assert_eq!(started["verificationUri"], "https://github.com/login/device");
-    assert_eq!(started["expiresAt"], 1_763_460_000_000_i64 + 900_000);
+    assert_eq!(started["expiresAt"], 1_763_460_000_000_i64 + CODE_MS);
     assert_eq!(s.rig.ask(Method::Get, PATH, None).await, (200, json!({ "state": "pending" })));
 
-    s.poll().await;
-    s.poll().await;
+    s.waiting().await;
+    s.cli.enter_code();
     assert_eq!(s.ended().await, json!({ "state": "signed_in", "accountLabel": s.fake.login() }));
-    let kept = s.secrets.read("github", "token").await.expect("reads").expect("kept");
-    assert_eq!(kept.as_str(), GITHUB_TOKEN);
+    assert_eq!(s.kept("token").await.as_deref(), Some(GITHUB_TOKEN));
     let (_, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
     assert_eq!((row["state"].clone(), row["accountLabel"].clone()), (json!("ready"), json!(s.fake.login())));
     assert_eq!(s.rig.changes().last().map(String::as_str), Some(r#"{"id":"github","state":"ready"}"#));
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn forgetting_the_sign_in_forgets_its_refresh_token_too() {
-    let s = sign_in("Iv1.fake").await;
-    s.fake.device_answers(vec![FakeGitHub::granted_expiring()]);
-    assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
-    s.poll().await;
-    assert_eq!(s.ended().await["state"], "signed_in");
-    let kept = s.secrets.read("github", REFRESH_TOKEN).await.expect("reads").expect("kept");
-    assert_eq!(kept.as_str(), GITHUB_REFRESH_TOKEN);
-
-    let forget = "/api/capabilities/github/secrets/token";
-    assert_eq!(s.rig.ask(Method::Delete, forget, None).await, (200, json!({ "ok": true })));
-    assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None);
-    assert_eq!(s.secrets.read("github", REFRESH_TOKEN).await.expect("reads"), None, "the refresh token goes too");
+async fn a_cli_signed_in_already_signs_in_without_a_code() {
+    let s = sign_in(FakeGhCli::new()).await;
+    s.cli.sign_in(&s.fake.login(), GITHUB_TOKEN);
+    let (status, started) = s.rig.ask(Method::Post, PATH, None).await;
+    assert_eq!(status, 200);
+    assert!(started.get("userCode").is_none(), "nothing to enter: {started}");
+    assert_eq!(started["verificationUri"], "");
+    assert_eq!(s.ended().await, json!({ "state": "signed_in", "accountLabel": s.fake.login() }));
+    assert_eq!(s.cli.logins(), 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_sign_in_the_user_ends_stops_polling_and_one_out_of_time_says_expired() {
-    let s = sign_in("Iv1.fake").await;
+async fn forgetting_the_sign_in_forgets_its_account_too() {
+    let s = sign_in(FakeGhCli::new()).await;
+    s.cli.sign_in(&s.fake.login(), GITHUB_TOKEN);
     assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
+    assert_eq!(s.ended().await["state"], "signed_in");
+    assert_eq!(s.kept(ACCOUNT).await, Some(s.fake.login()));
+
+    let forget = "/api/capabilities/github/secrets/token";
+    assert_eq!(s.rig.ask(Method::Delete, forget, None).await, (200, json!({ "ok": true })));
+    assert_eq!(s.kept("token").await, None);
+    assert_eq!(s.kept(ACCOUNT).await, None, "the account goes too");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_the_user_ends_stops_waiting_and_one_out_of_time_says_expired() {
+    let s = sign_in(FakeGhCli::new()).await;
+    assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
+    s.waiting().await;
     assert_eq!(s.rig.ask(Method::Delete, PATH, None).await, (200, json!({ "ok": true })));
     assert_eq!(s.rig.ask(Method::Get, PATH, None).await.0, 404, "no attempt left");
     for _ in 0..10_000 {
-        if s.polls.pending().is_empty() {
+        if s.waits.pending().is_empty() {
             break;
         }
         tokio::task::yield_now().await;
     }
-    assert_eq!(s.polls.pending(), Vec::<i64>::new(), "nothing polls any more");
+    assert_eq!(s.waits.pending(), Vec::<i64>::new(), "nothing waits any more");
 
-    s.fake.device_answers(vec![json!({ "error": "expired_token" })]);
     assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
-    s.poll().await;
+    s.waiting().await;
+    assert!(s.waits.wake(), "the code's life ends");
     assert_eq!(s.ended().await, json!({ "state": "expired" }));
-    assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None);
+    assert_eq!(s.kept("token").await, None);
     let (_, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
     assert_eq!(row["state"], "needs_setup");
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn without_a_client_id_the_sign_in_does_not_start_and_says_why() {
-    let s = sign_in("").await;
-    let (status, body) = s.rig.ask(Method::Post, PATH, None).await;
-    assert_eq!(status, 409);
-    assert_eq!(body, json!({ "error": "GitHub has no client id to sign in with", "code": "client_id_missing" }));
+async fn a_cli_that_cannot_be_installed_does_not_start_the_sign_in() {
+    let s = sign_in(FakeGhCli::new().missing(false)).await;
+    assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 502);
     assert!(s.fake.calls().is_empty(), "GitHub was never asked");
     assert_eq!(s.rig.ask(Method::Get, PATH, None).await.0, 404);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn only_a_capability_that_signs_in_by_a_code_and_only_this_computer_may_ask() {
-    let s = sign_in("Iv1.fake").await;
+    let s = sign_in(FakeGhCli::new()).await;
     for method in [Method::Post, Method::Get, Method::Delete] {
         for id in ["mail", "nothing-here"] {
             let path = format!("/api/capabilities/{id}/sign-in");
@@ -215,33 +235,27 @@ impl BuiltinCapability for FirstCheckHeld {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_sign_in_ended_after_its_token_was_kept_ends_signed_out() {
     let fake = Arc::new(FakeGitHub::new());
+    let cli = FakeGhCli::new();
+    cli.sign_in(&fake.login(), GITHUB_TOKEN);
     let secrets = Arc::new(FakeCapabilitySecrets::new());
-    let polls = Arc::new(FakeSleeper::default());
+    let waits = Arc::new(FakeSleeper::default());
     let held = Arc::new(FirstCheckHeld {
-        github: GitHub::new(Parts {
-            transport: fake.clone(),
-            secrets: secrets.clone(),
-            clock: Arc::new(FakeClock::at(1_763_460_000_000)),
-            sleeper: polls.clone(),
-            client_id: "Iv1.fake".into(),
-        }),
+        github: github(&fake, &cli, &secrets, &waits),
         checks: AtomicUsize::new(0),
         entered: Notify::new(),
         gate: Semaphore::new(0),
     });
     let rig = rig_with(vec![held.clone(), Arc::new(FakeBuiltin::new(MAIL))], secrets.clone()).await;
-    let s = SignIn { rig, fake, secrets, polls };
+    let s = SignIn { rig, fake, cli, secrets, waits };
 
-    s.fake.device_answers(vec![FakeGitHub::granted_expiring()]);
     assert_eq!(s.rig.ask(Method::Post, PATH, None).await.0, 200);
-    s.poll().await;
     tokio::time::timeout(std::time::Duration::from_secs(10), held.entered.notified())
         .await
         .expect("the sign-in checks its kept token");
 
     assert_eq!(s.rig.ask(Method::Delete, PATH, None).await, (200, json!({ "ok": true })));
-    assert_eq!(s.secrets.read("github", "token").await.expect("reads"), None, "the cancel wins: no token stays");
-    assert_eq!(s.secrets.read("github", REFRESH_TOKEN).await.expect("reads"), None, "nor its refresh token");
+    assert_eq!(s.kept("token").await, None, "the cancel wins: no token stays");
+    assert_eq!(s.kept(ACCOUNT).await, None, "nor its account");
     let (_, row) = s.rig.ask(Method::Get, "/api/capabilities/github", None).await;
     assert_eq!(row["state"], "needs_setup");
     assert!(row["accountLabel"].is_null(), "no account is named: {row}");

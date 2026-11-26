@@ -315,6 +315,11 @@ fn start_core(
                 .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
                 .ok()?,
         ),
+        github_cli: Some(
+            eos_app::github_cli(home.join("tools"))
+                .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))
+                .ok()?,
+        ),
         slack: Some(
             eos_app::slack()
                 .inspect_err(|e| tracing::error!(target: "eos", error = %e, "the core could not be built"))

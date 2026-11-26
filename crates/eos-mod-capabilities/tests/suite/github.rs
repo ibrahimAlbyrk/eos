@@ -40,7 +40,7 @@ pub(crate) async fn github() -> GitHubRig {
         secrets: Arc::new(FakeCapabilitySecrets::new()),
         clock: clock.clone(),
         sleeper: Arc::new(FakeSleeper::default()),
-        client_id: "Iv1.fake".into(),
+        cli: Arc::new(eos_testkit::FakeGhCli::new()),
     }));
     let temp = TempStore::new();
     let trash = Arc::new(FakeTrash::new(temp.home.join("trash")));

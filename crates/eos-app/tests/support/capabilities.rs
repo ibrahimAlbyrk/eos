@@ -9,8 +9,8 @@ use eos_app::{App, CapabilityOptions};
 use eos_core::agent::{ToolCaller, ToolReply};
 use eos_runtime::http::Method;
 use eos_testkit::{
-    FakeBuiltin, FakeCapabilitySecrets, FakeGitHub, FakeSlack, GITHUB_DEVICE_CODE, GITHUB_TOKEN, GITHUB_USER_CODE,
-    SLACK_CODE, ScriptedRuntime,
+    FakeBuiltin, FakeCapabilitySecrets, FakeGhCli, FakeGitHub, FakeSlack, GITHUB_TOKEN, GITHUB_USER_CODE, SLACK_CODE,
+    ScriptedRuntime,
 };
 use serde_json::{Value, json};
 
@@ -45,6 +45,7 @@ pub(crate) const SLACK_CLIENT_ID: &str = "1234.5678";
 
 pub(crate) struct Planted {
     github: Arc<FakeGitHub>,
+    github_cli: FakeGhCli,
     slack: Arc<FakeSlack>,
     /// The state of the Slack sign-in, once it started.
     slack_state: std::sync::Mutex<Option<String>>,
@@ -53,15 +54,14 @@ pub(crate) struct Planted {
 }
 
 impl Planted {
-    /// The echo capability with its key set, and GitHub ready to grant a sign-in.
+    /// The echo capability with its key set, and the GitHub CLI ready to sign in.
     pub(crate) fn plant() -> Self {
         let github = Arc::new(FakeGitHub::new());
-        github.set_device_interval(1);
-        github.device_answers(vec![FakeGitHub::granted()]);
+        let github_cli = signing_in(&github);
         let secrets = Arc::new(FakeCapabilitySecrets::new().with("echo", "api_key", ECHO_SECRET));
         let note = json!({ "note": format!("The key is {ECHO_SECRET}.") });
         let echo = Arc::new(FakeBuiltin::new(ECHO).answering("read_note", Ok(note)));
-        Self { github, slack: Arc::new(FakeSlack::new()), slack_state: Default::default(), secrets, echo }
+        Self { github, github_cli, slack: Arc::new(FakeSlack::new()), slack_state: Default::default(), secrets, echo }
     }
 
     pub(crate) fn options(&self) -> CapabilityOptions {
@@ -69,19 +69,19 @@ impl Planted {
             secrets: Some(self.secrets.clone()),
             builtins: vec![self.echo.clone()],
             github: Some(self.github.clone()),
+            github_cli: Some(Arc::new(self.github_cli.clone())),
             slack: Some(self.slack.clone()),
             ..CapabilityOptions::default()
         }
     }
 
     /// What must never reach a log, a tool result or a frame: the key, GitHub's token and
-    /// codes, the account's name, and Slack's tokens, code, state and label.
+    /// code, the account's name, and Slack's tokens, code, state and label.
     pub(crate) fn values(&self) -> Vec<String> {
         let mut values = vec![
             ECHO_SECRET.to_owned(),
             GITHUB_TOKEN.to_owned(),
             GITHUB_USER_CODE.to_owned(),
-            GITHUB_DEVICE_CODE.to_owned(),
             self.github.login(),
             SLACK_CODE.to_owned(),
             "xoxe.xoxp-fake-1".to_owned(),
@@ -114,6 +114,11 @@ impl Planted {
         }
         panic!("the Slack sign-in never ended");
     }
+}
+
+/// A GitHub CLI whose sign-in shows a code the user enters at once, as `github`'s account.
+pub(crate) fn signing_in(github: &FakeGitHub) -> FakeGhCli {
+    FakeGhCli::new().entering(&github.login(), GITHUB_TOKEN)
 }
 
 /// `call_capability` as the engine calls it for `chat`'s model.
