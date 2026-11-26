@@ -131,7 +131,11 @@ export function RoutinesScreen() {
   }, []);
 
   const now = Date.now();
-  const nextOf = Object.fromEntries(next.filter((n) => n.nextAt != null).map((n) => [n.routineId, n.nextAt]));
+  // Only a routine that runs has a next run: a paused, archived or unknown one
+  // is left out of Coming up and its Next run, whatever the read still holds.
+  const running = new Set((list ?? []).filter((r) => r.state === "active").map((r) => r.id));
+  const upcoming = next.filter((n) => n.nextAt != null && running.has(n.routineId));
+  const nextOf = Object.fromEntries(upcoming.map((n) => [n.routineId, n.nextAt]));
   const rows = (list ?? [])
     // A paused routine with something waiting is among the active, as in the
     // sidebar: what it holds needs the user now.
@@ -162,7 +166,7 @@ export function RoutinesScreen() {
             {filter !== "active" && soonestLine(rows, now) && <p className="eos-lead__sub">{soonestLine(rows, now)}</p>}
           </header>
         )}
-        {filter === "active" && rows.length > 0 && <ComingUp slots={comingUp(next, now)} names={namesOf(list)} now={now} />}
+        {filter === "active" && rows.length > 0 && <ComingUp slots={comingUp(upcoming, now)} names={namesOf(list)} now={now} />}
         {list !== null && !none && !resting && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
           {Object.entries(FILTERS).map(([key, f]) => (
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
