@@ -55,6 +55,9 @@
   gap: 8px 12px;
   padding-left: max(0px, calc(var(--eos-frame-x) - var(--eos-inset, 0px)));
   padding-right: var(--eos-frame-r);
+  /* As tall with only a title as with buttons, so the body never moves. */
+  min-height: 65px;
+  box-sizing: border-box;
 }
 .app.side-collapsed .eos-head { --eos-inset: 24px; }
 html.native .app.side-collapsed .eos-head { --eos-inset: 98px; }

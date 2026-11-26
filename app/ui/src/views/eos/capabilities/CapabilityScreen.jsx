@@ -235,11 +235,14 @@ function Settings({ detail }) {
           )}
         </label>
       ))}
-      <div className="eos-cap-settings__acts">
-        {changed && <span className="eos-cap-part__aside">Not saved yet</span>}
-        {changed && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setValues(saved)}>Cancel</button>}
-        <button type="submit" className={changed ? "eos-btn eos-btn--primary" : "eos-btn"} disabled={!changed}>Save settings</button>
-      </div>
+      {/* Save comes once something changed: an idle, greyed Save reads as broken. */}
+      {changed && (
+        <div className="eos-cap-settings__acts">
+          <span className="eos-cap-part__aside">Not saved yet</span>
+          <button type="button" className="eos-btn eos-btn--quiet" onClick={() => setValues(saved)}>Cancel</button>
+          <button type="submit" className="eos-btn eos-btn--primary">Save settings</button>
+        </div>
+      )}
     </form>
   );
 }

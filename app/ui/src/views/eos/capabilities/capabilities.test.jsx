@@ -264,7 +264,7 @@ describe("a capability's page", () => {
     let html = await page("weather");
     expect(html).toContain("Slow: the service is limiting how often Eos may ask.");
     expect(html).toContain('<span>City</span><input type="text" placeholder="Not set" value=""/>');
-    expect(html).toContain('<button type="submit" class="eos-btn" disabled="">Save settings</button>');
+    expect(html).not.toContain(">Save settings<");
     expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary">Check now</button>');
     expect(html).toContain('<span class="eos-cap-call__action">forecast</span><span class="eos-cap-call__outcome">Took too long</span><span class="eos-cap-call__ms">30000 ms</span>');
 
