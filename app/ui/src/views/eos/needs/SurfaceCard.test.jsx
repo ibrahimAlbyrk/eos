@@ -57,7 +57,8 @@ describe("a routine's View in Needs you", () => {
       <UiProvider><SurfaceCard card={{ surface, issue, body: { view } }} routineName="Morning Mail" /></UiProvider>,
     );
     expect(html).toContain('<section class="eos-frame" aria-label="Made by Morning Mail">');
-    expect(html).toContain('<span class="eos-frame__level">View</span>');
+    expect(html).toContain('<span class="eos-frame__maker">Drawn by Morning Mail. Only the buttons under it act.</span>');
+    expect(html).not.toContain("eos-frame__level");
     expect(html).toContain("Overnight mail");
     expect(html).toContain("12 mails came in overnight.");
   });

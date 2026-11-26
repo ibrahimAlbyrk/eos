@@ -16,7 +16,7 @@ import routinePaused from "./sample/routine-paused.json";
 import runDetail from "./sample/run-detail.json";
 import drafts from "./sample/blueprint-drafts.json";
 import versionBodies from "./sample/blueprint-version-bodies.json";
-import { NEEDS_STATES } from "./needsStates.js";
+import { NEEDS_STATES, putInList } from "./needsStates.js";
 import { MEMORY_STATES } from "./memoryStates.js";
 import { CAPABILITY_STATES } from "./capabilityStates.js";
 import { PAGE_STATES } from "./pageStates.js";
@@ -32,8 +32,7 @@ const PAPER = paper.surface.id;
 function withDecision(s) {
   const at = Date.now() - 10 * 60 * 1000;
   const item = { ...decision.item, createdAt: at, updatedAt: at };
-  const list = s[ROUTES.inbox];
-  return { ...s, [ROUTES.inbox]: { ...list, items: [item, ...list.items] }, [ROUTES.inboxItem(item.id)]: { item, payload: {} } };
+  return { ...putInList(s, item, true), [ROUTES.inboxItem(item.id)]: { item, payload: {} } };
 }
 
 // The same View as a run hands it in without facts or an aside, from a run

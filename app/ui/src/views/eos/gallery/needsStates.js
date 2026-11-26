@@ -40,10 +40,15 @@ const withLiveTest = (state) => changed(PROPOSAL, (d) => ({
 // The item `id` waiting in the list as well, counted as the core counts it,
 // so the badge, the sidebar and the item's pager say one number.
 const listed = (id) => (s) => {
-  const list = s[ROUTES.inbox];
   const detail = s[ROUTES.inboxItem(id)];
-  if (!detail || list.items.some((i) => i.id === id)) return s;
-  const { item } = detail;
+  return detail ? putInList(s, detail.item) : s;
+};
+
+// `item` in the list (last, or first when `first`), its counts with it,
+// unless it is there already.
+export function putInList(s, item, first = false) {
+  const list = s[ROUTES.inbox];
+  if (list.items.some((i) => i.id === item.id)) return s;
   const bump = (counts, key) => (key ? { ...counts, [key]: (counts[key] ?? 0) + 1 } : counts);
   const counts = {
     ...list.counts,
@@ -51,8 +56,8 @@ const listed = (id) => (s) => {
     byKind: bump(list.counts.byKind, item.kind),
     byRoutine: bump(list.counts.byRoutine, item.routineId),
   };
-  return { ...s, [ROUTES.inbox]: { ...list, items: [...list.items, item], counts } };
-};
+  return { ...s, [ROUTES.inbox]: { ...list, items: first ? [item, ...list.items] : [...list.items, item], counts } };
+}
 
 // Every sample item waiting in the list, each as the list reads it.
 function everything(s) {

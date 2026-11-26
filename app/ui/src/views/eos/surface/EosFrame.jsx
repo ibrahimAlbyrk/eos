@@ -10,12 +10,15 @@ const LEVELS = { view: "View", page: "Page", app: "App" };
 // the way to the issues before and after.
 export function EosFrame({ maker, level = "view", children, below = null, outside = false, detail = null, tools = null }) {
   const made = `Made by ${maker ?? "Eos"}`;
+  // A View sits among Eos's own controls, so its strip says who drew it and
+  // that only Eos's buttons under it act; a Page or an App names its level.
+  const said = level === "view" ? `Drawn by ${maker ?? "Eos"}. Only the buttons under it act.` : made;
   return (
     <section className={level === "page" ? "eos-frame eos-frame--page" : "eos-frame"} aria-label={made}>
       <div className="eos-frame__strip">
-        <span className="eos-frame__maker">{made}{detail && <span className="eos-frame__detail"> · {detail}</span>}</span>
+        <span className="eos-frame__maker">{said}{detail && <span className="eos-frame__detail"> · {detail}</span>}</span>
         {outside && <span className="eos-frame__outside" title="The run read text from outside Eos. Its words show here as written.">From outside text</span>}
-        {tools ?? <span className="eos-frame__level">{LEVELS[level] ?? level}</span>}
+        {tools ?? (level !== "view" && <span className="eos-frame__level">{LEVELS[level] ?? level}</span>)}
       </div>
       <div className="eos-frame__content">{children}</div>
       {below && <div className="eos-frame__eos">{below}</div>}
