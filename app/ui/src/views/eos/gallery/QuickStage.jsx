@@ -1,6 +1,7 @@
 import { QuickPanel } from "../quick/QuickPanel.jsx";
 
-// The quick panel as the shell shows it over another app, with doors that
+// The quick panel as the shell shows it over another app (the stage a
+// lighter ground, so its edge and shadow read as they do over a window), with doors that
 // answer from the state: what a door holds, whether Accessibility is
 // allowed, and whether the Start-at-login offer was answered. Nothing
 // reaches the shell.
@@ -19,7 +20,7 @@ export function galleryDoors({ item = null, trusted = true, offered = true }) {
 
 export function QuickStage({ quick }) {
   return (
-    <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 120, minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 120, minHeight: "100vh", background: "var(--raised)" }}>
       <QuickPanel doors={galleryDoors(quick)} />
     </div>
   );

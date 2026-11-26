@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EosModeIcon } from "../meta.jsx";
 import { ensureRoutinesLoaded } from "../../../state/eos/routinesStore.js";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { PANEL_HINT } from "../input/intent/intentWords.js";
@@ -63,7 +64,7 @@ export function QuickPanel({ doors = globalThis.window?.eosDoors }) {
     <div ref={rootRef} className="eos-quick" style={{ width: WIDTH }}>
       <div className="eos-quick__sheet">
         <div className="eos-quick__head">
-          <span className="eos-label eos-quick__name">Eos</span>
+          <span className="eos-quick__name"><EosModeIcon />Eos</span>
           {from && <span className="eos-quick__from">{from}</span>}
           <span className="eos-quick__esc"><span className="eos-intent__key">esc</span> to close</span>
         </div>

@@ -52,7 +52,7 @@ describe("what a door holds for the quick panel", () => {
     const html = renderToStaticMarkup(<QuickPanel doors={null} />);
     expect(html).toContain(`class="eos-quick" style="width:${WIDTH}px"`);
     expect(html).toContain("What should Eos take care of?");
-    expect(html).toContain('<span class="eos-label eos-quick__name">Eos</span>');
+    expect(html).toMatch(/<span class="eos-quick__name"><svg[^>]*>.*?<\/svg>Eos<\/span>/);
     expect(html).toContain("Say what Eos should take care of, or type / for your routines.");
   });
 
