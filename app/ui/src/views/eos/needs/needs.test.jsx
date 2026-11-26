@@ -138,9 +138,9 @@ describe("the Needs-you list", () => {
 
   it("names the chats waiting in Agents in one line", async () => {
     await loaded();
-    expect(at("eos:/needs")).toContain('<p class="eos-needs-agents">2 chats in Agents are waiting for you.</p>');
+    expect(at("eos:/needs")).toContain('<p class="eos-needs-agents">Two chats in Agents are waiting for you.</p>');
     await loaded({ ...reads, [ROUTES.inbox]: { ...inbox, agentsWaiting: 1 } });
-    expect(at("eos:/needs")).toContain("1 chat in Agents is waiting for you.");
+    expect(at("eos:/needs")).toContain("One chat in Agents is waiting for you.");
     await loaded({ ...reads, [ROUTES.inbox]: { ...inbox, agentsWaiting: 0 } });
     expect(at("eos:/needs")).not.toContain("eos-needs-agents");
   });

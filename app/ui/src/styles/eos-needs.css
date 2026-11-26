@@ -403,3 +403,7 @@
 }
 .eos-needs-sheet .eos-edit__include input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 .eos-needs-sheet .eos-edit__include input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* The answer and Later each keep a column, Later's held even when it is not
+   offered, so the answers line up down the list. */
+.eos-needs-row > .eos-actions { display: grid; grid-template-columns: 80px 64px; justify-items: start; align-items: center; gap: 0 4px; }
