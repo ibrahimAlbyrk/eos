@@ -489,7 +489,7 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-new__input .eos-new__text { flex: none; resize: none; min-height: 52px; field-sizing: content; max-height: 220px; }
 .eos-new__keys { padding-left: 2px; font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-new > .eos-band { margin-top: 20px; }
-.eos-new > .eos-section { margin-top: 64px; }
+.eos-new > .eos-section { margin-top: 48px; }
 .eos-new > .eos-section + .eos-section { margin-top: 48px; }
 
 /* The other ways in: one quiet line under the sentences. */
@@ -517,10 +517,12 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 /* The blueprint not written yet: the spine and what each slot holds, on
    the page's own ground. */
 .eos-bp-card--ghost { padding: 0; background: none; }
-.eos-bp-card--ghost .eos-bp-row { padding-top: 14px; padding-bottom: 14px; }
-.eos-bp-card--ghost .eos-bp-row__dot { top: 23px; background: var(--bg); }
-.eos-bp-card--ghost .eos-bp-row:first-child::before { top: 27px; }
-.eos-bp-card--ghost .eos-bp-row:last-child::before { height: 27px; }
+/* Rows of 44 so all eight, Freedom with them, sit above the fold of a
+   1037 px window. */
+.eos-bp-card--ghost .eos-bp-row { padding-top: 9px; padding-bottom: 9px; }
+.eos-bp-card--ghost .eos-bp-row__dot { top: 18px; background: var(--bg); }
+.eos-bp-card--ghost .eos-bp-row:first-child::before { top: 22px; }
+.eos-bp-card--ghost .eos-bp-row:last-child::before { height: 22px; }
 .eos-bp-card--ghost .eos-bp-row:last-child::after { content: none; }
 
 /* A file dragged over New routine: the screen dims and one dashed outline
