@@ -84,7 +84,9 @@
    mark before its name (accent and breathing while it works), its cost at
    the right, its model and state in mono under, then what it did last. */
 .eos-team { display: flex; flex-direction: column; gap: 12px; }
-.eos-team__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+/* Cards wrap as a row that fills: a last card alone takes the row, never an orphan beside a hole. */
+.eos-team__cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.eos-team__cards > * { flex: 1 1 220px; min-width: 0; }
 .eos-team-card { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: 14px; }
 .eos-team-card__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 10px; row-gap: 4px; }
 .eos-team-card__mark { align-self: center; width: 8px; height: 8px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--fg-dim2); }
