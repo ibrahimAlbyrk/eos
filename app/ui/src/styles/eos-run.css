@@ -379,3 +379,7 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-project__ghost { display: flex; align-items: center; min-height: 160px; padding: 20px; box-sizing: border-box; border: 1px dashed var(--line-strong, #2e2e2e); border-radius: 14px; }
 .eos-project__ghost p { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim2); text-wrap: pretty; }
 .eos-project__aside:has(.eos-project__ghost) .eos-project__panel { display: none; }
+
+/* The routine's other runs at the foot of a run: one of many. */
+.eos-run-neighbours { display: flex; flex-direction: column; gap: 12px; }
+.eos-run-neighbours .eos-section__aside.eos-link { font-size: var(--text-xs); color: var(--accent); }

@@ -4,7 +4,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { _resetRoutines, refreshRoutines } from "../../../state/eos/routinesStore.js";
 import { _resetRunLive, applyRunActivity, retain } from "../../../state/eos/runLiveStore.js";
-import { _resetRuns, loadRun, loadRunResult, messageRun, pauseRun, resumeRun, stopRun } from "../../../state/eos/runsStore.js";
+import { _resetRuns, loadRun, loadRuns, loadRunResult, messageRun, pauseRun, resumeRun, stopRun } from "../../../state/eos/runsStore.js";
 import { _resetRunSheet, registerHost, useRunSheet } from "../../../state/eos/runSheetStore.js";
 import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
@@ -192,6 +192,20 @@ describe("the run view", () => {
     expect(states(paused)).toEqual(["done", "paused*", "todo", "todo", "todo"]);
     expect(paused).toContain(">Stop</button>");
     expect(paused).toContain('<span class="eos-team-card__side">Sonnet 5.5 · resting</span>');
+  });
+
+  it("ends on its routine's other runs, without itself, and the way to every run", async () => {
+    const done = byId["shown01"].run;
+    const others = runs.map((d) => d.run).filter((r) => r.routineId === done.routineId);
+    const page = `${ROUTES.runs}?routineId=${done.routineId}&limit=50`;
+    const transport = fixtureTransport({ ...reads, [page]: { runs: others, nextBefore: null } });
+    setEosTransport(transport);
+    await loadRuns(done.routineId);
+    const html = await screen("shown01", transport);
+    expect(html).toContain("PR Review&#x27;s other runs");
+    expect(html).toContain(">Every run</button>");
+    const shown = [...html.matchAll(/<li class="eos-run-row">/g)].length;
+    expect(shown).toBe(Math.min(4, others.length - 1));
   });
 
   it("says when the run is gone or could not be read", async () => {

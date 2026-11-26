@@ -12,6 +12,7 @@ import { RoutinePage } from "../routine/RoutinePage.jsx";
 import { splitItemNumber } from "../routine/RoutineRuns.jsx";
 import { RunCost } from "./RunCost.jsx";
 import { RunMemory } from "./RunMemory.jsx";
+import { RunNeighbours } from "./RunNeighbours.jsx";
 import { RunCheck } from "./RunCheck.jsx";
 import { RunGone, RunLead, RunLeadGhost } from "./RunLead.jsx";
 import { RunTook } from "./RunTook.jsx";
@@ -91,7 +92,7 @@ function ShownResult({ detail, result }) {
 
 const teamCount = (n) => (n === 1 ? "one agent" : `${n} agents`);
 
-function RunBody({ detail, options, result, lines, devRun, now }) {
+function RunBody({ detail, options, result, lines, devRun, now, routineName }) {
   const { run } = detail;
   const shownOnly = isShownOnly(detail);
   return (
@@ -114,6 +115,7 @@ function RunBody({ detail, options, result, lines, devRun, now }) {
           )}
           {TELLABLE.has(run.state) && <TellTeam runId={run.id} />}
           <RunCheck verdict={detail.verdict} />
+          <RunNeighbours run={run} routineName={routineName} now={now} />
         </section>
         <aside className="eos-run-aside" aria-label="About this run">
           <RunTook input={detail.input} options={options} />
@@ -184,6 +186,7 @@ export function RunView({ id }) {
         <RunBody
           detail={detail}
           options={routine?.options}
+          routineName={routine?.name}
           result={showsResult ? results[id] : null}
           lines={lines}
           devRun={devRun}
