@@ -1,8 +1,10 @@
 //! The View Eos builds with no agent when a page cannot be filled (three
 //! refused fills, a run that ends without one, no kept design) and when the
-//! reader asks for plain reading: one Section per top-level field, a List
-//! per list, a Text per value. Values stay in the View's data, read by
-//! slot, so no text of the issue is ever markup. Images are left out: a
+//! reader asks for plain reading: one Section per top-level field holding a
+//! List, a row per item of a list, per text of an object (its field's name
+//! as the meta) or for the one value. Values stay in the View's data, read
+//! by a List row's slots, so no text of the issue is ever markup: a Text's
+//! children are markdown, never filled from data. Images are left out: a
 //! View fetches its images when it is read, and a surface never does.
 
 use serde_json::{Map, Value, json};
@@ -34,30 +36,26 @@ pub fn fallback_view(title: &str, contract: Option<&Contract>, data: &Value) -> 
                 if rows.is_empty() {
                     continue;
                 }
-                ui.push_str(&format!(
-                    "<Section title=\"{label}\"><List of=\"{key}\" title=\"{{title}}\" meta=\"{{meta}}\"/></Section>\n"
-                ));
+                ui.push_str(&list(&label, &key));
                 view_data.insert(key, Value::Array(rows));
             }
             Value::Object(fields) => {
-                let texts: Map<String, Value> =
-                    fields.iter().filter_map(|(k, v)| text(v).map(|t| (safe_key(k), Value::String(t)))).collect();
-                if texts.is_empty() {
-                    continue;
-                }
-                summary = summary.or_else(|| texts.values().next().and_then(Value::as_str).map(str::to_owned));
-                ui.push_str(&format!("<Section title=\"{label}\">"));
-                for k in texts.keys() {
-                    ui.push_str(&format!("<Text>{{{key}.{k}}}</Text>"));
-                }
-                ui.push_str("</Section>\n");
-                view_data.insert(key, Value::Object(texts));
+                let rows: Vec<Value> = fields
+                    .iter()
+                    .filter_map(|(k, v)| text(v).map(|t| (self::label(k), t)))
+                    .enumerate()
+                    .map(|(i, (name, t))| json!({"id": i, "title": t, "meta": name}))
+                    .collect();
+                let Some(first) = rows.first() else { continue };
+                summary = summary.or_else(|| first["title"].as_str().map(str::to_owned));
+                ui.push_str(&list(&label, &key));
+                view_data.insert(key, Value::Array(rows));
             }
             scalar => {
                 let Some(t) = text(scalar) else { continue };
                 summary = summary.or_else(|| Some(t.clone()));
-                ui.push_str(&format!("<Section title=\"{label}\"><Text>{{{key}}}</Text></Section>\n"));
-                view_data.insert(key, Value::String(t));
+                ui.push_str(&list(&label, &key));
+                view_data.insert(key, json!([{"id": 0, "title": t, "meta": ""}]));
             }
         }
     }
@@ -70,6 +68,11 @@ pub fn fallback_view(title: &str, contract: Option<&Contract>, data: &Value) -> 
         "ui": ui,
         "data": view_data,
     })
+}
+
+/// A Section of `label` holding the List of the rows at `key`.
+fn list(label: &str, key: &str) -> String {
+    format!("<Section title=\"{label}\"><List of=\"{key}\" title=\"{{title}}\" meta=\"{{meta}}\"/></Section>\n")
 }
 
 fn row(i: usize, item: &Value) -> Value {
@@ -90,12 +93,6 @@ fn text(value: &Value) -> Option<String> {
     };
     let t = t.trim();
     (!t.is_empty()).then(|| t.chars().take(TEXT_CHARS).collect())
-}
-
-/// A data key the View's slots can name.
-fn safe_key(name: &str) -> String {
-    let key: String = name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
-    if key.starts_with(|c: char| c.is_ascii_alphabetic()) { key } else { format!("k{key}") }
 }
 
 /// `left_out` reads as "Left out".
@@ -132,7 +129,9 @@ mod tests {
         }
         let ui = view["ui"].as_str().expect("ui");
         assert!(!ui.contains("secret") && !ui.contains("A lead"), "{ui}");
-        assert_eq!(view["data"]["f0"], "<Section>{secret}</Section>");
+        assert_eq!(view["data"]["f0"][0]["title"], "<Section>{secret}</Section>");
+        assert_eq!(view["data"]["f1"][0], json!({"id": 0, "title": "A lead", "meta": "Title"}));
+        assert!(!ui.contains("<Text>{"), "a Text's children are never filled from data: {ui}");
         assert!(!ui.contains("<Image"));
     }
 }
