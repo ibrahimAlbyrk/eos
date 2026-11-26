@@ -642,10 +642,16 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-fact--err { color: var(--err); }
 .eos-fact--err::before { border-color: var(--err); background: var(--err); }
 .eos-fact .eos-btn { height: 28px; padding: 0 12px; font-size: var(--text-sm); }
-.eos-failed { padding-top: 24px; }
+/* A screen whose read failed: Home's reading column, centred in the window and
+   set a little above the middle, the err mark hung in the margin before what
+   could not be read so the words keep the column's edge. */
+.eos-failed { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; box-sizing: border-box; width: 100%; max-width: 760px; margin: clamp(24px, 14vh, 168px) auto 0; }
+.eos-failed__what { position: relative; }
+.eos-failed__what::before { content: ""; position: absolute; left: -22px; top: 0.5em; width: 9px; height: 9px; border-radius: 50%; background: var(--err); box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 22%, transparent); }
+.eos-failed > .eos-rlead__acts { margin-top: 16px; }
 /* A part that could not be read: the mark carries the err tone, the words stay readable. */
 .eos-load-failed { color: var(--fg-mid); }
-.eos-failed > .eos-rlead__now { margin-top: -12px; }
+.eos-failed .eos-rlead__now { margin: 0; }
 
 /* ── Notices ──────────────────────────────────────────────────────────────── */
 /* What a screen was told (notify.*), at the foot of the main column: one solid

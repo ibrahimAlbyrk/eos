@@ -66,7 +66,7 @@ export function sortRows(rows, key, dir) {
 }
 
 const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
-const word = (n) => WORDS[n] ?? String(n);
+export const word = (n) => WORDS[n] ?? String(n);
 
 // The screen's lead: how many routines are in this view, and how many of
 // them wait for the user.

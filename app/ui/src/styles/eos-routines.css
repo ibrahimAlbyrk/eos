@@ -64,3 +64,9 @@
 .eos-first__row:hover .eos-rtable__mark { color: var(--fg-strong); border-color: var(--border-strong); }
 @media (prefers-reduced-motion: reduce) { .eos-first__row:hover .eos-first__go { transform: none; } }
 .eos-routines > .eos-first { align-self: stretch; }
+
+/* Nothing active: each paused routine on its hairline, Resume at its right. */
+.eos-first__list > li.eos-first__rest { display: flex; align-items: center; gap: 16px; }
+.eos-first__rest > .eos-first__row { flex: 1; min-width: 0; }
+.eos-first__rest > .eos-btn { flex: none; }
+.eos-first > .eos-first__acts { margin-top: 32px; }

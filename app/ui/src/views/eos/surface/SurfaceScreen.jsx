@@ -101,7 +101,7 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
       <div className="eos-body eos-page">
         {devRun && <DevRunNote />}
         {page?.failed === "gone" && <PageGone />}
-        {page?.failed === "error" && <FailedLead what="this page" retry={() => void loadPage(surfaceId)} />}
+        {page?.failed === "error" && <FailedLead what="this page" retry={() => void loadPage(surfaceId)} back={{ label: "Back to Home", location: "eos:/" }} />}
         {!page && <PageLoading />}
         {surface && reshaping && (
           <div className="eos-page__column eos-reshape">

@@ -120,7 +120,7 @@ export function NeedsItemScreen({ id }) {
     },
   }, [detail, values, offline, neighbours, at, viewSubmit]);
 
-  const title = detail?.item.title ?? "Item";
+  const title = detail?.item.title ?? (failed[id] ? "An item" : "Loading…");
   const { Body } = cardOf(detail?.item.kind);
   const routineName = nameOf(detail?.item.routineId);
   const isDraft = detail?.item.kind === "draft";
@@ -156,7 +156,7 @@ export function NeedsItemScreen({ id }) {
             <div className="eos-rlead__acts"><button type="button" className="eos-btn" onClick={() => openLocation("eos:/needs")}>Back to Needs you</button></div>
           </header>
         )}
-        {!detail && failed[id] === "error" && <FailedLead what="this item" retry={() => void loadInboxItem(id)} />}
+        {!detail && failed[id] === "error" && <FailedLead what="this item" retry={() => void loadInboxItem(id)} back={{ label: "Back to Needs you", location: "eos:/needs" }} />}
         {!detail && !failed[id] && <ItemGhost />}
         {detail && (
           <div className="eos-needs-item__columns">

@@ -359,7 +359,7 @@ export function CapabilityScreen({ id }) {
         <div className="eos-rlead__acts"><button type="button" className="eos-btn" onClick={() => openLocation(LIST)}>All capabilities</button></div>
       </header>
     );
-  } else if (failed[id] === "error") body = <FailedLead what="this capability" retry={() => void loadCapability(id)} />;
+  } else if (failed[id] === "error") body = <FailedLead what="this capability" retry={() => void loadCapability(id)} back={{ label: "Back to Capabilities", location: LIST }} />;
   else body = <Ghost />;
 
   return (
