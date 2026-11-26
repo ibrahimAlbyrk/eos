@@ -374,7 +374,7 @@
 .eos-frame__content .gv-check__item { padding: 6px 14px 6px 12px; cursor: pointer; transition: box-shadow 140ms var(--ease), background-color 140ms var(--ease); }
 .eos-frame__content .gv-check__item:hover { box-shadow: inset 0 0 0 1px var(--fg-faint); }
 .eos-frame__content .gv-stepper__ctl { gap: 0; height: 36px; padding: 0 3px; box-sizing: border-box; border-radius: 10px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
-.eos-frame__content .gv-stepper__ctl:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
+.eos-frame__content .gv-stepper__ctl:has(.gv-stepper__value:focus-visible) { box-shadow: inset 0 0 0 1px var(--accent); }
 .eos-frame__content .gv-stepper__btn { width: 30px; height: 30px; border-radius: 8px; background: none; color: var(--fg-mid); }
 .eos-frame__content .gv-stepper__btn:hover:not(:disabled) { background: var(--row-on); color: var(--fg-strong); }
 .eos-frame__content .gv-stepper__value { min-width: 36px; font-size: var(--text-md); font-weight: 500; }
