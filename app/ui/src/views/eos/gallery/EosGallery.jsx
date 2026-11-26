@@ -1,3 +1,4 @@
+import "./galleryClock.js";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ROUTES } from "../../../api/routes.js";
