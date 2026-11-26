@@ -63,10 +63,10 @@ afterEach(() => {
 describe("a run's stations", () => {
   const at = (state, station, reason) => stationStates({ state, station, reason }).map((s) => s.state);
 
-  it("are none reached while queued or skipped, and all passed once done", () => {
+  it("are none reached while queued or skipped, and all passed once done, ending lit where it reached you", () => {
     expect(at("queued")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
     expect(at("skipped", undefined, "superseded")).toEqual(["todo", "todo", "todo", "todo", "todo"]);
-    expect(at("done", "check")).toEqual(["done", "done", "done", "done", "done"]);
+    expect(at("done", "check")).toEqual(["done", "done", "done", "done", "arrived"]);
   });
 
   it("mark the station a live run is at", () => {
@@ -154,7 +154,7 @@ describe("the run view", () => {
   it("shows a finished show-only run's result, read-only, and a trial's under its own heading", async () => {
     const shown = await screen("shown01");
     expect(shown).toMatch(/<span class="eos-status eos-status--ok">Done in 4 min<\/span>/);
-    expect(states(shown)).toEqual(["done", "done", "done", "done", "done"]);
+    expect(states(shown)).toEqual(["done", "done", "done", "done", "arrived"]);
     expect(shown).toContain('<h2 class="eos-label">What it made</h2>');
     expect(shown).toContain("<md>Clean change. One note about naming.</md>");
     expect(shown).not.toContain(">Stop</button>");
