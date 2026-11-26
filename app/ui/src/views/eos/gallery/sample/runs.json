@@ -147,7 +147,7 @@
       "itemTitle": "#469 Fix the save slot",
       "needsUser": false,
       "costUsd": 0.33,
-      "workMs": 240000,
+      "workMs": 180000,
       "createdAt": 1763539200000,
       "startedAt": 1763539202000
     },

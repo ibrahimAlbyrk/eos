@@ -425,7 +425,7 @@
       "cost": "free",
       "tests": { "passed": true, "tolerated": 2 },
       "review": { "verdict": "pass", "findings": [] },
-      "routines": [{ "id": "rt-2x8k5n1q6w0r", "name": "Morning paper" }],
+      "routines": [{ "id": "rt-7b3m1c9d0e4f", "name": "Morning Paper" }],
       "limits": ["Eos's audit cannot see a helper program whose name the system's log leaves out; the reviewer read the code for that."]
     }
   },
