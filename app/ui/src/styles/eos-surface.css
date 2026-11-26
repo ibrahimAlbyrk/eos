@@ -424,3 +424,5 @@
 .eos-app .gv-app.is-bare { margin: 0; }
 .eos-app .gv-app.is-bare .gv-app-head { padding: 8px 8px 6px; }
 .eos-app .gv-app.is-bare .gv-app-foot { padding: 8px 12px 12px; }
+/* A fact about the layout keeps its words in the body colour; only its mark carries the tone. */
+.eos-page__fact.eos-fact--warn { color: var(--fg); }

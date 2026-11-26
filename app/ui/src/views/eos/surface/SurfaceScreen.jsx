@@ -51,7 +51,11 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
 
   const routine = routines?.find((r) => r.id === surface?.routineId);
   const maker = routine?.name ?? surface?.title;
-  const title = surface?.title ?? "Page";
+  const title = surface?.title ?? (page?.failed ? "A page" : "Loading…");
+  // The crumb leads from the routine that made it, as a run's does.
+  const trail = routine
+    ? [{ label: routine.name, location: `eos:/routines/${encodeURIComponent(routine.id)}` }, { label: title === routine.name ? "Its page" : title }]
+    : [{ label: title }];
   const older = row?.version != null && surface?.currentVersion != null && row.version !== surface.currentVersion;
   const tell = async (instruction) => {
     const r = await reshape(surfaceId, { baseVersion: surface.currentVersion, instruction });
@@ -66,7 +70,7 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   if (surface?.level === "app") {
     return (
       <main className="eos-screen eos-screen--wide">
-        <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]}>
+        <EosHeader trail={trail}>
           <AppActions surfaceId={surfaceId} />
         </EosHeader>
         <div className="eos-body eos-page">
@@ -86,7 +90,7 @@ export function SurfaceScreen({ surfaceId, seq, mode, linked }) {
   const toReshape = () => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq, mode: "reshape" }));
   return (
     <main className="eos-screen">
-      <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: title }]} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
+      <EosHeader trail={trail} mark={reshaping && <span className="eos-chip eos-chip--accent">Changing the page</span>}>
         {reshaping && (
           <button type="button" className="eos-btn" onClick={() => openLocation(buildLocation({ screen: "surface", surfaceId, issue: seq }))}>Done</button>
         )}

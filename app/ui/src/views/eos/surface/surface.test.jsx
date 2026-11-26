@@ -81,7 +81,7 @@ afterEach(() => setEosTransport(null));
 describe("the page screen", () => {
   it("draws the newest issue in its sandboxed frame, with the issue line, pin, change and share", async () => {
     const html = await screen(`eos:/surfaces/${SF}`);
-    expect(html).toContain('<h1 class="eos-title">Morning Paper</h1>');
+    expect(html).toContain('<button type="button" class="eos-crumb">Morning Paper</button><span class="eos-crumb-sep" aria-hidden="true">/</span></nav><h1 class="eos-title">Its page</h1>');
     expect(html).toContain("Issue 3, printed");
     expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html"`);
     expect(html).toContain('sandbox="allow-scripts"');
@@ -233,7 +233,7 @@ describe("reshape mode", () => {
 
   it("asks to point at a part, draws the issue in point mode, and offers the whole-page line", async () => {
     const html = await screen(`eos:/surfaces/${SF}?mode=reshape`);
-    expect(html).toContain('<h1 class="eos-title">Morning Paper</h1><span class="eos-chip eos-chip--accent">Changing the page</span>');
+    expect(html).toContain('<button type="button" class="eos-crumb">Morning Paper</button><span class="eos-crumb-sep" aria-hidden="true">/</span></nav><h1 class="eos-title">Its page</h1><span class="eos-chip eos-chip--accent">Changing the page</span>');
     expect(html).toContain('<button type="button" class="eos-btn">Done</button>');
     expect(html).toContain("Click any part of the page, then say what should change there.");
     expect(html).toContain('aria-label="Or say what to change about the whole page"');

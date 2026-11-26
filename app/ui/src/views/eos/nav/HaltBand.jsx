@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { dismissResumed, ensureHaltLoaded, resumeEos, useHalt } from "../../../state/eos/haltStore.js";
 import { sinceAt } from "../routine/words.js";
-import { openLocation } from "./eosNav.js";
+import { openLocation, parseLocation, useEosLocation } from "./eosNav.js";
 
 const STOP = "M5.5 5.5h5v5h-5z";
 const GO = "M5.5 4.5v7l6-3.5z";
@@ -21,6 +21,7 @@ function Mark({ d, tone }) {
 // drawn outside any surface.
 export function HaltBand() {
   const { halt, resumed } = useHalt();
+  const onNeeds = parseLocation(useEosLocation())?.screen === "needs";
   useEffect(() => { ensureHaltLoaded(); }, []);
   if (halt?.on) {
     return (
@@ -38,7 +39,8 @@ export function HaltBand() {
     <div className="eos-halt" role="status">
       <Mark d={GO} tone="ok" />
       <p className="eos-halt__words"><strong>Eos runs again.</strong> Sends that were stopped wait in Needs you.</p>
-      <button type="button" className="eos-btn" onClick={() => { dismissResumed(); openLocation("eos:/needs"); }}>Open Needs you</button>
+      {/* Already on Needs you, the way there would lead nowhere. */}
+      {!onNeeds && <button type="button" className="eos-btn" onClick={() => { dismissResumed(); openLocation("eos:/needs"); }}>Open Needs you</button>}
       <button type="button" className="eos-btn eos-btn--quiet" onClick={dismissResumed}>OK</button>
     </div>
   );

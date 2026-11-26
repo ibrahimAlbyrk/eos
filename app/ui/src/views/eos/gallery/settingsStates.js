@@ -14,7 +14,7 @@ export const SETTINGS_READS = {
 };
 
 const withSettings = (s) => ({ ...s, ...SETTINGS_READS });
-const SINCE = Date.now() - 42 * 60 * 1000;
+const SINCE = Date.now() - 60 * 1000;
 const press = (text) => () => [...document.querySelectorAll(".stg-body button")].find((b) => b.textContent.trim() === text)?.click();
 // Brings an area of the pane into view by its label, so a plain load of the
 // state shows what it is about.

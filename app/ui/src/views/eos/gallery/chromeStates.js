@@ -4,22 +4,28 @@
 import { ROUTES } from "../../../api/routes.js";
 import { notify } from "../../../lib/notify.js";
 import routineDetail from "./sample/routine-detail.json";
+import { APP } from "./appStates.js";
 import paper from "./samplePaper.js";
 
 const pressIn = (selector, test) => () => [...document.querySelectorAll(selector)].find(test)?.click();
 const PAPER = paper.surface.id;
+// Mail Triage's View printed when it paused at 12:51; the changelog kept at 13:50.
+const at = (h, m) => new Date().setHours(h, m, 0, 0);
+const MAIL_AT = at(12, 51);
+const APP_AT = at(13, 50);
 // Home holds three pins, none of them Morning Paper; pinning it is refused as full.
 const homeFull = (s) => ({
   ...s,
-  [ROUTES.surfacePins]: { surfaceIds: ["sf-9q4w2e000001", "sf-mailtriage01", "sf-release0001"] },
+  [ROUTES.surfacePins]: { surfaceIds: ["sf-9q4w2e000001", "sf-mailtriage01", APP] },
   [ROUTES.surfaceTiles]: { tiles: [
     { ...paper.tiles.tiles[1], slot: 0 },
-    { slot: 1, surfaceId: "sf-mailtriage01", routineId: "rt-mail", level: "view", title: "Mail Triage", headline: "Two to answer" },
-    { slot: 2, surfaceId: "sf-release0001", routineId: "rt-release", level: "page", title: "Release Notes", headline: "v2.4 drafted" },
+    { slot: 1, surfaceId: "sf-mailtriage01", routineId: "rt-2x8k5n1q6w0r", level: "view", title: "Mail Triage", headline: "Two to answer", detail: "Both from the publisher", issuedAt: MAIL_AT },
+    { slot: 2, surfaceId: APP, routineId: "rt-4k2n8q1x7m3p", level: "app", title: "Changelog preview", headline: "v2.4, drafted", detail: "Eleven pull requests since v2.3", issuedAt: APP_AT },
   ] },
 });
 
-const SINCE = Date.now() - 42 * 60 * 1000;
+// Stopped a minute ago, after the last run that works in the samples began.
+const SINCE = Date.now() - 60 * 1000;
 const stopped = (s) => ({ ...s, [ROUTES.eosHalt]: { on: true, since: SINCE } });
 const resume = {
   reads: stopped,

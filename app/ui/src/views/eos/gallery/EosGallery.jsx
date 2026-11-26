@@ -141,6 +141,17 @@ const withStats = {
   routine: { ...routineDetail.routine, stats: { sentUnedited7d: 0.86, baselineFirstWeek: 0.4, weeksBetween: [0.55, 0.68, 0.79], runs7d: prRuns.length, cost7d: Math.round(prRuns.reduce((sum, r) => sum + (r.costUsd ?? 0), 0) * 100) / 100, setupUsd: 0.5 } },
 };
 
+// Mail Triage paused after three failed runs in a row, the last at 12:51, as
+// its card in Needs you says.
+const mailFailed = (() => {
+  const [last] = routinePaused.runs;
+  const run = (n, h, m) => {
+    const at = new Date().setHours(h, m, 0, 0) - last.workMs;
+    return { ...last, id: n ? `${last.id.slice(0, -1)}${n}` : last.id, createdAt: at - 1000, startedAt: at, endedAt: at + last.workMs };
+  };
+  return { ...routinePaused, runs: [run(0, 12, 51), run(2, 11, 51), run(1, 10, 51)] };
+})();
+
 // What the gallery's reads answer, by the path each store asks. The routines
 // hold one of each state, PR Review with its detail and runs, Mail Triage
 // paused with its detail and an architect's change ready, Docs Review being
@@ -162,7 +173,7 @@ export const SAMPLE_READS = {
   [ROUTES.routine(routineDetail.routine.id)]: withStats,
   // Nine unedited sends in a row: one more brings the offer.
   [ROUTES.routineFreedom(routineDetail.routine.id)]: { routineId: routineDetail.routine.id, rung: "draft", grants: [], streak: 9, offer: "none" },
-  [ROUTES.routine(routinePaused.routine.id)]: routinePaused,
+  [ROUTES.routine(routinePaused.routine.id)]: mailFailed,
   [ROUTES.routine(routineDraft.routine.id)]: routineDraft,
   ...Object.fromEntries(Object.entries(blueprintDrafts).map(([id, draft]) => [ROUTES.routineDraft(id), draft])),
   ...Object.fromEntries(Object.entries(blueprintVersions).map(([id, rows]) => [ROUTES.routineVersions(id), rows])),

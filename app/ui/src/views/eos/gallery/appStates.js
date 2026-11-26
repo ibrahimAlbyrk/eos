@@ -1,14 +1,18 @@
-// The gallery's states of a routine's App: Release Notes' changelog preview
+// The gallery's states of a routine's App: PR Review's changelog preview
 // as a tool in the whole window, before its first version is kept, read
 // slowly, and in the side panel beside a screen (Apps on or switched off).
 import { ROUTES } from "../../../api/routes.js";
 import routines from "./sample/routines.json";
 
-const RT = routines.find((r) => r.name === "Release Notes")?.id ?? routines[0].id;
+// PR Review keeps it from the pull requests it reviews (Release Notes is still
+// being made, so it has nothing yet).
+const RT = routines.find((r) => r.name === "PR Review")?.id ?? routines[0].id;
 export const APP = "sf-changelog01";
+// Its second version was kept today at 13:50, the first yesterday.
+const KEPT = new Date().setHours(13, 50, 0, 0);
 const surface = {
   id: APP, routineId: RT, level: "app", place: "routine_page", role: "app", title: "Changelog preview",
-  currentVersion: 2, createdAt: 1763000000000, updatedAt: 1763442000000,
+  currentVersion: 2, createdAt: KEPT - 24 * 60 * 60 * 1000, updatedAt: KEPT,
 };
 // The App's own page: what it draws is its own design, inside the sandbox.
 const HTML = `<!doctype html><meta charset="utf-8"><style>
@@ -22,7 +26,7 @@ li{margin:4px 0}
 <section><h2>Changed</h2><ul><li>The SDK moves to 11.2 (#464)</li></ul></section>
 </main>`;
 const version = {
-  meta: { version: 2, status: "kept", madeBy: "builder", note: "", bodyBytes: HTML.length, createdAt: 1763442000000 },
+  meta: { version: 2, status: "kept", madeBy: "builder", note: "", bodyBytes: HTML.length, createdAt: KEPT },
   body: { html: HTML, manifest: { title: "Changelog preview", summary: "The next release's notes, grouped as they will ship.", height: 520, uses: [], queries: [] } },
   checks: {},
   accessLine: "This App can read the merged pull requests of acme/game and post to #releases after you say yes.",
