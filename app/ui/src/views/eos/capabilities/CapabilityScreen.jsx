@@ -96,7 +96,8 @@ function HeaderActions({ detail, onRemove }) {
   if (detail.state === "available") return <button type="button" className="eos-btn eos-btn--quiet" onClick={onRemove}>Remove</button>;
   return (
     <>
-      {fix !== "check" && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void checkCapability(detail.id)}>Check now</button>}
+      {/* Turned off, there is nothing to check until it is enabled. */}
+      {fix !== "check" && enabled && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void checkCapability(detail.id)}>Check now</button>}
       {fix !== "enable" && <button type="button" className="eos-btn eos-btn--quiet" onClick={() => void setCapabilityEnabled(detail.id, !enabled)}>{enabled ? "Disable" : "Enable"}</button>}
       {detail.origin !== "builtin" && <button type="button" className="eos-btn eos-btn--quiet" onClick={onRemove}>Remove</button>}
     </>
@@ -201,14 +202,19 @@ function UsedBy({ detail, names }) {
       </div>
     );
   }
-  if (!ids.every((id) => names[id])) return <p className="eos-cap-quiet">{ids.length === 1 ? "One routine" : `${ids.length} routines`}</p>;
+  // Each routine by name; one the list does not hold (deleted, or on another
+  // Mac) is counted after them.
+  const known = ids.filter((id) => names[id]);
+  const others = ids.length - known.length;
+  if (known.length === 0) return <p className="eos-cap-quiet">{ids.length === 1 ? "One routine" : `${ids.length} routines`}</p>;
   return (
     <ul className="eos-cap-facts">
-      {ids.map((id) => (
+      {known.map((id) => (
         <li key={id} className="eos-cap-fact">
           <button type="button" className="eos-cap-link" onClick={() => openLocation(buildLocation({ screen: "routine", routineId: id }))}>{names[id]}</button>
         </li>
       ))}
+      {others > 0 && <li className="eos-cap-fact eos-cap-quiet">{others === 1 ? "and one more" : `and ${others} more`}</li>}
     </ul>
   );
 }
@@ -285,9 +291,11 @@ function Versions({ detail }) {
   return (
     <ul className="eos-cap-facts">
       {detail.versions.map((v) => {
-        const inUse = v.version === detail.version;
+        // Not installed on this Mac, its version is in use on the other one.
+        const elsewhere = detail.state === "available" && v.version === detail.version;
+        const inUse = !elsewhere && v.version === detail.version;
         const proposed = v.status === "proposed";
-        const word = inUse ? "In use" : VERSION_STATUSES[v.status] ?? v.status;
+        const word = elsewhere ? "Kept on the other Mac" : inUse ? "In use" : VERSION_STATUSES[v.status] ?? v.status;
         const tone = inUse ? " eos-cap-fact__value--ok" : proposed ? " eos-cap-fact__value--active" : "";
         return (
           <li key={v.version} className={inUse ? "eos-cap-fact eos-cap-fact--on" : proposed ? "eos-cap-fact eos-cap-fact--asks" : "eos-cap-fact"}>

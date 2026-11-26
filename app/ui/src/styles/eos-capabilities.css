@@ -2,7 +2,10 @@
    capability's page (eos:/capabilities/<id>). Built from eos.css's parts;
    text is never dimmer than --fg-dim2 (eos.css's contrast note holds here too). */
 
-.eos-cap-offline { margin: 0; padding: 0 var(--eos-frame-r, 28px) 0 var(--eos-frame-x, 28px); font-size: var(--text-sm); color: var(--warn); }
+/* Reconnecting: the same small pill Home shows, over the header's middle, so
+   the lead keeps its place when the core comes back. */
+.eos-screen:has(.eos-cap-offline) { position: relative; }
+.eos-cap-offline { position: absolute; top: 20px; left: 50%; z-index: 2; transform: translateX(-50%); margin: 0; padding: 4px 12px; border-radius: var(--r-pill); background: var(--chip); font-size: var(--text-xs); color: var(--warn); }
 
 /* ── The list ─────────────────────────────────────────────────────────────── */
 .eos-caps-lead { padding-top: 8px; margin-bottom: 16px; }

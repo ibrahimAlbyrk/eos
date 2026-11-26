@@ -29,9 +29,9 @@ const withDeliveries = (deliveries, out = false) => changed(DRAFT, (d) => ({
 const withLiveTest = (state) => (s) => listed(PROPOSAL)(liveTest(state)(s));
 const liveTest = (state) => changed(PROPOSAL, (d) => ({
   ...d,
-  item: { ...d.item, title: "Add SMS?", summary: "Texts your phone when Mail Triage finds a mail worth it." },
+  item: { ...d.item, title: "Add iMessage?", summary: "Messages your phone when Mail Triage finds a mail worth it." },
   payload: {
-    ...d.payload, capabilityId: "sms", name: "SMS", summary: "Sends a text message to your own number through your iPhone.",
+    ...d.payload, capabilityId: "imessage", name: "iMessage", summary: "Sends a message to your own number through your iPhone.",
     actions: [{ name: "send_to_me", summary: "Text your own number", class: "tell_user" }], reach: { hosts: [], apps: ["com.apple.MobileSMS"], files: [] },
     routines: [{ id: "rt-mail", name: "Mail Triage" }], settings: [{ name: "phone_number", label: "Your mobile number" }],
     liveTest: { action: "send_to_me", state },

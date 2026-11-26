@@ -44,7 +44,7 @@ const smsProposed = withDetail({
 
 // Twenty-two capabilities: the samples and Slack, then sixteen more, most ready.
 const MORE = [
-  ["calendar", "Calendar", "Reads today's events from the Calendar app.", "script", "forge", "ready"],
+  ["contacts", "Contacts", "Looks up people in the Contacts app.", "script", "forge", "ready"],
   ["notion", "Notion", "Reads and writes pages in your Notion workspace.", "mcp", "registry", "ready"],
   ["figma", "Figma", "Reads frames and comments from Figma files.", "mcp", "registry", "ready"],
   ["sentry", "Sentry", "Reads new issues and their stack traces.", "mcp", "registry", "degraded"],
@@ -61,7 +61,7 @@ const MORE = [
   ["spotify", "Spotify", "Plays a playlist on this Mac.", "script", "synced", "available"],
   ["drive", "Google Drive", "Reads documents in a Drive folder.", "mcp", "registry", "ready"],
 ].map(([id, name, summary, form, origin, state]) => ({
-  id, name, summary, form, origin, state, works: "any_mac", actionCount: 2, usedBy: id === "calendar" ? ["rt-2x8k5n1q6w0r"] : [],
+  id, name, summary, form, origin, state, works: "any_mac", actionCount: 2, usedBy: id === "contacts" ? ["rt-2x8k5n1q6w0r"] : [],
   version: origin === "builtin" ? undefined : "1.0.0",
   ...(state === "degraded" ? { stateCode: "rate_limited" } : state === "needs_sign_in" ? { stateCode: "http_401" } : {}),
 }));
