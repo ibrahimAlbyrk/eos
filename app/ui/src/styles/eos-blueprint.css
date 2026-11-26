@@ -545,3 +545,9 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-new__veil-title { margin: 0; font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
 .eos-new__veil-line { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
 .eos-bp__lead .eos-rlead__acts { margin-top: 16px; }
+
+/* New routine's four starter sentences stand in two even columns, so they never
+   wrap two and two at uneven widths; under 520 px they stack. */
+.eos-new > .eos-starters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.eos-new > .eos-starters > .eos-starter { text-align: left; padding: 7px 14px; }
+@container (max-width: 520px) { .eos-new > .eos-starters { grid-template-columns: minmax(0, 1fr); } }
