@@ -324,6 +324,7 @@ describe("a send in its hold, and after it went out", () => {
     await loaded({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting });
     await loadInboxItem(DRAFT);
     expect(at(`eos:/needs/${DRAFT}`)).toContain('<p class="eos-send-state__line eos-fact" role="status"><span>Waiting to send.</span><button type="button" class="eos-btn">Stop</button></p>');
+    expect(at(`eos:/needs/${DRAFT}`)).not.toMatch(/>(Send|Edit|Later|Discard)</);
     const t = recording({ ...reads, [ROUTES.inboxItem(DRAFT)]: waiting }, async () => ({ ok: true, status: 200, body: { id: "dl-3", state: "stopped" } }));
     setEosTransport(t);
     expect(await stopDelivery(DRAFT, "dl-3")).toBe(true);

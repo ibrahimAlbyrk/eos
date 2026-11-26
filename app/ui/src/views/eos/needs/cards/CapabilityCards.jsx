@@ -1,3 +1,4 @@
+import { useCapabilities } from "../../../../state/eos/capabilitiesStore.js";
 import { CLASSES, stateLine } from "../../capabilities/words.js";
 import { AskRows, Fact, Stations } from "../../frame.jsx";
 
@@ -141,13 +142,37 @@ function ReplacedVersion({ replaces }) {
 
 // A capability that needs the user before it works again: why, in words, and
 // the version that still works. What happened is the lead's.
+// How to give Eos what macOS refused it, step by step, as System Settings
+// names its places.
+const GRANT_STEPS = {
+  automation_denied: (app) => [
+    "Open System Settings, then Privacy & Security.",
+    "Choose Automation.",
+    `Under Eos, turn on ${app}.`,
+    "Come back here and choose Check again.",
+  ],
+};
+
 export function CapabilityProblem({ detail }) {
   const why = stateLine({ state: detail.payload?.state ?? "needs_setup", stateCode: detail.payload?.stateCode });
+  const { list } = useCapabilities();
+  const name = list?.find((c) => c.id === detail.payload?.capabilityId)?.name;
+  const steps = GRANT_STEPS[detail.payload?.stateCode]?.(name ?? "the app it needs");
   if (!why && !detail.payload?.goBack) return null;
   return (
     <div className="eos-needs-card">
       {why && <Fact className="eos-needs-card__class">{why}</Fact>}
       {detail.payload?.goBack && <Fact className="eos-needs-card__class">Version {detail.payload.goBack} still works on this Mac.</Fact>}
+      {steps && (
+        <section className="eos-needs-steps" aria-label="How to allow it">
+          <h2 className="eos-label">How to allow it</h2>
+          <ol className="eos-needs-steps__list">
+            {steps.map((step, i) => (
+              <li key={step}><span className="eos-needs-steps__n">{String(i + 1).padStart(2, "0")}</span>{step}</li>
+            ))}
+          </ol>
+        </section>
+      )}
     </div>
   );
 }

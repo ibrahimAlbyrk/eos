@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadRecalled, notRightNote, recalledKey, useNotes } from "../../../state/eos/notesStore.js";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
+import { word } from "../routines/tableWords.js";
 
 const SAID_MAX = 200;
 
@@ -38,7 +39,7 @@ export function WhyPanel({ runId }) {
   return (
     <section className="eos-needs-aside__part" aria-label="Why it looks like this">
       <h2 className="eos-label">Why it looks like this</h2>
-      <p className="eos-needs-aside__lead">Eos remembered {notes.length === 1 ? "one thing" : `${notes.length} things`} from your earlier corrections:</p>
+      <p className="eos-needs-aside__lead">Eos remembered {notes.length === 1 ? "one thing" : `${word(notes.length).toLowerCase()} things`} from your earlier corrections:</p>
       <ul className="eos-needs-why">
         {notes.map((n) => <Recalled key={n.id} note={n} runId={runId} />)}
       </ul>

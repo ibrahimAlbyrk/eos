@@ -6,14 +6,15 @@ import { WhyPanel } from "./WhyPanel.jsx";
 
 // The aside of an item a run made: the notes that shaped it, what its checker
 // found, and who worked on it at what cost, once the run is read. `lead`
-// comes first: what a View's run wrote beside it.
-export function ChecksPanel({ runId, lead = null }) {
+// comes first: what a View's run wrote beside it. `whyOnly` keeps just the
+// notes, for an item that asks rather than delivers.
+export function ChecksPanel({ runId, lead = null, whyOnly = false }) {
   const run = useRuns().details[runId];
   if (!run && !lead) return null;
   return (
     <aside className="eos-needs-aside" aria-label="About this result">
       {lead}
-      {run && <RunParts runId={runId} run={run} />}
+      {run && (whyOnly ? <WhyPanel runId={runId} /> : <RunParts runId={runId} run={run} />)}
     </aside>
   );
 }

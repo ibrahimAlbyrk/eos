@@ -7,6 +7,7 @@ import {
 import { loadRun, useRuns } from "../../../state/eos/runsStore.js";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { useSurfaces } from "../../../state/eos/surfacesStore.js";
+import { loadRecalled, recalledKey, useNotes } from "../../../state/eos/notesStore.js";
 import { DevRunNote } from "../capabilities/parts.jsx";
 import { Fact, FailedLead } from "../frame.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
@@ -65,13 +66,21 @@ export function NeedsItemScreen({ id }) {
   const runId = detail?.item.runId;
   const viewBody = useSurfaces().byIssue[detail?.item.view?.issueId]?.body;
   const run = useRuns().details[runId];
-  // The aside holds what the run did, or what a View's run wrote beside it.
-  const hasAside = Boolean(run) || viewBody?.aside?.length > 0;
+  // The aside holds what the run did, or what a View's run wrote beside it,
+  // for a thing the run made; a question or a permission keeps only the
+  // notes that shaped it, and no aside when there are none.
+  const made = Boolean(detail?.payload?.doc || detail?.item.view);
+  const recalled = useNotes().recalled[recalledKey({ runId })];
+  const hasAside = made ? Boolean(run) || viewBody?.aside?.length > 0 : Boolean(run) && recalled?.length > 0;
   useEffect(() => {
     ensureInboxLoaded();
     void loadInboxItem(id);
   }, [id]);
-  useEffect(() => { if (runId) void loadRun(runId); }, [runId]);
+  useEffect(() => {
+    if (!runId) return;
+    void loadRun(runId);
+    void loadRecalled({ runId });
+  }, [runId]);
   useEffect(() => { setNextTime(""); }, [id]);
 
   const order = list ? inListOrder(list.items) : [];
@@ -85,7 +94,10 @@ export function NeedsItemScreen({ id }) {
   const asksNextTime = open && stored && detail.item.kind === "draft";
   // A View answers through its own buttons, or its form's send drawn here;
   // Later and Discard sit beside it.
-  const actions = open && !detail.item.view ? actionsOf(detail, values) : [];
+  // While a send is held or waits its turn, its Stop is the one act; Send,
+  // Edit and the rest come back once it is stopped.
+  const inFlight = (detail?.deliveries ?? []).some((d) => d.state === "holding" || d.state === "queued");
+  const actions = open && !detail.item.view && !inFlight ? actionsOf(detail, values) : [];
   const setValue = (key, value) => setValues((v) => ({ ...v, [key]: value }));
   const doing = async (action) => {
     if (!(await action.run(detail, values, setValue))) return;
@@ -170,7 +182,7 @@ export function NeedsItemScreen({ id }) {
               {detail.item.view
                 ? <ItemView item={detail.item} routineName={routineName} onSubmitOffer={setViewSubmit} />
                 : <div className={`eos-needs-item__object eos-needs-item__object--${detail.item.kind}`}><Body detail={detail} values={values} setValue={setValue} routineName={routineName} /></div>}
-              {open && (
+              {open && !inFlight && (
                 <AnswerBar
                   kind={detail.item.kind}
                   actions={actions}
@@ -196,7 +208,7 @@ export function NeedsItemScreen({ id }) {
               )}
             </div>
             {hasAside && (
-              <ChecksPanel runId={runId} lead={viewBody?.aside?.length > 0 ? <ViewAside notes={viewBody.aside} /> : null} />
+              <ChecksPanel runId={runId} whyOnly={!made} lead={viewBody?.aside?.length > 0 ? <ViewAside notes={viewBody.aside} /> : null} />
             )}
           </div>
         )}

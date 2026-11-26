@@ -182,7 +182,7 @@ describe("memory in the other screens", () => {
   it("shows a draft's Why aside with each note its run was given once, and Not right", async () => {
     await loadRecalled({ runId });
     const html = renderToStaticMarkup(<WhyPanel runId={runId} />);
-    expect(html).toContain("Eos remembered 4 things from your earlier corrections:");
+    expect(html).toContain("Eos remembered four things from your earlier corrections:");
     expect(html.match(/class="eos-needs-why__text"/g)).toHaveLength(4);
     expect(html).toContain(`${summaryNote.text}</button><span class="eos-needs-why__from">You shortened four before sending</span>`);
     expect(html.match(/>Not right<\/button>/g)).toHaveLength(4);
