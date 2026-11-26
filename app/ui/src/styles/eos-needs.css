@@ -361,7 +361,8 @@
 .eos-frame__content .gv-check { gap: 14px; }
 .eos-frame__content .gv-check__title { font-family: inherit; font-size: 17px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--fg-strong); }
 .eos-frame__content .gv-check__count { display: none; }
-.eos-frame__content .gv-check__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); column-gap: 28px; gap: 0 28px; }
+.eos-frame__content .gv-check__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; }
+@container (max-width: 520px) { .eos-frame__content .gv-check__list { grid-template-columns: minmax(0, 1fr); } }
 .eos-frame__content .gv-check__list > li { border-top: 1px solid var(--line); }
 .eos-frame__content .gv-check__item { gap: 12px; padding: 10px 0; border-radius: 0; background: none; box-shadow: none; font-size: var(--text-base); }
 .eos-frame__content .gv-check__list .is-done .gv-check__item { color: var(--fg-strong); background: none; box-shadow: none; }
