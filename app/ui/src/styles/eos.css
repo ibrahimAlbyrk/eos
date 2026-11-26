@@ -712,3 +712,9 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-notice__close svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 @keyframes eos-notice-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .eos-notice { animation: eos-ask-shade 120ms linear both; } }
+
+/* Settings over an Eos screen: one solid shape over a deep shade, never glass
+   over the busy page behind it. */
+.eos-mode .stg-overlay { background: color-mix(in srgb, var(--bg) 78%, transparent); }
+.eos-mode .stg-modal.glass-pop { background: var(--pop); box-shadow: 0 0 0 1px var(--chip), var(--sh-modal); }
+.eos-mode .stg-modal.glass-pop::before, .eos-mode .stg-modal.glass-pop::after { content: none; }
