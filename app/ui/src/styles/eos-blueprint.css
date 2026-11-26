@@ -6,30 +6,31 @@
 .eos-bp { container: eos-bp / inline-size; display: flex; flex-direction: column; gap: 32px; }
 .eos-bp__lead { padding-top: 8px; }
 .eos-bp__cols { display: flex; align-items: flex-start; gap: 40px; }
-/* As tall as the card beside it, so the input sits under the conversation
-   and stays in sight at the window's foot while the card scrolls. */
+/* The conversation holds together from the top: the user's words, what the
+   architect did, its question, and the input right under the last of them.
+   It stays in sight while the card beside it scrolls. */
 .eos-bp-chat {
   flex: 0 1 320px;
   min-width: 260px;
-  align-self: stretch;
+  align-self: flex-start;
+  position: sticky;
+  top: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 420px;
 }
 .eos-bp__side { flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 32px; }
 
 /* ── Conversation ─────────────────────────────────────────────────────────── */
+/* What the user said, as a quote on a hairline rather than a chat bubble. */
 .eos-bp-bubble {
-  align-self: flex-end;
-  max-width: 92%;
-  padding: 10px 14px;
-  border-radius: 18px;
-  background: var(--bubble);
+  padding: 2px 0 2px 14px;
+  box-shadow: inset 2px 0 0 var(--fg-faint);
   font-size: var(--text-base);
   line-height: 1.55;
-  color: var(--bubble-fg);
+  color: var(--fg);
   white-space: pre-wrap;
+  text-wrap: pretty;
 }
 .eos-bp-reply { align-self: flex-start; max-width: 100%; font-size: var(--text-base); line-height: 1.6; color: var(--fg); }
 .eos-bp-reply strong, .eos-bp-reply b { font-weight: 600; color: var(--fg-strong); }
@@ -69,8 +70,7 @@
 /* Names the column, level with the card's top. */
 .eos-bp-chat__label { margin: 0 0 4px; }
 .eos-bp-chat__hint { margin: 0; font-size: var(--text-sm); line-height: 1.6; color: var(--fg-dim); }
-.eos-bp-chat__fill { flex: 1; }
-.eos-bp-say { position: sticky; bottom: 16px; background: var(--pop); }
+.eos-bp-say { margin-top: 8px; background: var(--pop); }
 
 /* ── Card ─────────────────────────────────────────────────────────────────── */
 /* The blueprint as one object: its name at the top, then its eight slots
@@ -202,8 +202,12 @@
 /* Narrow card: the slot's name over its words, the spine kept. */
 @container eos-bp-card (max-width: 520px) {
   .eos-bp-row { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+}
+/* No room for the version beside the name: it goes under the description, its
+   words on the description's edge (the button's own 10 px padding hangs out). */
+@container eos-bp-card (max-width: 640px) {
   .eos-bp-card__title { flex-wrap: wrap; }
-  .eos-bp-card__head { order: 3; flex-basis: 100%; padding-left: 60px; }
+  .eos-bp-card__head { order: 3; flex-basis: 100%; padding-left: 50px; }
 }
 
 /* Freedom as a ladder of four rungs on one line, as the stations are
@@ -423,9 +427,7 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 /* Too narrow for both: the conversation over the card, its input under it. */
 @container eos-bp (max-width: 900px) {
   .eos-bp__cols { flex-direction: column; align-items: stretch; gap: 28px; }
-  .eos-bp-chat { flex-basis: auto; width: 100%; max-width: none; min-height: 0; }
-  .eos-bp-chat__fill { display: none; }
-  .eos-bp-say { position: static; }
+  .eos-bp-chat { position: static; flex-basis: auto; width: 100%; max-width: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
