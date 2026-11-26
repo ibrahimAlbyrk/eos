@@ -324,7 +324,8 @@ export function galleryTransport(state) {
   if (state.answer === "loading") return loadingTransport;
   if (state.answer === "error") return failingTransport;
   const read = fixtureTransport(state.reads ? state.reads(SAMPLE_READS) : SAMPLE_READS);
-  const samples = state.sends ? { ...read, send: state.sends } : read;
+  // A write that answers with what was read (a note forgotten) reads it here.
+  const samples = state.sends ? { ...read, send: (method, path, body) => state.sends(method, path, body, read) } : read;
   return state.answer === "offline" ? offlineTransport(samples) : samples;
 }
 

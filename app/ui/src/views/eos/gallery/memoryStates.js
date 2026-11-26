@@ -101,9 +101,9 @@ const forgotten = (s) => {
 
 // Forget pressed on the open note, the core answering it forgotten.
 const forgetting = {
-  sends: async (method, path) => {
+  sends: async (method, path, _body, read) => {
     if (method === "DELETE" && path === ROUTES.memoryNote(LINT)) {
-      const detail = memory.details.find((d) => d.note.id === LINT);
+      const detail = (await read.get(path)).body;
       return { ok: true, status: 200, body: { ...detail, note: { ...detail.note, forgottenAt: Date.now() } } };
     }
     return { ok: false, status: 403, body: { error: "sample data" } };
