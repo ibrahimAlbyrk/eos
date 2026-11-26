@@ -287,6 +287,11 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
 .eos-facts__row dt { flex: 0 0 140px; color: var(--fg-dim2); }
 .eos-facts__row dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--fg); }
 
+/* The one scrim behind every dialog, sheet and Settings while Eos shows:
+   deep enough that what is behind is only a shape and never competes with
+   the question in front. */
+.eos-mode, .eos-ask-shade, .eos-sheet-overlay, .eos-runsheet { --eos-scrim: color-mix(in srgb, var(--bg) 90%, transparent); }
+
 /* A sheet over the screen. */
 .eos-sheet-overlay {
   position: fixed;
@@ -295,7 +300,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  background: var(--eos-scrim);
 }
 .eos-sheet {
   width: min(420px, calc(100vw - 32px));
@@ -315,8 +320,7 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
 .eos-ask-shade {
   position: fixed; inset: 0; z-index: 480;
   display: flex; align-items: center; justify-content: center; padding: 24px;
-  /* Deep enough that a light page or Home's cards recede behind the question. */
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  background: var(--eos-scrim);
   animation: eos-ask-shade 180ms cubic-bezier(.2, .8, .2, 1) both;
 }
 .eos-ask {
@@ -342,6 +346,9 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
 .eos-ask__wrong { margin: 12px 0 0; font-size: var(--text-sm); line-height: 1.5; color: var(--err); }
 .eos-ask__acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .eos-ask__acts .eos-btn { height: 32px; padding: 0 16px; }
+/* Only the act is a filled button; Cancel and the other ways out are words. */
+.eos-ask__acts .eos-btn:not(.eos-btn--primary, .eos-btn--stop) { background: none; color: var(--fg-mid); }
+.eos-ask__acts .eos-btn:not(.eos-btn--primary, .eos-btn--stop):hover { background: var(--row-on); color: var(--fg-strong); }
 /* A pick in a dialog: rows on hairlines lit past their edges on hover, a
    hollow mark that fills in accent with a halo once picked. */
 .eos-ask__pick { display: flex; flex-direction: column; margin: 16px -12px 0; }
@@ -730,7 +737,7 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 
 /* Settings over an Eos screen: one solid shape over a deep shade, never glass
    over the busy page behind it. */
-.eos-mode .stg-overlay { background: color-mix(in srgb, var(--bg) 78%, transparent); }
+.eos-mode .stg-overlay { background: var(--eos-scrim); }
 .eos-mode .stg-modal.glass-pop { background: var(--pop); box-shadow: 0 0 0 1px var(--chip), var(--sh-modal); }
 .eos-mode .stg-modal.glass-pop::before, .eos-mode .stg-modal.glass-pop::after { content: none; }
 

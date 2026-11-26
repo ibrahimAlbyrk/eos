@@ -7,10 +7,10 @@
 /* A dialog's ground and radius, anchored to what opened it; a click outside
    the panel closes it. Centred, the page behind is shaded as for a dialog. */
 .eos-runsheet { position: fixed; inset: 0; z-index: 480; }
-.eos-runsheet--centre { display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--bg) 78%, transparent); }
+.eos-runsheet--centre { display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--eos-scrim); }
 .eos-runsheet--side::before, .eos-runsheet--below::before {
   content: ""; position: absolute; inset: var(--eos-shade-top, 0px) 0 0 var(--eos-shade-left, 0px);
-  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  background: var(--eos-scrim);
   animation: eos-ask-shade calc(180ms * var(--k, 1)) cubic-bezier(.2, .8, .2, 1) both;
 }
 .eos-runsheet__panel {
