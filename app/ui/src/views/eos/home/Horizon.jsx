@@ -18,7 +18,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SIZE = { waiting: 8, now: 7, done: 6, scheduled: 7 };
 // Where the arc is fully drawn and where it has faded, from the centre.
 const FULL_TO = 430;
-const GONE_AT = 720;
+const GONE_AT = 880;
 // The fade at the page's own edges.
 const EDGE = 160;
 // The now label sits this far under the arc; an end label it would touch steps aside.
@@ -47,14 +47,16 @@ function useSpan(ref) {
 }
 
 // Transparent at the page's edges and past GONE_AT from the centre, opaque
-// between EDGE and FULL_TO.
+// between EDGE and FULL_TO; and fading downwards over the sky's lower half,
+// so where the circle turns down it melts into the dark instead of ending at
+// the sky's foot.
 export function skyMask(page) {
   const cx = page / 2;
   const edge = Math.min(EDGE, page * 0.1);
   const gone = Math.max(0, cx - GONE_AT);
   const full = Math.max(edge, cx - FULL_TO, gone + 1);
   const px = (v) => `${Math.round(v)}px`;
-  return `linear-gradient(to right, transparent ${px(gone)}, #000 ${px(full)}, #000 ${px(page - full)}, transparent ${px(page - gone)})`;
+  return `linear-gradient(to right, transparent ${px(gone)}, #000 ${px(full)}, #000 ${px(page - full)}, transparent ${px(page - gone)}), linear-gradient(to bottom, #000 ${px(SKY_H / 2)}, transparent ${px(SKY_H)})`;
 }
 
 function Dot({ bucket, at }) {
@@ -85,7 +87,7 @@ export function Horizon({ runs, scheduled, names, now }) {
   return (
     <div ref={ref} className="eos-horizon" role="img" aria-label={horizonSummary(runs, scheduled, now)}>
       <div className="eos-horizon__sky" style={{ width: page, marginLeft: -page / 2 }} aria-hidden="true">
-        <svg className="eos-horizon__line" viewBox={box} width={page} height={SKY_H} style={{ maskImage: mask, WebkitMaskImage: mask }}>
+        <svg className="eos-horizon__line" viewBox={box} width={page} height={SKY_H} style={{ maskImage: mask, WebkitMaskImage: mask, maskComposite: "intersect", WebkitMaskComposite: "source-in" }}>
           <defs>
             <clipPath id="eos-horizon-past"><rect x="0" y="0" width={nowAt.x} height={SKY_H} /></clipPath>
             <clipPath id="eos-horizon-future"><rect x={nowAt.x} y="0" width={page} height={SKY_H} /></clipPath>

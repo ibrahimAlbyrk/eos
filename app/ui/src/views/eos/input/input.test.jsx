@@ -89,7 +89,7 @@ describe("the Home input", () => {
     expect(html).toContain("Tab for other choices");
     expect(html).toContain('aria-label="Send">');
     setHomeDraft("");
-    expect(renderToStaticMarkup(<HomeInput />)).toContain("Click a routine around the input, drop a file on one, or just type.");
+    expect(renderToStaticMarkup(<HomeInput />)).toContain("Pick a routine, drop a file on one, or just type.");
     _resetRoutines();
   });
 

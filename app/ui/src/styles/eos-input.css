@@ -13,8 +13,9 @@
 }
 .eos-intent__line--dim { opacity: 0.55; }
 .eos-intent__line--dim .eos-intent__key { color: var(--fg-dim2); }
-.eos-intent__line--hint { justify-content: center; }
-.eos-intent__line--hint .eos-intent__text { flex: none; color: var(--fg-dim); }
+/* The idle hint hangs from the column's edge, quiet, as Home's meta lines do. */
+.eos-intent__line--hint { padding: 0; font-size: var(--text-xs); }
+.eos-intent__line--hint .eos-intent__text { flex: none; color: var(--fg-dim2); }
 .eos-intent__key {
   flex: none;
   min-width: 22px;

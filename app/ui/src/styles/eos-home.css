@@ -145,7 +145,8 @@
 .eos-home-card__time { font-family: var(--font-mono); font-size: 11.5px; }
 .eos-home-card__title { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--fg-strong); }
 .eos-home-card__summary { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--fg-dim); }
-.eos-home-card__actions { display: flex; gap: 6px; margin-top: 8px; }
+/* Pinned to the foot, so the cards in a row answer on one line. */
+.eos-home-card__actions { display: flex; gap: 6px; margin-top: auto; padding-top: 8px; }
 .eos-home-card .eos-btn { height: 32px; }
 .eos-home-all { align-self: flex-start; font-size: var(--text-sm); text-decoration: none; }
 

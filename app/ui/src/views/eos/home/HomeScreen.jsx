@@ -5,7 +5,7 @@ import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { refreshMemorySummary, useNotes } from "../../../state/eos/notesStore.js";
 import { ensureRoutinesLoaded, offeredRoutines, useRoutines } from "../../../state/eos/routinesStore.js";
 import { LoadingRows } from "../capabilities/parts.jsx";
-import { Band } from "../frame.jsx";
+import { Band, Ways } from "../frame.jsx";
 import { HomeInput } from "../input/HomeInput.jsx";
 import { HaltBand } from "../nav/HaltBand.jsx";
 import { FieldLayer } from "../field/FieldLayer.jsx";
@@ -41,6 +41,15 @@ function useMinute(clock) {
 // while away (or earlier today) and the week's learned line. Empty sections are left
 // out; entering Home never focuses anything. Focusing the input turns Home
 // into the field (FieldLayer); the rest of Home is inert meanwhile.
+// With nothing yet, the way from a sentence to a routine that runs, said once
+// under the input so the first page is not half empty.
+const FIRST_WAYS = [
+  ["Say it", "In your own words, as you would ask a colleague.", "M3 4.5h10v6H7l-3 2.5v-2.5H3z"],
+  ["Eos writes a blueprint", "What starts it, what it reads and who it reaches. Change any part.", "M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3M5.5 8.5h5M5.5 11h3.5"],
+  ["Try it on past items", "It shows what it would have done before anything runs.", "M5 3.5l7 4.5-7 4.5z"],
+  ["Start it", "It runs when it should; its freedom says what may go out without you.", "M8 2.5v5.5l3.5 2M8 14a6 6 0 1 0 0-12 6 6 0 0 0 0 12z"],
+];
+
 export function HomeScreen({ clock = Date.now }) {
   const now = useMinute(clock);
   const inputRef = useRef(null);
@@ -97,6 +106,7 @@ export function HomeScreen({ clock = Date.now }) {
       {!firstRun && <ComingUp slots={comingUp(home.next, now)} names={names} now={now} />}
       {!firstRun && (away.length > 0 ? <AwayList runs={away} names={names} /> : <AwayList runs={earlier} names={names} title="Earlier today" />)}
       {!firstRun && <LearnedLine weekly={summary?.weekly ?? 0} />}
+      {firstRun && <div className="eos-home-part"><Ways id="eos-home-ways" label="How a routine begins" ways={FIRST_WAYS} /></div>}
     </>
   );
 
@@ -115,9 +125,8 @@ export function HomeScreen({ clock = Date.now }) {
             <Greeting name={home.name} now={now} lastSeen={lastSeen} handled={home.handled} needs={waiting.length} firstRun={firstRun} />
           </div>
           <div ref={placeRef} className="eos-input-place" />
-          <HomeInput inputRef={inputRef} blockRef={blockRef} onFocus={openField} />
+          <HomeInput inputRef={inputRef} blockRef={blockRef} onFocus={openField} starters={!fieldOn && <StarterChips onPick={setHomeDraft} />} />
           <div className="eos-home__below" inert={inert}>
-            <StarterChips onPick={setHomeDraft} />
             {body}
           </div>
         </div>
