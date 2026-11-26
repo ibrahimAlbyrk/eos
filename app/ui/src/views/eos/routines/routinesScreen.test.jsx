@@ -9,7 +9,7 @@ import { _resetEosNav, buildLocation, openLocation } from "../nav/eosNav.js";
 import { NEW_STARTERS } from "../blueprint/words.js";
 import { EosMain } from "../EosMain.jsx";
 import { nextWord, routinesLead, soonestLine, sortRows, statusWords } from "./tableWords.js";
-import { timeAt } from "../routine/words.js";
+import { sinceAt, timeAt } from "../routine/words.js";
 import routines from "../gallery/sample/routines.json";
 import inbox from "../gallery/sample/inbox.json";
 
@@ -36,8 +36,8 @@ describe("all routines", () => {
     expect(html).toContain('<h1 class="eos-title">Routines</h1>');
     // Grouped by what the user must do, by name within each group.
     // A paused routine with something waiting is among them, as in the sidebar.
-    expect(groups(html)).toEqual(["Waiting for you 3", "Nothing waiting 1", "Being made 1"]);
-    expect(names(html)).toEqual(["Mail Triage", "Morning Paper", "PR Review", "Build Watch", "Release Notes"]);
+    expect(groups(html)).toEqual(["Waiting for you 2", "Nothing waiting 2", "Being made 1"]);
+    expect(names(html)).toEqual(["Mail Triage", "PR Review", "Build Watch", "Morning Paper", "Release Notes"]);
     expect(html).toContain('<span class="eos-rtable__mark eos-rtable__mark--active" aria-hidden="true"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" class="eos-rtable__glyph">');
     expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');
     expect(html).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="eos-rtable__sort">Routine<span aria-hidden="true"> ↑</span></button></th>');
@@ -45,7 +45,7 @@ describe("all routines", () => {
     // What waits is said once, in its tone; the freedom they share once, in the lead.
     expect(pr).toContain('<td class="eos-rtable__line eos-rtable__line--active">3 waiting</td>');
     expect(pr).toContain("$2.84");
-    expect(html).toMatch(/<p class="eos-rlead__now">(All five|Four of them) draft for you to send\.<\/p>/);
+    expect(html).toMatch(/<p class="eos-rlead__now">Four of them draft for you to send\.<\/p>/);
     expect(pr).not.toContain("eos-rtable__ctx");
     expect(html).not.toContain(">Kind<");
     expect(html).not.toContain(">Freedom<");
@@ -85,7 +85,7 @@ describe("all routines", () => {
 
   it("leads with how many routines there are and how many wait, then the soonest run", () => {
     const html = draw();
-    expect(html).toContain('<p class="eos-lead">Five routines, three of them waiting for you.</p>');
+    expect(html).toContain('<p class="eos-lead">Five routines, two of them waiting for you.</p>');
     expect(html).not.toContain("eos-card eos-rtable-wrap");
     const r = (name, waiting, nextAt) => ({ routine: { name }, waiting, nextAt });
     expect(routinesLead([r("A", 0)])).toBe("One routine.");
@@ -134,5 +134,9 @@ describe("all routines", () => {
     // lines ("weekdays at 05:00") do, whatever the locale.
     expect(nextWord(new Date(2026, 10, 25, 14, 30).getTime(), now)).toMatch(/^Today 14:30$/);
     expect(timeAt(new Date(2026, 10, 26, 15, 5).getTime())).toMatch(/ 15:05$/);
+    // After "since", a moment today is its time alone; an earlier day keeps its weekday.
+    const today = new Date(2026, 10, 26, 16, 0).getTime();
+    expect(sinceAt(new Date(2026, 10, 26, 13, 38).getTime(), today)).toBe("13:38");
+    expect(sinceAt(new Date(2026, 10, 24, 13, 38).getTime(), today)).toMatch(/ 13:38$/);
   });
 });

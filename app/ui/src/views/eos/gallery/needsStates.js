@@ -3,7 +3,7 @@
 
 import { ROUTES } from "../../../api/routes.js";
 import inboxItems from "./sample/inbox-items.json";
-import paper from "./sample/paper.json";
+import paper from "./samplePaper.js";
 
 const MIN = 60 * 1000;
 const DRAFT = "ib-8m2n6b0v4c1x";

@@ -8,7 +8,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { RUNS_PATH } from "../../../state/eos/homeStore.js";
 import inbox from "./sample/inbox.json";
 import memory from "./sample/memory.json";
-import paper from "./sample/paper.json";
+import paper from "./samplePaper.js";
 import decision from "./sample/surface-decision.json";
 import routineDetail from "./sample/routine-detail.json";
 import routineDraft from "./sample/routine-draft.json";

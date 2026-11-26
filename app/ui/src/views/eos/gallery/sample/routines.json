@@ -170,11 +170,11 @@
     "summary": "Tells you when the main build breaks.",
     "icon": "pulse",
     "aliases": [
-      "review"
+      "build"
     ],
     "kind": "standing",
     "state": "active",
-    "rung": "draft",
+    "rung": "on_its_own",
     "takes": {
       "kind": "github.pull_request",
       "label": "pull request",

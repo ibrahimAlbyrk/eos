@@ -3,12 +3,13 @@
 // draws a Page's sheet. A version the page has not kept leaves out its
 // Live ops stories, as version 3's note says.
 import paper from "./sample/paper-pages.json";
+import { movedDatelines } from "./samplePaper.js";
 
 const LIVE_OPS = /<article class="story"[^>]*data-filter-value="live-ops">.*?<\/article>|<button type="button" data-filter="live-ops"[^>]*>live-ops<\/button>/g;
 
 export function samplePageDocument(issueId, version) {
   const body = paper.bodies[issueId] ?? paper.bodies["si-7b3m1c000003"];
-  const shown = version === 3 ? body.replace(LIVE_OPS, "") : body;
+  const shown = movedDatelines(version === 3 ? body.replace(LIVE_OPS, "") : body);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><style>${paper.base}</style><style>${paper.style}</style></head>`
     + `<body><div class="eos-page" role="document">${shown}</div><script>${paper.runtime}</script></body></html>`;
 }

@@ -37,7 +37,7 @@ import triggerStatusSample from "./sample/trigger-status.json";
 import signalsSample from "./sample/signals.json";
 import memory from "./sample/memory.json";
 import surfaceSample from "./sample/surfaces.json";
-import paper from "./sample/paper.json";
+import paper from "./samplePaper.js";
 import decision from "./sample/surface-decision.json";
 import { at5, HOME_PROFILE, HOME_SUMMARY, homeNext, homeRuns } from "./sample/home.js";
 import { holdHomeInMemory, refreshHome, RUNS_PATH } from "../../../state/eos/homeStore.js";

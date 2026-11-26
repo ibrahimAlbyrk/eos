@@ -4,7 +4,7 @@
 import { ROUTES } from "../../../api/routes.js";
 import { notify } from "../../../lib/notify.js";
 import routineDetail from "./sample/routine-detail.json";
-import paper from "./sample/paper.json";
+import paper from "./samplePaper.js";
 
 const pressIn = (selector, test) => () => [...document.querySelectorAll(selector)].find(test)?.click();
 const PAPER = paper.surface.id;
