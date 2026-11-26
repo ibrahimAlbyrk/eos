@@ -15,7 +15,7 @@ import { EosFrame } from "../surface/EosFrame.jsx";
 // asks first, it asks here, below the frame, never inside it. A form's send
 // is Eos's too: the screen that holds the card draws it in its own actions
 // (onSubmitOffer), else the card draws it under the frame.
-export function SurfaceCard({ card, routineName, onSubmitOffer }) {
+export function SurfaceCard({ card, routineName, onSubmitOffer, tools = null }) {
   const { issue, body } = card;
   const [ownSubmit, setOwnSubmit] = useState(null);
   const offer = onSubmitOffer ?? setOwnSubmit;
@@ -50,7 +50,7 @@ export function SurfaceCard({ card, routineName, onSubmitOffer }) {
     <ConfirmBelow asking={asking} typed={typed} onType={setTyped} onConfirm={() => void confirm()} onCancel={() => ask(null)} />
   );
   const frame = (
-    <EosFrame maker={routineName} level="view" below={below} outside={body.untrusted === true}>
+    <EosFrame maker={routineName} level="view" below={below} outside={body.untrusted === true} tools={tools}>
       <GenuiHostContext.Provider value={host}>
         <SubmitOutside.Provider value={setFormOffer}>
           <OptionFacts.Provider value={factsOf}>

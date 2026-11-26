@@ -20,6 +20,7 @@ import { NEEDS_STATES, putInList } from "./needsStates.js";
 import { MEMORY_STATES } from "./memoryStates.js";
 import { CAPABILITY_STATES } from "./capabilityStates.js";
 import { PAGE_STATES } from "./pageStates.js";
+import { withPlainIssues } from "./samplePlain.js";
 import { CHROME_STATES } from "./chromeStates.js";
 import { SETTINGS_STATES } from "./settingsStates.js";
 import { APP_STATES } from "./appStates.js";
@@ -354,7 +355,7 @@ export const GALLERY_STATES = [
   ...CAPABILITY_STATES,
   { id: "page", label: "Page · today's issue", location: `eos:/surfaces/${PAPER}` },
   { id: "page-old", label: "Page · an earlier issue", location: `eos:/surfaces/${PAPER}?issue=1` },
-  { id: "page-redesign", label: "Page · needs a new design", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...s, [ROUTES.surface(PAPER)]: { ...paper.surface, needsRedesign: { since: 1 } } }) },
+  { id: "page-redesign", label: "Page · needs a new design", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...withPlainIssues(s, ROUTES, PAPER), [ROUTES.surface(PAPER)]: { ...paper.surface, needsRedesign: { since: 1 } } }) },
   { id: "page-reshape", label: "Page · changing it", location: `eos:/surfaces/${PAPER}?mode=reshape` },
   { id: "page-candidate", label: "Page · a new version to keep", location: `eos:/surfaces/${PAPER}?mode=reshape`, reads: (s) => ({ ...s, [ROUTES.surface(PAPER)]: { ...paper.surface, candidateVersion: 3 } }) },
   { id: "page-empty", label: "Page · no issue yet", location: `eos:/surfaces/${PAPER}`, reads: (s) => ({ ...s, [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } }) },

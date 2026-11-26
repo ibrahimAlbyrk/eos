@@ -22,6 +22,8 @@ import { editField, paperOf, printIssue } from "../../../state/eos/pageStore.js"
 import { ItemView } from "../needs/ItemView.jsx";
 import { _resetSurfaces, loadItemView } from "../../../state/eos/surfacesStore.js";
 import routines from "../gallery/sample/routines.json";
+import { issueView } from "./IssueBody.jsx";
+import { fallbackView } from "../gallery/samplePlain.js";
 
 vi.mock("../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
 vi.mock("../../../api/client.js", () => ({
@@ -332,6 +334,17 @@ describe("a page issue in Needs you", () => {
     expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html"`);
     expect(html).toContain('aria-label="Edit before it goes"');
     expect(html).toContain("Lead title");
+  });
+});
+
+describe("an issue that fell back to a plain View", () => {
+  it("reads as its View, never as a frame of a page it has not, and its View reads every value through a row", () => {
+    const view = fallbackView("Morning Paper", ["title", "lead", "stories"], { title: "The Morning Build", lead: { title: "Merge queues" }, stories: [{ title: "One" }] });
+    expect(issueView({ kind: "fallback" }, { body: { view } })).toBe(view);
+    expect(issueView({ kind: "page" }, { body: { data: {} } })).toBeNull();
+    expect(issueView({ kind: "page" }, { body: { plain: view } })).toBe(view);
+    expect(view.ui).not.toMatch(/<Text>/);
+    expect(view.data.f1).toEqual([{ id: 0, title: "Merge queues", meta: "Title" }]);
   });
 });
 

@@ -68,6 +68,11 @@ function reportRead(surfaceId, issueId, message) {
   void transport.send("POST", ROUTES.surfaceIssueRead(surfaceId, issueId), { parts: strip(message.parts), links: strip(message.links) });
 }
 
+// The View an issue reads as, or null for a page in its frame: a fallback
+// issue is the plain View the core made when the issue did not fit the
+// page's layout, and plain reading shows any page that way.
+export const issueView = (row, shown) => (row.kind === "view" || row.kind === "fallback" ? shown.body?.view : shown.body?.plain) ?? null;
+
 // The issue as it reads: the page in its frame, or a View when the issue fell
 // back to one or plain reading is on. `tools` takes the strip's right in
 // place of the issue's line beside the maker (the page screen's issues).
@@ -76,9 +81,9 @@ export function IssueBody({ surface, row, shown, maker, version, linked, tools =
   const { swaps, onLive } = useLiveParts(surface.id, row.id);
   if (!shown) return <Loading blocks={4} />;
   if (shown.failed) return <LoadFailed what="this issue" retry={() => void loadIssue(surface.id, row.id)} />;
-  const view = row.kind === "view" ? shown.body?.view : shown.body?.plain;
+  const view = issueView(row, shown);
   if (view) {
-    const card = <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} />;
+    const card = <SurfaceCard card={{ issue: shown.issue, body: { ...shown.body, view } }} routineName={maker} tools={tools} />;
     if (!shown.body?.aside?.length) return card;
     return (
       <div className="eos-needs-item__columns">
