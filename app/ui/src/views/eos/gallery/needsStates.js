@@ -86,6 +86,12 @@ function pageDraft(s) {
   return putInList({ ...s, [ROUTES.inboxItem(PAGE)]: { item, payload: { doc } } }, item, true);
 }
 
+const typeNumber = () => {
+  const input = document.getElementById("eos-setting-phone_number");
+  if (!input) return;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, "+44 7700 900461");
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
 const clickText = (text) => () => [...document.querySelectorAll(".eos-body button")].find((b) => b.textContent.trim().startsWith(text))?.click();
 
 const kind = (id, label, name) => ({ id: name, label: `Needs you · ${label}`, location: at(id), reads: listed(id) });
@@ -131,6 +137,9 @@ export const NEEDS_STATES = [
   kind(PROPOSAL, "a capability proposed", "need-install"),
   ...[["not_run", "test"], ["sent", "sent"], ["failed", "failed"], ["alerted", "reached"], ["not_alerted", "missed"]].map(([state, name]) => ({
     id: `need-install-${name}`, label: `Needs you · a capability's live test, ${state.replace("_", " ")}`, location: at(PROPOSAL), reads: withLiveTest(state),
+    // A test that did not get through was sent to a number typed here; the
+    // core does not send it back, so the gallery types it as the user did.
+    ...(name === "failed" || name === "missed" ? { then: typeNumber } : {}),
   })),
   kind("ib-7x2z6c0v4b8n", "a capability needs a look", "need-attention"),
   kind("sugg:um-2p6o0i4u8y", "a guess about you", "need-about"),
