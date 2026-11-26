@@ -83,3 +83,18 @@ export function soonestLine(rows, now) {
   const next = rows.filter((r) => r.nextAt != null && r.nextAt > now).sort((a, b) => a.nextAt - b.nextAt)[0];
   return next ? `Next: ${next.routine.name}, ${nextWord(next.nextAt, now).replace(/^[A-Z]/, (c) => c.toLowerCase())}.` : null;
 }
+
+// What each freedom lets a routine do, said of several at once.
+const RUNG_DOES = { ask: "ask you each time", draft: "draft for you to send", send_then_tell: "send, then tell you", on_its_own: "act on their own" };
+
+// The freedom most of `rows` share, said once for the lead's dim line ("All
+// four draft for you to send."), and that freedom, which a row then leaves
+// unsaid; null when no freedom is shared by more than half.
+export function sharedRung(rows) {
+  const counts = new Map();
+  for (const { routine } of rows) counts.set(routine.rung, (counts.get(routine.rung) ?? 0) + 1);
+  const [rung, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+  if (!rung || !RUNG_DOES[rung] || n * 2 <= rows.length || rows.length < 2) return null;
+  const who = n === rows.length ? (n === 2 ? "Both" : `All ${word(n).toLowerCase()}`) : `${word(n)} of them`;
+  return { rung, line: `${who} ${RUNG_DOES[rung]}.` };
+}
