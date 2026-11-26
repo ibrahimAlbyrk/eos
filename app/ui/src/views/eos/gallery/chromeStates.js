@@ -4,6 +4,7 @@
 import { ROUTES } from "../../../api/routes.js";
 import { notify } from "../../../lib/notify.js";
 import routineDetail from "./sample/routine-detail.json";
+import routines from "./sample/routines.json";
 import { APP } from "./appStates.js";
 import paper from "./samplePaper.js";
 
@@ -42,9 +43,19 @@ const homeThree = (s) => {
   const full = homeFull(s);
   return { ...full, [ROUTES.surfacePins]: { surfaceIds: [PAPER, ...full[ROUTES.surfacePins].surfaceIds.slice(0, 2)] }, [ROUTES.surfaceTiles]: { tiles: [paper.tiles.tiles[0], ...full[ROUTES.surfaceTiles].tiles.slice(0, 2)] } };
 };
-// PR Review filling Morning Paper's sheet, so its overview shows the page.
-const RT = routineDetail.routine.id;
-const withPage = (s) => ({ ...s, [`${ROUTES.surfaces}?routine=${RT}`]: { surfaces: [{ ...paper.surface, routineId: RT }] } });
+// Morning Paper's own page, so its overview shows the sheet it fills: its
+// routine read as the list holds it, with the run that printed issue 3.
+const RT = paper.surface.routineId;
+const MORNING = routines.find((r) => r.id === RT);
+const PRINTED_AT = new Date().setHours(8, 0, 0, 0);
+const printed = { ...MORNING.lastRun, createdAt: PRINTED_AT - 2000, startedAt: PRINTED_AT, endedAt: PRINTED_AT + MORNING.lastRun.workMs };
+const withPage = (s) => ({
+  ...s,
+  // Printed at 08:00 and resting until tomorrow's run.
+  [ROUTES.routines]: s[ROUTES.routines].map((r) => (r.id === RT ? { ...r, activeRuns: 0 } : r)),
+  [ROUTES.routine(RT)]: { ...routineDetail, routine: { ...routineDetail.routine, ...MORNING, activeRuns: 0, stats: undefined }, runs: [printed] },
+  [`${ROUTES.surfaces}?routine=${RT}`]: { surfaces: [paper.surface] },
+});
 const withNoIssue = (s) => ({ ...withPage(s), [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } });
 
 export const CHROME_STATES = [
@@ -55,7 +66,7 @@ export const CHROME_STATES = [
     then: () => {
       notify.info("It waits in Needs you for you to send.");
       notify.warning("Slack answered slowly; the channel list may be short.", { title: "Goes to" });
-      notify.error("Eos could not export what it learned.", { title: "Settings" });
+      notify.error("Eos could not export what it learned.", { title: "Export failed" });
     } },
   { id: "pins-one", label: "Home · one page pinned", location: "eos:/", reads: homeOne },
   { id: "pins-three", label: "Home · three pinned", location: "eos:/", reads: homeThree },

@@ -74,7 +74,7 @@ describe("Eos › Home", () => {
     expect(html).toContain('class="eos-home-card__glyph"><path');
     expect(html).toContain("All 5 in Needs you");
     expect(html).toContain("While you were away");
-    expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "Morning Paper", "PR Review", "Mail Triage"]);
+    expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Morning Paper", "Build Watch", "PR Review", "Mail Triage"]);
     expect(html).toContain("Eos learned four things this week.");
     expect(html).not.toContain("autofocus");
   });
@@ -114,7 +114,7 @@ describe("Eos › Home", () => {
       const html = draw();
       expect(html).not.toContain("While you were away");
       expect(html).toContain('class="eos-label">Earlier today</h2>');
-      expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Build Watch", "Morning Paper", "PR Review", "Mail Triage"]);
+      expect([...html.matchAll(/class="eos-away__routine">([^<]+)</g)].map((m) => m[1])).toEqual(["Morning Paper", "Build Watch", "PR Review", "Mail Triage"]);
     } finally {
       delete globalThis.localStorage;
     }

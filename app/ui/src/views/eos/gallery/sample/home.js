@@ -33,7 +33,7 @@ export function homeRuns(now) {
     run("rn-h5", PR, now - 64 * MIN, "waiting_for_user", { itemTitle: "#482 Fix pooled particle leak", headline: "Review ready for #482." }),
     run("rn-h4", PR, now - 142 * MIN, "waiting_for_user", { itemTitle: "#481 Shop carousel snaps", headline: "Review ready for #481." }),
     run("rn-h3", BUILD, now - 190 * MIN, "done", { headline: "The nightly build passed on main." }),
-    run("rn-h2", PAPER, midnight + 300 * MIN, "done", { headline: "Issue 3 is ready. Nine stories, two from sources you starred." }),
+    run("rn-h2", PAPER, midnight + 473 * MIN, "done", { headline: "Issue 3 is ready. Nine stories, two from sources you starred." }),
     run("rn-h1", PR, midnight + 221 * MIN, "done", { headline: "Approved #479 and posted it." }),
     run("rn-h0", MAIL, midnight + 130 * MIN, "done", { headline: "Sorted 23 mails. Two from the publisher are summarised." }),
   ];
@@ -42,9 +42,9 @@ export function homeRuns(now) {
 
 // The 05:00 after (step 1) or before (step -1) `from`; on weekdays only
 // when asked, as PR Review's schedule runs.
-export function at5(from, step, weekdays = false) {
+export function at5(from, step, weekdays = false, hour = 5) {
   const d = new Date(from);
-  d.setHours(5, 0, 0, 0);
+  d.setHours(hour, 0, 0, 0);
   if (step > 0 ? d.getTime() <= from : d.getTime() > from) d.setDate(d.getDate() + step);
   while (weekdays && (d.getDay() === 0 || d.getDay() === 6)) d.setDate(d.getDate() + step);
   return d.getTime();
@@ -56,7 +56,8 @@ export function homeNext(now) {
   const halfHour = 30 * MIN;
   return [
     { routineId: PR, nextAt: at5(now, 1, true), sourcesOk: true },
-    { routineId: PAPER, nextAt: at5(now, 1), sourcesOk: true },
+    // Morning Paper prints at 08:00, as its issues say.
+    { routineId: PAPER, nextAt: at5(now, 1, false, 8), sourcesOk: true },
     { routineId: BUILD, nextAt: Math.floor(now / halfHour) * halfHour + halfHour, sourcesOk: true },
   ];
 }
