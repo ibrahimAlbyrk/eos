@@ -40,6 +40,7 @@ mod supervisor;
 pub(crate) mod surfaces;
 mod system;
 mod team;
+mod uncap;
 mod versions;
 mod workspace;
 
@@ -67,6 +68,7 @@ pub(crate) use steer::{message, pause, resume};
 pub(crate) use surfaces::{Move as SurfaceMove, moved as surface_moved};
 pub(crate) use system::Builtins;
 pub(crate) use team::shape_report;
+pub(crate) use uncap::uncap;
 pub(crate) use versions::{
     Edit, NEWER_FORMAT, NewVersion, Prepared, Saved, blocks, check_in, copy, create, free_slug, insert_version,
     prepare, restore, save,

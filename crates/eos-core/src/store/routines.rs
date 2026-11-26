@@ -1,5 +1,6 @@
 //! The routine tables: `routines` with `routine_drafts`, `routine_versions`,
-//! `routine_sessions`, `routine_spend` and `routine_suggestions`.
+//! `routine_sessions`, `routine_spend`, `routine_suggestions` and
+//! `routine_limit_resets`.
 
 use eos_contracts::{DraftStatus, RoutineKind, RoutineState, VersionAuthor, VersionStatus};
 use eos_domain::run_scope::Trust;
@@ -121,6 +122,12 @@ pub trait RoutineRepo {
     fn set_failure_streak(&self, id: &str, streak: i64) -> Result<(), Error>;
     /// The name it shows, from the blueprint it runs from.
     fn set_name(&self, id: &str, name: &str, at: i64) -> Result<(), Error>;
+    /// The routines whose dollar caps were filled in by default and are
+    /// still to be taken off (`routine_limit_resets`); the empty id is the
+    /// overall day budget.
+    fn limit_resets(&self) -> Result<Vec<String>, Error>;
+    /// Forgets that `routine_id`'s caps are still to be taken off.
+    fn drop_limit_reset(&self, routine_id: &str) -> Result<(), Error>;
 }
 
 pub trait RoutineVersionRepo {

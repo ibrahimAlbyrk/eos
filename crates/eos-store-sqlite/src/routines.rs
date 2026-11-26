@@ -1,5 +1,5 @@
-//! `routines`, `routine_drafts`, `routine_versions`, `routine_sessions` and
-//! `routine_spend`.
+//! `routines`, `routine_drafts`, `routine_versions`, `routine_sessions`,
+//! `routine_spend` and `routine_limit_resets`.
 
 use std::path::PathBuf;
 
@@ -238,6 +238,14 @@ impl RoutineRepo for SqliteTx<'_> {
             params![word(&kind)?, at, id],
         )
         .map(drop)
+    }
+
+    fn limit_resets(&self) -> Result<Vec<String>, Error> {
+        self.rows("SELECT routine_id FROM routine_limit_resets ORDER BY routine_id", [], |r| r.get(0).map_err(failed))
+    }
+
+    fn drop_limit_reset(&self, routine_id: &str) -> Result<(), Error> {
+        self.exec("DELETE FROM routine_limit_resets WHERE routine_id = ?1", [routine_id]).map(drop)
     }
 }
 

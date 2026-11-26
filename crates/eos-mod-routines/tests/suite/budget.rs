@@ -1,7 +1,8 @@
 //! Budgets: a run told to wrap up at 90 % of its cost and failed at 100 %,
 //! its time cap with its grace, the day caps that skip runs from triggers
 //! with one notice and refuse a start by hand, no stop for money where no
-//! cap is set, plan headroom, and spend booked on the user's local day.
+//! cap is set, the default caps of older routines taken off once, plan
+//! headroom, and spend booked on the user's local day.
 
 use std::sync::Arc;
 
@@ -377,4 +378,45 @@ async fn a_project_milestone_without_caps_leaves_the_run_uncapped() {
     bench.later(4 * 60 * MINUTE).await;
     assert_eq!(bench.state(&run), RunState::Running, "a project has no cap per run");
     assert_eq!(bench.told(&lead, "Wrap up"), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_dollar_caps_filled_in_by_default_come_off_once_and_a_cap_set_later_stays() {
+    use eos_contracts::VersionAuthor;
+    use eos_runtime::module::Module;
+    let bench = Bench::new(true);
+    let filled = bench.routine(RoutineState::Active, limited(1.0, 30, 5.0));
+    let drafted = bench.routine(RoutineState::Draft, limited(1.0, 30, 5.0));
+    let later = bench.routine(RoutineState::Active, limited(4.0, 30, 9.0));
+    bench.temp.exec(&format!("INSERT INTO routine_limit_resets VALUES ('{filled}'), ('{drafted}'), ('gone')"));
+    bench.setting("routines.dayBudgetUsd", SettingValue::Number(Num(20.0)));
+    let versions = |id: &str| {
+        let id = id.to_owned();
+        bench.temp.store.read_blocking(move |tx| tx.routine_versions().list(&id)).expect("reads")
+    };
+    let limits = |id: &str| {
+        let head = versions(id).pop().expect("a version");
+        (head.author, serde_json::from_str::<Value>(&head.blueprint).expect("json")["limits"].clone())
+    };
+
+    bench.supervise().await;
+    let (author, uncapped) = limits(&filled);
+    assert_eq!((author, uncapped), (VersionAuthor::Eos, json!({"perRunMinutes": 30, "parallel": 1})));
+    let kept = json!({"perRunUsd": 4, "perRunMinutes": 30, "perDayUsd": 9, "parallel": 1});
+    assert_eq!(limits(&later).1, kept, "a routine made since keeps its caps");
+    assert_eq!(versions(&drafted).len(), 1, "a draft waits until it runs from a version");
+    let rows = bench.temp.count("SELECT count(*) FROM routine_limit_resets");
+    assert_eq!(rows, 1, "only the draft is left to do");
+    let stored = bench.settings.0.lock().expect("settings").get("routines.dayBudgetUsd").cloned();
+    assert_eq!(stored, Some(SettingValue::Number(Num(0.0))), "the overall day budget is gone");
+
+    // A cap set by hand afterwards stays across a restart.
+    bench.module.stop().await;
+    bench.setting("routines.dayBudgetUsd", SettingValue::Number(Num(3.0)));
+    let restarted = bench.another_module();
+    restarted.after_ready().await.expect("starts");
+    assert_eq!(versions(&filled).len(), 2, "nothing more is taken off");
+    let kept = bench.settings.0.lock().expect("settings").get("routines.dayBudgetUsd").cloned();
+    assert_eq!(kept, Some(SettingValue::Number(Num(3.0))));
+    restarted.stop().await;
 }

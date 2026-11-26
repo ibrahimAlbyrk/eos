@@ -26,7 +26,7 @@ pub(crate) use candidates::item_ref;
 pub(crate) use estimate::usual;
 pub(crate) use routines::{BUILTIN, gone, param, readable, run_summaries, showing_version, summary, with_blueprint};
 pub(crate) use runs::start_refused;
-pub(crate) use settings::{current as current_settings, protected_settings, today};
+pub(crate) use settings::{DAY_BUDGET, current as current_settings, protected_settings, today};
 pub(crate) use share::export_of;
 
 use crate::architect::ARCHITECTS_BUSY;

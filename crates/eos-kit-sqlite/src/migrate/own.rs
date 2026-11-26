@@ -38,4 +38,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("079_signal_hooks"),
     // Summaries of runs the user's other computers finished, as sync brought them.
     embed!("080_synced_runs"),
+    // The routines whose dollar caps were filled in by default, to take off once.
+    embed!("081_routine_limit_resets"),
 ];
