@@ -70,3 +70,10 @@
 .eos-first__rest > .eos-first__row { flex: 1; min-width: 0; }
 .eos-first__rest > .eos-btn { flex: none; }
 .eos-first > .eos-first__acts { margin-top: 32px; }
+
+/* Coming up on Routines: the soonest slot leads (its mark solid with a halo,
+   its words at full tone); the later ones stay a step back. */
+.eos-routines .eos-next__slot:first-child::before { border-color: var(--fg-mid); background: var(--fg-mid); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg-mid) 18%, transparent); }
+.eos-routines .eos-next__slot:first-child .eos-next__when { color: var(--fg); }
+.eos-routines .eos-next__slot:first-child .eos-next__name { color: var(--fg); }
+.eos-routines .eos-next__slot:not(:first-child) .eos-next__clock { color: var(--fg-dim); }
