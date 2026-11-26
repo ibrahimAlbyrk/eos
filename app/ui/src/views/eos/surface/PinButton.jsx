@@ -29,11 +29,13 @@ export function PinButton({ surface }) {
   );
 }
 
+const KINDS = { view: "View", page: "Page", app: "App" };
+
 // The tile a pinned page shows on Home, as a pick: its title, its headline,
 // and what kind of thing it is.
 export const pickOf = (id, tiles) => {
   const tile = tiles?.find((t) => t.surfaceId === id);
-  return { id, name: tile?.title ?? "A pinned page", line: tile?.headline, kind: tile?.level === "view" ? "View" : "Page" };
+  return { id, name: tile?.title ?? "A pinned page", line: tile?.headline, kind: KINDS[tile?.level] ?? "Page" };
 };
 
 export function ReplacePin({ surface, ids, tiles, onClose, initial = null }) {

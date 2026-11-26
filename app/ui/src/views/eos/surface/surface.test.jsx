@@ -9,7 +9,7 @@ import { EosMain } from "../EosMain.jsx";
 import { _resetEosNav, openLocation } from "../nav/eosNav.js";
 import { eosTargetLocation, openableLink, pageMessage } from "./PageRenderer.jsx";
 import { shareName } from "./ShareMenu.jsx";
-import { ReplacePin } from "./PinButton.jsx";
+import { pickOf, ReplacePin } from "./PinButton.jsx";
 import { followLiveParts } from "./useLiveParts.js";
 import { applyEosEvent } from "../../../state/eos/live.js";
 import { partName, popoverPlace } from "./PointPopover.jsx";
@@ -334,6 +334,13 @@ describe("a page issue in Needs you", () => {
     expect(html).toContain(`src="raw:/surfaces/${SF}/issues/si-7b3m1c000003/page.html"`);
     expect(html).toContain('aria-label="Edit before it goes"');
     expect(html).toContain("Lead title");
+  });
+});
+
+describe("a pin to replace", () => {
+  it("names what kind of thing it is: a View, a Page or an App", () => {
+    const tiles = [{ surfaceId: "a", level: "view" }, { surfaceId: "b", level: "page" }, { surfaceId: "c", level: "app" }];
+    expect(["a", "b", "c"].map((id) => pickOf(id, tiles).kind)).toEqual(["View", "Page", "App"]);
   });
 });
 
