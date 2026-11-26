@@ -34,10 +34,17 @@ const INPUT_PAD = 16;
 const INPUT_TOP = -87;
 const INPUT_BOTTOM = 111;
 const RING_LABELS = [
-  { ring: 1, text: "Needs you", angle: 90 },
-  { ring: 2, text: "Working", angle: 270 },
-  { ring: 3, text: "Quiet", angle: 0 },
+  { ring: 1, text: "Needs you" },
+  { ring: 2, text: "Working" },
+  { ring: 3, text: "Quiet" },
 ];
+/// Where a ring's name may sit, nearest its crest first: every ring is named
+/// at its top where it can be, so the names read down one line as a scale;
+/// a ring that runs out of the window is named where it comes back in.
+const LABEL_ANGLES = [270, 260, 280, 250, 290, 240, 300, 230, 310, 220, 320, 210, 330, 200, 340, 190, 350, 180, 0];
+/// The room a ring's name keeps from the window's edge and from a disc.
+const LABEL_EDGE = { x: 60, y: 28 };
+const LABEL_CLEAR = 16;
 /// Paused for these reasons a routine is a problem the user must look at.
 const PROBLEMS = new Set(["failures", "capability", "sign_in", "spend", "target_refused"]);
 
@@ -188,16 +195,21 @@ export function placeDiscs(routines, { W, H, inputWidth }) {
       plusDiscs.push({ tier: ring, ring, count: overflow[ring], angle: Math.round(slot.angle * 10) / 10, x: slot.x, y: slot.y });
     }
   }
-  const covered = (x, y) =>
-    discs.some((disc) => {
+  const covered = (x, y, m = 0) =>
+    [...discs, ...plusDiscs.map((p) => ({ ...p, d: COMPACT.d * s, compact: true }))].some((disc) => {
       const f = footprint(disc.x, disc.y, disc.d, disc.compact);
-      return x >= f.x0 && x <= f.x1 && y >= f.y0 && y <= f.y1;
+      return x >= f.x0 - m && x <= f.x1 + m && y >= f.y0 - m && y <= f.y1 + m;
     });
-  const ringLabels = RING_LABELS.map(({ ring, text, angle }) => {
+  const inWindow = (x, y) => Math.abs(x) <= W / 2 - LABEL_EDGE.x && Math.abs(y) <= H / 2 - LABEL_EDGE.y;
+  const ringLabels = RING_LABELS.map(({ ring, text }) => {
     const R = RADII[ring - 1] * s;
-    const x = R * Math.cos(rad(angle));
-    const y = R * Math.sin(rad(angle));
-    return { ring, text, x, y, hidden: covered(x, y) };
+    const at = (angle) => ({ x: R * Math.cos(rad(angle)), y: R * Math.sin(rad(angle)) });
+    const angle = LABEL_ANGLES.find((a) => {
+      const p = at(a);
+      return inWindow(p.x, p.y) && !covered(p.x, p.y, LABEL_CLEAR);
+    });
+    if (angle === undefined) return { ring, text, x: 0, y: 0, hidden: true };
+    return { ring, text, ...at(angle), hidden: false };
   });
   const fits = overflow[1] + overflow[2] + overflow[3] === 0;
   return { discs, plusDiscs, ringLabels, overflow, fits };

@@ -132,15 +132,17 @@ describe("placing discs at 1440 × 900", () => {
     expect(out.fits).toBe(false);
   });
 
-  it("hides a ring label a disc covers", () => {
-    const out = placeDiscs([{ ...routines(1, 1)[0] }], { W: 1440, H: 900, inputWidth: 580 });
-    expect(out.ringLabels.every((l) => !l.hidden)).toBe(true);
+  it("names each ring at its crest, or where it comes back into the window, and never under a disc", () => {
     const bare = placeDiscs([], { W: 1440, H: 900, inputWidth: 580 });
     expect(bare.ringLabels.map((l) => [Math.round(l.x) + 0, Math.round(l.y) + 0])).toEqual([
-      [0, 235],
+      [0, -235],
       [0, -390],
-      [560, 0],
+      [-429, -360],
     ]);
+    const out = placeDiscs(routines(3, 3, 3), { W: 1440, H: 900, inputWidth: 580 });
+    for (const label of out.ringLabels.filter((l) => !l.hidden)) {
+      for (const disc of out.discs) expect(Math.hypot(label.x - disc.x, label.y - disc.y)).toBeGreaterThan(disc.d / 2);
+    }
   });
 });
 
