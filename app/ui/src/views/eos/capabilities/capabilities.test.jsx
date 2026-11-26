@@ -93,7 +93,10 @@ describe("the Capabilities list", () => {
 
     setEosTransport(fixtureTransport({ [ROUTES.capabilities]: [] }));
     await refreshCapabilities();
-    expect(at("eos:/capabilities")).toContain("Eos has no capabilities yet.");
+    const none = at("eos:/capabilities");
+    expect(none).toContain('<h2 class="eos-first__ask">Nothing to reach yet.</h2>');
+    expect(none).toContain("How Eos gets one");
+    expect(none).toContain(">New routine</button>");
   });
 
   it("says a dev run refused the action instead of reporting a failure", async () => {
