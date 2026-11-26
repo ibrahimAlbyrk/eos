@@ -252,7 +252,7 @@ describe("the routine page", () => {
 
   it("says in its lead why a routine is paused, with Resume and its last run under, and ends its beat at the pause", async () => {
     const html = await page(`eos:/routines/${MAIL}`);
-    expect(html).toContain('<span class="eos-status eos-status--warn">Paused</span>');
+    expect(html).toContain('<span class="eos-status eos-status--warn">Paused, 1 waiting</span>');
     expect(html).toContain('<p class="eos-rlead__now eos-rlead__now--warn" role="status">Paused after three failed runs in a row.</p>');
     expect(html).toContain('<div class="eos-rlead__acts"><button type="button" class="eos-btn eos-btn--primary">Resume</button><button type="button" class="eos-btn eos-btn--quiet">Open the last run</button></div>');
     expect(html).toContain('<li class="eos-beat__stop eos-beat__stop--ahead eos-beat__stop--paused">');

@@ -34,7 +34,7 @@ function keepFilter(filter) {
 // The routine's state as its one status line, and the dot's tone beside it;
 // the line always says what the dot shows.
 export function routineStatus(routine, waiting) {
-  if (routine.state === "paused") return { tone: "warn", line: "Paused" };
+  if (routine.state === "paused") return { tone: "warn", line: waiting > 0 ? `Paused, ${waiting} waiting` : "Paused" };
   if (routine.state === "archived") return { tone: null, line: "Archived" };
   if (routine.state === "deleted") return { tone: null, line: "Deleted" };
   if (routine.state === "draft") return { tone: null, line: "Being made" };
@@ -148,7 +148,10 @@ export function RoutineRows({ selectedId }) {
   const [filter, setFilter] = useState(storedFilter);
   useEffect(() => { keepFilter(filter); }, [filter]);
 
-  const shown = list?.filter((r) => FILTERS[filter].states.includes(r.state)) ?? [];
+  // A paused routine with something waiting for the user stays among the
+  // active: what it holds needs them as much as any other's.
+  const asks = (r) => filter === "active" && r.state === "paused" && (byRoutine[r.id] ?? 0) > 0;
+  const shown = list?.filter((r) => FILTERS[filter].states.includes(r.state) || asks(r)) ?? [];
   return (
     <section className="agents-section eos-side-routines" aria-label="Routines">
       <div className="sb-seclabel">

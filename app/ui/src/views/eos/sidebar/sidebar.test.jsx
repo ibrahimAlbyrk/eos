@@ -66,13 +66,14 @@ describe("the Eos sidebar's nav rows", () => {
 });
 
 describe("the routine rows", () => {
-  it("show the active routines, each with its status in words beside its dot", async () => {
+  it("show the active routines, and a paused one with something waiting, each with its status in words beside its dot", async () => {
     await load({ [ROUTES.routines]: routines, [ROUTES.inbox]: inbox });
     const html = draw();
-    expect(names(html)).toEqual(["PR Review", "Morning Paper", "Build Watch", "Release Notes"]);
+    expect(names(html)).toEqual(["PR Review", "Morning Paper", "Mail Triage", "Build Watch", "Release Notes"]);
     const expected = {
       "PR Review": ["eos-side-dot--active", '<span class="eos-side-line eos-side-line--active">3 waiting</span>'],
       "Morning Paper": ["eos-side-dot--active", '<span class="eos-side-line eos-side-line--active">1 waiting</span>'],
+      "Mail Triage": ["eos-side-dot--warn", '<span class="eos-side-line eos-side-line--warn">Paused, 1 waiting</span>'],
       "Build Watch": ["eos-side-dot--ok", '<span class="eos-side-line">Every 30 minutes</span>'],
       "Release Notes": ['class="eos-side-dot"', '<span class="eos-side-line">Being made</span>'],
     };
@@ -91,7 +92,7 @@ describe("the routine rows", () => {
     let html = draw();
     expect(names(html)).toEqual(["Mail Triage"]);
     expect(rowOf(html, "Mail Triage")).toContain('<span class="eos-side-dot eos-side-dot--warn" aria-hidden="true"></span>');
-    expect(rowOf(html, "Mail Triage")).toContain('<span class="eos-side-line eos-side-line--warn">Paused</span>');
+    expect(rowOf(html, "Mail Triage")).toContain('<span class="eos-side-line eos-side-line--warn">Paused, 1 waiting</span>');
     expect(html).toContain('Routines<span class="eos-side-filter__name"> · Paused</span>');
     expect(html).toContain('<button type="button" class="sb-seclabel__filter on" aria-label="Filter routines"');
 
@@ -101,7 +102,7 @@ describe("the routine rows", () => {
     expect(rowOf(html, "Weekly Report")).toContain('<span class="eos-side-line">Archived</span>');
 
     localStorage.setItem("eos:sidebarFilter", "something else");
-    expect(names(draw())).toEqual(["PR Review", "Morning Paper", "Build Watch", "Release Notes"]);
+    expect(names(draw())).toEqual(["PR Review", "Morning Paper", "Mail Triage", "Build Watch", "Release Notes"]);
   });
 
   it("keep a deleted routine under Deleted for 30 days, and Bring back puts it where it was", async () => {
@@ -152,7 +153,7 @@ describe("the routine rows", () => {
   it("say when there are none, for each filter", async () => {
     await load({ [ROUTES.routines]: [], [ROUTES.inbox]: inbox });
     expect(draw()).toContain('<p class="eos-side-note">No routines yet.<span class="eos-side-note__more">');
-    await load({ [ROUTES.routines]: [{ ...routines[0], state: "paused" }], [ROUTES.inbox]: inbox });
+    await load({ [ROUTES.routines]: [{ ...routines[0], state: "paused" }], [ROUTES.inbox]: { ...inbox, counts: { ...inbox.counts, byRoutine: {} } } });
     expect(draw()).toContain('Every routine is paused. <button type="button" class="eos-link">Show paused</button>');
     localStorage.setItem("eos:sidebarFilter", "archived");
     await load({ [ROUTES.routines]: [routines[0]], [ROUTES.inbox]: inbox });
