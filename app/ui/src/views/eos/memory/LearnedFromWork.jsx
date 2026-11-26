@@ -193,10 +193,12 @@ export function LearnedFromWork({ summary, query = "", selected, routineId, onCl
       <>
         {groups.map((g) => (
           <section key={g.key} className="eos-mem-group" aria-label={g.label}>
-            <header className="eos-mem-group__head">
-              <h2 className="eos-mem-group__name">{routineId ? "What it learned from you" : g.label}</h2>
-              <span className="eos-mem-group__count">{g.count ?? g.rows.length}</span>
-            </header>
+            {!routineId && (
+              <header className="eos-mem-group__head">
+                <h2 className="eos-mem-group__name">{g.label}</h2>
+                <span className="eos-mem-group__count">{g.count ?? g.rows.length}</span>
+              </header>
+            )}
             <ul className="eos-mem-rows">
               {g.rows.map((row) => <NoteRow key={row.id} row={row} selected={row.id === selected} onOpen={() => open(row.id)} />)}
             </ul>
@@ -211,6 +213,13 @@ export function LearnedFromWork({ summary, query = "", selected, routineId, onCl
   return (
     <>
       <div className="eos-mem-learned">
+        {/* In a routine's tab the list's label comes first, then its filters, as on its other tabs. */}
+        {routineId && !bare && (
+          <header className="eos-mem-group__head">
+            <h2 className="eos-mem-group__name">What it learned from you</h2>
+            {page && <span className="eos-mem-group__count">{groups.reduce((n, g) => n + (g.count ?? g.rows.length), 0)}</span>}
+          </header>
+        )}
         {!bare && <Filters scopes={summary?.scopes} routines={routines} scope={scope} kind={kind} onScope={setScope} onKind={setKind} placed={Boolean(routineId)} />}
         {body}
       </div>
