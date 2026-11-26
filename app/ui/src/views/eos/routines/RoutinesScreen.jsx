@@ -126,7 +126,9 @@ export function RoutinesScreen() {
   const now = Date.now();
   const nextOf = Object.fromEntries(next.filter((n) => n.nextAt != null).map((n) => [n.routineId, n.nextAt]));
   const rows = (list ?? [])
-    .filter((r) => FILTERS[filter].states.includes(r.state))
+    // A paused routine with something waiting is among the active, as in the
+    // sidebar: what it holds needs the user now.
+    .filter((r) => FILTERS[filter].states.includes(r.state) || (filter === "active" && r.state === "paused" && (byRoutine[r.id] ?? 0) > 0))
     .map((routine) => {
       const waiting = byRoutine[routine.id] ?? 0;
       return { routine, waiting, nextAt: nextOf[routine.id], ...routineStatus(routine, waiting) };

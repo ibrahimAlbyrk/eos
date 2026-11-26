@@ -35,8 +35,9 @@ describe("all routines", () => {
     expect(html).not.toContain("This part of Eos is not here yet.");
     expect(html).toContain('<h1 class="eos-title">Routines</h1>');
     // Grouped by what the user must do, by name within each group.
-    expect(groups(html)).toEqual(["Waiting for you 2", "Nothing waiting 1", "Being made 1"]);
-    expect(names(html)).toEqual(["Morning Paper", "PR Review", "Build Watch", "Release Notes"]);
+    // A paused routine with something waiting is among them, as in the sidebar.
+    expect(groups(html)).toEqual(["Waiting for you 3", "Nothing waiting 1", "Being made 1"]);
+    expect(names(html)).toEqual(["Mail Triage", "Morning Paper", "PR Review", "Build Watch", "Release Notes"]);
     expect(html).toContain('<span class="eos-rtable__mark eos-rtable__mark--active" aria-hidden="true"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" class="eos-rtable__glyph">');
     expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');
     expect(html).toContain('<th scope="col" aria-sort="ascending"><button type="button" class="eos-rtable__sort">Routine<span aria-hidden="true"> ↑</span></button></th>');
@@ -44,7 +45,7 @@ describe("all routines", () => {
     // What waits is said once, in its tone; the freedom they share once, in the lead.
     expect(pr).toContain('<td class="eos-rtable__line eos-rtable__line--active">3 waiting</td>');
     expect(pr).toContain("$2.84");
-    expect(html).toMatch(/<p class="eos-rlead__now">(All four|Three of them) draft for you to send\.<\/p>/);
+    expect(html).toMatch(/<p class="eos-rlead__now">(All five|Four of them) draft for you to send\.<\/p>/);
     expect(pr).not.toContain("eos-rtable__ctx");
     expect(html).not.toContain(">Kind<");
     expect(html).not.toContain(">Freedom<");
@@ -84,7 +85,7 @@ describe("all routines", () => {
 
   it("leads with how many routines there are and how many wait, then the soonest run", () => {
     const html = draw();
-    expect(html).toContain('<p class="eos-lead">Four routines, two of them waiting for you.</p>');
+    expect(html).toContain('<p class="eos-lead">Five routines, three of them waiting for you.</p>');
     expect(html).not.toContain("eos-card eos-rtable-wrap");
     const r = (name, waiting, nextAt) => ({ routine: { name }, waiting, nextAt });
     expect(routinesLead([r("A", 0)])).toBe("One routine.");
@@ -113,8 +114,10 @@ describe("all routines", () => {
   });
 
   it("says when every routine is paused or archived, and offers each paused one back, without offering to make the first", async () => {
-    setEosTransport(fixtureTransport({ [ROUTES.routines]: routines.map((r) => ({ ...r, state: "paused" })), [ROUTES.inbox]: inbox }));
+    const nothingWaits = { ...inbox, counts: { ...inbox.counts, byRoutine: {} } };
+    setEosTransport(fixtureTransport({ [ROUTES.routines]: routines.map((r) => ({ ...r, state: "paused" })), [ROUTES.inbox]: nothingWaits }));
     await refreshRoutines();
+    await refreshInbox();
     const html = draw();
     expect(html).toContain('<h2 class="eos-first__ask">Nothing active.</h2><p class="eos-first__dim">Each of your routines is paused or archived.</p>');
     expect(html.match(/aria-label="Resume [^"]+">Resume</g)).toHaveLength(routines.length);
