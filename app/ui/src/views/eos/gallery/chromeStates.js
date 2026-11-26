@@ -47,13 +47,23 @@ const homeThree = (s) => {
 // routine read as the list holds it, with the run that printed issue 3.
 const RT = paper.surface.routineId;
 const MORNING = routines.find((r) => r.id === RT);
+// Its three runs printed its three issues, each at 08:00, today's last.
+const DAY = 24 * 60 * 60 * 1000;
 const PRINTED_AT = new Date().setHours(8, 0, 0, 0);
-const printed = { ...MORNING.lastRun, createdAt: PRINTED_AT - 2000, startedAt: PRINTED_AT, endedAt: PRINTED_AT + MORNING.lastRun.workMs };
+const printedRuns = paper.issues.issues.map((issue) => {
+  const startAt = new Date(issue.createdAt).setHours(8, 0, 0, 0);
+  return { ...MORNING.lastRun, id: issue.runId, createdAt: startAt - 2000, startedAt: startAt, endedAt: startAt + MORNING.lastRun.workMs };
+});
+// Its schedule: the last at 08:00 today, the next at 08:00 tomorrow.
+const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const paperSchedule = { routineId: RT, schedules: [{ slot: 1, nextAt: PRINTED_AT + DAY, lastAt: PRINTED_AT, lateByMs: 0, missed: 0, zone: ZONE, zoneDiffers: false }], sources: [] };
+const paperHead = { ...routineDetail.head, blueprint: { ...routineDetail.head.blueprint, when: { on: [{ schedule: { daily: "08:00", zone: ZONE } }] } } };
 const withPage = (s) => ({
   ...s,
   // Printed at 08:00 and resting until tomorrow's run.
   [ROUTES.routines]: s[ROUTES.routines].map((r) => (r.id === RT ? { ...r, activeRuns: 0 } : r)),
-  [ROUTES.routine(RT)]: { ...routineDetail, routine: { ...routineDetail.routine, ...MORNING, activeRuns: 0, stats: undefined }, runs: [printed] },
+  [ROUTES.routine(RT)]: { ...routineDetail, head: paperHead, routine: { ...routineDetail.routine, ...MORNING, activeRuns: 0, stats: undefined }, runs: printedRuns },
+  [ROUTES.signalsRoutine(RT)]: paperSchedule,
   [`${ROUTES.surfaces}?routine=${RT}`]: { surfaces: [paper.surface] },
 });
 const withNoIssue = (s) => ({ ...withPage(s), [`${ROUTES.surfaceIssues(PAPER)}?limit=20`]: { issues: [], more: false } });
