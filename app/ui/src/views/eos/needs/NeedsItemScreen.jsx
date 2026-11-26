@@ -143,7 +143,8 @@ export function NeedsItemScreen({ id }) {
   const isDraft = detail?.item.kind === "draft";
   const setAside = stored && (
     <>
-      {detail?.item.state === "open" && (
+      {/* A paused routine's Keep paused already puts it off; Later would say it twice. */}
+      {detail?.item.state === "open" && detail.item.kind !== "routine_alert" && (
         <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => { void laterInboxItem(id); openLocation(after(order, at)); }}>Later</button>
       )}
       <button type="button" className="eos-btn eos-btn--quiet" disabled={offline} onClick={() => void doing({ run: discarding })}>Discard</button>
@@ -154,7 +155,7 @@ export function NeedsItemScreen({ id }) {
       <EosHeader trail={[{ label: "Needs you", location: "eos:/needs" }, { label: title }]}>
         {at >= 0 && (
           <nav className="eos-needs-pager" aria-label="Items">
-            <span>{at + 1} of {order.length}</span>
+            <span>{at + 1} of {order.length}{aside ? " in Later" : ""}</span>
             <button type="button" className="eos-icon-btn" aria-label="Previous" title="Previous (K)" disabled={at === 0} onClick={() => page(-1)}>
               <svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16"><path d="M10 4L6 8l4 4" /></svg>
             </button>

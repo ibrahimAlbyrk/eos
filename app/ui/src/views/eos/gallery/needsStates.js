@@ -26,7 +26,8 @@ const withDeliveries = (deliveries, out = false) => changed(DRAFT, (d) => ({
 
 // The proposed capability with a live test due, at `state`: it texts the
 // user's phone, so it asks for the number first.
-const withLiveTest = (state) => changed(PROPOSAL, (d) => ({
+const withLiveTest = (state) => (s) => listed(PROPOSAL)(liveTest(state)(s));
+const liveTest = (state) => changed(PROPOSAL, (d) => ({
   ...d,
   item: { ...d.item, title: "Add SMS?", summary: "Texts your phone when Mail Triage finds a mail worth it." },
   payload: {
@@ -64,7 +65,8 @@ function everything(s) {
   const list = s[ROUTES.inbox];
   const known = new Set(list.items.map((i) => i.id));
   const items = inboxItems.map((d) => s[ROUTES.inboxItem(d.item.id)].item).filter((i) => !known.has(i.id));
-  return { ...s, [ROUTES.inbox]: { ...list, items: [...list.items, ...items] } };
+  // Each counted as the core counts it, so the badge says what the lead does.
+  return items.reduce((acc, item) => putInList(acc, item), s);
 }
 
 // Morning Paper's third issue held as a draft before it goes to the user.
@@ -81,8 +83,7 @@ function pageDraft(s) {
       { key: "@issue", role: "issue", text: "si-7b3m1c000003", meta: { surface: paper.surface.id } },
     ],
   };
-  const list = s[ROUTES.inbox];
-  return { ...s, [ROUTES.inboxItem(PAGE)]: { item, payload: { doc } }, [ROUTES.inbox]: { ...list, items: [item, ...list.items] } };
+  return putInList({ ...s, [ROUTES.inboxItem(PAGE)]: { item, payload: { doc } } }, item, true);
 }
 
 const clickText = (text) => () => [...document.querySelectorAll(".eos-body button")].find((b) => b.textContent.trim().startsWith(text))?.click();

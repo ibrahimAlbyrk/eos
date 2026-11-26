@@ -56,8 +56,12 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
       {p.replaces && <ReplacedVersion replaces={p.replaces} />}
       <AskRows rows={rows} />
       {live && <LiveTest state={live} />}
-      {live && live !== "alerted" && live !== "sent" && settings.map((s) => {
+      {live && settings.map((s) => {
         const field = `eos-setting-${s.name}`;
+        // Once the test went, the number it went to stays in its well, read-only;
+        // the core does not send it back, so only what was typed here shows.
+        const went = live === "alerted" || live === "sent";
+        if (went && !values[settingKey(s.name)]) return null;
         return (
           <div key={s.name} className="eos-needs-question eos-needs-well">
             <label htmlFor={field} className="eos-label">{s.label}</label>
@@ -69,6 +73,7 @@ export function CapabilityProposal({ detail, values = {}, setValue = () => {} })
               placeholder={SETTING_PLACEHOLDERS[s.kind]}
               aria-describedby={SETTING_HINTS[s.kind] ? `${field}-hint` : undefined}
               value={values[settingKey(s.name)] ?? ""}
+              readOnly={went}
               onChange={(e) => setValue(settingKey(s.name), e.target.value)}
             />
             {SETTING_HINTS[s.kind] && <p id={`${field}-hint`} className="eos-needs-question__hint">{SETTING_HINTS[s.kind]}</p>}

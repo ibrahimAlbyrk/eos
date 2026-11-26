@@ -121,7 +121,7 @@ describe("the other cards", () => {
   it("offer each kind's declared actions, then Later and Discard", async () => {
     const expected = {
       run_start: ["Run", "Skip", "Later", "Discard"],
-      routine_alert: ["Resume", "Keep paused", "Open", "Later", "Discard"],
+      routine_alert: ["Resume", "Keep paused", "Discard"],
       confirm_change: ["Confirm", "Reject", "Later", "Discard"],
       delivery_problem: ["Try again", "Edit and retry", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
       about_you: ["Yes, keep it", "No", "Edit"],
@@ -298,12 +298,9 @@ describe("the other cards", () => {
     ]);
   });
 
-  it("open an alert's routine without answering it", async () => {
-    const t = recording();
-    setEosTransport(t);
-    expect(await act("routine_alert", "Open")).toBe(false);
-    expect(eosLocation()).toBe("eos:/routines/rt-2x8k5n1q6w0r");
-    expect(t.send).not.toHaveBeenCalled();
+  it("leave opening an alert's routine to its From row, with no Open of its own", async () => {
+    const html = await screen("routine_alert");
+    expect(buttons(html)).not.toContain("Open");
   });
 
   it("keep or dismiss a suggestion through its recorded routes", async () => {

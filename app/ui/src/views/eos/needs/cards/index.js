@@ -96,7 +96,8 @@ const KINDS = {
   run_start: { Body: PlainCard, actions: [answer("run_start", "run", "Run", true), answer("run_start", "skip", "Skip")] },
   routine_alert: {
     Body: PlainCard,
-    actions: [answer("routine_alert", "resume", "Resume", true), answer("routine_alert", "keep_paused", "Keep paused"), openRoutine],
+    // Its From row already opens the routine; Keep paused is its way to put it off.
+    actions: [answer("routine_alert", "resume", "Resume", true), answer("routine_alert", "keep_paused", "Keep paused")],
   },
   confirm_change: { Body: PlainCard, actions: [answer("confirm_change", "confirm", "Confirm", true), answer("confirm_change", "reject", "Reject")] },
   notice: {
