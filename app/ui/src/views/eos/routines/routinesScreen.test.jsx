@@ -35,7 +35,7 @@ describe("all routines", () => {
     expect(html).not.toContain("This part of Eos is not here yet.");
     expect(html).toContain('<h1 class="eos-title">Routines</h1>');
     // Grouped by what the user must do, by name within each group.
-    expect(groups(html)).toEqual(["Waiting for you 2", "On their own 1", "Being made 1"]);
+    expect(groups(html)).toEqual(["Waiting for you 2", "Nothing waiting 1", "Being made 1"]);
     expect(names(html)).toEqual(["Morning Paper", "PR Review", "Build Watch", "Release Notes"]);
     expect(html).toContain('<span class="eos-rtable__mark eos-rtable__mark--active" aria-hidden="true"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" class="eos-rtable__glyph">');
     expect(html).toContain('<span class="eos-rtable__summary">Reviews each new pull request and drafts a review for you to send.</span>');

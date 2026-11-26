@@ -7,6 +7,8 @@ export const GROUPS = [
   { id: "send", label: "To check and send", kinds: ["draft"] },
   { id: "questions", label: "Questions" },
   { id: "problems", label: "Problems", kinds: ["routine_alert", "delivery_problem", "capability_attention", "notice"] },
+  // A guess Eos made about the user asks nothing of a run: it is not a question.
+  { id: "about", label: "About you", kinds: ["about_you"] },
   { id: "offers", label: "Offers", kinds: ["freedom_offer", "capability_install", "suggestion"] },
   { id: "later", label: "Later" },
 ];
@@ -34,7 +36,7 @@ const PRIMARY = {
   permission: "Decide",
   run_start: "Decide",
   confirm_change: "Decide",
-  about_you: "Decide",
+  about_you: "Check it",
   freedom_offer: "Decide",
   delivery_problem: "Fix",
 };
@@ -109,6 +111,7 @@ const COUNTED = {
   send: ["a draft to send", (n) => `${WORDS[n]?.toLowerCase() ?? n} drafts to send`],
   questions: ["a question", (n) => `${WORDS[n]?.toLowerCase() ?? n} questions`],
   problems: ["a problem", (n) => `${WORDS[n]?.toLowerCase() ?? n} problems`],
+  about: ["a guess about you", (n) => `${WORDS[n]?.toLowerCase() ?? n} guesses about you`],
   offers: ["an offer", (n) => `${WORDS[n]?.toLowerCase() ?? n} offers`],
 };
 

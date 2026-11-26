@@ -41,12 +41,13 @@ const contextOf = (routine, shared) => [routine.kind !== "standing" && kindWord(
 const Dot = ({ tone }) => <span className={tone ? `eos-dot eos-dot--${tone}` : "eos-dot"} aria-hidden="true" />;
 
 // The active routines grouped by what the user must do: those waiting for
-// them (or whose last run failed), those running on their own, those being
+// them (or whose last run failed), those running with nothing waiting (never
+// "on their own": a routine that drafts for the user is not), those being
 // made. Paused and archived are one group each, unnamed. A group with no
 // routine is left out.
 const GROUPS = [
   { key: "you", label: "Waiting for you", has: (r) => r.waiting > 0 || r.tone === "err" },
-  { key: "own", label: "On their own", has: (r) => r.routine.state === "active" },
+  { key: "own", label: "Nothing waiting", has: (r) => r.routine.state === "active" },
   { key: "made", label: "Being made", has: (r) => r.routine.state === "draft" },
 ];
 function groupsOf(rows, filter) {

@@ -98,12 +98,13 @@ describe("the Needs-you list", () => {
     const html = at("eos:/needs");
     expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
     expect(html).toContain('<p class="eos-lead">Five things need you.</p>');
-    expect(html).toContain('<p class="eos-rlead__now">A draft to send, three questions and a problem.</p>');
-    expect(groups(html)).toEqual(["To check and send", "Questions", "Problems", "Later"]);
+    expect(html).toContain('<p class="eos-rlead__now">A draft to send, two questions, a problem and a guess about you.</p>');
+    expect(groups(html)).toEqual(["To check and send", "Questions", "Problems", "About you", "Later"]);
     expect(titles(html)).toEqual([
       "Review of #470 Fix the login",
-      "Allow Bash?", "Which branch should the review compare against?", "You prefer short reviews with the blocking findings first.",
+      "Allow Bash?", "Which branch should the review compare against?",
       "Mail Triage is paused",
+      "You prefer short reviews with the blocking findings first.",
       "A run started late",
     ]);
     const row = (title) => html.split('<li class="eos-needs-row"').find((part) => part.includes(`eos-needs-row__title">${title}<`));
@@ -118,6 +119,7 @@ describe("the Needs-you list", () => {
     expect(row("Allow Bash?")).not.toContain(">Later<");
     expect(row("Mail Triage is paused")).toContain('<span class="eos-needs-row__routine">Mail Triage</span>');
     expect(row("A run started late")).not.toContain(">Later<");
+    expect(row("You prefer short reviews with the blocking findings first.")).toContain(">Check it</button>");
   });
 
   it("draws a routine's View in place with Later, and keeps its row out of the groups", async () => {
