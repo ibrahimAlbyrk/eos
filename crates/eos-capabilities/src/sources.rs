@@ -82,7 +82,8 @@ fn failed(error: &ActionError, now: i64) -> SourceError {
         ActionError::Failed { kind: FailureKind::Unauthorized } => SourceError::Unauthorized,
         ActionError::NotReady(code) if signed_out(code) => SourceError::Unauthorized,
         ActionError::NotReady(code) if StateCode::parse(code) == Some(StateCode::SourceGone) => SourceError::Gone,
-        ActionError::Failed { kind: FailureKind::Gone } => SourceError::Gone,
+        // What the sign-in may not read is as gone to the source as what is not there.
+        ActionError::Failed { kind: FailureKind::Gone | FailureKind::NotAllowed } => SourceError::Gone,
         ActionError::Invalid(_) => SourceError::Bad("scope"),
         ActionError::NotFound => SourceError::Bad("source"),
         ActionError::Failed { kind: FailureKind::Output } => SourceError::Bad("output"),
@@ -301,6 +302,8 @@ mod tests {
     #[test]
     fn a_capability_that_lost_what_its_source_reads_says_the_source_is_gone() {
         assert_eq!(failed(&ActionError::NotReady("source_gone".into()), 0), SourceError::Gone);
+        let refused = ActionError::Failed { kind: FailureKind::NotAllowed };
+        assert_eq!(failed(&refused, 0), SourceError::Gone, "what the sign-in may not read");
         assert_eq!(failed(&ActionError::NotReady("http_401".into()), 0), SourceError::Unauthorized);
         assert_eq!(
             failed(&ActionError::RateLimited { retry_after_s: 2 }, 10),

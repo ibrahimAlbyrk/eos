@@ -10,7 +10,8 @@
 //! [`PAGES_MAX`] pages, each kept with its cursor through ingest, then
 //! settles the row: when to poll next, and what went wrong. A source that
 //! lost its sign-in stops and tells its capability. One whose thing is gone
-//! (a deleted repository, a channel that is not there) stops alone: a
+//! (a deleted repository, a channel that is not there or that the sign-in
+//! may not read) stops alone: a
 //! notice tells each routine that reads it, and the capability's other
 //! sources go on.
 
@@ -150,7 +151,7 @@ fn notice_gone_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, routine_id: &
         run_id: None,
         subject_key: Some(SOURCE_GONE.into()),
         title: format!("{name} cannot find something it watches"),
-        summary: "A repository or conversation that starts it is not there. Change what starts it; its other triggers still work.".into(),
+        summary: "A repository or conversation that starts it is not there, or the sign-in may not read it. Change what starts it; its other triggers still work.".into(),
         payload: json!({}),
         by_hand: false,
     };

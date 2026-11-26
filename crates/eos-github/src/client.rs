@@ -202,6 +202,8 @@ impl GitHub {
                     FailureKind::Validation
                 }
             }
+            // The account may not do this there: an organisation that keeps the app out, a missing right.
+            403 => FailureKind::NotAllowed,
             404 => FailureKind::Gone,
             500.. => FailureKind::Service,
             _ => FailureKind::Validation,
