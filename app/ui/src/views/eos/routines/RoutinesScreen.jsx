@@ -28,7 +28,7 @@ const COLUMNS = [
   { key: "name", label: "Routine" },
   { key: "status", label: "Status" },
   { key: "next", label: "Next run" },
-  { key: "last", label: "Last result" },
+  { key: "last", label: "Last result", mid: true },
   { key: "cost", label: "This week", numeric: true, narrow: false },
 ];
 
@@ -63,7 +63,7 @@ function SortHead({ column, sort, setSort }) {
   const on = sort.key === column.key;
   const flip = () => setSort({ key: column.key, dir: on && sort.dir === "ascending" ? "descending" : "ascending" });
   return (
-    <th scope="col" aria-sort={on ? sort.dir : undefined} className={[column.numeric && "eos-rtable__num", column.narrow === false && "eos-rtable__wide"].filter(Boolean).join(" ") || undefined}>
+    <th scope="col" aria-sort={on ? sort.dir : undefined} className={[column.numeric && "eos-rtable__num", column.narrow === false && "eos-rtable__wide", column.mid && "eos-rtable__mid"].filter(Boolean).join(" ") || undefined}>
       <button type="button" className="eos-rtable__sort" onClick={flip}>
         {column.label}
         {on && <span aria-hidden="true">{sort.dir === "ascending" ? " ↑" : " ↓"}</span>}
@@ -94,7 +94,7 @@ function Row({ row, now, hosted, shared }) {
       </th>
       <td className={row.tone ? `eos-rtable__line eos-rtable__line--${row.tone}` : "eos-rtable__line"}>{statusWords(row)}</td>
       <td>{nextWord(row.nextAt, now) ?? <span className="eos-rtable__none">—</span>}</td>
-      <td>{last ? <span className="eos-rtable__last"><Dot tone={last.tone} />{last.text}</span> : <span className="eos-rtable__none">—</span>}</td>
+      <td className="eos-rtable__mid">{last ? <span className="eos-rtable__last"><Dot tone={last.tone} />{last.text}</span> : <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__num eos-rtable__wide">{usd(routine.stats?.cost7d) ?? <span className="eos-rtable__none">—</span>}</td>
       <td className="eos-rtable__act">
         {hosted > 0 && RUNNABLE.has(routine.state) && (
