@@ -352,13 +352,15 @@ pub struct Makes {
 impl Validate for Makes {}
 
 /// What one run, and the routine in a day, may spend, and how many of its
-/// runs go at once.
+/// runs go at once. A spend left out has no cap.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineLimits {
-    pub per_run_usd: Num,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_run_usd: Option<Num>,
     pub per_run_minutes: i64,
-    pub per_day_usd: Num,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per_day_usd: Option<Num>,
     pub parallel: i64,
     /// Keys this version does not know; kept so a round trip loses nothing.
     #[serde(flatten)]

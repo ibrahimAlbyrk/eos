@@ -15,6 +15,7 @@ use eos_contracts::WorkerState;
 use eos_contracts::{Blueprint, Milestone, RoutineKind};
 use eos_core::Error;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
+use eos_domain::routine::limits::cap;
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use serde_json::json;
@@ -184,11 +185,15 @@ const NEW_DAY: &str = "A new day: the routine's budget lets this run work again.
 /// A project's sessions idle this long are suspended; any message revives them.
 pub(crate) const IDLE_SUSPEND_MS: i64 = 30 * 60 * 1000;
 
+fn per_day_usd(blueprint: &Blueprint) -> f64 {
+    cap(blueprint.limits.per_day_usd.map(|usd| usd.0))
+}
+
 /// Whether the routine of `run`, or every routine together, has spent
 /// what it may spend on `day`.
 fn day_spent_in(tx: &dyn Tx, blueprint: &Blueprint, run: &StoredRun, day: &str, cap_usd: f64) -> Result<bool, Error> {
     let spent = super::budget::spent_in(tx, day)?;
-    Ok(spent.of_routine(&run.routine_id) >= blueprint.limits.per_day_usd.0 || spent.total >= cap_usd)
+    Ok(spent.of_routine(&run.routine_id) >= per_day_usd(blueprint) || spent.total >= cap_usd)
 }
 
 /// A project run at work that has spent the day's budget is paused until
@@ -207,7 +212,7 @@ pub(crate) fn pause_at_day_cap_in(
         return Ok(false);
     }
     let now = engine.clock.now_ms();
-    let routine_spent = super::budget::spent_in(tx, day)?.of_routine(&run.routine_id) >= blueprint.limits.per_day_usd.0;
+    let routine_spent = super::budget::spent_in(tx, day)?.of_routine(&run.routine_id) >= per_day_usd(&blueprint);
     let paused = RunMove { state: RunState::Paused, station: run.station, reason: Some(Reason::DayCap), at: now };
     move_run(tx, out, run, paused)?;
     super::budget::day_cap_notice_in(tx, out, engine, routine_spent.then_some(run.routine_id.as_str()), now)?;

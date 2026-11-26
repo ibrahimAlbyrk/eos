@@ -100,7 +100,7 @@ fn id_of(saved: &Value) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_routine_made_by_hand_is_a_draft_with_the_default_limits_and_a_free_slug() {
+async fn a_routine_made_by_hand_is_a_draft_with_the_default_limits_no_spend_cap_and_a_free_slug() {
     let routes = Routes::new();
     let (status, saved) = routes.create(folder("Tidy Downloads")).await;
     assert_eq!(status, 201, "{saved}");
@@ -119,10 +119,7 @@ async fn a_routine_made_by_hand_is_a_draft_with_the_default_limits_and_a_free_sl
         (eos_contracts::VersionStatus::Draft, eos_contracts::VersionAuthor::User, Trust::Trusted)
     );
     let kept: Value = serde_json::from_str(&version.blueprint).expect("json");
-    assert_eq!(kept["limits"]["perDayUsd"], json!(5));
-    assert_eq!(kept["limits"]["perRunMinutes"], json!(30));
-    assert_eq!(kept["limits"]["parallel"], json!(1));
-    assert_eq!(kept["limits"]["perRunUsd"], json!(1), "three times a small estimate is under the dollar floor");
+    assert_eq!(kept["limits"], json!({"perRunMinutes": 30, "parallel": 1}), "no dollar cap unless one is set");
     let changes = routes.routine_changes();
     assert_eq!((changes.len(), changes[0]["reason"].as_str()), (1, Some("created")));
     assert_eq!(changes[0]["row"]["id"].as_str(), Some(routine.as_str()));
@@ -274,11 +271,12 @@ async fn an_old_version_comes_back_as_a_new_head_and_a_copy_is_a_draft_of_its_ow
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_budgets_read_their_defaults_change_through_their_own_route_and_today_s_raise_ends_at_midnight() {
+async fn the_budgets_read_their_defaults_change_through_their_own_route_and_today_s_raise_ends_at_midnight_and_null_takes_the_day_budget_away()
+ {
     let routes = Routes::new();
     let (status, settings) = routes.get("/api/routines/settings").await;
     assert_eq!(status, 200);
-    assert_eq!(settings, json!({"dayBudgetUsd": 20, "maxParallelRuns": 3, "planHeadroomPct": 80}));
+    assert_eq!(settings, json!({"maxParallelRuns": 3, "planHeadroomPct": 80}), "no day budget by default");
 
     // The fake clock stands at 2027-01-15 11:00 in Istanbul.
     let patch = json!({"dayBudgetUsd": 12.5, "maxParallelRuns": 2, "raisedToday": {"day": "2027-01-15", "usd": 30}});
@@ -296,6 +294,9 @@ async fn the_budgets_read_their_defaults_change_through_their_own_route_and_toda
     routes.bench.clock.advance(24 * crate::bench::HOUR);
     let (_, settings) = routes.get("/api/routines/settings").await;
     assert_eq!(settings.get("raisedToday"), None, "a raise ends at local midnight");
+    let (status, settings) = put(json!({"dayBudgetUsd": null})).await;
+    assert_eq!(status, 200, "{settings}");
+    assert_eq!(settings, json!({"maxParallelRuns": 2, "planHeadroomPct": 80}), "null takes the day budget away");
 
     // The flat settings route refuses the keys and names this one.
     let protected = routes.bench.module.protected_settings().expect("protected keys");

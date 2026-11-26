@@ -1,7 +1,9 @@
 //! `GET`/`PUT /api/routines/settings`: the budgets for all routines, flat
 //! keys of `settings.json` that only this route writes (the flat settings
 //! route refuses them). A value that is missing or malformed reads as its
-//! default; today's raise reads only on the local day it was made for.
+//! default; a day budget that is missing, malformed or not above zero reads
+//! as none, so routines spend without a cap; today's raise reads only on the
+//! local day it was made for.
 
 use std::sync::Arc;
 
@@ -15,13 +17,12 @@ use eos_runtime::router::RouteDef;
 
 use crate::engine::Engine;
 
-const DAY_BUDGET: &str = "routines.dayBudgetUsd";
+pub(crate) const DAY_BUDGET: &str = "routines.dayBudgetUsd";
 const MAX_PARALLEL: &str = "routines.maxParallelRuns";
 const PLAN_HEADROOM: &str = "routines.planHeadroomPct";
 const RAISED_TODAY: &str = "routines.raisedToday";
 
 /// The defaults (D6, D7).
-const DAY_BUDGET_USD: f64 = 20.0;
 const MAX_PARALLEL_RUNS: i64 = 3;
 const PLAN_HEADROOM_PCT: i64 = 80;
 
@@ -59,9 +60,8 @@ pub(crate) fn today(engine: &Engine) -> String {
 /// The settings as they read now.
 pub(crate) fn current(engine: &Engine) -> RoutineSettings {
     let settings = engine.settings.read();
-    let day = number(&settings, DAY_BUDGET).filter(|usd| *usd > 0.0).unwrap_or(DAY_BUDGET_USD);
     RoutineSettings {
-        day_budget_usd: Num(day),
+        day_budget_usd: number(&settings, DAY_BUDGET).filter(|usd| *usd > 0.0).map(Num),
         max_parallel_runs: whole(&settings, MAX_PARALLEL, 1, 3, MAX_PARALLEL_RUNS),
         plan_headroom_pct: whole(&settings, PLAN_HEADROOM, 1, 100, PLAN_HEADROOM_PCT),
         raised_today: raised(&settings, &today(engine)),
@@ -71,7 +71,8 @@ pub(crate) fn current(engine: &Engine) -> RoutineSettings {
 fn stored(patch: RoutineSettingsPatch) -> UserSettings {
     let mut partial = UserSettings::new();
     if let Some(usd) = patch.day_budget_usd {
-        partial.insert(DAY_BUDGET.to_owned(), SettingValue::Number(usd));
+        // The flat file has no way to drop a key: zero is no budget.
+        partial.insert(DAY_BUDGET.to_owned(), SettingValue::Number(usd.unwrap_or(Num(0.0))));
     }
     if let Some(runs) = patch.max_parallel_runs {
         partial.insert(MAX_PARALLEL.to_owned(), SettingValue::Number(Num(runs as f64)));

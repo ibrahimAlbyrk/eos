@@ -10,15 +10,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use eos_contracts::{
-    Blueprint, BlueprintIssue, IssueSeverity, Num, ResultMode, RoutineChangeReason, RoutineSaved, RoutineState,
-    RunInput, Trigger, VersionAuthor, VersionStatus,
+    Blueprint, BlueprintIssue, IssueSeverity, RoutineChangeReason, RoutineSaved, RoutineState, Trigger, VersionAuthor,
+    VersionStatus,
 };
 use eos_core::Error;
 use eos_core::os::ZoneRules;
 use eos_core::store::{Outbox, StoredRoutine, StoredVersion, Tx};
-use eos_domain::config::price_for_model;
 use eos_domain::routine::blueprint::{self, Context, Readable, Severity, canonical_json, hash};
-use eos_domain::routine::limits::{RUN_AT_LEAST_USD, RUN_ESTIMATE_TIMES, fill_defaults, per_run_usd};
+use eos_domain::routine::limits::fill_defaults;
 use eos_domain::routine::{slug, trust};
 use eos_domain::run_scope::Trust;
 use eos_inbox::{HeadChange, head_changed_in};
@@ -52,11 +51,10 @@ fn issue(path: &[&str], message: &str) -> BlueprintIssue {
     BlueprintIssue { path, message: message.to_owned(), severity: IssueSeverity::Error }
 }
 
-/// Reads `value`, with its missing limits filled; a new blueprint's run cap
-/// is three times its estimate, at least a dollar.
+/// Reads `value`, with its missing limits filled.
 pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<Prepared, Vec<BlueprintIssue>>, Error> {
-    let estimate_cap = fill_defaults(&mut value);
-    let mut blueprint = match blueprint::read(&value) {
+    fill_defaults(&mut value);
+    let blueprint = match blueprint::read(&value) {
         Ok(Readable::Current(blueprint)) => *blueprint,
         Ok(Readable::Newer { .. }) => return Ok(Err(vec![issue(&["format"], "Was made by a newer Eos")])),
         Err(error) => {
@@ -68,24 +66,6 @@ pub(crate) async fn prepare(engine: &Engine, mut value: Value) -> Result<Result<
             return Ok(Err(issues.collect()));
         }
     };
-    if estimate_cap {
-        let config = engine.config.current();
-        let input = RunInput {
-            item: None,
-            items: None,
-            trigger: None,
-            options: Default::default(),
-            note: None,
-            result: ResultMode::Usual,
-            at: None,
-            surface: None,
-            chat: None,
-        };
-        let usual =
-            crate::routes::usual(&blueprint, &[], &input, |model| price_for_model(&config, Some(model)).cloned());
-        let cap = per_run_usd(usual.usd, RUN_ESTIMATE_TIMES, RUN_AT_LEAST_USD);
-        blueprint.limits.per_run_usd = Num((cap * 100.0).round() / 100.0);
-    }
     let outside = outside(engine).await?;
     let trust = trust::of_version(&blueprint, |id| outside.contains(id));
     let resting = resting_on_untrusted(&blueprint, &untrusted_for(&untrusted_facts(engine).await?, &blueprint));

@@ -310,6 +310,16 @@ fn limits_stay_within_their_ranges() {
 }
 
 #[test]
+fn a_blueprint_without_spend_caps_is_valid_and_writes_none_back() {
+    let mut value = pr_review();
+    value["limits"] = json!({"perRunMinutes": 30, "parallel": 1});
+    assert_eq!(issues(&value), Vec::new());
+    let Readable::Current(blueprint) = read(&value).expect("reads") else { panic!("a current format") };
+    assert_eq!((blueprint.limits.per_run_usd, blueprint.limits.per_day_usd), (None, None));
+    assert_eq!(serde_json::to_value(&blueprint.limits).expect("writes"), value["limits"]);
+}
+
+#[test]
 fn a_project_has_its_slot_and_no_per_run_cap() {
     let mut project = pr_review();
     project["kind"] = json!("project");

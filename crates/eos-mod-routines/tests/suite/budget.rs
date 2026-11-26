@@ -1,7 +1,7 @@
 //! Budgets: a run told to wrap up at 90 % of its cost and failed at 100 %,
 //! its time cap with its grace, the day caps that skip runs from triggers
-//! with one notice and refuse a start by hand, plan headroom, and spend
-//! booked on the user's local day.
+//! with one notice and refuse a start by hand, no stop for money where no
+//! cap is set, plan headroom, and spend booked on the user's local day.
 
 use std::sync::Arc;
 
@@ -240,6 +240,28 @@ async fn a_spent_day_skips_runs_from_triggers_with_one_notice_and_asks_before_a_
     let raise = [("day".to_owned(), TODAY.to_owned()), ("usd".to_owned(), "8".to_owned())].into_iter().collect();
     bench.setting("routines.raisedToday", SettingValue::Map(raise));
     assert_eq!(routes.post("/api/runs", body).await.0, 201, "today's cap was raised");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn without_dollar_caps_neither_a_run_nor_a_day_stops_for_money() {
+    let bench = Bench::new(true);
+    let mut uncapped = blueprint(1);
+    uncapped["limits"] = json!({"perRunMinutes": 30, "parallel": 1});
+    let routine = bench.routine_with(RoutineState::Active, uncapped, true);
+    let id = routine.clone();
+    bench.temp.store.write_blocking(move |tx, _| tx.routine_spend().add(TODAY, &id, "run", 500.0)).expect("books");
+    let agent = new_run(&routine, RunOrigin::Agent { worker_id: "w-chat".into() }, Some(pull_request(1)));
+    let run = bench.start(agent).await.expect("queued").remove(0).id;
+    bench.supervise().await;
+    bench.eventually(|| bench.run(&run).station == Some(Station::Work)).await;
+    let lead = bench.run(&run).lead_id.expect("a lead");
+
+    bench.spend(&lead, 300.0);
+    bench.eventually(|| bench.booked(TODAY) > 799.9).await;
+    bench.later(MINUTE).await;
+    assert_eq!(bench.state(&run), RunState::Running, "a run with no cap is not stopped by its cost");
+    assert_eq!(bench.told(&lead, "90% of what it may spend"), 0);
+    assert_eq!(bench.day_cap_notices(), Vec::<Option<String>>::new(), "no day budget runs out");
 }
 
 #[tokio::test(flavor = "multi_thread")]

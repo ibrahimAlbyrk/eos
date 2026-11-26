@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::RoutineSummary;
-use crate::primitives::Num;
+use crate::primitives::{Num, de};
 use crate::validate::{Issues, Validate};
 
 /// The states a routine is set to by hand; a draft starts from its draft,
@@ -132,8 +132,9 @@ impl Validate for RaisedToday {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineSettings {
-    /// What every routine together may spend a day.
-    pub day_budget_usd: Num,
+    /// What every routine together may spend a day; absent, no cap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day_budget_usd: Option<Num>,
     pub max_parallel_runs: i64,
     /// The share of the plan's five-hour window from which runs by triggers wait.
     pub plan_headroom_pct: i64,
@@ -148,8 +149,9 @@ impl Validate for RoutineSettings {}
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineSettingsPatch {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub day_budget_usd: Option<Num>,
+    /// `null` takes the cap away.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "de::nullable")]
+    pub day_budget_usd: Option<Option<Num>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_parallel_runs: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,7 +162,7 @@ pub struct RoutineSettingsPatch {
 
 impl Validate for RoutineSettingsPatch {
     fn validate(&self, cx: &mut Issues) {
-        if let Some(usd) = self.day_budget_usd {
+        if let Some(Some(usd)) = self.day_budget_usd {
             cx.at("dayBudgetUsd", |cx| {
                 cx.num_min(usd, 0.5, true);
                 cx.num_max(usd, 5000.0, true);

@@ -263,10 +263,14 @@ fn freedom(freedom: &Freedom, cx: &mut Issues) {
 fn limits(limits: &RoutineLimits, kind: RoutineKind, cx: &mut Issues) {
     // A project is one long run: only its day budget bounds it.
     if kind != RoutineKind::Project {
-        cx.at("perRunUsd", |cx| within_usd(cx, limits.per_run_usd, 0.05, 100.0));
+        if let Some(usd) = limits.per_run_usd {
+            cx.at("perRunUsd", |cx| within_usd(cx, usd, 0.05, 100.0));
+        }
         cx.at("perRunMinutes", |cx| within(cx, limits.per_run_minutes, 1, 240));
     }
-    cx.at("perDayUsd", |cx| within_usd(cx, limits.per_day_usd, 0.5, 500.0));
+    if let Some(usd) = limits.per_day_usd {
+        cx.at("perDayUsd", |cx| within_usd(cx, usd, 0.5, 500.0));
+    }
     cx.at("parallel", |cx| within(cx, limits.parallel, 1, 3));
 }
 

@@ -4,7 +4,7 @@
 //! once. A run with no credential fails at once, and three of them pause
 //! the routine for a sign-in.
 
-use eos_contracts::RoutineState;
+use eos_contracts::{Num, RoutineState, SettingValue};
 use eos_core::routine::{RunOrigin, SubmittedResult};
 use eos_core::store::{StoredItem, StoredRoutine};
 use eos_domain::inbox::ItemKind;
@@ -162,10 +162,12 @@ async fn a_run_that_spends_far_more_than_usual_pauses_its_routine() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn ninety_percent_of_today_s_budget_is_told_once() {
+async fn ninety_percent_of_today_s_budget_set_by_hand_is_told_once() {
     let bench = Bench::new(true);
     let routine = bench.routine(RoutineState::Active, generous());
     bench.supervise().await;
+    let budget = SettingValue::Number(Num(20.0));
+    bench.settings.0.lock().expect("settings").insert("routines.dayBudgetUsd".into(), budget);
     let (_, lead) = bench.at_work(&routine, 1).await;
     let notices = || {
         let items = bench.temp.store.read_blocking(|tx| tx.inbox_items().waiting_with_subject("day-budget"));

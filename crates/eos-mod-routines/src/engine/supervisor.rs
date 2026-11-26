@@ -20,6 +20,7 @@ use eos_contracts::{RoutineState, Rung};
 use eos_core::Error;
 use eos_core::os::PowerStatus;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
+use eos_domain::routine::limits::cap;
 use eos_domain::routine::run::{Reason, RunState, Station};
 
 use super::control::confirmed_in;
@@ -245,7 +246,9 @@ fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
         asks,
         state,
         parallel: blueprint.as_ref().map_or(1, |blueprint| blueprint.limits.parallel.max(1)),
-        per_day_usd: blueprint.as_ref().map_or(f64::INFINITY, |blueprint| blueprint.limits.per_day_usd.0),
+        per_day_usd: blueprint
+            .as_ref()
+            .map_or(f64::INFINITY, |blueprint| cap(blueprint.limits.per_day_usd.map(|usd| usd.0))),
         // A version this app cannot run is no version to bind.
         version_id: version.filter(|_| blueprint.is_some()).map(|version| version.id),
     })

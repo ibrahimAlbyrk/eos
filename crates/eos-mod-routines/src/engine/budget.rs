@@ -18,7 +18,7 @@ use eos_contracts::stream::topics::USAGE_RECORDED;
 use eos_core::Error;
 use eos_core::store::{Outbox, RUN_STATE_EVENT, StoredRun, StoredRunEvent, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::routine::limits::{Budget, budget};
+use eos_domain::routine::limits::{Budget, budget, cap};
 use eos_domain::routine::run::{Reason, RunState};
 use eos_inbox::{NewItem, Opening, notice_in, open_in};
 use serde::Deserialize;
@@ -62,7 +62,8 @@ pub(crate) const ASKED: &str = "asked";
 /// On a run's timeline: the first turn that found its questions answered.
 pub(crate) const ANSWERED: &str = "answered";
 
-/// A run's caps, from the version it runs. A project has none of its own:
+/// A run's caps, from the version it runs; a spend cap left out is endless.
+/// A project has none of its own:
 /// the milestone it works on may name some, counted from the spend and the
 /// working time the run had when that milestone began.
 struct Caps {
@@ -77,7 +78,8 @@ fn caps_of(tx: &dyn Tx, run: &StoredRun) -> Result<Option<Caps>, Error> {
     let Some(version) = tx.routine_versions().find(&run.routine_id, version_id)? else { return Ok(None) };
     let Some(blueprint) = readable(&version)? else { return Ok(None) };
     if blueprint.kind != RoutineKind::Project {
-        let (usd, ms) = (blueprint.limits.per_run_usd.0, blueprint.limits.per_run_minutes * MINUTE_MS);
+        let usd = cap(blueprint.limits.per_run_usd.map(|usd| usd.0));
+        let ms = blueprint.limits.per_run_minutes * MINUTE_MS;
         return Ok(Some(Caps { usd, ms, base_usd: 0.0, base_ms: 0 }));
     }
     let Some(limits) = super::project::current(&blueprint, run).and_then(|milestone| milestone.limits) else {
@@ -371,7 +373,8 @@ async fn hold_to_time(engine: &Arc<Engine>, at: &AtWork, now: i64) -> Result<(),
 pub(crate) struct Day {
     /// The user's local day.
     pub(crate) day: String,
-    /// What all routines together may spend today, today's raise included.
+    /// What all routines together may spend today, today's raise included;
+    /// endless without a day budget.
     pub(crate) cap_usd: f64,
     /// Runs whose agents work at once, over every routine.
     pub(crate) slots: i64,
@@ -381,10 +384,11 @@ pub(crate) struct Day {
 
 pub(crate) fn day(engine: &Engine) -> Day {
     let settings = current_settings(engine);
-    let cap = settings.raised_today.map_or(settings.day_budget_usd.0, |raised| raised.usd.0);
+    // A raise lifts a day budget; with none there is nothing to raise.
+    let budget = settings.day_budget_usd.map(|usd| settings.raised_today.map_or(usd.0, |raised| raised.usd.0));
     Day {
         day: today(engine),
-        cap_usd: cap,
+        cap_usd: cap(budget),
         slots: settings.max_parallel_runs,
         plan_busy: engine.headroom.busy(settings.plan_headroom_pct),
     }

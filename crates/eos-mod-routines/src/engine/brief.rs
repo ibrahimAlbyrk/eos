@@ -281,12 +281,15 @@ fn render(
         how = format!("{project}\n\n{how}");
     }
     let limits = &blueprint.limits;
-    let budget = match project {
-        Some(_) => format!(
-            "No cap per run: at most ${} a day. The run pauses when the day's budget is spent and goes on the next day.",
-            limits.per_day_usd
+    let budget = match (project, limits.per_day_usd) {
+        (Some(_), Some(day)) => format!(
+            "No cap per run: at most ${day} a day. The run pauses when the day's budget is spent and goes on the next day."
         ),
-        None => format!("${} and {} minutes for this run.", limits.per_run_usd, limits.per_run_minutes),
+        (Some(_), None) => "No cap per run and none per day.".to_owned(),
+        (None, _) => match limits.per_run_usd {
+            Some(usd) => format!("${usd} and {} minutes for this run.", limits.per_run_minutes),
+            None => format!("{} minutes for this run.", limits.per_run_minutes),
+        },
     };
     let pairs = [
         ("ROUTINE_NAME", blueprint.name.clone()),
