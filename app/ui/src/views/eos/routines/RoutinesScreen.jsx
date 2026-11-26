@@ -142,7 +142,7 @@ export function RoutinesScreen() {
   const failed = list === null && listFailed;
   return (
     <main className={none || resting || failed ? "eos-screen eos-screen--read" : "eos-screen eos-screen--wide"}>
-      <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: "Routines" }]}>
+      <EosHeader trail={[{ label: "Routines" }]}>
         <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
       </EosHeader>
       <div className="eos-body eos-routines">
@@ -155,7 +155,7 @@ export function RoutinesScreen() {
           </header>
         )}
         {filter === "active" && rows.length > 0 && <ComingUp slots={comingUp(next, now)} names={namesOf(list)} now={now} />}
-        {!none && !resting && !failed && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
+        {list !== null && !none && !resting && <div className="eos-seg" role="radiogroup" aria-label="Show routines">
           {Object.entries(FILTERS).map(([key, f]) => (
             <button key={key} type="button" role="radio" aria-checked={filter === key} className="eos-seg__opt" onClick={() => setFilter(key)}>{f.label}</button>
           ))}
