@@ -192,31 +192,25 @@ function Privacy({ forgotten }) {
   );
 }
 
-const STOP = "M5.5 5.5h5v5h-5z";
-const GO = "M5.5 4.5v7l6-3.5z";
-
-// Where Eos stands, first: running with Stop everything beside it, or
-// stopped (the halt band's shape) with Resume.
+// Where Eos stands, said as an Eos screen leads: the fact at 24 with its
+// tone's mark in the margin, what it means dim under it, the one act after.
 function Standing({ routines }) {
   const { halt } = useHalt();
   const on = halt?.on === true;
   let words = ["Stop everything", "No routine runs and nothing is sent until you resume."];
   if (on) words = [`Eos is stopped${halt.since != null ? ` since ${timeAt(halt.since)}` : ""}.`, words[1]];
   else if (halt) words = ["Eos is running on this Mac.", `${routines ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
-  let ring = "eos-ring eos-halt__mark";
-  if (halt) ring += on ? " eos-ring--err" : " eos-ring--ok";
+  let tone = "";
+  if (halt) tone = on ? " eos-stg__fact--err" : " eos-stg__fact--ok";
   return (
     <div className={on ? "eos-stg__standing eos-stg__standing--stopped" : "eos-stg__standing"} role="status" aria-label="Stop everything">
-      <span className={ring} aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 16 16"><path d={halt && !on ? GO : STOP} /></svg>
+      <p className={`eos-stg__fact${tone}`}>{words[0]}</p>
+      <p className="eos-stg__means">{words[1]}</p>
+      <span className="eos-stg__acts">
+        {on
+          ? <button type="button" className="eos-btn eos-btn--primary" onClick={() => void resumeEos()}>Resume</button>
+          : <button type="button" className="eos-btn eos-btn--stop" onClick={() => void stopEos()}>Stop everything</button>}
       </span>
-      <p className="eos-halt__words">
-        <strong>{words[0]}</strong>
-        <span>{words[1]}</span>
-      </p>
-      {on
-        ? <button type="button" className="eos-btn eos-btn--primary" onClick={() => void resumeEos()}>Resume</button>
-        : <button type="button" className="eos-btn eos-btn--stop" onClick={() => void stopEos()}>Stop everything</button>}
     </div>
   );
 }
@@ -230,7 +224,7 @@ export function EosSettings() {
   const doors = globalThis.window?.eosDoors;
   return (
     <div className="eos-stg">
-      <h2 className="stg-title eos-stg__title">Eos</h2>
+      <h2 className="eos-label eos-stg__title">Eos</h2>
       <Standing routines={routines} />
       <Group title="Routines">
         {routines ? <DailyLimit settings={routines} /> : <Ghost />}

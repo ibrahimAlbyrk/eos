@@ -80,22 +80,25 @@
    its settings on hairlines with what each does in --fg-dim; few choices as a
    segmented choice; times and the limit in wells. */
 .eos-stg { --eos-stg-line: rgba(255, 255, 255, 0.07); max-width: 680px; padding-bottom: 32px; }
-.eos-stg__title { margin-bottom: 20px; }
-.eos-stg__standing {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  padding: 12px 14px 12px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 0 0 1px var(--eos-stg-line);
-  font-size: var(--text-sm);
-  color: var(--fg-dim);
+.eos-stg__title { margin: 8px 0 12px; }
+/* Where Eos stands leads the pane as a screen's lead does: no box, the fact
+   at 24 with its tone's 9 px mark hanging in the margin, the meaning dim. */
+.eos-stg__standing { display: flex; flex-direction: column; align-items: flex-start; }
+.eos-stg__fact { position: relative; margin: 0; font-size: 24px; line-height: 1.3; letter-spacing: -0.01em; font-weight: 500; color: var(--fg-strong); text-wrap: balance; }
+.eos-stg__fact--ok::before, .eos-stg__fact--err::before {
+  content: ""; position: absolute; left: -19px; top: 0.5em; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 18%, transparent);
 }
-.eos-stg__standing .eos-halt__words { display: flex; flex-direction: column; gap: 2px; flex-basis: 300px; }
-.eos-stg__standing .eos-btn { height: 32px; padding: 0 16px; }
-.eos-stg__standing--stopped { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 45%, transparent); }
+.eos-stg__fact--err::before { background: var(--err); box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 18%, transparent); }
+.eos-stg__means { margin: 6px 0 0; max-width: 56ch; font-size: var(--text-md); line-height: 1.5; color: var(--fg-dim2); text-wrap: pretty; }
+.eos-stg__acts { display: flex; gap: 8px; margin-top: 16px; }
+.eos-stg__acts .eos-btn { height: 32px; padding: 0 16px; }
+/* Its list scrolls inside the modal: the foot fades over 32 px, so a cut
+   row reads as more below rather than as the end. */
+.stg-body:has(> .eos-stg) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+}
 .eos-stg__group { margin-top: 36px; }
 .eos-stg .stg-group + .stg-group { margin-top: 36px; }
 .eos-stg__label { margin: 0 0 4px; }
