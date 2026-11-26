@@ -122,7 +122,6 @@ export function ArchitectChat({ routineId, draft, said = [], note, making = fals
             : "Say what to change. Eos writes a new version beside this one, and nothing changes until you use it."}
         </p>
       )}
-      <span className="eos-bp-chat__fill" />
       {making && draft === null ? (
         <p className="eos-note">This routine was made by hand. Change it on the card; once it runs, say what to change here.</p>
       ) : (
