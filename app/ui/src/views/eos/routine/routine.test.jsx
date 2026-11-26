@@ -103,7 +103,7 @@ describe("the routine page", () => {
   it("says what starts the routine under its summary, and no longer that triggers wait", async () => {
     const html = await page(`eos:/routines/${PR}`);
     expect(html).toContain('<p class="eos-routine__summary">Reviews each new pull request and drafts a review for you to send.</p>');
-    expect(html).toContain('<p class="eos-routine__line">When a pull request opens in acme/game</p>');
+    expect(html).toContain('<p class="eos-routine__line">On new pull requests in acme/game, and weekdays at 05:00</p>');
     expect(html).not.toContain("Runs when you start it");
   });
 

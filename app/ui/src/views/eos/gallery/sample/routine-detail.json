@@ -52,7 +52,7 @@
       "startedAt": 1763452802000,
       "endedAt": 1763452986000
     },
-    "triggerLine": "When a pull request opens in acme/game"
+    "triggerLine": "On new pull requests in acme/game, and weekdays at 05:00"
   },
   "head": {
     "id": "rv-8d2f6h0j4k1l",
