@@ -135,3 +135,23 @@ fn a_page_issue_is_its_fields_by_path_in_order_and_names_its_issue() {
     swapped.parts.swap(0, last);
     assert!(diff(&to, &swapped).is_empty(), "a page's recipients are a set");
 }
+
+#[test]
+fn an_action_doc_gives_back_its_input_as_the_user_left_it() {
+    let input = json!({"to": "U123", "text": "Your pull request is merged."});
+    let doc = action_doc("slack", "post_message", &input);
+    assert_eq!(
+        (doc.kind.as_str(), doc.channel.as_str(), doc.action.as_str()),
+        (ACTION, "action:slack", "post_message")
+    );
+    assert_eq!(action_capability(&doc.channel), Some("slack"));
+    assert_eq!(action_input(&doc), Some(input));
+
+    let mut edited = doc.clone();
+    edited.parts[0].text = r#"  {"to": "U9", "text": "Edited"}  "#.to_owned();
+    assert_eq!(action_input(&edited), Some(json!({"to": "U9", "text": "Edited"})));
+    edited.parts[0].text = "[1, 2]".to_owned();
+    assert_eq!(action_input(&edited), None);
+    assert_eq!(action_capability("slack"), None);
+    assert_eq!(action_capability("action:"), None);
+}

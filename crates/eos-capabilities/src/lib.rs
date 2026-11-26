@@ -18,7 +18,11 @@
 //! built-in the user signs in to by a code is handed out for the sign-in,
 //! and the account's label is kept once it is done. No
 //! class gate here: the policy decides an agent's call before the tool
-//! runs, and a delivery calls after the Needs-you gate.
+//! runs, and a delivery calls after the Needs-you gate. A run agent's call
+//! that tells the user, speaks or cannot be taken back asks its run's gate
+//! (`CapabilityGrants::gate`) before it runs: it runs, or the agent reads
+//! that it goes out through the delivery, waits in Needs you, or was
+//! refused.
 //!
 //! Routines read through it too: the built-ins' signal sources
 //! ([`CapabilityService::signal_sources`], each poll a call of the source's
@@ -34,6 +38,7 @@
 //! the outcome, the error's kind and the duration; never input, output,
 //! secrets, settings or account labels.
 
+mod action_channel;
 mod browser;
 mod call;
 mod candidates;

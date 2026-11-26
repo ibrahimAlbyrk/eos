@@ -213,6 +213,7 @@ pub struct FakeRunGate {
     inputs: Mutex<Vec<GateInput>>,
     withdrawn: Mutex<Vec<String>>,
     deliveries: Mutex<usize>,
+    actions: Mutex<Vec<(GateInput, eos_core::capability::RunAction)>>,
 }
 
 impl FakeRunGate {
@@ -238,6 +239,11 @@ impl FakeRunGate {
     pub fn deliveries(&self) -> usize {
         *locked(&self.deliveries)
     }
+
+    /// The run actions it was asked about, with the input each was given.
+    pub fn actions(&self) -> Vec<(GateInput, eos_core::capability::RunAction)> {
+        locked(&self.actions).clone()
+    }
 }
 
 impl RunGate for FakeRunGate {
@@ -260,6 +266,20 @@ impl RunGate for FakeRunGate {
     fn withdraw_in(&self, _tx: &dyn Tx, _out: &mut Outbox, run_id: &str) -> Result<(), Error> {
         locked(&self.withdrawn).push(run_id.to_owned());
         Ok(())
+    }
+
+    /// Every run action is held, as `held`.
+    fn action_in(
+        &self,
+        _tx: &dyn Tx,
+        _out: &mut Outbox,
+        _now: i64,
+        _ids: &dyn eos_core::Ids,
+        input: &GateInput,
+        action: &eos_core::capability::RunAction,
+    ) -> Result<eos_core::capability::RunActionDecision, Error> {
+        locked(&self.actions).push((input.clone(), action.clone()));
+        Ok(eos_core::capability::RunActionDecision::Held { item_id: "held".to_owned() })
     }
 }
 

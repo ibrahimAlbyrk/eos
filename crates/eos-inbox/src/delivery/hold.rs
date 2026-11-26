@@ -58,7 +58,9 @@ impl Items {
                         let item = only_stopped_in(tx, item, &row.run_id, &stopped, now)?;
                         announce_item(tx, out, &item)?;
                         let run = tx.runs().find(&row.run_id)?;
-                        if run.is_some_and(|run| run.state == RunState::Delivering) {
+                        if crate::outcomes::sends_result(&row)
+                            && run.is_some_and(|run| run.state == RunState::Delivering)
+                        {
                             outcomes.held(tx, out, &row.run_id, item_id)?;
                         }
                     }

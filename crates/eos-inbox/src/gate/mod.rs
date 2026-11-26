@@ -8,16 +8,20 @@
 //! - `apply`: the decision, from the channel action's class, the outbound
 //!   check and the rung under every cap; and taking back a held result;
 //! - `repeat`: whether the same place already had a send of the subject;
-//! - `actions`: the gate a surface's direct action passes.
+//! - `actions`: the gate a surface's direct action passes;
+//! - `run_actions`: the gate an action a run's agent calls passes.
 
 mod actions;
 mod apply;
 mod repeat;
+mod run_actions;
 mod targets;
 
 pub use actions::{ActionGateParts, DirectActionGate};
 pub(crate) use apply::DRAFT_PRODUCER;
 pub use apply::TARGET_REFUSED;
+pub(crate) use run_actions::action_title;
+pub use run_actions::{STOPPED, TRIAL};
 
 /// What a run's draft is about: the run's item without its version
 /// (`github:pr:acme/game#482`, not `…#482@<sha>`), so a draft of a newer
@@ -37,6 +41,7 @@ pub(crate) fn run_subject(run: &StoredRun) -> Option<String> {
 
 use std::sync::Arc;
 
+use eos_core::capability::{RunAction, RunActionDecision};
 use eos_core::delivery::Channels;
 use eos_core::os::TimeZone;
 use eos_core::routine::{GateDecision, GateInput, RoutineControl, RunGate, RunOutcomes};
@@ -111,5 +116,17 @@ impl RunGate for Gate {
 
     fn withdraw_in(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str) -> Result<(), Error> {
         apply::withdraw_in(tx, out, self.clock.now_ms(), run_id)
+    }
+
+    fn action_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        now: i64,
+        ids: &dyn Ids,
+        input: &GateInput,
+        action: &RunAction,
+    ) -> Result<RunActionDecision, Error> {
+        run_actions::action_in(self, tx, out, now, ids, input, action)
     }
 }

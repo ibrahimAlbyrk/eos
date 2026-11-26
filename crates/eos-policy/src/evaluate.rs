@@ -13,7 +13,9 @@
 //! 6. the call's mode (the worker's, or a subagent's narrower one) allows by
 //!    kind of tool (a file edit that writes outside the working directories
 //!    is a kind of its own; a capability action goes by its class, and one
-//!    that speaks for the user or cannot be taken back asks in every mode);
+//!    that speaks for the user or cannot be taken back asks in every mode,
+//!    except in a routine's run, whose gate decides by the routine's
+//!    Freedom what tells the user, speaks or cannot be taken back);
 //! 7. the policy's default.
 //!
 //! Rungs 1–4 sit above the user's rules so neither a broad allow nor full
@@ -57,6 +59,9 @@ pub struct Call<'a> {
     /// For `call_capability`: the class of the action it calls; `None` when
     /// there is no such action.
     pub capability_class: Option<ActionClass>,
+    /// The worker works for a routine's run, whose gate decides by the
+    /// routine's Freedom what of its calls reaches past this computer (D73).
+    pub in_run: bool,
 }
 
 fn deny(message: String) -> Decision {
@@ -132,6 +137,10 @@ fn decide(policy: &Policy, call: &Call<'_>) -> Decision {
     let category = match classify_tool(tool, Some(call.input), call.plans_dir) {
         ToolCategory::FileEdit if call.writes_outside => ToolCategory::FileEditOutside,
         _ if tool == CALL_CAPABILITY_TOOL => match call.capability_class {
+            // The run's gate holds it, sends it or refuses it, as its result.
+            Some(ActionClass::TellUser | ActionClass::Speak | ActionClass::Irreversible) if call.in_run => {
+                return Decision::Allow(AllowVariant { updated_input: Some(call.input.clone()), message: None });
+            }
             Some(class) => ToolCategory::Capability(class),
             // Nothing to call: the tool would answer the same.
             None => return deny(ActionError::NotFound.to_string()),
@@ -208,6 +217,7 @@ mod walked_once {
                             plans_dir: None,
                             writes_outside,
                             capability_class: None,
+                            in_run: false,
                         };
                         let twice = if policy.has_rule_for(tool, input) {
                             evaluate_policy(&policy, tool, input)
@@ -264,6 +274,7 @@ mod tests {
             plans_dir: Some("/home/u/.claude/plans"),
             writes_outside,
             capability_class: None,
+            in_run: false,
         };
         match evaluate(policy, &call) {
             Decision::Allow(_) => "allow",
@@ -317,6 +328,7 @@ mod tests {
             plans_dir: Some("/home/u/.claude/plans"),
             writes_outside: false,
             capability_class: None,
+            in_run: false,
         };
         match evaluate(policy, &call) {
             Decision::Allow(_) => "allow",
@@ -354,6 +366,16 @@ mod tests {
         agent_id: Option<&str>,
         class: Option<ActionClass>,
     ) -> &'static str {
+        decided(policy, mode, agent_id, class, false)
+    }
+
+    fn decided(
+        policy: &Policy,
+        mode: AgentMode,
+        agent_id: Option<&str>,
+        class: Option<ActionClass>,
+        in_run: bool,
+    ) -> &'static str {
         let input: UnknownRecord =
             serde_json::from_value(json!({"capability": "github", "action": "post_review", "input": {}}))
                 .expect("an object");
@@ -368,6 +390,7 @@ mod tests {
             plans_dir: None,
             writes_outside: false,
             capability_class: class,
+            in_run,
         };
         match evaluate(policy, &call) {
             Decision::Allow(_) => "allow",
@@ -407,6 +430,30 @@ mod tests {
         let denies = policy(json!({"default": "deny", "rules": []}));
         assert_eq!(capability_call(&denies, AgentMode::AcceptEdits, None, Some(TellUser)), "deny");
         assert_eq!(capability_call(&denies, AgentMode::AcceptEdits, None, Some(Speak)), "ask");
+    }
+
+    #[test]
+    fn a_run_leaves_what_reaches_past_this_computer_to_its_gate() {
+        use ActionClass::{Irreversible, Read, Speak, TellUser, WriteLocal};
+        let bundled = bundled();
+        for mode in [AgentMode::AcceptEdits, AgentMode::FullAccess] {
+            for class in [TellUser, Speak, Irreversible] {
+                assert_eq!(decided(&bundled, mode, None, Some(class), true), "allow", "{class:?} in {mode:?}");
+            }
+            for class in [Read, WriteLocal] {
+                assert_eq!(
+                    decided(&bundled, mode, None, Some(class), true),
+                    capability_call(&bundled, mode, None, Some(class)),
+                    "{class:?} in {mode:?}"
+                );
+            }
+        }
+        // The user's own rule, and the subagent rung, still come first.
+        let deny = policy(
+            json!({"default": "allow", "rules": [{"tool": "call_capability", "action": "deny", "reason": "no"}]}),
+        );
+        assert_eq!(decided(&deny, AgentMode::FullAccess, None, Some(Speak), true), "deny");
+        assert_eq!(decided(&bundled, AgentMode::FullAccess, Some("a1"), Some(Speak), true), "deny");
     }
 
     #[test]
@@ -460,6 +507,7 @@ mod tests {
             plans_dir: None,
             writes_outside: false,
             capability_class: None,
+            in_run: false,
         };
         assert_eq!(evaluate(&allows, &call), deny(ActionError::NotFound.to_string()));
     }

@@ -8,6 +8,7 @@ use eos_core::BoxFuture;
 use eos_core::agent::UserNotifier;
 use eos_core::capability::{
     BuiltinCapability, CapabilityGrants, CapabilitySecrets, ConfineError, ConfineSpec, Confined, Confinement, Grant,
+    NO_GATE, RunAction, RunActionDecision,
 };
 use eos_core::delivery::Channels;
 use eos_core::net::relay::{PhoneNotify, PhonePush, PushOutcome};
@@ -72,6 +73,13 @@ impl CapabilityGrants for LateGrants {
         match self.0.get().and_then(Weak::upgrade) {
             Some(grants) => Box::pin(async move { grants.grant(worker_id).await }),
             None => Box::pin(std::future::ready(None)),
+        }
+    }
+
+    fn gate<'a>(&'a self, action: &'a RunAction) -> BoxFuture<'a, Result<RunActionDecision, eos_core::Error>> {
+        match self.0.get().and_then(Weak::upgrade) {
+            Some(grants) => Box::pin(async move { grants.gate(action).await }),
+            None => Box::pin(std::future::ready(Ok(RunActionDecision::Refused { reason: NO_GATE.to_owned() }))),
         }
     }
 }

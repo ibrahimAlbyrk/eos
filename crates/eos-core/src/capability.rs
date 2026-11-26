@@ -24,7 +24,7 @@ pub use confine::{ConfineError, ConfineGuard, ConfineReport, ConfineSpec, Confin
 pub use reads::{CapabilityHealth, CapabilityReads, Checkout, ItemRecogniser, MissingNeed, PastItemFilter};
 pub use registry::{
     ActionContext, ActionRunner, AllInstalled, BuiltinCapability, Capability, CapabilityGrants, CapabilityRegistry,
-    Grant, GrantedAction, INSTALLED_MAX, Package,
+    Grant, GrantedAction, INSTALLED_MAX, NO_GATE, Package, RunAction, RunActionDecision,
 };
 pub use sign_in::{BrowserCallback, BrowserCode, BrowserSignIn, DeviceCode, DeviceSignIn, SignInError};
 

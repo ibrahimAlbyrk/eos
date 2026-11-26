@@ -1,13 +1,15 @@
 //! The gate a checked result passes (01 §4.9, 03 §4.8), called inside the
 //! run's own write job so the decision, the run's state and its event
-//! commit together.
+//! commit together; and the gate an action of a run's agent that reaches
+//! past this computer passes, by the same facts (D73).
 
 use std::sync::Arc;
 
 use eos_core::Error;
+use eos_core::capability::{NO_GATE, RunAction, RunActionDecision};
 use eos_core::routine::{GateDecision, GateInput, GateMode};
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
-use eos_domain::result_doc::page_issue_doc;
+use eos_domain::result_doc::{action_doc, page_issue_doc};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
 use eos_surface::IssueKind;
@@ -44,7 +46,9 @@ pub(crate) fn hand_over(
     if result.kind == NOTHING {
         return done(engine, tx, out, run, Outcome::Nothing, now);
     }
-    let input = gate_input(tx, run, &result, untrusted)?;
+    let input = gate_input(tx, run, untrusted, |blueprint| {
+        Ok(page_doc_in(tx, run, blueprint, &result)?.unwrap_or_else(|| result_doc(&result)))
+    })?;
     let decision = engine.gate.apply_in(tx, out, now, engine.ids.as_ref(), &input)?;
     let at = |state, station, reason| RunMove { state, station: Some(station), reason, at: now };
     match decision {
@@ -110,11 +114,13 @@ fn page_doc_in(
     Ok(Some(page_issue_doc((&issue.surface_id, &issue.id), &body["data"], pdf, PAGE_CHANNEL, PAGE_ACTION)))
 }
 
+/// What the gate decides `run`'s result or action by, with `doc_of` the
+/// result as it goes.
 fn gate_input(
     tx: &dyn Tx,
     run: &StoredRun,
-    result: &eos_core::store::StoredRunResult,
     untrusted: &SourceFacts,
+    doc_of: impl FnOnce(&eos_contracts::Blueprint) -> Result<eos_contracts::ResultDoc, Error>,
 ) -> Result<GateInput, Error> {
     let version_id = run.version_id.clone().unwrap_or_default();
     let version = tx.routine_versions().find(&run.routine_id, &version_id)?;
@@ -144,7 +150,7 @@ fn gate_input(
         version: version_id,
         origin: run.origin.clone(),
         result_mode,
-        doc: page_doc_in(tx, run, &blueprint, result)?.unwrap_or_else(|| result_doc(result)),
+        doc: doc_of(&blueprint)?,
         targets: if trial { Vec::new() } else { blueprint.goes_to },
         item_facts: serde_json::to_value(&input.item).unwrap_or_default(),
         signal_facts: signal_facts_in(tx, &input)?,
@@ -154,4 +160,24 @@ fn gate_input(
         freedom_confirmed,
         goes_to_confirmed,
     })
+}
+
+/// Passes an action a run's agent calls that reaches past this computer
+/// through the gate (D73), in a write job of its own, as the run's result
+/// would: the same Freedom, mode and facts. A worker that works for no run
+/// sends nothing.
+pub(crate) async fn action(engine: &Arc<Engine>, action: &RunAction) -> Result<RunActionDecision, Error> {
+    let untrusted = super::versions::untrusted_facts(engine).await?;
+    let (job, action, now) = (engine.clone(), action.clone(), engine.clock.now_ms());
+    engine
+        .store
+        .write(move |tx, out| {
+            let refused = || RunActionDecision::Refused { reason: NO_GATE.to_owned() };
+            let Some(found) = tx.routine_sessions().run_of(&action.worker_id)? else { return Ok(refused()) };
+            let Some(run) = tx.runs().find(&found.run_id)? else { return Ok(refused()) };
+            let doc = action_doc(&action.capability, &action.action, &action.input);
+            let input = gate_input(tx, &run, &untrusted, |_| Ok(doc))?;
+            job.gate.action_in(tx, out, now, job.ids.as_ref(), &input, &action)
+        })
+        .await
 }

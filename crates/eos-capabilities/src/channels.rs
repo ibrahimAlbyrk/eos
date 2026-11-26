@@ -3,7 +3,8 @@
 //! ends with the delivery's marker, so a send repeated after a crash finds
 //! the first; it is taken back by withdrawing the review. `mail` and
 //! `notify` are in [`crate::mail`] and [`crate::notify`], `slack` in
-//! [`crate::slack`].
+//! [`crate::slack`], and the actions a run's agents call in
+//! [`crate::action_channel`].
 
 use std::sync::Arc;
 
@@ -17,6 +18,7 @@ use eos_core::delivery::{
 use serde_json::{Value, json};
 
 use crate::CapabilityService;
+use crate::action_channel::ActionChannel;
 use crate::mail::{MAIL_CHANNEL, MailChannel};
 use crate::notify::{NOTIFY, NotifyChannel};
 use crate::pull::{GITHUB, Pull, action_input, review_of};
@@ -32,6 +34,10 @@ pub(crate) struct BuiltinChannels(pub(crate) Arc<CapabilityService>);
 
 impl Channels for BuiltinChannels {
     fn get(&self, channel: &str) -> Option<Arc<dyn Channel>> {
+        if let Some(capability) = eos_domain::result_doc::action_capability(channel) {
+            let capability = capability.to_owned();
+            return Some(Arc::new(ActionChannel { service: self.0.clone(), capability }));
+        }
         if !self.0.builtins.contains_key(channel) {
             return None;
         }

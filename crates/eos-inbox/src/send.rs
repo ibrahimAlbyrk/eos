@@ -12,7 +12,7 @@ use eos_core::delivery::{ChannelTraits, Idempotency, Place, Target, Undo};
 use eos_core::routine::RoutineControl;
 use eos_core::store::{ItemAnswer, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::result_doc::{names_recipients, recipient_key};
+use eos_domain::result_doc::{action_capability, names_recipients, recipient_key};
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
@@ -136,7 +136,11 @@ impl Items {
                 if targets.is_empty() {
                     return Err(invalid("the draft goes to nobody"));
                 }
-                gone_in(tx, control.as_ref(), &routine_id, &targets)?;
+                // An agent's action goes where its input says, not to the Goes to.
+                let action = action_capability(&sent.channel).is_some();
+                if !action {
+                    gone_in(tx, control.as_ref(), &routine_id, &targets)?;
+                }
                 if edited {
                     keep_working_in(tx, item, &sent)?;
                 }
@@ -172,7 +176,7 @@ impl Items {
                         at: now,
                     },
                 )?;
-                if tx.runs().find(&run_id)?.is_some_and(|run| run.state == RunState::WaitingForUser) {
+                if !action && tx.runs().find(&run_id)?.is_some_and(|run| run.state == RunState::WaitingForUser) {
                     outcomes.delivering(tx, out, &run_id)?;
                 }
                 tracing::info!(item_id = %item.id, run_id = %run_id, deliveries = rows.len(), by = %answer.by, "a draft was sent");

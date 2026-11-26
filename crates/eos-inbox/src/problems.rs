@@ -114,6 +114,7 @@ pub(crate) fn answered_in(
     tracing::info!(delivery_id = %row.id, item_id = %item.id, state = %row.state, "a delivery problem was answered");
     match choice {
         ProblemChoice::Retry => {}
+        _ if !crate::outcomes::sends_result(&row) => {}
         ProblemChoice::MarkSent if delivering(tx, &row.run_id)? && all_sent(tx, &row)? => {
             sent_in(tx, out, at, outcomes, &row)?;
         }

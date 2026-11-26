@@ -115,6 +115,52 @@ fn fields(path: String, value: &Value, out: &mut Vec<Part>) {
     out.push(Part { key: path, role: "field".to_owned(), text, meta: Map::new() });
 }
 
+/// A capability action a run's agent called, as a result: one [`BODY`]
+/// part whose text is the action's input as JSON in a fenced block, for the
+/// user to read and edit before it goes. Its channel names the capability
+/// ([`action_channel`]), its action the action.
+pub const ACTION: &str = "action";
+const ACTION_CHANNEL: &str = "action:";
+const FENCE_OPEN: &str = "```json\n";
+const FENCE_CLOSE: &str = "\n```";
+
+/// The channel a run's call of an action of `capability` goes out through.
+pub fn action_channel(capability: &str) -> String {
+    format!("{ACTION_CHANNEL}{capability}")
+}
+
+/// The capability an [`action_channel`] names; none for any other channel.
+pub fn action_capability(channel: &str) -> Option<&str> {
+    channel.strip_prefix(ACTION_CHANNEL).filter(|capability| !capability.is_empty())
+}
+
+/// A call of `action` of `capability` with `input`, as a result.
+pub fn action_doc(capability: &str, action: &str, input: &Value) -> ResultDoc {
+    let json = serde_json::to_string_pretty(input).unwrap_or_else(|_| input.to_string());
+    let body = Part {
+        key: BODY.to_owned(),
+        role: "input".to_owned(),
+        text: format!("{FENCE_OPEN}{json}{FENCE_CLOSE}"),
+        meta: Map::new(),
+    };
+    ResultDoc {
+        kind: ACTION.to_owned(),
+        channel: action_channel(capability),
+        action: action.to_owned(),
+        parts: vec![body],
+    }
+}
+
+/// The input an [`action_doc`] calls its action with, as the user left it:
+/// a JSON object, fenced or not; none when the text is no such object.
+pub fn action_input(doc: &ResultDoc) -> Option<Value> {
+    let text = doc.parts.iter().find(|part| part.key == BODY)?.text.trim();
+    let text = text.strip_prefix(FENCE_OPEN.trim_end()).unwrap_or(text);
+    let text = text.strip_suffix(FENCE_CLOSE.trim_start()).unwrap_or(text);
+    let input: Value = serde_json::from_str(text.trim()).ok()?;
+    input.is_object().then_some(input)
+}
+
 /// A text as results compare it: line ends as LF, no space or tab at the
 /// end of a line, no white space at either end.
 pub fn normalize(text: &str) -> String {

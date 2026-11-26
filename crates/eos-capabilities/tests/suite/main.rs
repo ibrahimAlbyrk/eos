@@ -9,5 +9,6 @@ mod mail;
 mod notify;
 mod push;
 mod rig;
+mod run_sends;
 mod slack;
 mod synced;

@@ -9,7 +9,7 @@ use eos_core::Error;
 use eos_core::routine::RunOutcomes;
 use eos_core::store::{NewOutcome, Outbox, StoredDelivery, StoredItem, Tx};
 use eos_domain::inbox::ItemKind;
-use eos_domain::result_doc::{PAGE_ISSUE, equal, issue_of, page_issue_doc};
+use eos_domain::result_doc::{PAGE_ISSUE, action_capability, equal, issue_of, page_issue_doc};
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
@@ -29,6 +29,19 @@ pub(crate) struct Ended<'a> {
 /// The result as the gate held it, from its draft's payload.
 pub(crate) fn held_doc(payload: &Value) -> Option<ResultDoc> {
     serde_json::from_value(payload.get("doc")?.clone()).ok()
+}
+
+/// Whether `item` holds an action a run's agent called rather than the
+/// run's result: its end never settles the run, which ends by its result.
+pub(crate) fn holds_action(item: &StoredItem) -> bool {
+    let payload: Value = serde_json::from_str(&item.payload).unwrap_or(Value::Null);
+    held_doc(&payload).is_some_and(|doc| action_capability(&doc.channel).is_some())
+}
+
+/// Whether `row` sends the run's result, not an action its agent called:
+/// only such a send settles the run.
+pub(crate) fn sends_result(row: &StoredDelivery) -> bool {
+    action_capability(&row.channel).is_none()
 }
 
 /// Whether `sent` went out as `item` held it. A draft whose held result
@@ -81,10 +94,11 @@ pub(crate) fn ended_in(
     };
     tx.inbox_outcomes().insert(&row)?;
     tracing::info!(item_id = %item.id, run_id = %run_id, outcome = ended.outcome.as_str(), "a held result ended");
-    let waiting = tx
-        .runs()
-        .find(&run_id)?
-        .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering));
+    let waiting = !holds_action(item)
+        && tx
+            .runs()
+            .find(&run_id)?
+            .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering));
     if waiting {
         outcomes.finished(tx, out, &run_id, ended.outcome)?;
     }
@@ -140,10 +154,11 @@ pub(crate) fn after_sent_in(
     };
     tx.inbox_outcomes().insert(&outcome_row)?;
     tracing::info!(delivery_id = %row.id, run_id = %row.run_id, outcome = outcome.as_str(), "a sent result was judged");
-    let settled = tx
-        .runs()
-        .find(&row.run_id)?
-        .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering | RunState::Done));
+    let settled = sends_result(row)
+        && tx
+            .runs()
+            .find(&row.run_id)?
+            .is_some_and(|run| matches!(run.state, RunState::WaitingForUser | RunState::Delivering | RunState::Done));
     if outcome == Outcome::Undone && settled {
         outcomes.finished(tx, out, &row.run_id, outcome)?;
     }

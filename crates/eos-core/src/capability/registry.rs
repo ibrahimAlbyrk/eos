@@ -57,12 +57,52 @@ pub struct Grant {
     pub max_class: ActionClass,
 }
 
-/// The grant a routine run gives its workers.
+/// An action of a class above writing locally that a run session calls,
+/// before it runs.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunAction {
+    pub worker_id: String,
+    pub capability: String,
+    pub action: String,
+    pub class: ActionClass,
+    /// The input the agent gave, as its schema checked it.
+    pub input: Value,
+    /// Who it reaches, as its manifest's `recipient` reads it from the
+    /// input; `None` when it names no one.
+    pub recipient: Option<String>,
+    /// It reaches the user only (`recipient = "user"`).
+    pub to_user: bool,
+}
+
+/// What the run's gate does with a [`RunAction`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RunActionDecision {
+    /// It runs now (telling the user).
+    Run,
+    /// It goes out through the delivery as this row, by itself.
+    Queued { delivery_id: String },
+    /// It waits for the user in Needs you as this draft.
+    Held { item_id: String },
+    /// It does not go, for this reason the agent reads.
+    Refused { reason: String },
+}
+
+/// The grant a routine run gives its workers, and the gate their sends
+/// pass.
 pub trait CapabilityGrants: Send + Sync {
     /// `None` when the worker has no grant of its own: it may call every
     /// installed action (an Agents chat).
     fn grant<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Option<Grant>>;
+    /// What becomes of an action a worker with a grant calls that tells the
+    /// user, speaks for them or cannot be taken back: the routine's Freedom
+    /// decides, as for its result. Without a gate nothing goes.
+    fn gate<'a>(&'a self, _action: &'a RunAction) -> BoxFuture<'a, Result<RunActionDecision, Error>> {
+        Box::pin(std::future::ready(Ok(RunActionDecision::Refused { reason: NO_GATE.to_owned() })))
+    }
 }
+
+/// Why a run's send is refused when nothing gates it.
+pub const NO_GATE: &str = "Nothing can send for this run now.";
 
 /// No worker has a grant of its own: Agents chats, until runs grant theirs.
 #[derive(Debug, Default, Clone, Copy)]

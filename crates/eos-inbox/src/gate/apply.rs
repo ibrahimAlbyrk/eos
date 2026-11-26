@@ -20,7 +20,7 @@ use super::targets::{Chosen, Targets, choose, with_recipients};
 use super::{Gate, subject_of};
 use crate::delivery::{NewDelivery, queue_in, target_value};
 use crate::items::{ALERT_PRODUCER, open_replacing_in};
-use crate::outcomes::replaced_in;
+use crate::outcomes::{holds_action, replaced_in};
 use crate::{NewItem, Opening, announce, open_in};
 
 /// Why a routine whose result went to an unconfirmed recipient is paused,
@@ -118,7 +118,7 @@ fn repeat_in(tx: &dyn Tx, gate: &Gate, now: i64, input: &GateInput, chosen: &[Ch
 }
 
 /// The Freedom of a routine the user stands behind no version of: held.
-fn held_freedom() -> Freedom {
+pub(super) fn held_freedom() -> Freedom {
     Freedom { rung: Rung::Draft, grants: Vec::new(), extra: Map::new() }
 }
 
@@ -133,7 +133,7 @@ fn facts_of(item: &Value) -> Facts {
 /// read wins over the item's own fields of the same name, and a fact the
 /// item's sender writes is left out, so a rule resting on it never passes
 /// (D63). An item from outside writes its own title, text and key.
-fn trusted_facts(input: &GateInput) -> Facts {
+pub(super) fn trusted_facts(input: &GateInput) -> Facts {
     let mut facts = facts_of(&input.item_facts);
     facts.extend(input.signal_facts.clone());
     if input.item_facts.get("untrusted") != Some(&Value::Bool(false)) {
@@ -150,7 +150,7 @@ fn trusted_facts(input: &GateInput) -> Facts {
 /// nothing by its title, text or key: whoever wrote them would choose who
 /// the result may mention or link to (a mail's key is its Message-ID, which
 /// its sender writes).
-fn context(input: &GateInput, chosen: &[Chosen], traits: Option<&ChannelTraits>) -> OutboundContext {
+pub(super) fn context(input: &GateInput, chosen: &[Chosen], traits: Option<&ChannelTraits>) -> OutboundContext {
     let mut context = OutboundContext::new(traits.map_or(usize::MAX, |traits| traits.max_bytes));
     let mut named = input.item_facts.clone();
     if let Some(fields) = named.as_object_mut().filter(|fields| fields.get("untrusted") != Some(&Value::Bool(false))) {
@@ -240,7 +240,7 @@ fn hold_in(
 pub(crate) fn withdraw_in(tx: &dyn Tx, out: &mut Outbox, now: i64, run_id: &str) -> Result<(), Error> {
     let Some(run) = tx.runs().find(run_id)? else { return Ok(()) };
     for mut item in tx.inbox_items().waiting_of_routine(&run.routine_id)? {
-        if item.kind != ItemKind::Draft || item.run_id.as_deref() != Some(run_id) {
+        if item.kind != ItemKind::Draft || item.run_id.as_deref() != Some(run_id) || holds_action(&item) {
             continue;
         }
         let rev = item.rev;

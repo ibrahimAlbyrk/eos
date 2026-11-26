@@ -1,12 +1,15 @@
 //! How a run's sessions start: in `AcceptEdits` under the run scope, without
 //! the folder's MCP servers, and, when the run reads outside text, in its
 //! own empty folder with the workspace as a further root, also after a
-//! resume and a restart. And what capability actions they may call.
+//! resume and a restart. And what capability actions they may call, and
+//! that their sends pass the run's gate.
 
 use eos_contracts::{ActionClass, RoutineState, ToolScope};
-use eos_core::capability::{Capability, GrantedAction};
-use eos_core::routine::RunOrigin;
+use eos_core::capability::{Capability, GrantedAction, RunAction, RunActionDecision};
+use eos_core::routine::{GateMode, RunOrigin};
+use eos_core::store::StoredRoutineSession;
 use eos_domain::capability::health::Health;
+use eos_domain::result_doc::action_doc;
 use eos_domain::routine::run::{RunState, Station};
 use eos_domain::run_scope::{RunRole, Trust, scope_for};
 use eos_runtime::module::Module;
@@ -140,26 +143,62 @@ async fn an_untrusted_runs_lead_works_in_an_empty_folder_with_its_workspace_besi
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_run_session_may_call_the_read_and_local_actions_of_what_its_version_needs() {
+async fn a_run_session_may_call_every_action_of_what_its_version_needs_and_its_checker_only_reads() {
     let bench = Bench::with_reads(true, FakeCapabilityReads::new().listing(github()));
     let mut needs = blueprint(1);
     needs["needs"] = json!(["github"]);
     let routine = bench.routine(RoutineState::Active, needs.clone());
-    // An agent that reads outside text only reads.
+    // An agent that reads outside text calls what any other does (D73).
     needs["who"]["agents"][0]["readsOutside"] = json!(true);
     let outside = bench.routine(RoutineState::Active, needs);
     let reading = bench.hand(&outside, Some(pull_request(2))).await;
-    let (_, lead) = lead_of(&bench, &routine, true).await;
+    let (run, lead) = lead_of(&bench, &routine, true).await;
     bench.eventually(|| bench.run(&reading).station == Some(Station::Work)).await;
     let reader = bench.run(&reading).lead_id.expect("a lead");
     let grants = bench.module.grants();
 
-    let grant = grants.grant(&lead).await.expect("a run session has a grant");
     let granted = |name: &str| GrantedAction { capability: "github".into(), action: name.into() };
-    assert_eq!(grant.actions, [granted("get_pull_request"), granted("save_draft")]);
-    assert_eq!(grant.max_class, ActionClass::WriteLocal);
+    let every = vec![granted("get_pull_request"), granted("save_draft"), granted("post_review")];
+    for worker in [&lead, &reader] {
+        let grant = grants.grant(worker).await.expect("a run session has a grant");
+        assert_eq!((grant.actions, grant.max_class), (every.clone(), ActionClass::Irreversible));
+    }
     assert_eq!(grants.grant("w-chat").await, None, "a chat calls what is installed");
 
-    let grant = grants.grant(&reader).await.expect("a grant");
+    // The checker judges the result: it only reads.
+    let (routine_id, run_id) = (routine.clone(), run.clone());
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            tx.routine_sessions().insert(&StoredRoutineSession {
+                worker_id: "w-checker".into(),
+                routine_id,
+                run_id: Some(run_id),
+                role: "checker".into(),
+                agent_key: None,
+                created_at: 1,
+            })
+        })
+        .expect("writes");
+    let grant = grants.grant("w-checker").await.expect("a grant");
     assert_eq!((grant.actions, grant.max_class), (vec![granted("get_pull_request")], ActionClass::Read));
+
+    // A send passes the run's gate, with the run's facts and the action as its result.
+    let action = RunAction {
+        worker_id: lead.clone(),
+        capability: "github".into(),
+        action: "post_review".into(),
+        class: ActionClass::Speak,
+        input: json!({"pull": "acme/game#1"}),
+        recipient: Some("acme/game#1".into()),
+        to_user: false,
+    };
+    let decision = grants.gate(&action).await.expect("decides");
+    assert_eq!(decision, RunActionDecision::Held { item_id: "held".into() });
+    let (input, asked) = bench.gate.actions().pop().expect("the gate was asked");
+    assert_eq!((input.run_id.as_str(), input.result_mode, asked), (run.as_str(), GateMode::AsUsual, action.clone()));
+    assert_eq!(input.doc, action_doc("github", "post_review", &json!({"pull": "acme/game#1"})));
+    let chat = RunAction { worker_id: "w-chat".into(), ..action };
+    assert!(matches!(grants.gate(&chat).await, Ok(RunActionDecision::Refused { .. })), "a chat's send is no run's");
 }

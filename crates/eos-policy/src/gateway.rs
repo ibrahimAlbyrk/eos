@@ -214,7 +214,13 @@ impl PolicyGateway {
     pub async fn decide(&self, call: ToolCall) -> Result<ExternalDecision, Error> {
         let policy = self.policy();
         let worker_id = call.worker_id.clone();
-        let permissions = self.store.read(move |tx| worker_permissions(tx.workers(), &worker_id)).await?;
+        let (permissions, in_run) = self
+            .store
+            .read(move |tx| {
+                let in_run = tx.routine_sessions().run_of(&worker_id)?.is_some();
+                Ok((worker_permissions(tx.workers(), &worker_id)?, in_run))
+            })
+            .await?;
         let capability_class = self.capability_class(&call).await;
         let scripted = self.script_decision(&call).await?;
         let decision = scripted.unwrap_or_else(|| {
@@ -231,6 +237,7 @@ impl PolicyGateway {
                     plans_dir: self.plans_dir.as_deref(),
                     writes_outside: call.writes_outside,
                     capability_class,
+                    in_run,
                 },
             )
         });

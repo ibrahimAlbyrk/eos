@@ -742,6 +742,20 @@ pub trait RunGate: Send + Sync {
     /// Takes back the run's result that waits for the user: the user told
     /// the team something, and the work reopens (01 G18).
     fn withdraw_in(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str) -> Result<(), Error>;
+    /// What becomes of an action a run's agent calls that tells the user,
+    /// speaks for them or cannot be taken back, under the same Freedom and
+    /// caps as the run's result; `input.doc` is the action as a result
+    /// (`eos_domain::result_doc::action_doc`). Called inside a write job of
+    /// its own.
+    fn action_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        now: i64,
+        ids: &dyn Ids,
+        input: &GateInput,
+        action: &crate::capability::RunAction,
+    ) -> Result<crate::capability::RunActionDecision, Error>;
 }
 
 /// What became of a run's result after the gate, as the area that holds and

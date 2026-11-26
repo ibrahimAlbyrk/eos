@@ -138,13 +138,16 @@ impl FailureKind {
 }
 
 /// How a call fails. Each kind reads one fixed text to a model
-/// ([`fmt::Display`]); only `Invalid` carries the input's issues.
+/// ([`fmt::Display`]); only `Invalid` carries the input's issues, and
+/// `Refused` the gate's reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ActionError {
     /// No such capability, or no such action of it.
     NotFound,
     /// The caller may not call the action.
     NotGranted,
+    /// The run's gate did not let it go: why, in words the agent reads.
+    Refused(String),
     /// The input broke the action's schema: `Input validation error: …`.
     Invalid(String),
     /// The capability does not take calls now; its state code, or its state
@@ -172,6 +175,7 @@ impl ActionError {
         match self {
             ActionError::NotFound => "not_found",
             ActionError::NotGranted => "not_granted",
+            ActionError::Refused(_) => "refused",
             ActionError::Invalid(_) => "invalid",
             ActionError::NotReady(_) => "not_ready",
             ActionError::Busy => "busy",
@@ -184,7 +188,7 @@ impl ActionError {
     /// The word `capability_calls.outcome` keeps.
     pub fn outcome(&self) -> &'static str {
         match self {
-            ActionError::NotGranted => "denied",
+            ActionError::NotGranted | ActionError::Refused(_) => "denied",
             ActionError::Timeout => "timeout",
             ActionError::Busy => "busy",
             _ => "error",
@@ -199,6 +203,7 @@ impl fmt::Display for ActionError {
                 f.write_str("No such capability or action. Call list_capabilities to see what you can use.")
             }
             ActionError::NotGranted => f.write_str("This action is not granted to you here."),
+            ActionError::Refused(reason) => f.write_str(reason),
             ActionError::Invalid(issues) => f.write_str(issues),
             ActionError::NotReady(code) => {
                 write!(f, "This capability is not ready ({code}). Call list_capabilities to see what the user must do.")

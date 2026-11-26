@@ -5,13 +5,14 @@ use std::time::Duration;
 
 use eos_contracts::{ActionClass, Issue, Issues};
 use eos_core::capability::{
-    ActionCall, ActionCaller, ActionContext, ActionError, ActionResult, FailureKind, Grant, Package, WEBHOOK_SECRET,
+    ActionCall, ActionCaller, ActionContext, ActionError, ActionResult, FailureKind, Grant, Package, RunAction,
+    RunActionDecision, WEBHOOK_SECRET,
 };
 use eos_core::store::StoredCall;
 use eos_domain::capability::health::{Event, StateCode};
-use eos_domain::capability::manifest::Action;
+use eos_domain::capability::manifest::{Action, Recipient};
 use eos_domain::capability::schema::{compile, input_error};
-use serde_json::Value;
+use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use crate::CapabilityService;
@@ -27,6 +28,16 @@ pub(crate) const CREATE_WEBHOOK: &str = "create_webhook";
 /// Whether `caller` may call `action` at all, before any grant is read.
 pub(crate) fn open_to(action: &Action, caller: &ActionCaller) -> bool {
     action.name != CREATE_WEBHOOK || matches!(caller, ActionCaller::Push { .. })
+}
+
+/// A gate's decision as the log names it.
+fn decision_kind(decision: &RunActionDecision) -> &'static str {
+    match decision {
+        RunActionDecision::Run => "run",
+        RunActionDecision::Queued { .. } => "queued",
+        RunActionDecision::Held { .. } => "held",
+        RunActionDecision::Refused { .. } => "refused",
+    }
 }
 
 /// How much an action may do, from reading up.
@@ -88,9 +99,10 @@ impl CapabilityService {
         call: &ActionCall,
     ) -> (Result<Value, ActionError>, Option<Event>) {
         let capability = &loaded.capability;
-        if let Err(e) = self.granted(&capability.id, action, &call.caller).await {
-            return (Err(e), None);
-        }
+        let in_run = match self.granted(&capability.id, action, &call.caller).await {
+            Ok(in_run) => in_run,
+            Err(e) => return (Err(e), None),
+        };
         if !capability.health.state.takes_calls() {
             return (Err(ActionError::not_ready(capability.health.state, capability.health.code.as_ref())), None);
         }
@@ -98,6 +110,13 @@ impl CapabilityService {
             let issues = issues(schema, &call.input);
             if !issues.is_empty() {
                 return (Err(ActionError::Invalid(input_error(&capability.id, &action.name, &issues))), None);
+            }
+        }
+        if in_run && rank(action.class) > rank(ActionClass::WriteLocal) {
+            match self.gated(&capability.id, action, call).await {
+                Ok(None) => {}
+                Ok(Some(answer)) => return (Ok(answer), None),
+                Err(e) => return (Err(e), None),
             }
         }
         let _slot = match self.limits.acquire(&capability.id).await {
@@ -124,18 +143,61 @@ impl CapabilityService {
     }
 
     /// An agent calls only what its grant lists; a surface only reads.
-    async fn granted(&self, capability: &str, action: &Action, caller: &ActionCaller) -> Result<(), ActionError> {
+    /// Whether the caller is an agent that works for a run, whose grant it is.
+    async fn granted(&self, capability: &str, action: &Action, caller: &ActionCaller) -> Result<bool, ActionError> {
         if !open_to(action, caller) {
             return Err(ActionError::NotGranted);
         }
         match caller {
             ActionCaller::Agent { worker_id } => match self.ports.grants.grant(worker_id).await {
                 Some(grant) if !allows(&grant, capability, action) => Err(ActionError::NotGranted),
-                _ => Ok(()),
+                grant => Ok(grant.is_some()),
             },
             ActionCaller::Surface { .. } if action.class != ActionClass::Read => Err(ActionError::NotGranted),
-            _ => Ok(()),
+            _ => Ok(false),
         }
+    }
+
+    /// A run agent's action that reaches past this computer passes the run's
+    /// gate first (D73): `None` runs it now; otherwise what the agent reads
+    /// of where it went instead.
+    async fn gated(&self, capability: &str, action: &Action, call: &ActionCall) -> Result<Option<Value>, ActionError> {
+        let ActionCaller::Agent { worker_id } = &call.caller else { return Ok(None) };
+        let recipient = match &action.recipient {
+            Recipient::Input(pointer) => call.input.pointer(pointer).map(|to| match to {
+                Value::String(to) => to.clone(),
+                other => other.to_string(),
+            }),
+            Recipient::User | Recipient::None => None,
+        };
+        let run_action = RunAction {
+            worker_id: worker_id.clone(),
+            capability: capability.to_owned(),
+            action: action.name.clone(),
+            class: action.class,
+            input: call.input.clone(),
+            recipient,
+            to_user: action.recipient == Recipient::User,
+        };
+        let decision = self.ports.grants.gate(&run_action).await.map_err(|e| {
+            tracing::warn!(capability, action = %action.name, error = %e, "a run's action could not pass its gate");
+            ActionError::Failed { kind: FailureKind::Internal }
+        })?;
+        tracing::info!(capability, action = %action.name, class = ?action.class, decision = decision_kind(&decision), "a run's action passed its gate");
+        Ok(match decision {
+            RunActionDecision::Run => None,
+            RunActionDecision::Queued { delivery_id } => Some(json!({
+                "status": "sending",
+                "deliveryId": delivery_id,
+                "message": "The routine's Freedom lets this go by itself: Eos sends it shortly, and the user can take it back. Do not send it again.",
+            })),
+            RunActionDecision::Held { item_id } => Some(json!({
+                "status": "held",
+                "itemId": item_id,
+                "message": "This waits in Needs you for the user to approve; it goes out when they do. It was not sent yet. Do not send it again: go on with the run and say in your result that it waits.",
+            })),
+            RunActionDecision::Refused { reason } => return Err(ActionError::Refused(reason)),
+        })
     }
 
     async fn execute(

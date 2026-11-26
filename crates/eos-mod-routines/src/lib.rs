@@ -33,8 +33,10 @@
 //! under 03's run scope, without the folder's MCP servers; one of a run that
 //! reads outside text works in an empty folder of the run's own with its
 //! workspace as a further root (`Module::shape_launch`, at every start and
-//! resume). It may call the `read` and `write_local` actions of what its
-//! version needs ([`RoutinesModule::grants`]).
+//! resume). It may call every action of what its version needs, its
+//! checker only the `read` ones; each that reaches past this computer
+//! passes the gate under the routine's Freedom first
+//! ([`RoutinesModule::grants`]).
 //!
 //! The lead starts with the notes memory recalls for its item
 //! ([`ExperiencePacks`]); memory hears how each run ended, each check that
@@ -356,8 +358,8 @@ impl RoutinesModule {
         self.control.clone()
     }
 
-    /// What capability actions a run session may call; none of its own
-    /// outside runs.
+    /// What capability actions a run session may call, and the gate its
+    /// sends pass; none of its own outside runs.
     pub fn grants(&self) -> Arc<dyn CapabilityGrants> {
         self.grants.clone()
     }

@@ -107,6 +107,7 @@ fn every_decision_equals_typescripts() {
             plans_dir: switch.plans_dir.as_deref(),
             writes_outside: false,
             capability_class: None,
+            in_run: false,
         };
         let ours = serde_json::to_value(evaluate(&policies[p], &call)).expect("a decision");
         if ours != expected[d] {

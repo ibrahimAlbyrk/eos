@@ -20,7 +20,7 @@ use super::{AUTO, FAILED, FROZEN, SENT, STOPPED, UNCERTAIN, WAITING_CAPABILITY, 
 use crate::gate::{DRAFT_PRODUCER, run_subject};
 use crate::halt::queue_again_in;
 use crate::items::open_replacing_in;
-use crate::outcomes::{Ended, ended_in, replaced_in, sent_outcome};
+use crate::outcomes::{Ended, ended_in, holds_action, replaced_in, sends_result, sent_outcome};
 use crate::{NewItem, Opening, offers, open_in};
 
 /// Why a send went back to the user as a draft.
@@ -236,7 +236,7 @@ pub(crate) fn record_in(
         problem_in(tx, out, at, &row, problem)?;
     } else if let Some(again) = stale {
         hold_again_in(tx, out, at, outcomes, &row, &again)?;
-    } else if row.state == SENT && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
+    } else if row.state == SENT && sends_result(&row) && delivering(tx, &row.run_id)? && all_sent(tx, &row)? {
         sent_in(tx, out, at, outcomes, &row)?;
     }
     Ok(())
@@ -250,11 +250,14 @@ pub(crate) fn all_sent(tx: &dyn Tx, row: &StoredDelivery) -> Result<bool, Error>
         other.state == STOPPED && other.last_error_kind.as_deref().is_some_and(|kind| HELD_AGAIN.contains(&kind))
     };
     let rows = tx.inbox_deliveries().of_run(&row.run_id)?;
-    if !rows.iter().all(|other| other.state == SENT || superseded(other)) {
+    if !rows.iter().filter(|other| sends_result(other)).all(|other| other.state == SENT || superseded(other)) {
         return Ok(false);
     }
     let waiting = tx.inbox_items().waiting_of_routine(&row.routine_id)?;
-    Ok(!waiting.iter().any(|item| item.kind == ItemKind::Draft && item.run_id.as_deref() == Some(row.run_id.as_str())))
+    let of_run = |item: &&eos_core::store::StoredItem| {
+        item.kind == ItemKind::Draft && item.run_id.as_deref() == Some(row.run_id.as_str()) && !holds_action(item)
+    };
+    Ok(!waiting.iter().any(|item| of_run(&item)))
 }
 
 /// The run's last delivery went out: one Freedom sent ends `auto_sent`; a
@@ -357,7 +360,10 @@ pub(crate) fn hold_again_in(
     // The version the run's result was made on, kept as the gate keeps it.
     let input: Value = run.as_ref().and_then(|run| serde_json::from_str(&run.input).ok()).unwrap_or(Value::Null);
     let version = input["item"]["version"].clone();
-    let subject_key = run.as_ref().and_then(run_subject);
+    // An agent's action is about nothing the run's result is: it replaces
+    // no draft, and its run does not wait on it.
+    let result = sends_result(row);
+    let subject_key = run.as_ref().filter(|_| result).and_then(run_subject);
     let mut targets = Vec::new();
     if let Some(subject) = &subject_key {
         let held = tx.inbox_items().waiting_with_subject(subject)?;
@@ -376,7 +382,10 @@ pub(crate) fn hold_again_in(
         routine_id: Some(row.routine_id.clone()),
         run_id: Some(row.run_id.clone()),
         subject_key,
-        title: run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
+        title: match result {
+            true => run.and_then(|run| run.headline).unwrap_or_else(|| "A result to send".to_owned()),
+            false => crate::gate::action_title(&row.channel, &row.action),
+        },
         summary: again.summary().to_owned(),
         payload: {
             let mut payload = json!({
@@ -397,7 +406,7 @@ pub(crate) fn hold_again_in(
     let (item, replaced) = open_replacing_in(tx, out, at, draft)?;
     replaced_in(tx, out, outcomes, &replaced, &item)?;
     // The run waits for the user again, on this draft.
-    let held = tx.runs().find(&row.run_id)?;
+    let held = tx.runs().find(&row.run_id)?.filter(|_| result);
     if held.is_some_and(|run| matches!(run.state, RunState::Delivering | RunState::WaitingForUser)) {
         outcomes.held(tx, out, &row.run_id, &item.id)?;
     }
