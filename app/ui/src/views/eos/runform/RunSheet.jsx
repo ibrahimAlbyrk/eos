@@ -58,8 +58,12 @@ function OpenSheet({ request, routine, blueprint }) {
   const place = sheetPlace(request.anchor);
   useKeybinding({ match: sheetEscape, priority: 1, run: (ctx, e) => { e.preventDefault(); close(); } }, []);
   const style = place.where === "centre" ? undefined : sheetStyle(place, { width: window.innerWidth, height: window.innerHeight });
+  // An anchored sheet shades the screen's body under its header, so what
+  // opened it stays lit and the page's words recede behind the form.
+  const body = place.where === "centre" ? null : request.anchor.closest?.("main")?.querySelector(".eos-body")?.getBoundingClientRect();
+  const shadeTop = body ? { "--eos-shade-top": `${body.top}px`, "--eos-shade-left": `${body.left}px` } : undefined;
   return (
-    <div className={`eos-runsheet eos-runsheet--${place.where}`} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div className={`eos-runsheet eos-runsheet--${place.where}`} style={shadeTop} onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
       <div className="eos-runsheet__panel" style={style}>
         <RunForm
           routine={routine}
