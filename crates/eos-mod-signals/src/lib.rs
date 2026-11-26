@@ -133,7 +133,7 @@ pub struct SignalsParts {
     /// This computer's hook inbox on the relay; none where nothing may
     /// reach it.
     pub hooks: Option<Arc<dyn HookInbox>>,
-    /// Told when a source lost its sign-in or what it reads.
+    /// Told when a source lost its sign-in.
     pub health: Arc<dyn CapabilityHealth>,
     pub runner: Arc<dyn Runner>,
     /// Admits the runs signals start, inside the routing write.

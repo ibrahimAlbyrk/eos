@@ -8,7 +8,7 @@ use eos_core::capability::{
 };
 use eos_core::signals::SourceError;
 use eos_core::{BoxFuture, Error};
-use eos_domain::capability::health::{Event, StateCode};
+use eos_domain::capability::health::Event;
 use eos_domain::capability::schema::input_error;
 use eos_domain::result_doc::shape::ResultShape;
 use eos_domain::result_doc::{GITHUB_REVIEW, MAIL, SLACK_MESSAGE, SLACK_REPLY, TEXT};
@@ -189,13 +189,12 @@ impl CapabilityReads for CapabilityService {
 impl CapabilityHealth for CapabilityService {
     fn report<'a>(&'a self, capability_id: &'a str, error: &'a SourceError) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(async move {
-            let event = match error {
-                SourceError::Unauthorized => Event::Unauthorized,
-                SourceError::Gone => Event::Missing(StateCode::SourceGone),
-                _ => return Ok(()),
-            };
+            // A source that lost what it reads says nothing of the sign-in the others read through.
+            if *error != SourceError::Unauthorized {
+                return Ok(());
+            }
             let (id, now) = (capability_id.to_owned(), self.ports.clock.now_ms());
-            self.ports.store.write(move |tx, outbox| apply(tx, outbox, &id, event, now)).await.map(drop)
+            self.ports.store.write(move |tx, outbox| apply(tx, outbox, &id, Event::Unauthorized, now)).await.map(drop)
         })
     }
 }

@@ -91,7 +91,7 @@ pub trait CapabilityReads: Send + Sync {
 
 /// What a signal source's failure tells of its capability.
 pub trait CapabilityHealth: Send + Sync {
-    /// `Unauthorized` moves the capability to `needs_sign_in`, `Gone` to
-    /// `needs_setup`; other failures change nothing.
+    /// `Unauthorized` moves the capability to `needs_sign_in`; other
+    /// failures change nothing.
     fn report<'a>(&'a self, capability_id: &'a str, error: &'a SourceError) -> BoxFuture<'a, Result<(), Error>>;
 }

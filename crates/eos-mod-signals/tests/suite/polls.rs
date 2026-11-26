@@ -1,6 +1,6 @@
 //! The poll driver: each source on its own clock, the cursor handed back,
 //! backoff after failures, a source that lost its sign-in stopped and its
-//! capability told, the first page a baseline, a capped run of pages, the
+//! capability told, one whose thing is gone stopped alone, the first page a baseline, a capped run of pages, the
 //! catch-up after a gap, and a source nobody reads kept for later.
 
 use std::sync::Arc;
@@ -118,19 +118,33 @@ async fn a_rate_limited_source_waits_for_its_time_and_counts_no_failure() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_source_that_lost_its_sign_in_or_its_repository_stops_and_tells_its_capability() {
-    for (error, kind) in [(SourceError::Unauthorized, "unauthorized"), (SourceError::Gone, "gone")] {
-        // Polling stops: nothing is due until the capability is mended.
-        let bench = reader();
-        bench.pulls.fail(error.clone());
-        let module = started(&bench).await;
-        let stopped = row(&bench);
-        assert_eq!((stopped.state.as_str(), stopped.error_kind.as_deref()), ("needs-attention", Some(kind)));
-        assert_eq!(stopped.next_poll_at, None, "polling stops");
-        bench.until(|| bench.health.reports().len() == 1).await;
-        assert_eq!(bench.health.reports(), [("github".to_owned(), error)]);
-        module.stop().await;
-    }
+async fn a_source_that_lost_its_sign_in_stops_and_tells_its_capability() {
+    // Polling stops: nothing is due until the capability is mended.
+    let bench = reader();
+    bench.pulls.fail(SourceError::Unauthorized);
+    let module = started(&bench).await;
+    let stopped = row(&bench);
+    assert_eq!((stopped.state.as_str(), stopped.error_kind.as_deref()), ("needs-attention", Some("unauthorized")));
+    assert_eq!(stopped.next_poll_at, None, "polling stops");
+    bench.until(|| bench.health.reports().len() == 1).await;
+    assert_eq!(bench.health.reports(), [("github".to_owned(), SourceError::Unauthorized)]);
+    module.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_source_whose_repository_is_gone_stops_alone_and_tells_the_routine_that_reads_it() {
+    let bench = reader();
+    bench.pulls.fail(SourceError::Gone);
+    let module = started(&bench).await;
+    let stopped = row(&bench);
+    assert_eq!((stopped.state.as_str(), stopped.error_kind.as_deref()), ("needs-attention", Some("gone")));
+    assert_eq!(stopped.next_poll_at, None, "polling stops");
+    let notices =
+        bench.temp.store.read_blocking(|tx| tx.inbox_items().waiting_with_subject("source-gone")).expect("reads");
+    assert_eq!(notices.len(), 1, "one notice for the routine");
+    assert_eq!(notices[0].routine_id.as_deref(), Some("rt-a"));
+    assert_eq!(bench.health.reports(), [], "the capability's other sources go on");
+    module.stop().await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

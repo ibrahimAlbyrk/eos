@@ -60,7 +60,11 @@ async fn a_refused_sign_in_reads_as_unauthorized_and_marks_the_capability() {
     health.report("github", &SourceError::Gone).await.expect("reports");
     let state = eos_core::capability::CapabilityRegistry::state(rig.service().as_ref(), "github").await.expect("reads");
     let state = state.expect("github");
-    assert_eq!((state.state, state.code), (HealthState::NeedsSetup, Some(StateCode::SourceGone)));
+    assert_eq!(
+        (state.state, state.code),
+        (HealthState::NeedsSignIn, Some(StateCode::Http401)),
+        "a repository that is gone says nothing of the capability"
+    );
     health.report("github", &SourceError::Unauthorized).await.expect("reports");
     let state = eos_core::capability::CapabilityRegistry::state(rig.service().as_ref(), "github").await.expect("reads");
     assert_eq!(state.expect("github").state, HealthState::NeedsSignIn);

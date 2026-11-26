@@ -75,8 +75,15 @@ async fn a_source_whose_repository_is_gone_says_so_on_its_line() {
         triggers(&app, &routine).await["sources"][0]["errorKind"] == "gone"
     })
     .await;
-    eventually("the capability's item opens", || async { !items(&app, "capability_attention").await.is_empty() }).await;
+    eventually("a notice tells the routine", || async { !gone_notices(&app).await.is_empty() }).await;
+    assert!(items(&app, "capability_attention").await.is_empty(), "the capability still works");
+    assert_eq!(routine_row(&app, &routine).await["state"], "active", "its other triggers still start it");
     app.shutdown(Duration::from_secs(5)).await;
+}
+
+async fn gone_notices(app: &App) -> Vec<Value> {
+    let notices = items(app, "notice").await;
+    notices.into_iter().filter(|n| n["item"]["title"].as_str().is_some_and(|t| t.contains("cannot find"))).collect()
 }
 
 #[tokio::test(flavor = "multi_thread")]

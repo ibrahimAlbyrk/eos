@@ -9,7 +9,10 @@
 //! [`POLL_TIMEOUT_MS`] beyond what it may wait. A poll reads up to
 //! [`PAGES_MAX`] pages, each kept with its cursor through ingest, then
 //! settles the row: when to poll next, and what went wrong. A source that
-//! lost its sign-in or its thing stops and tells its capability.
+//! lost its sign-in stops and tells its capability. One whose thing is gone
+//! (a deleted repository, a channel that is not there) stops alone: a
+//! notice tells each routine that reads it, and the capability's other
+//! sources go on.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -19,10 +22,13 @@ use eos_contracts::{RoutineState, Trigger};
 use eos_core::capability::CapabilityHealth;
 use eos_core::routine::RoutineTriggers;
 use eos_core::signals::{PollRequest, Scope, SignalSources, SourceError};
+use eos_core::store::{Outbox, Tx};
 use eos_core::store::{Store, StoredSignalSource};
 use eos_core::{Clock, Error, Ids, Sleeper};
+use eos_domain::inbox::ItemKind;
 use eos_domain::signals::key::capability_scope;
-use serde_json::Value;
+use eos_inbox::{NewItem, Opening, notice_in};
+use serde_json::{Value, json};
 use tokio::sync::{Notify, Semaphore};
 use tokio::task::JoinSet;
 
@@ -129,6 +135,26 @@ pub(crate) fn settled(mut row: StoredSignalSource, polled: &Polled) -> StoredSig
         }
     }
     row
+}
+
+/// The subject of a routine's notice that one of its sources is gone.
+const SOURCE_GONE: &str = "source-gone";
+
+/// The day's one notice that what `routine_id` reads through a source is gone.
+fn notice_gone_in(tx: &dyn Tx, out: &mut Outbox, at: &Opening<'_>, routine_id: &str) -> Result<(), Error> {
+    let name = tx.routines().find(routine_id)?.map_or_else(|| "A routine".to_owned(), |routine| routine.name);
+    let item = NewItem {
+        kind: ItemKind::Notice,
+        producer: "signals".into(),
+        routine_id: Some(routine_id.to_owned()),
+        run_id: None,
+        subject_key: Some(SOURCE_GONE.into()),
+        title: format!("{name} cannot find something it watches"),
+        summary: "A repository or conversation that starts it is not there. Change what starts it; its other triggers still work.".into(),
+        payload: json!({}),
+        by_hand: false,
+    };
+    notice_in(tx, out, at, item).map(drop)
 }
 
 pub(crate) struct Polls {
@@ -275,11 +301,22 @@ impl Polls {
         let polled = self.read_pages(&row, focus).await;
         let error = polled.error.clone();
         let source_id = row.id.clone();
-        let job = move |tx: &dyn eos_core::store::Tx, _: &mut eos_core::store::Outbox| {
+        let readers = if error == Some(SourceError::Gone) { self.readers(&row).await } else { Vec::new() };
+        let router = self.router.clone();
+        let job = move |tx: &dyn Tx, out: &mut Outbox| {
             let Some(row) = tx.signal_sources().find(&source_id)? else { return Ok(None) };
             let before = (row.state.clone(), row.error_kind.clone());
             let row = settled(row, &polled);
             tx.signal_sources().update(&row)?;
+            let at = Opening {
+                now: polled.now,
+                ids: router.ids.as_ref(),
+                zone: router.zone.as_ref(),
+                control: router.control.as_ref(),
+            };
+            for routine_id in &readers {
+                notice_gone_in(tx, out, &at, routine_id)?;
+            }
             Ok(Some((before, row)))
         };
         match self.store.write(job).await {
@@ -287,7 +324,7 @@ impl Polls {
                 if (state, error_kind) != (row.state.clone(), row.error_kind.clone()) {
                     tracing::info!(source_id = %row.id, kind = %row.kind, state = %row.state, error_kind = row.error_kind.as_deref(), failures = row.failures, "a source's state changed");
                 }
-                if let Some(error @ (SourceError::Unauthorized | SourceError::Gone)) = &error {
+                if let Some(error @ SourceError::Unauthorized) = &error {
                     let capability =
                         row.source.as_deref().and_then(|source| source.split('.').next()).unwrap_or_default();
                     if let Err(failure) = self.health.report(capability, error).await {
@@ -300,6 +337,29 @@ impl Polls {
         }
         locked(&self.polling).remove(&row.id);
         self.kick.notify_one();
+    }
+
+    /// The active routines held here whose When reads the source of `row`.
+    async fn readers(&self, row: &StoredSignalSource) -> Vec<String> {
+        let routines = match self.router.directory.triggers().await {
+            Ok(routines) => routines,
+            Err(error) => {
+                tracing::warn!(source_id = %row.id, %error, "the routines that read a source could not be listed");
+                return Vec::new();
+            }
+        };
+        let reads = |trigger: &Trigger| match trigger {
+            Trigger::Source { source, scope, .. } => {
+                row.source.as_deref() == Some(source.as_str()) && capability_scope(source, scope).1 == row.scope_hash
+            }
+            _ => false,
+        };
+        routines
+            .iter()
+            .filter(|routine| routine.state == RoutineState::Active && self.router.holding.acts(&routine.id))
+            .filter(|routine| routine.when.on.iter().any(reads))
+            .map(|routine| routine.id.clone())
+            .collect()
     }
 
     /// Reads up to [`PAGES_MAX`] pages, each kept through ingest; the first
