@@ -61,7 +61,7 @@ for code in "$APP" "$APP"/Contents/Frameworks/*.app "$APP/Contents/MacOS/eos-app
   [ -e "$code" ] || continue
   # Read whole first: grep -q would stop early, and pipefail counts the writer's broken pipe.
   shown="$(codesign -dv "$code" 2>&1)"
-  grep -q "flags=.*(runtime)" <<<"$shown" || { echo "not under the hardened runtime: $code" >&2; exit 1; }
+  grep -qE "flags=0x[0-9a-f]+\([^)]*runtime" <<<"$shown" || { echo "not under the hardened runtime: $code" >&2; exit 1; }
 done
 # The share extension, like every extension, runs in the sandbox.
 for appex in "$APP"/Contents/PlugIns/*.appex; do
