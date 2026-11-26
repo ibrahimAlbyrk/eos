@@ -93,7 +93,7 @@ function StateActions({ routine, refusal, failed }) {
   if (routine.state === "archived") {
     return (
       <div className="eos-rlead__acts">
-        <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "active")}>Resume</button>
+        <button type="button" className="eos-btn" onClick={() => void setRoutineState(routine.id, "active")}>Bring it back</button>
       </div>
     );
   }

@@ -544,3 +544,4 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 .eos-new__veil-box svg { width: 28px; height: 28px; margin-bottom: 14px; fill: none; stroke: var(--accent); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 .eos-new__veil-title { margin: 0; font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
 .eos-new__veil-line { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-bp__lead .eos-rlead__acts { margin-top: 16px; }

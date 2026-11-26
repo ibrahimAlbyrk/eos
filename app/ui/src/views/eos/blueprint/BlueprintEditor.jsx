@@ -104,7 +104,7 @@ function endLine({ kind, draft, trials, untried }) {
 
 // The card's ending: one line of where it stands, the one primary step and
 // the quiet others, and what it costs under them.
-function Actions({ id, kind, trials, routine, blueprint, draft, untried }) {
+function Actions({ id, kind, trials, routine, blueprint, draft, untried, startsAbove = false }) {
   const tried = trials.length > 0;
   const cost = costLine(routine, blueprint, useCapabilities().list ?? []);
   const trialClass = untried ? "eos-btn eos-btn--primary" : "eos-btn eos-btn--ghost";
@@ -121,7 +121,8 @@ function Actions({ id, kind, trials, routine, blueprint, draft, untried }) {
         )}
         {kind === "newest" && !untried && (
           <>
-            <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>
+            {/* Started from the lead when the lead offers it: one place per action. */}
+            {!startsAbove && <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>}
             <button type="button" className="eos-btn eos-btn--ghost" onClick={() => void startRoutine(id, true)}>Start without a trial</button>
             {trial}
           </>
@@ -219,12 +220,19 @@ export function BlueprintEditor({ detail, versionNumber }) {
     ? <VersionMenu routineId={id} rows={rows} shown={row} inUseId={inUseId} suffix={suffix} />
     : <span className="eos-bp-card__version">Version {row.number}{suffix}</span>);
   const { name, summary, icon } = detail.routine;
+  const ready = making && view.kind === "newest" && makingLead(draft, trials) === "Ready to start.";
 
   return (
     <div className={making ? "eos-bp eos-bp--making" : "eos-bp"}>
       {making && (
         <header className="eos-bp__lead">
           <h2 className="eos-lead">{makingLead(draft, trials)}</h2>
+          {/* Ready, the one step left stands under the lead, above the fold. */}
+          {ready && (
+            <div className="eos-rlead__acts">
+              <button type="button" className="eos-btn eos-btn--primary" onClick={() => void startRoutine(id)}>Start it</button>
+            </div>
+          )}
         </header>
       )}
       <div className="eos-bp__cols">
@@ -257,6 +265,7 @@ export function BlueprintEditor({ detail, versionNumber }) {
                   blueprint={version.blueprint}
                   draft={draft}
                   untried={view.kind === "newest" ? untriedLine(draft, rows, view.versionId, trials) : null}
+                  startsAbove={ready}
                 />
               )}
             </BlueprintCard>
