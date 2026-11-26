@@ -197,9 +197,7 @@
         "grants": []
       },
       "limits": {
-        "perRunUsd": 2,
         "perRunMinutes": 30,
-        "perDayUsd": 5,
         "parallel": 1
       },
       "needs": [

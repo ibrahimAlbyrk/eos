@@ -209,7 +209,7 @@ describe("a routine being made", () => {
     expect(html).toContain('placeholder="Change anything by saying it"');
     expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);
-    expect(html).toContain('<p class="eos-bp-end__cost">Uses github. At most $2 a run, stops at $5 a day.</p>');
+    expect(html).toContain('<p class="eos-bp-end__cost">Uses github.</p>');
     expect(html).toContain('<button type="button" class="eos-bp-agent" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">Sonnet 5.5</span></button>');
     expect(html).toContain('<dd class="eos-bp-row__value">A pull request is <button type="button" class="eos-bp-value"');
     expect(html).toContain("Where the item came from, on GitHub<span class=\"eos-sr\">, locked</span>");

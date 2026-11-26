@@ -5,7 +5,7 @@ import { ROUTES } from "../../../api/routes.js";
 import { notify } from "../../../lib/notify.js";
 
 export const SETTINGS_READS = {
-  [ROUTES.routinesSettings]: { dayBudgetUsd: 5, maxParallelRuns: 2, planHeadroomPct: 20 },
+  [ROUTES.routinesSettings]: { maxParallelRuns: 2, planHeadroomPct: 20 },
   [ROUTES.signalsSettings]: { keepAwakeForSchedules: true },
   [ROUTES.settingsAttention]: { quietOn: true, quietFrom: "22:00", quietTo: "08:00", digests: ["09:00", "17:00"], interrupts: "urgent" },
   [ROUTES.memorySettings]: { learning: true, reminders: true },

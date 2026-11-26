@@ -72,6 +72,22 @@ describe("Settings › Eos", () => {
     expect(row(html, "Export what was learned")).toContain(">Export</button>");
   });
 
+  it("shows No limit while routines have no daily limit, and takes a limit away with null", async () => {
+    const send = core();
+    READS[ROUTES.routinesSettings] = { maxParallelRuns: 2, planHeadroomPct: 20 };
+    try {
+      await Promise.all([loadEosSettings(), loadHalt()]);
+      const html = renderToStaticMarkup(<EosSettings />);
+      expect(row(html, "Daily limit for all routines")).toMatch(/placeholder="No limit"[^>]*value=""/);
+      expect(row(html, "Daily limit for all routines")).not.toContain("a day</span>");
+      expect(standing(html)).not.toContain("Routines may spend");
+      await changeEosSetting("routines", { dayBudgetUsd: null });
+      expect(send.mock.calls).toEqual([["PUT", ROUTES.routinesSettings, { dayBudgetUsd: null }]]);
+    } finally {
+      READS[ROUTES.routinesSettings] = { dayBudgetUsd: 5, maxParallelRuns: 2, planHeadroomPct: 20 };
+    }
+  });
+
   it("offers Start at login through the shell's door, and leaves Doors out in a browser tab", async () => {
     core();
     await loadEosSettings();

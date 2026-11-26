@@ -28,22 +28,27 @@ function Group({ title, children }) {
   );
 }
 
+const NO_LIMIT = "No limit";
+
+// No limit unless the user sets one: an empty field (or 0) takes it away.
 function DailyLimit({ settings }) {
   const [text, setText] = useState(null);
-  const shown = text ?? String(settings.dayBudgetUsd);
+  const limit = settings.dayBudgetUsd ?? null;
+  const shown = text ?? (limit == null ? "" : String(limit));
   const save = () => {
-    const usd = Number(shown);
+    const usd = shown.trim() === "" ? 0 : Number(shown);
     setText(null);
-    if (shown.trim() !== "" && Number.isFinite(usd) && usd >= 0 && usd !== settings.dayBudgetUsd) {
-      void changeEosSetting("routines", { dayBudgetUsd: usd });
-    }
+    if (!Number.isFinite(usd) || usd < 0) return;
+    const next = usd > 0 ? usd : null;
+    if (next !== limit) void changeEosSetting("routines", { dayBudgetUsd: next });
   };
+  const width = shown.length || NO_LIMIT.length;
   return (
-    <Row label="Daily limit for all routines" description="Routines stop starting for the day once together they have spent this much.">
+    <Row label="Daily limit for all routines" description="Routines stop starting for the day once together they have spent this much. Leave it empty for no limit.">
       <label className="eos-stg__money">
-        <span aria-hidden="true">$</span>
-        <input aria-label="Daily limit in dollars" inputMode="decimal" value={shown} style={{ width: `${Math.max(shown.length, 1) + 0.5}ch` }} onChange={(e) => setText(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
-        <span className="eos-stg__unit">a day</span>
+        {shown !== "" && <span aria-hidden="true">$</span>}
+        <input aria-label="Daily limit in dollars" inputMode="decimal" placeholder={NO_LIMIT} value={shown} style={{ width: `${width + 0.5}ch` }} onChange={(e) => setText(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
+        {shown !== "" && <span className="eos-stg__unit">a day</span>}
       </label>
     </Row>
   );
@@ -208,7 +213,7 @@ function Standing({ routines }) {
   }
   let words = ["Stop everything", "No routine runs and nothing is sent until you resume."];
   if (on) words = [`Eos is stopped${halt.since != null ? ` since ${sinceAt(halt.since)}` : ""}.`, words[1]];
-  else if (halt) words = ["Eos is running on this Mac.", `${routines ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
+  else if (halt) words = ["Eos is running on this Mac.", `${routines?.dayBudgetUsd != null ? `Routines may spend $${routines.dayBudgetUsd} a day together. ` : ""}Stop everything halts every run and every send at once.`];
   let tone = "";
   if (halt) tone = on ? " eos-stg__fact--err" : " eos-stg__fact--ok";
   return (

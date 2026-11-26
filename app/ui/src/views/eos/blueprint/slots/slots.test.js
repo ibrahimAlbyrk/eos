@@ -205,4 +205,11 @@ describe("the cost line", () => {
     const capabilities = [{ id: "github", name: "GitHub" }, { id: "unity-docs", name: "Unity docs" }];
     expect(costLine({ usual: { usd: 0.38 } }, bp, capabilities)).toBe("Uses GitHub and Unity docs. About $0.38 a pull request, stops at $5 a day.");
   });
+
+  it("claims no dollar limit a routine does not have, and names one set by hand", () => {
+    const bp = { limits: { perRunMinutes: 30, parallel: 1 }, takes: { kind: "none", label: "nothing" } };
+    expect(costLine(null, bp)).toBe("");
+    expect(costLine({ usual: { usd: 0.4 } }, bp)).toBe("About $0.40 a run.");
+    expect(costLine(null, { limits: { perRunUsd: 2, perDayUsd: 5 } })).toBe("At most $2 a run, stops at $5 a day.");
+  });
 });

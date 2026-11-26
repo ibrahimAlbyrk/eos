@@ -6,7 +6,8 @@ const andList = (names) => (names.length < 2 ? names.join("") : `${names.slice(0
 const usd = (n) => `$${Number.isInteger(n) ? n : n.toFixed(2)}`;
 
 // "Uses GitHub and Unity docs. About $0.38 a pull request, stops at $5 a
-// day." A capability is named by its name once `capabilities` holds it.
+// day." A dollar limit shows only when the blueprint has one; a capability
+// is named by its name once `capabilities` holds it.
 export function costLine(routine, bp, capabilities = []) {
   const sentences = [];
   const needs = (bp.needs ?? []).filter((n) => typeof n === "string").map((id) => capabilities.find((c) => c.id === id)?.name ?? id);
