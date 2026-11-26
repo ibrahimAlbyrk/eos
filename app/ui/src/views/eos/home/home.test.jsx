@@ -11,6 +11,7 @@ import { SAMPLE_READS } from "../gallery/EosGallery.jsx";
 import { homeNext, homeRuns } from "../gallery/sample/home.js";
 import inbox from "../gallery/sample/inbox.json";
 import { HomeScreen } from "./HomeScreen.jsx";
+import { ARC_R, ARC_TOP, arcRadius, skyHeight, skyMask } from "./Horizon.jsx";
 import { _resetPins, refreshPins } from "../../../state/eos/pinsStore.js";
 import { tileAction, tileLocation, tileStatus, tileWhen } from "./PinnedTiles.jsx";
 
@@ -225,5 +226,28 @@ describe("Home's first paint", () => {
   it("asks the handled count since the last visit, as index.html names it", () => {
     expect(summaryPath(null)).toBe("/api/signals/summary");
     expect(summaryPath(1763452800000)).toBe("/api/signals/summary?since=1763452800000");
+  });
+});
+
+describe("the horizon's circle", () => {
+  it("leaves the page at both sides at every width, at most 320 px below its crest", () => {
+    for (let page = 724; page <= 2560; page += 4) {
+      const r = arcRadius(page);
+      expect(r).toBeGreaterThanOrEqual(page / 2);
+      expect(r).toBeGreaterThanOrEqual(ARC_R);
+      const drop = r - Math.sqrt(r * r - (page / 2) ** 2);
+      expect(drop).toBeLessThanOrEqual(321);
+      expect(skyHeight(page)).toBeGreaterThan(ARC_TOP + drop);
+    }
+  });
+
+  it("keeps the 1800 px circle of the design in a page that size or smaller", () => {
+    expect(arcRadius(1140)).toBe(ARC_R);
+    expect(arcRadius(2000)).toBeGreaterThan(ARC_R);
+  });
+
+  it("fades only in the last few pixels at each edge", () => {
+    expect(skyMask(2000)).toBe("linear-gradient(to right, transparent, #000 72px, #000 1928px, transparent)");
+    expect(skyMask(980)).toBe("linear-gradient(to right, transparent, #000 59px, #000 921px, transparent)");
   });
 });

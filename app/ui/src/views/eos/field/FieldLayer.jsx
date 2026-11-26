@@ -39,7 +39,9 @@ function arcCircle(W, H) {
   const el = typeof document === "undefined" ? null : document.querySelector(".eos-home .eos-horizon__sky");
   if (!el) return { x: W / 2, y: H + ARC_R, r: ARC_R };
   const rect = el.getBoundingClientRect();
-  return { x: rect.left + rect.width / 2, y: rect.top + ARC_TOP + ARC_R, r: ARC_R };
+  // The circle grows with a wide page: Horizon says how big it drew it.
+  const r = Number(el.dataset.r) || ARC_R;
+  return { x: rect.left + rect.width / 2, y: rect.top + ARC_TOP + r, r };
 }
 
 // Each of Home's day dots flies to its routine's disc, or to the centre.
