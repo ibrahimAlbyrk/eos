@@ -470,7 +470,7 @@ button.eos-bp-agent:hover { background: var(--row-on); }
 /* The first step in the reading measure, as Home asks: a label, the
    question, one quiet line, the input and sentences to start from; then
    the two other ways in and what a blueprint holds, on hairlines. */
-.eos-new { display: flex; flex-direction: column; gap: 0; padding-top: 32px; }
+.eos-new { display: flex; flex-direction: column; gap: 0; }
 .eos-new--hand { padding-top: 8px; gap: 24px; }
 .eos-new__head { display: flex; flex-direction: column; gap: 8px; }
 .eos-new--hand .eos-new__head { gap: 4px; }

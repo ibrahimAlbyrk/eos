@@ -2,7 +2,7 @@
    greets; the way from a sentence to a routine as a beat not yet begun;
    sentences to start from on hairlines. */
 
-.eos-first { display: flex; flex-direction: column; padding-top: 40px; }
+.eos-first { display: flex; flex-direction: column; }
 .eos-first__head { display: flex; flex-direction: column; gap: 8px; }
 .eos-first__ask, .eos-first__dim {
   margin: 0;

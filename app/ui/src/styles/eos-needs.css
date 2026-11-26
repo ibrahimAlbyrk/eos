@@ -60,7 +60,6 @@
 .eos-needs-row:hover .eos-btn:not(.eos-btn--quiet), .eos-needs-row.on .eos-btn:not(.eos-btn--quiet) { background: var(--solid-btn-bg); color: var(--solid-btn-fg); }
 
 /* Nothing waits: a first step's greeting, the last answer, what comes here. */
-.eos-needs-none { padding-top: 24px; }
 .eos-needs-none__facts { display: flex; flex-direction: column; gap: 8px; margin-top: 28px; }
 .eos-needs-none__facts .eos-needs-agents { margin: 0; }
 .eos-needs-none > .eos-section { margin-top: 56px; }

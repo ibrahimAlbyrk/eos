@@ -562,7 +562,6 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
 /* ── All routines ─────────────────────────────────────────────────────────── */
 .eos-routines { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; container-type: inline-size; }
 .eos-routines > .eos-note, .eos-routines > .eos-skeleton { align-self: stretch; }
-.eos-routines__head { padding-top: 16px; }
 .eos-routines > .eos-seg { margin-top: 8px; }
 .eos-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--fg-mute); }
 .eos-dot--ok { background: var(--ok); }
@@ -683,10 +682,11 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-way__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
 .eos-way__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 
-/* A screen whose read failed: Home's reading column, centred in the window and
-   set a little above the middle, the err mark hung in the margin before what
-   could not be read so the words keep the column's edge. */
-.eos-failed { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; box-sizing: border-box; width: 100%; max-width: 760px; margin: clamp(24px, 14vh, 168px) auto 0; }
+/* A screen whose read failed: said where the screen's lead stands, on the
+   frame's edge and at the body's top, so it takes the loading rows' place
+   without a jump; the err mark hangs in the margin before what could not be
+   read so the words keep the edge. */
+.eos-failed { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; box-sizing: border-box; width: 100%; max-width: 760px; margin: 0; }
 .eos-failed__what { position: relative; }
 .eos-failed__what::before { content: ""; position: absolute; left: -22px; top: 0.5em; width: 9px; height: 9px; border-radius: 50%; background: var(--err); box-shadow: 0 0 0 4px color-mix(in srgb, var(--err) 22%, transparent); }
 .eos-failed > .eos-rlead__acts { margin-top: 16px; }

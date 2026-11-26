@@ -172,8 +172,8 @@ export function Fact({ tone, role, className, children, actions }) {
   );
 }
 
-// A screen whose read failed, said as its lead in a reading column centred
-// in the window: the err mark before what could not be read, that Eos did
+// A screen whose read failed, said where its lead stands (the frame's edge,
+// the body's top): the err mark before what could not be read, that Eos did
 // not answer, Try again, and the quiet way `back` ({ label, location }).
 export function FailedLead({ what, retry, back }) {
   return (
