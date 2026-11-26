@@ -4,7 +4,8 @@
 
 import { linkThing, pathThing } from "../input/things.js";
 
-const SNIPPET = 48;
+// About two lines of the chip, which wraps before it cuts.
+const SNIPPET = 110;
 
 function textLabel(text, app) {
   const line = text.trim().split(/\s+/).join(" ");

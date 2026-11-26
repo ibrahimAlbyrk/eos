@@ -25,7 +25,7 @@ describe("what a door holds for the quick panel", () => {
   it("becomes the Home input's things, the selection saying where it came from", () => {
     const things = heldThings(shortcut);
     expect(things.map((t) => [t.kind, t.label])).toEqual([
-      ["text", "From Safari: Shader variant stripping cuts the build by a th…"],
+      ["text", "From Safari: Shader variant stripping cuts the build by a third, with the numbers below"],
       ["link", "example.com/shaders"],
       ["file", "build-report-1182.txt"],
       ["folder", "game"],
