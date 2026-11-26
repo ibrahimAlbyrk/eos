@@ -16,6 +16,17 @@ function Toggle() {
   );
 }
 
+// While the panel is hidden its place says what it holds, as a ghost of it.
+function Hidden() {
+  const ui = useUi();
+  if (ui.showSidePanel) return null;
+  return (
+    <div className="eos-project__ghost">
+      <p>The project&apos;s tools open here beside its steps, working in its folder, and its App once you keep it.</p>
+    </div>
+  );
+}
+
 // The routine's App opens in its own tab once it is in use: only after its
 // review and its tests passed and the user kept it.
 function OpenApp({ routineId }) {
@@ -45,6 +56,7 @@ export function ProjectPanel({ routineId, repo }) {
           <Toggle />
         </div>
         <OpenApp routineId={routineId} />
+        <Hidden />
         <div className="eos-project__panel sp-host is-panel-open">
           <SidePanel surface="eos" />
         </div>

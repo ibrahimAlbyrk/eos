@@ -29,8 +29,8 @@
   list-style: none;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent 8px, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent calc(100% - 8px));
+  mask-image: linear-gradient(to right, transparent 8px, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent calc(100% - 8px));
 }
 .eos-station { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; font-size: var(--text-sm); color: var(--fg-dim2); text-align: center; }
 .eos-station::before, .eos-station::after {
@@ -130,8 +130,8 @@
 .eos-rlead__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 /* Why Resume waits: the core's words, then each recipient to confirm on a
    hairline with a hollow warn mark; Review the change leads the actions. */
-.eos-rlead > .eos-refusal { display: flex; flex-direction: column; align-items: stretch; gap: 12px; max-width: 560px; margin-top: 4px; }
-.eos-rlead > .eos-refusal .eos-band__text { flex: none; font-size: var(--text-base); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
+.eos-rlead > .eos-refusal { display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin-top: 4px; }
+.eos-rlead > .eos-refusal .eos-band__text { flex: none; max-width: 64ch; font-size: var(--text-base); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 .eos-rlead .eos-recipients { flex-direction: column; flex-wrap: nowrap; gap: 0; border-top: 1px solid var(--line); }
 .eos-rlead .eos-recipients li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-radius: 0; border-bottom: 1px solid var(--line); background: none; font-size: var(--text-sm); color: var(--fg); }
 .eos-rlead .eos-recipients li::before { content: ""; flex: none; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; border: 1px solid var(--warn); }
@@ -149,8 +149,8 @@
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent 8px, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent calc(100% - 8px));
+  mask-image: linear-gradient(to right, transparent 8px, #000 var(--bleed), #000 calc(100% - var(--bleed)), transparent calc(100% - 8px));
 }
 /* Room above the marks for a run's title, inside the line's mask; the room
    lies over what is above, so only the marks take the pointer. */
@@ -366,3 +366,11 @@ button.eos-beat__mark:hover .eos-beat__dot { box-shadow: 0 0 0 4px color-mix(in 
 .eos-holder--away { color: var(--warn); }
 .eos-holder--away .eos-btn { margin-left: 6px; }
 .eos-routine > .eos-holder { margin-top: 0; }
+
+/* A project's Tell the team stays under its steps at every width, never
+   floating over them. */
+.eos-project .eos-run__tell { position: static; margin-top: 16px; }
+/* The hidden side panel's place: a dashed ghost saying what it holds. */
+.eos-project__ghost { display: flex; align-items: center; min-height: 160px; padding: 20px; box-sizing: border-box; border: 1px dashed var(--line-strong, #2e2e2e); border-radius: 14px; }
+.eos-project__ghost p { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim2); text-wrap: pretty; }
+.eos-project__aside:has(.eos-project__ghost) .eos-project__panel { display: none; }
