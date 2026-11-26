@@ -37,6 +37,23 @@ const withLiveTest = (state) => changed(PROPOSAL, (d) => ({
   },
 }));
 
+// The item `id` waiting in the list as well, counted as the core counts it,
+// so the badge, the sidebar and the item's pager say one number.
+const listed = (id) => (s) => {
+  const list = s[ROUTES.inbox];
+  const detail = s[ROUTES.inboxItem(id)];
+  if (!detail || list.items.some((i) => i.id === id)) return s;
+  const { item } = detail;
+  const bump = (counts, key) => (key ? { ...counts, [key]: (counts[key] ?? 0) + 1 } : counts);
+  const counts = {
+    ...list.counts,
+    ...(item.state === "later" ? { later: list.counts.later + 1 } : { open: list.counts.open + 1 }),
+    byKind: bump(list.counts.byKind, item.kind),
+    byRoutine: bump(list.counts.byRoutine, item.routineId),
+  };
+  return { ...s, [ROUTES.inbox]: { ...list, items: [...list.items, item], counts } };
+};
+
 // Every sample item waiting in the list, each as the list reads it.
 function everything(s) {
   const list = s[ROUTES.inbox];
@@ -65,16 +82,16 @@ function pageDraft(s) {
 
 const clickText = (text) => () => [...document.querySelectorAll(".eos-body button")].find((b) => b.textContent.trim().startsWith(text))?.click();
 
-const kind = (id, label, name) => ({ id: name, label: `Needs you · ${label}`, location: at(id) });
+const kind = (id, label, name) => ({ id: name, label: `Needs you · ${label}`, location: at(id), reads: listed(id) });
 
 export const NEEDS_STATES = [
   { id: "needs-lots", label: "Needs you · a lot waiting", location: "eos:/needs", reads: everything },
   { id: "needs-loading", label: "Needs you · loading", location: "eos:/needs", answer: "loading" },
   { id: "needs-error", label: "Needs you · cannot read", location: "eos:/needs", answer: "error" },
   { id: "need-edit", label: "Needs you · a draft being edited", location: at(DRAFT), then: clickText("Edit") },
-  { id: "need-mail", label: "Needs you · a mail to send", location: at("ib-6t1y5u9i3o7p") },
-  { id: "need-mail-edit", label: "Needs you · a mail being edited", location: at("ib-6t1y5u9i3o7p"), then: clickText("Edit") },
-  { id: "need-text", label: "Needs you · a note to send", location: at("ib-2a5s9d3f7g1h") },
+  { id: "need-mail", label: "Needs you · a mail to send", location: at("ib-6t1y5u9i3o7p"), reads: listed("ib-6t1y5u9i3o7p") },
+  { id: "need-mail-edit", label: "Needs you · a mail being edited", location: at("ib-6t1y5u9i3o7p"), reads: listed("ib-6t1y5u9i3o7p"), then: clickText("Edit") },
+  { id: "need-text", label: "Needs you · a note to send", location: at("ib-2a5s9d3f7g1h"), reads: listed("ib-2a5s9d3f7g1h") },
   { id: "need-stale", label: "Needs you · a draft its subject moved past", location: at(DRAFT), reads: withItem({ staleAt: Date.now() - 2 * MIN, staleReason: "3 new commits" }) },
   {
     id: "need-holding", label: "Needs you · a draft in its hold", location: at(DRAFT),
@@ -103,7 +120,7 @@ export const NEEDS_STATES = [
   kind("perm:pa-7f3k1m9q", "a run asks to use a tool", "need-permission"),
   kind("ib-5q1w9e3r7t2y", "a routine paused", "need-alert"),
   kind("ib-1q5w9e3r7t0y", "a send that failed", "need-problem"),
-  { id: "need-problem-edit", label: "Needs you · a failed send being edited", location: at("ib-1q5w9e3r7t0y"), then: clickText("Edit and retry") },
+  { id: "need-problem-edit", label: "Needs you · a failed send being edited", location: at("ib-1q5w9e3r7t0y"), reads: listed("ib-1q5w9e3r7t0y"), then: clickText("Edit and retry") },
   kind("ib-6f2g8h4j0k1l", "more freedom offered", "need-freedom"),
   kind(PROPOSAL, "a capability proposed", "need-install"),
   ...[["not_run", "test"], ["sent", "sent"], ["failed", "failed"], ["alerted", "reached"], ["not_alerted", "missed"]].map(([state, name]) => ({
