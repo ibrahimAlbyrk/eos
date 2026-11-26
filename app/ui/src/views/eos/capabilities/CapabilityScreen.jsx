@@ -333,7 +333,7 @@ export function RemoveDialog({ detail, names, onClose }) {
       actions={(
         <>
           <button type="button" className="eos-btn eos-btn--quiet" onClick={onClose}>Cancel</button>
-          <button type="button" className="eos-btn eos-btn--primary" onClick={() => void remove()}>Remove</button>
+          <button type="button" className="eos-btn eos-btn--stop" onClick={() => void remove()}>Remove</button>
         </>
       )}
     />

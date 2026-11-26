@@ -324,8 +324,11 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
   position: fixed; inset: 0; z-index: 480;
   display: flex; align-items: center; justify-content: center; padding: 24px;
   background: var(--eos-scrim);
+  /* A slight blur under the shade, so words behind it read as ground, not text. */
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   animation: eos-ask-shade 180ms cubic-bezier(.2, .8, .2, 1) both;
 }
+@media (prefers-reduced-transparency: reduce) { .eos-ask-shade { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--bg) 96%, transparent); } }
 .eos-ask {
   width: min(460px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box;
   display: flex; flex-direction: column; padding: 24px 24px 20px;
@@ -349,6 +352,9 @@ html.native[data-os="windows"] .app.side-collapsed .eos-head { --eos-inset: 48px
 .eos-ask__wrong { margin: 12px 0 0; font-size: var(--text-sm); line-height: 1.5; color: var(--err); }
 .eos-ask__acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .eos-ask__acts .eos-btn { height: 32px; padding: 0 16px; }
+/* An act that cannot be taken back is filled in the err tone, never the safe light primary. */
+.eos-ask__acts .eos-btn--stop { background: color-mix(in srgb, var(--err) 20%, transparent); color: var(--err); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 55%, transparent); }
+.eos-ask__acts .eos-btn--stop:hover { background: color-mix(in srgb, var(--err) 30%, transparent); color: var(--fg-strong); }
 /* Only the act is a filled button; Cancel and the other ways out are words. */
 .eos-ask__acts .eos-btn:not(.eos-btn--primary, .eos-btn--stop) { background: none; color: var(--fg-mid); }
 .eos-ask__acts .eos-btn:not(.eos-btn--primary, .eos-btn--stop):hover { background: var(--row-on); color: var(--fg-strong); }

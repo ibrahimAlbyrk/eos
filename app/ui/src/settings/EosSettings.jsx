@@ -161,7 +161,7 @@ export function ForgetDialog({ onClose }) {
       actions={(
         <>
           <button type="button" className="eos-btn eos-btn--quiet" onClick={onClose}>Cancel</button>
-          <button type="button" className="eos-btn eos-btn--primary" onClick={forget}>Forget everything</button>
+          <button type="button" className="eos-btn eos-btn--stop" onClick={forget}>Forget everything</button>
         </>
       )}
     />
