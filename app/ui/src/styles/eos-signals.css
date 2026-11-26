@@ -108,12 +108,13 @@
 .eos-stg__ghost-fact, .eos-stg__ghost-means { display: block; height: 14px; border-radius: 7px; background: var(--raised); }
 .eos-stg__ghost-fact { width: 300px; height: 20px; margin: 6px 0 14px; }
 .eos-stg__ghost-means { width: 420px; max-width: 100%; }
-/* A switch in Eos's hand: a small hairline track, on in the ok tone. */
-.eos-stg .stg-toggle { width: 30px; height: 18px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease); }
-.eos-stg .stg-toggle__knob { top: 3px; left: 3px; width: 12px; height: 12px; background: var(--fg-dim); transition: transform 160ms var(--ease), background-color 140ms var(--ease); }
-.eos-stg .stg-toggle.is-on { background: color-mix(in srgb, var(--ok) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
-.eos-stg .stg-toggle.is-on .stg-toggle__knob { background: var(--ok); transform: translateX(12px); }
-.eos-stg .stg-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* A switch in Eos's hand (Settings › Eos, the dream log): a small hairline
+   track, on in the ok tone. */
+.eos-stg .stg-toggle, .eos-mem-log .stg-toggle { width: 30px; height: 18px; background: var(--chip); box-shadow: inset 0 0 0 1px var(--line); transition: background-color 140ms var(--ease), box-shadow 140ms var(--ease); }
+.eos-stg .stg-toggle__knob, .eos-mem-log .stg-toggle__knob { top: 3px; left: 3px; width: 12px; height: 12px; background: var(--fg-dim); transition: transform 160ms var(--ease), background-color 140ms var(--ease); }
+.eos-stg .stg-toggle.is-on, .eos-mem-log .stg-toggle.is-on { background: color-mix(in srgb, var(--ok) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
+.eos-stg .stg-toggle.is-on .stg-toggle__knob, .eos-mem-log .stg-toggle.is-on .stg-toggle__knob { background: var(--ok); transform: translateX(12px); }
+.eos-stg .stg-toggle:focus-visible, .eos-mem-log .stg-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .eos-stg__group { margin-top: 36px; }
 .eos-stg .stg-group + .stg-group { margin-top: 36px; }
 .eos-stg__label { margin: 0 0 4px; }
