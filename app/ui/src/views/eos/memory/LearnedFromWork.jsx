@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRoutines } from "../../../state/eos/routinesStore.js";
 import { loadMoreNotes, loadNotes, notesPath, useNotes } from "../../../state/eos/notesStore.js";
 import { LoadFailed, LoadingRows } from "../capabilities/parts.jsx";
-import { Fact, Ring } from "../frame.jsx";
+import { Fact, Ways } from "../frame.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
 import { routineScope } from "../routine/WhatItLearned.jsx";
 import { foundLine, KIND_FILTERS, provenance, scopeName, sourceWord, strengthSteps } from "./words.js";
@@ -105,20 +105,7 @@ function NothingYet() {
         <p className="eos-mem-first__title">Nothing learned from work yet.</p>
         <p className="eos-mem-first__line">Eos writes a note down when you correct its work or a run fails and something fixes it. Each note shows here with what taught it.</p>
       </div>
-      <section className="eos-mem-ways" aria-label="How Eos learns">
-        <h2 className="eos-label">How Eos learns</h2>
-        <ul className="eos-mem-ways__list">
-          {WAYS.map(([title, line, d]) => (
-            <li key={title} className="eos-mem-way">
-              <Ring d={d} />
-              <span className="eos-mem-way__text">
-                <span className="eos-mem-way__title">{title}</span>
-                <span className="eos-mem-way__line">{line}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Ways id="eos-mem-ways" label="How Eos learns" ways={WAYS} />
     </div>
   );
 }

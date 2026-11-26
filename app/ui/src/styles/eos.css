@@ -642,6 +642,18 @@ th.eos-rtable__num .eos-rtable__sort { text-align: right; }
 .eos-fact--err { color: var(--err); }
 .eos-fact--err::before { border-color: var(--err); background: var(--err); }
 .eos-fact .eos-btn { height: 28px; padding: 0 12px; font-size: var(--text-sm); }
+/* How a place fills (Ways): a glossary on hairlines whose columns fill the
+   measure, one row of them when the window is wide. */
+.eos-ways { display: flex; flex-direction: column; gap: 12px; container-type: inline-size; }
+.eos-ways .eos-label { margin: 0; }
+.eos-ways__list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; border-top: 1px solid var(--line); }
+@container (min-width: 960px) { .eos-ways__list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (max-width: 520px) { .eos-ways__list { grid-template-columns: minmax(0, 1fr); } }
+.eos-way { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.eos-way__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.eos-way__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.eos-way__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
+
 /* A screen whose read failed: Home's reading column, centred in the window and
    set a little above the middle, the err mark hung in the margin before what
    could not be read so the words keep the column's edge. */

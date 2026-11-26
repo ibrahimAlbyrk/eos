@@ -112,16 +112,9 @@
 
 /* Nothing learned yet: what the place is for, then how Eos learns as a
    glossary in two columns on hairlines. */
-.eos-mem-first { display: flex; flex-direction: column; gap: 40px; max-width: 760px; padding-top: 8px; }
+.eos-mem-first { display: flex; flex-direction: column; gap: 40px; padding-top: 8px; }
 .eos-mem-first__title { margin: 0; font-size: var(--text-xl); font-weight: 500; color: var(--fg-strong); }
 .eos-mem-first__line { margin: 6px 0 0; max-width: 56ch; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-dim); }
-.eos-mem-ways { display: flex; flex-direction: column; gap: 12px; }
-.eos-mem-ways .eos-label { margin: 0; }
-.eos-mem-ways__list { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); column-gap: 32px; border-top: 1px solid var(--line); }
-.eos-mem-way { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-.eos-mem-way__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.eos-mem-way__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
-.eos-mem-way__line { font-size: var(--text-sm); line-height: 1.5; color: var(--fg-dim); text-wrap: pretty; }
 
 /* While no note is open, its place holds how to read a row: the marks said
    once on hairlines, in the note's width so opening one moves nothing. It

@@ -188,6 +188,28 @@ export function FailedLead({ what, retry, back }) {
   );
 }
 
+// How a place fills, said once as a glossary on hairlines: each way a glyph
+// (a 16-viewBox path) in its ring, a title and one line. The columns fill
+// the measure, so a wide window holds the ways in one row.
+export function Ways({ id, label, ways }) {
+  return (
+    <section className="eos-ways" aria-labelledby={id}>
+      <h2 id={id} className="eos-label">{label}</h2>
+      <ul className="eos-ways__list">
+        {ways.map(([title, line, d]) => (
+          <li key={title} className="eos-way">
+            <Ring d={d} />
+            <span className="eos-way__text">
+              <span className="eos-way__title">{title}</span>
+              <span className="eos-way__line">{line}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // A hand-off of a few steps drawn as stations on one line, as a run's are:
 // `names` in order, the one it is `at` lit in its `tone` with its word from
 // `words` under its name (breathing while `working`), the way behind solid,

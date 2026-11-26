@@ -177,3 +177,7 @@
 .eos-sign-in .eos-fact { margin-top: 14px; }
 .eos-sign-in__quiet { margin: 10px 0 0; font-size: var(--text-xs); color: var(--fg-dim2); }
 .eos-ask .eos-beat__dot { --bg: var(--raised); }
+
+/* No capabilities yet: the greeting, its one act, then how one comes. */
+.eos-caps-first > .eos-rlead__acts { margin-top: 24px; }
+.eos-caps-first > .eos-ways { margin-top: 56px; }

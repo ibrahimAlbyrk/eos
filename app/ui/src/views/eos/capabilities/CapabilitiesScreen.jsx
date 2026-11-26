@@ -3,7 +3,7 @@ import { ensureCapabilitiesLoaded, refreshCapabilities, useCapabilities } from "
 import { ensureInboxLoaded, useInbox } from "../../../state/eos/inboxStore.js";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { buildLocation, openLocation } from "../nav/eosNav.js";
-import { EmptyState, FailedLead, Ring, Section } from "../frame.jsx";
+import { FailedLead, Ring, Section, Ways } from "../frame.jsx";
 import { numberWord } from "../home/homeWords.js";
 import { DevRunNote, FixButton, LoadingRows, OfflineNote } from "./parts.jsx";
 import { SignInSheet } from "./SignInSheet.jsx";
@@ -78,6 +78,32 @@ export function capabilitiesLead(list) {
 // eos:/capabilities: what Eos and its agents can reach, grouped by what they
 // need from the user, each with its state, the one action that fixes a bad
 // state and who uses it; the Forge's proposals first, waiting for a yes.
+// How a capability comes to Eos, each said once.
+const WAYS = [
+  ["The Forge makes one", "When a routine needs something Eos cannot do yet, the Forge writes it and asks for your yes in Needs you.", "M8 2.5l1.4 4.1 4.1 1.4-4.1 1.4L8 13.5l-1.4-4.1L2.5 8l4.1-1.4z"],
+  ["You sign in", "A service waits here until you sign in to it, and says so with its fix.", "M6 7V5a2 2 0 0 1 4 0v2M4.5 7h7v6h-7z"],
+  ["Another Mac shares it", "What you set up on one of your Macs shows here too, with where it works.", "M2.5 4h7v5h-7zM6.5 12.5h7v-5M4.5 11.5h2"],
+  ["From a registry", "A server or a skill added from a registry, with what it may do.", "M3 4.5h10M3 8h10M3 11.5h6"],
+];
+
+// No capabilities yet, as a first step: what this place is for, said as Home
+// greets; how a capability comes; and the one way to start, a routine.
+function CapabilitiesFirst() {
+  return (
+    <div className="eos-first eos-caps-first">
+      <header className="eos-first__head">
+        <p className="eos-label">Capabilities</p>
+        <h2 className="eos-first__ask">Nothing to reach yet.</h2>
+        <p className="eos-first__dim">The services, programs and skills your routines reach show here.</p>
+      </header>
+      <div className="eos-rlead__acts">
+        <button type="button" className="eos-btn eos-btn--primary" onClick={() => openLocation("eos:/routines/new")}>New routine</button>
+      </div>
+      <Ways id="eos-caps-ways" label="How Eos gets one" ways={WAYS} />
+    </div>
+  );
+}
+
 export function CapabilitiesScreen() {
   const { list, listFailed, devRun } = useCapabilities();
   const inbox = useInbox();
@@ -89,13 +115,7 @@ export function CapabilitiesScreen() {
 
   let body;
   if (list === null) body = listFailed ? <FailedLead what="capabilities" retry={() => void refreshCapabilities()} /> : <LoadingRows rows={5} />;
-  else if (list.length === 0) {
-    body = (
-      <EmptyState title="Nothing to reach yet">
-        Eos has no capabilities yet. When a routine needs a service, a program or a skill, it shows here with what it may do and what it needs from you.
-      </EmptyState>
-    );
-  } else {
+  else if (list.length === 0) body = <CapabilitiesFirst />; else {
     body = (
       <>
         <header className="eos-rlead eos-caps-lead">
